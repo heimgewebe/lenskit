@@ -47,9 +47,10 @@ def _flatten_meta(d: Dict[str, Any]) -> Dict[str, Any]:
     Helper to flatten nested 'meta' dicts (legacy v1 compatibility).
     Returns a new dict with top-level keys merged from d['meta'] if present.
     Uses setdefault to avoid overwriting existing top-level keys.
+    Removes the nested 'meta' key from the result.
     """
     merged = dict(d)
-    meta = d.get("meta")
+    meta = merged.pop("meta", None)
     if isinstance(meta, dict):
         for k, v in meta.items():
             merged.setdefault(k, v)
