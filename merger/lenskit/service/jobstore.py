@@ -1,5 +1,6 @@
 import json
 import threading
+import itertools
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os
@@ -87,32 +88,31 @@ class JobStore:
             except FileNotFoundError:
                 return []
 
-    def read_log_chunk(self, job_id: str, offset: int) -> List[tuple[str, int]]:
+    def read_log_chunk(self, job_id: str, last_line_id: int) -> List[tuple[str, int]]:
         with self._lock:
             p = self.logs_dir / f"{job_id}.log"
             if not p.exists():
                 return []
 
             try:
-                with p.open("rb") as f:
-                    f.seek(offset)
-                    chunk = f.read()
+                # Optimized read: Skip lines without loading them into memory list
+                # Use islice to skip 'last_line_id' lines efficiently
+                with p.open("r", encoding="utf-8", errors="replace") as f:
+                    # Skip previous lines
+                    if last_line_id > 0:
+                        # Consumes iterator O(last_line_id) but O(1) memory
+                        next(itertools.islice(f, last_line_id, last_line_id), None)
 
-                if not chunk:
-                    return []
+                    # Read remaining lines
+                    new_lines = []
+                    current_id = last_line_id
 
-                # Split lines keeping separators to calculate accurate offsets
-                raw_lines = chunk.splitlines(keepends=True)
+                    for line in f:
+                        current_id += 1
+                        new_lines.append((line.rstrip('\n'), current_id))
 
-                result = []
-                current_offset = offset
-                for line_bytes in raw_lines:
-                    current_offset += len(line_bytes)
-                    # Decode to string for display, stripping newline for data payload
-                    line_str = line_bytes.decode("utf-8", errors="replace").rstrip("\n\r")
-                    result.append((line_str, current_offset))
+                    return new_lines
 
-                return result
             except FileNotFoundError:
                 return []
             except Exception:
