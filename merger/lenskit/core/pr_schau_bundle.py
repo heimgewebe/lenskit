@@ -23,6 +23,7 @@ except ImportError:
     jsonschema = None
 
 
+BUNDLE_FILENAME = "bundle.json"
 SCHEMA_PATH = Path(__file__).parents[1] / "contracts" / "pr-schau.v1.schema.json"
 
 # Legacy keys that must never appear at top-level in v1 bundle.json
@@ -89,10 +90,10 @@ def load_pr_schau_bundle(
         _raise(f"Invalid verify_level: {verify_level}")
 
     target = Path(bundle_dir_or_json)
-    bundle_json = target / "bundle.json" if target.is_dir() else target
+    bundle_json = target / BUNDLE_FILENAME if target.is_dir() else target
 
     if not bundle_json.exists():
-        _raise(f"bundle.json not found: {bundle_json}")
+        _raise(f"{BUNDLE_FILENAME} not found: {bundle_json}")
 
     try:
         data = json.loads(bundle_json.read_text("utf-8"))

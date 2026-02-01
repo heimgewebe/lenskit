@@ -31,10 +31,6 @@ ALLOW_CONTAINS: Tuple[str, ...] = (
     "cli/pr_schau_verify.py",
     "tests/",
     "core/extractor.py",  # Allowed because it generates the bundle
-    # Legacy / UI components that we haven't refactored yet:
-    # TEMP ALLOWLIST: must be removed once Pythonista frontend calls the canonical loader.
-    # Tracked by: TODO(issue): migrate pythonista consumer to load_pr_schau_bundle(...)
-    "frontends/pythonista/repolens.py",
 )
 
 # Extra allow: if you later add a dedicated migrator, whitelist it explicitly here, e.g.:
