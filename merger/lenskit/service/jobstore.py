@@ -87,6 +87,37 @@ class JobStore:
             except FileNotFoundError:
                 return []
 
+    def read_log_chunk(self, job_id: str, offset: int) -> List[tuple[str, int]]:
+        with self._lock:
+            p = self.logs_dir / f"{job_id}.log"
+            if not p.exists():
+                return []
+
+            try:
+                with p.open("rb") as f:
+                    f.seek(offset)
+                    chunk = f.read()
+
+                if not chunk:
+                    return []
+
+                # Split lines keeping separators to calculate accurate offsets
+                raw_lines = chunk.splitlines(keepends=True)
+
+                result = []
+                current_offset = offset
+                for line_bytes in raw_lines:
+                    current_offset += len(line_bytes)
+                    # Decode to string for display, stripping newline for data payload
+                    line_str = line_bytes.decode("utf-8", errors="replace").rstrip("\n\r")
+                    result.append((line_str, current_offset))
+
+                return result
+            except FileNotFoundError:
+                return []
+            except Exception:
+                return []
+
     def remove_job(self, job_id: str):
         with self._lock:
             self._remove_job_internal(job_id)

@@ -539,12 +539,13 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
 
             # Read logs from file (async safe)
             # Use abstracted provider to allow deterministic mocking in tests
-            logs = await run_in_threadpool(state.log_provider.read_log_lines, job_id)
+            # Optimized: read chunks using offset (byte offset or line index depending on provider)
+            chunk_data = await run_in_threadpool(state.log_provider.read_log_chunk, job_id, last_idx)
 
-            if len(logs) > last_idx:
-                for i, line in enumerate(logs[last_idx:], start=last_idx + 1):
-                    yield f"id: {i}\ndata: {line}\n\n"
-                last_idx = len(logs)
+            if chunk_data:
+                for line, new_offset in chunk_data:
+                    yield f"id: {new_offset}\ndata: {line}\n\n"
+                    last_idx = new_offset
 
             # Check status for completion
             current_job = await run_in_threadpool(state.job_store.get_job, job_id)
@@ -553,10 +554,11 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
 
             if current_job.status in ["succeeded", "failed", "canceled"]:
                 # Ensure we sent everything
-                logs = await run_in_threadpool(state.log_provider.read_log_lines, job_id)
-                if len(logs) > last_idx:
-                    for i, line in enumerate(logs[last_idx:], start=last_idx + 1):
-                        yield f"id: {i}\ndata: {line}\n\n"
+                chunk_data = await run_in_threadpool(state.log_provider.read_log_chunk, job_id, last_idx)
+                if chunk_data:
+                    for line, new_offset in chunk_data:
+                        yield f"id: {new_offset}\ndata: {line}\n\n"
+                        last_idx = new_offset
 
                 yield "event: end\ndata: end\n\n"
                 break
