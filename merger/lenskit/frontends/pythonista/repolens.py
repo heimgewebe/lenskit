@@ -190,7 +190,7 @@ try:
         ExtrasConfig,
         parse_human_size,
     )
-    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, PRSchauBundleError, BUNDLE_FILENAME
+    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
 except ImportError:
     sys.path.append(str(SCRIPT_DIR.parent.parent.parent))
     from lenskit.core.merge import (
@@ -205,7 +205,7 @@ except ImportError:
         ExtrasConfig,
         parse_human_size,
     )
-    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, PRSchauBundleError, BUNDLE_FILENAME
+    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
 
 PROFILE_DESCRIPTIONS = {
     # Kurzbeschreibung der Profile für den UI-Hint
@@ -1715,9 +1715,11 @@ class MergerUI(object):
                             bj_raw, _ = load_pr_schau_bundle(ts_dir, strict=False, verify_level="none")
                             bj = _flatten_meta(bj_raw)
 
-                            if "created_at" in bj:
+                            # legacy created_at / v1 generated_at
+                            ts_source = bj.get("created_at") or bj.get("generated_at")
+                            if ts_source:
                                 # Normalize the JSON timestamp too
-                                ts_sort = _normalize_ts(bj["created_at"])
+                                ts_sort = _normalize_ts(ts_source)
                         except Exception:
                             pass
 
