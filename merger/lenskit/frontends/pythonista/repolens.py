@@ -46,12 +46,14 @@ def _flatten_meta(d: Dict[str, Any]) -> Dict[str, Any]:
     """
     Helper to flatten nested 'meta' dicts (legacy v1 compatibility).
     Returns a new dict with top-level keys merged from d['meta'] if present.
+    Uses setdefault to avoid overwriting existing top-level keys.
     """
-    if "meta" in d and isinstance(d["meta"], dict):
-        merged = dict(d)
-        merged.update(d["meta"])
-        return merged
-    return d
+    merged = dict(d)
+    meta = d.get("meta")
+    if isinstance(meta, dict):
+        for k, v in meta.items():
+            merged.setdefault(k, v)
+    return merged
 
 
 DEFAULT_LEVEL = "max"
@@ -1715,8 +1717,9 @@ class MergerUI(object):
                             bj_raw, _ = load_pr_schau_bundle(ts_dir, strict=False, verify_level="none")
                             bj = _flatten_meta(bj_raw)
 
-                            # legacy created_at / v1 generated_at
-                            ts_source = bj.get("created_at") or bj.get("generated_at")
+                            # legacy created_at / v1 generated_at / fallback ts
+                            candidates = [bj.get("created_at"), bj.get("generated_at"), bj.get("ts")]
+                            ts_source = next((x for x in candidates if x), None)
                             if ts_source:
                                 # Normalize the JSON timestamp too
                                 ts_sort = _normalize_ts(ts_source)
