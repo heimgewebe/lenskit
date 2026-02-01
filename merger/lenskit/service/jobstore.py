@@ -1,10 +1,11 @@
 import json
 import threading
 import itertools
+import collections
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from .models import Job, Artifact
 
 try:
@@ -88,7 +89,7 @@ class JobStore:
             except FileNotFoundError:
                 return []
 
-    def read_log_chunk(self, job_id: str, last_line_id: int) -> List[tuple[str, int]]:
+    def read_log_chunk(self, job_id: str, last_line_id: int) -> List[Tuple[str, int]]:
         with self._lock:
             p = self.logs_dir / f"{job_id}.log"
             if not p.exists():
@@ -100,8 +101,9 @@ class JobStore:
                 with p.open("r", encoding="utf-8", errors="replace") as f:
                     # Skip previous lines
                     if last_line_id > 0:
-                        # Consumes iterator O(last_line_id) but O(1) memory
-                        next(itertools.islice(f, last_line_id, last_line_id), None)
+                        # Consumes iterator O(last_line_id) but O(1) memory.
+                        # Using collections.deque with maxlen=0 is a standard idiom for consuming iterators.
+                        collections.deque(itertools.islice(f, last_line_id), maxlen=0)
 
                     # Read remaining lines
                     new_lines = []
@@ -109,7 +111,8 @@ class JobStore:
 
                     for line in f:
                         current_id += 1
-                        new_lines.append((line.rstrip('\n'), current_id))
+                        # Robustly strip CRLF (Windows) and LF (Unix)
+                        new_lines.append((line.rstrip('\r\n'), current_id))
 
                     return new_lines
 
