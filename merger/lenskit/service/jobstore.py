@@ -119,6 +119,8 @@ class JobStore:
             except FileNotFoundError:
                 return []
             except Exception:
+                # Swallow exceptions to prevent SSE stream crashes.
+                # Logs may be rotated/deleted/corrupted, but service must stay up.
                 return []
 
     def remove_job(self, job_id: str):

@@ -1,5 +1,4 @@
 from typing import Protocol, List, Tuple
-from pathlib import Path
 from .jobstore import JobStore
 
 class LogProvider(Protocol):
