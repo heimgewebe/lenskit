@@ -6,6 +6,17 @@ class LogProvider(Protocol):
         ...
 
     def read_log_chunk(self, job_id: str, last_line_id: int) -> List[Tuple[str, int]]:
+        """
+        Read a chunk of log lines starting after `last_line_id`.
+
+        Args:
+            last_line_id: The ID of the last line successfully sent (1-based index).
+                          0 indicates no lines have been sent yet.
+
+        Returns:
+            A list of (line_content, next_line_id) tuples.
+            `next_line_id` is the strictly monotonic, 1-based ID for `line_content`.
+        """
         ...
 
 class FileLogProvider:
