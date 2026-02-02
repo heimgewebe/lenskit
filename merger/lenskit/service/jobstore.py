@@ -2,6 +2,7 @@ import json
 import threading
 import itertools
 import collections
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os
@@ -12,6 +13,8 @@ try:
     from ..core.merge import MERGES_DIR_NAME, get_merges_dir
 except ImportError:
     from merger.lenskit.core.merge import MERGES_DIR_NAME, get_merges_dir
+
+logger = logging.getLogger(__name__)
 
 class JobStore:
     def __init__(self, hub_path: Path):
@@ -99,11 +102,14 @@ class JobStore:
                 # Optimized read: Skip lines without loading them into memory list
                 # Use islice to skip 'last_line_id' lines efficiently
                 with p.open("r", encoding="utf-8", errors="replace") as f:
+                    # Defensively clamp last_line_id to 0 to avoid negative indexing issues
+                    skip_count = max(0, last_line_id)
+
                     # Skip previous lines
-                    if last_line_id > 0:
-                        # Consumes iterator O(last_line_id) but O(1) memory.
+                    if skip_count > 0:
+                        # Consumes iterator O(skip_count) but O(1) memory.
                         # Using collections.deque with maxlen=0 is a standard idiom for consuming iterators.
-                        collections.deque(itertools.islice(f, last_line_id), maxlen=0)
+                        collections.deque(itertools.islice(f, skip_count), maxlen=0)
 
                     # Read remaining lines
                     new_lines = []
@@ -118,9 +124,10 @@ class JobStore:
 
             except FileNotFoundError:
                 return []
-            except Exception:
+            except Exception as e:
                 # Swallow exceptions to prevent SSE stream crashes.
                 # Logs may be rotated/deleted/corrupted, but service must stay up.
+                logger.debug("read_log_chunk failed for %s: %s", job_id, e)
                 return []
 
     def remove_job(self, job_id: str):

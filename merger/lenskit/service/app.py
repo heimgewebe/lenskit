@@ -541,7 +541,7 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
 
             # Read logs from file (async safe)
             # Use abstracted provider to allow deterministic mocking in tests
-            # Optimized: read chunks using line skip (O(1) memory, O(N) IO time)
+            # Optimized: read chunks using line skip (O(1) memory, preserves line-based semantics)
             chunk_data = await run_in_threadpool(state.log_provider.read_log_chunk, job_id, last_idx)
 
             if chunk_data:
