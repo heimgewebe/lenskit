@@ -109,7 +109,7 @@ class JobStore:
                         )
 
                     new_lines: List[Tuple[str, int]] = []
-                    current_id = skip_count  # IDs match 1-based line numbers in file
+                    current_id = skip_count  # current_id is last_sent_line_id (1-based); next line gets +1
 
                     for line in f:
                         current_id += 1
