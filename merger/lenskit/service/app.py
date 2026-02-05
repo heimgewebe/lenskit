@@ -519,13 +519,12 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
     start_idx = 0
     if request.headers.get("Last-Event-ID"):
         try:
-            start_idx = int(request.headers.get("Last-Event-ID"))
-            if start_idx < 0:
-                raise ValueError("Negative ID")
+            # Last-Event-ID is a 1-based line id; negative values are clamped defensively
+            start_idx = max(0, int(request.headers.get("Last-Event-ID")))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Last-Event-ID")
     elif last_id is not None:
-        start_idx = last_id
+        start_idx = max(0, last_id)
 
     async def log_generator():
         # last_idx here represents 'last_line_id' (1-based index)

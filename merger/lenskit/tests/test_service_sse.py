@@ -147,13 +147,21 @@ def test_sse_edge_cases(service_client, monkeypatch):
         assert response.status_code == 400
         assert "Invalid Last-Event-ID" in response.text
 
-        # EDGE CASE 1.5: Last-Event-ID = negative -> HTTP 400
+        # EDGE CASE 1.5: Last-Event-ID = negative -> Clamped to 0 (Success)
         neg_headers = ctx.headers.copy()
         neg_headers["Last-Event-ID"] = "-1"
 
-        response = ctx.client.get(url, headers=neg_headers)
-        assert response.status_code == 400
-        assert "Invalid Last-Event-ID" in response.text
+        with ctx.client.stream("GET", url, headers=neg_headers) as response:
+            lines = list(response.iter_lines())
+            # Robust decode: iter_lines() might yield bytes or str depending on client/version
+            decoded = [
+                (l.decode("utf-8") if isinstance(l, (bytes, bytearray)) else l)
+                for l in lines if l
+            ]
+
+            # Should start from beginning (clamped to 0)
+            assert any(l.startswith("id: 1") for l in decoded)
+            assert any(l.startswith("data: line1") for l in decoded)
 
         # EDGE CASE 2: Last-Event-ID > len(logs) -> event: end (no logs)
         headers_future = ctx.headers.copy()
@@ -181,6 +189,19 @@ def test_sse_edge_cases(service_client, monkeypatch):
             # Should not resend line 3
             assert not any("data: line" in l for l in decoded)
             assert "event: end" in decoded
+
+        # EDGE CASE 4: last_id query param = negative -> Clamped to 0
+        with ctx.client.stream("GET", f"{url}?last_id=-1", headers=ctx.headers) as response:
+            lines = list(response.iter_lines())
+            # Robust decode
+            decoded = [
+                (l.decode("utf-8") if isinstance(l, (bytes, bytearray)) else l)
+                for l in lines if l
+            ]
+
+            # Should start from beginning
+            assert any(l.startswith("id: 1") for l in decoded)
+            assert any(l.startswith("data: line1") for l in decoded)
 
     finally:
         # Restore provider
