@@ -153,11 +153,15 @@ def test_sse_edge_cases(service_client, monkeypatch):
 
         with ctx.client.stream("GET", url, headers=neg_headers) as response:
             lines = list(response.iter_lines())
-            decoded = [l for l in lines if l]
+            # Robust decode: iter_lines() might yield bytes or str depending on client/version
+            decoded = [
+                (l.decode("utf-8") if isinstance(l, (bytes, bytearray)) else l)
+                for l in lines if l
+            ]
 
             # Should start from beginning (clamped to 0)
-            assert "id: 1" in decoded
-            assert "data: line1" in decoded
+            assert any(l.startswith("id: 1") for l in decoded)
+            assert any(l.startswith("data: line1") for l in decoded)
 
         # EDGE CASE 2: Last-Event-ID > len(logs) -> event: end (no logs)
         headers_future = ctx.headers.copy()
@@ -189,11 +193,15 @@ def test_sse_edge_cases(service_client, monkeypatch):
         # EDGE CASE 4: last_id query param = negative -> Clamped to 0
         with ctx.client.stream("GET", f"{url}?last_id=-1", headers=ctx.headers) as response:
             lines = list(response.iter_lines())
-            decoded = [l for l in lines if l]
+            # Robust decode
+            decoded = [
+                (l.decode("utf-8") if isinstance(l, (bytes, bytearray)) else l)
+                for l in lines if l
+            ]
 
             # Should start from beginning
-            assert "id: 1" in decoded
-            assert "data: line1" in decoded
+            assert any(l.startswith("id: 1") for l in decoded)
+            assert any(l.startswith("data: line1") for l in decoded)
 
     finally:
         # Restore provider
