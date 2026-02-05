@@ -109,7 +109,7 @@ class JobStore:
                         )
 
                     new_lines: List[Tuple[str, int]] = []
-                    current_id = skip_count  # ensures 1-based, monotonic IDs
+                    current_id = skip_count  # IDs match 1-based line numbers in file
 
                     for line in f:
                         current_id += 1
@@ -119,10 +119,11 @@ class JobStore:
 
             except FileNotFoundError:
                 return []
-            except Exception:
+            except Exception as e:
                 logger.debug(
-                    "read_log_chunk failed for %s",
+                    "read_log_chunk failed for %s: %s",
                     job_id,
+                    e,
                     exc_info=True
                 )
                 return []
