@@ -113,7 +113,8 @@ class JobStore:
 
                     # Read remaining lines
                     new_lines = []
-                    current_id = last_line_id
+                    # Ensure strictly monotonic and 1-based IDs, even if last_line_id was negative
+                    current_id = skip_count
 
                     for line in f:
                         current_id += 1
@@ -127,7 +128,7 @@ class JobStore:
             except Exception as e:
                 # Swallow exceptions to prevent SSE stream crashes.
                 # Logs may be rotated/deleted/corrupted, but service must stay up.
-                logger.debug("read_log_chunk failed for %s: %s", job_id, e)
+                logger.debug("read_log_chunk failed for %s", job_id, exc_info=True)
                 return []
 
     def remove_job(self, job_id: str):
