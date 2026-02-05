@@ -127,7 +127,7 @@ class JobStore:
             except Exception as e:
                 # Swallow exceptions to prevent SSE stream crashes.
                 # Logs may be rotated/deleted/corrupted, but service must stay up.
-                logger.debug("read_log_chunk failed for %s", job_id, exc_info=True)
+                logger.debug("read_log_chunk failed for %s: %s", job_id, e, exc_info=True)
                 return []
 
     def remove_job(self, job_id: str):
