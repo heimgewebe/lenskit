@@ -16,7 +16,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 class JobStore:
     def __init__(self, hub_path: Path):
         self.hub_path = hub_path
@@ -54,12 +53,14 @@ class JobStore:
                     print(f"Error loading artifacts: {e}")
 
     def _save_jobs(self):
+        # Must be called under lock
         tmp_file = self.jobs_file.with_suffix(".tmp")
         data = [j.model_dump() for j in self._jobs_cache.values()]
         tmp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         tmp_file.rename(self.jobs_file)
 
     def _save_artifacts(self):
+        # Must be called under lock
         tmp_file = self.artifacts_file.with_suffix(".tmp")
         data = [a.model_dump() for a in self._artifacts_cache.values()]
         tmp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -98,34 +99,36 @@ class JobStore:
                 return []
 
             try:
+                # Optimized read: Skip lines without loading them into memory list
+                # Use islice to skip 'last_line_id' lines efficiently
                 with p.open("r", encoding="utf-8", errors="replace") as f:
-                    # Defensive clamp to guarantee non-negative progression
+                    # Defensively clamp last_line_id to 0 to avoid negative indexing issues
                     skip_count = max(0, last_line_id)
 
+                    # Skip previous lines
                     if skip_count > 0:
-                        collections.deque(
-                            itertools.islice(f, skip_count),
-                            maxlen=0
-                        )
+                        # Consumes iterator O(skip_count) but O(1) memory.
+                        # Using collections.deque with maxlen=0 is a standard idiom for consuming iterators.
+                        collections.deque(itertools.islice(f, skip_count), maxlen=0)
 
-                    new_lines: List[Tuple[str, int]] = []
-                    current_id = skip_count  # current_id is last_sent_line_id (1-based); next line gets +1
+                    # Read remaining lines
+                    new_lines = []
+                    # Ensure strictly monotonic and 1-based IDs, even if last_line_id was negative
+                    current_id = skip_count
 
                     for line in f:
                         current_id += 1
-                        new_lines.append((line.rstrip("\r\n"), current_id))
+                        # Robustly strip CRLF (Windows) and LF (Unix)
+                        new_lines.append((line.rstrip('\r\n'), current_id))
 
                     return new_lines
 
             except FileNotFoundError:
                 return []
             except Exception as e:
-                logger.debug(
-                    "read_log_chunk failed for %s: %s",
-                    job_id,
-                    e,
-                    exc_info=True
-                )
+                # Swallow exceptions to prevent SSE stream crashes.
+                # Logs may be rotated/deleted/corrupted, but service must stay up.
+                logger.debug("read_log_chunk failed for %s", job_id, exc_info=True)
                 return []
 
     def remove_job(self, job_id: str):
@@ -135,37 +138,55 @@ class JobStore:
             self._save_artifacts()
 
     def _remove_job_internal(self, job_id: str):
+        # Internal helper, expects lock
         job = self._jobs_cache.get(job_id)
         if not job:
             return
 
         def _safe_unlink(base: Path, rel: str) -> None:
-            if not rel or os.path.isabs(rel):
+            """
+            Best-effort deletion but never outside base directory.
+            Reject absolute paths and traversal.
+            """
+            if not rel:
+                return
+            # Disallow absolute paths
+            if os.path.isabs(rel):
                 return
             try:
                 target = (base / rel).resolve()
-                target.relative_to(base.resolve())
+                base_r = base.resolve()
+                # Ensure target is within base
+                target.relative_to(base_r)
+            except Exception:
+                return
+            try:
                 if target.exists():
                     target.unlink()
             except Exception:
                 pass
 
+        # Remove artifacts and physical files
         for art_id in job.artifact_ids:
             art = self._artifacts_cache.get(art_id)
             if art:
+                # Attempt physical deletion (best effort)
                 try:
-                    merges_dir = (
-                        Path(art.params.merges_dir)
-                        if art.params.merges_dir
-                        else get_merges_dir(Path(art.hub))
-                    )
+                    merges_dir = None
+                    if art.params.merges_dir:
+                        merges_dir = Path(art.params.merges_dir)
+                    else:
+                        merges_dir = get_merges_dir(Path(art.hub))
+
                     if merges_dir.exists():
                         for fname in art.paths.values():
                             _safe_unlink(merges_dir, fname)
                 except Exception:
                     pass
+
                 del self._artifacts_cache[art_id]
 
+        # Remove logs
         log_p = self.logs_dir / f"{job_id}.log"
         try:
             if log_p.exists():
@@ -173,7 +194,9 @@ class JobStore:
         except Exception:
             pass
 
-        self._jobs_cache.pop(job_id, None)
+        # Remove job
+        if job_id in self._jobs_cache:
+            del self._jobs_cache[job_id]
 
     def get_job(self, job_id: str) -> Optional[Job]:
         with self._lock:
@@ -181,29 +204,23 @@ class JobStore:
 
     def get_all_jobs(self) -> List[Job]:
         with self._lock:
-            return sorted(
-                self._jobs_cache.values(),
-                key=lambda x: x.created_at,
-                reverse=True,
-            )
+            # Sort by created_at desc
+            return sorted(self._jobs_cache.values(), key=lambda x: x.created_at, reverse=True)
 
     def find_job_by_hash(self, content_hash: str) -> Optional[Job]:
         with self._lock:
-            candidates = [
-                j for j in self._jobs_cache.values()
-                if j.content_hash == content_hash
-            ]
+            candidates = [j for j in self._jobs_cache.values() if j.content_hash == content_hash]
             if not candidates:
                 return None
 
-            active = [
-                j for j in candidates
-                if j.status in ("queued", "running", "canceling")
-            ]
-            if active:
-                return max(active, key=lambda x: x.created_at)
+            # Priority: running/queued/canceling > succeeded/failed/canceled
+            # Within priority: newest created_at
 
-            return max(candidates, key=lambda x: x.created_at)
+            active = [j for j in candidates if j.status in ("queued", "running", "canceling")]
+            if active:
+                return sorted(active, key=lambda x: x.created_at, reverse=True)[0]
+
+            return sorted(candidates, key=lambda x: x.created_at, reverse=True)[0]
 
     def cleanup_jobs(self, max_jobs: int = 100, max_age_hours: int = 24):
         now = datetime.now(timezone.utc)
@@ -211,35 +228,39 @@ class JobStore:
 
         with self._lock:
             to_remove = set()
-            all_jobs = sorted(
-                self._jobs_cache.values(),
-                key=lambda x: x.created_at,
-                reverse=True,
-            )
+            all_jobs = sorted(self._jobs_cache.values(), key=lambda x: x.created_at, reverse=True)
 
+            # 1. Age check
             for job in all_jobs:
                 try:
                     s = job.created_at
                     if s.endswith("Z"):
                         s = s[:-1] + "+00:00"
                     dt = datetime.fromisoformat(s)
+                    # Handle backward compatibility for naive timestamps from old persisted jobs
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
 
-                    if dt < limit_time and job.status not in (
-                        "queued", "running", "canceling"
-                    ):
-                        to_remove.add(job.id)
+                    if dt < limit_time:
+                        if job.status not in ("queued", "running", "canceling"):
+                            to_remove.add(job.id)
                 except Exception:
                     pass
 
+            # 2. Count check
             remaining = [j for j in all_jobs if j.id not in to_remove]
+
             finished = [j for j in remaining if j.status not in ("queued", "running", "canceling")]
             active = [j for j in remaining if j.status in ("queued", "running", "canceling")]
 
             capacity = max(0, max_jobs - len(active))
-            for j in finished[capacity:]:
-                to_remove.add(j.id)
+
+            if len(finished) > capacity:
+                for j in finished[capacity:]:
+                    to_remove.add(j.id)
+
+            if not to_remove:
+                return
 
             for job_id in to_remove:
                 self._remove_job_internal(job_id)
@@ -259,8 +280,4 @@ class JobStore:
 
     def get_all_artifacts(self) -> List[Artifact]:
         with self._lock:
-            return sorted(
-                self._artifacts_cache.values(),
-                key=lambda x: x.created_at,
-                reverse=True,
-            )
+            return sorted(self._artifacts_cache.values(), key=lambda x: x.created_at, reverse=True)

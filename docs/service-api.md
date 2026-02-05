@@ -11,6 +11,7 @@ The server guarantees:
 
 ### Edge Cases
 - **Garbage Last-Event-ID**: If the `Last-Event-ID` header contains non-numeric values, the server responds with **HTTP 400**.
+- **Negative last_id (query)**: Negative values are clamped to 0 defensively.
 - **Future ID**: If `Last-Event-ID` > `len(logs)`, the stream returns only `event: end`.
 - **Reconnect after completion**: If the job is already finished and `Last-Event-ID` matches the total log count, the stream returns only `event: end`.
 
