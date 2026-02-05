@@ -3,7 +3,7 @@ import logging
 import time
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Pattern, Union
+from typing import List, Dict, Any, Optional, Pattern, Union, Tuple
 from datetime import datetime, timezone
 import fnmatch
 import re
@@ -201,15 +201,15 @@ class AtlasScanner:
                     # Don't recurse into .git
                     dirs.remove(".git")
 
+                # Pre-calculate prefix for children
+                prefix = "" if rel_path_str == "." else rel_path_str + "/"
+
                 # Filter dirs in-place (Pruning)
                 # We must check if the dir ITSELF is excluded to prune it from walk
                 kept_dirs = []
                 for d in dirs:
                     # Construct relative path string for child directory
-                    if rel_path_str == ".":
-                        d_rel = d
-                    else:
-                        d_rel = f"{rel_path_str}/{d}"
+                    d_rel = prefix + d
 
                     if self._is_excluded(d_rel):
                         continue
@@ -219,16 +219,14 @@ class AtlasScanner:
                 dir_bytes = 0
 
                 # Filter files for this directory
-                kept_files = []
+                # Store Tuple[str, str] -> (filename, relative_path)
+                kept_files: List[Tuple[str, str]] = []
                 for f in files:
                     # Construct relative path string for file
-                    if rel_path_str == ".":
-                        f_rel = f
-                    else:
-                        f_rel = f"{rel_path_str}/{f}"
+                    f_rel = prefix + f
 
                     if not self._is_excluded(f_rel):
-                        kept_files.append(f)
+                        kept_files.append((f, f_rel))
 
                 # Directory Inventory
                 if dirs_inv_f:
@@ -246,7 +244,7 @@ class AtlasScanner:
 
                 self.stats["truncated"]["dirs_seen"] += 1
 
-                for f in kept_files:
+                for f, f_rel in kept_files:
                     f_path = current_root / f
                     # Exclusion check already done
 
@@ -276,9 +274,9 @@ class AtlasScanner:
                         # Inventory Output
                         if inv_f:
                             is_txt = is_probably_text(f_path, size)
-                            file_rel = f_path.relative_to(self.root).as_posix()
+                            # Use reused relative path string
                             entry = {
-                                "rel_path": file_rel,
+                                "rel_path": f_rel,
                                 "name": f,
                                 "ext": ext,
                                 "size_bytes": size,
