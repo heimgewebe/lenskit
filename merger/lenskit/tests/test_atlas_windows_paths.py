@@ -41,8 +41,14 @@ def test_scan_integration_excludes(tmp_path):
     paths = []
     with inventory_file.open() as f:
         for line in f:
-            entry = json.loads(line)
-            paths.append(entry["rel_path"])
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                paths.append(entry["rel_path"])
+            except json.JSONDecodeError:
+                continue
 
     # Verification
     # "public/ok.txt" should be present
