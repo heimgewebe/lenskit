@@ -136,7 +136,8 @@ class AtlasScanner:
             str_path = rel_path.as_posix()
         else:
             # Assume string is already relative path. Ensure POSIX slashes.
-            str_path = path.replace("\\", "/")
+            # Conditional replacement: only replace if backslash is present
+            str_path = path if "\\" not in path else path.replace("\\", "/")
 
         if self._exclude_regex.fullmatch(str_path):
             return True
