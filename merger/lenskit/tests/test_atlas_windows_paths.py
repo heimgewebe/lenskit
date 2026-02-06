@@ -22,6 +22,22 @@ def test_is_excluded_handles_mixed_slashes_glob():
 
     assert scanner._is_excluded("project\\node_modules/package.json") is True
 
+def test_is_excluded_rejects_absolute_and_traversal_strings():
+    # Guardrail tests for string inputs to enforce relative semantics
+    # Glob pattern doesn't matter much here, checking guardrail logic
+    scanner = AtlasScanner(Path("."), exclude_globs=["**/*.txt"])
+
+    # Absolute POSIX path
+    assert scanner._is_excluded("/etc/passwd") is True
+
+    # Parent traversal
+    assert scanner._is_excluded("../secret/file.txt") is True
+    assert scanner._is_excluded("subdir/../file.txt") is True
+
+    # Windows drive letter (absolute)
+    assert scanner._is_excluded("C:\\secret\\file.txt") is True
+    assert scanner._is_excluded("D:/data/file.txt") is True
+
 def test_scan_integration_excludes(tmp_path):
     # Setup temp directory structure
     (tmp_path / "public").mkdir()

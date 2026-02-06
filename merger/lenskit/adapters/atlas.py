@@ -147,6 +147,19 @@ class AtlasScanner:
             # Conditional replacement: only replace if backslash is present
             str_path = path if "\\" not in path else path.replace("\\", "/")
 
+            # Guardrails for string inputs to enforce relative semantics
+            # Reject absolute POSIX paths (start with /)
+            if str_path.startswith("/"):
+                return True
+
+            # Reject drive letters (e.g. C:/)
+            if len(str_path) >= 2 and str_path[1] == ":" and str_path[0].isalpha():
+                return True
+
+            # Reject traversal attempts
+            if str_path == ".." or str_path.startswith("../") or str_path.endswith("/..") or "/../" in str_path:
+                return True
+
         if self._exclude_regex.fullmatch(str_path):
             return True
         return False
