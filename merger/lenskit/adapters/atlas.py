@@ -3,7 +3,7 @@ import logging
 import time
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Pattern
+from typing import List, Dict, Any, Optional, Pattern, Union, Tuple
 from datetime import datetime, timezone
 import fnmatch
 import re
@@ -125,15 +125,43 @@ class AtlasScanner:
         combined = "|".join(regex_parts)
         return re.compile(combined, flags)
 
-    def _is_excluded(self, path: Path) -> bool:
+    def _is_excluded(self, path: Union[Path, str]) -> bool:
+        """
+        Checks if a path is excluded based on glob patterns.
+
+        Args:
+            path: Path object or relative path string.
+                  If string, it MUST be relative to root and use POSIX separators (/)
+                  unless it contains backslashes which will be normalized.
+        """
         # Check against globs
         # We match relative path from root
-        try:
-            rel_path = path.relative_to(self.root)
-        except ValueError:
-            return True # Should not happen if walking from root
+        if isinstance(path, Path):
+            try:
+                rel_path = path.relative_to(self.root)
+            except ValueError:
+                return True # Should not happen if walking from root
+            str_path = rel_path.as_posix()
+        else:
+            # Assume string is already relative path. Ensure POSIX slashes.
+            # Conditional replacement: only replace if backslash is present
+            str_path = path if "\\" not in path else path.replace("\\", "/")
 
-        str_path = rel_path.as_posix()
+            # Guardrails for string inputs to enforce relative semantics
+            # Reject absolute POSIX paths (start with /)
+            if str_path.startswith("/"):
+                # Special check: UNC paths normalized to //server/share should be rejected too
+                # startswith("/") covers "//" as well
+                return True
+
+            # Reject drive letters (e.g. C:/)
+            if len(str_path) >= 2 and str_path[1] == ":" and str_path[0].isalpha():
+                return True
+
+            # Reject traversal attempts
+            if str_path == ".." or str_path.startswith("../") or str_path.endswith("/..") or "/../" in str_path:
+                return True
+
         if self._exclude_regex.fullmatch(str_path):
             return True
         return False
@@ -169,13 +197,22 @@ class AtlasScanner:
             for root, dirs, files in os.walk(self.root, topdown=True):
                 current_root = Path(root)
 
-                # Check exclusions for current root (prune traversal)
-                if self._is_excluded(current_root):
+                # Calculate relative path string once
+                try:
+                    rel_path_obj = current_root.relative_to(self.root)
+                except ValueError:
+                    # Should not happen
                     dirs[:] = []
                     continue
 
-                rel_path = current_root.relative_to(self.root)
-                depth = len(rel_path.parts) if str(rel_path) != "." else 0
+                rel_path_str = rel_path_obj.as_posix()
+
+                # Check exclusions for current root (prune traversal)
+                if self._is_excluded(rel_path_str):
+                    dirs[:] = []
+                    continue
+
+                depth = len(rel_path_obj.parts) if rel_path_str != "." else 0
 
                 if depth > self.max_depth:
                     dirs[:] = []
@@ -184,18 +221,21 @@ class AtlasScanner:
 
                 # Check for .git to mark repo node
                 if ".git" in dirs:
-                    self.stats["repo_nodes"].append(str(rel_path))
+                    self.stats["repo_nodes"].append(rel_path_str)
                     # Don't recurse into .git
                     dirs.remove(".git")
+
+                # Pre-calculate prefix for children
+                prefix = "" if rel_path_str == "." else rel_path_str + "/"
 
                 # Filter dirs in-place (Pruning)
                 # We must check if the dir ITSELF is excluded to prune it from walk
                 kept_dirs = []
                 for d in dirs:
-                    d_path = current_root / d
-                    # Note: We check exclusion of the CHILD directory here.
-                    # This relies on pattern matching relative path from ROOT.
-                    if self._is_excluded(d_path):
+                    # Construct relative path string for child directory
+                    d_rel = prefix + d
+
+                    if self._is_excluded(d_rel):
                         continue
                     kept_dirs.append(d)
                 dirs[:] = kept_dirs
@@ -203,16 +243,19 @@ class AtlasScanner:
                 dir_bytes = 0
 
                 # Filter files for this directory
-                kept_files = []
+                # Store Tuple[str, str] -> (filename, relative_path)
+                kept_files: List[Tuple[str, str]] = []
                 for f in files:
-                    f_path = current_root / f
-                    if not self._is_excluded(f_path):
-                        kept_files.append(f)
+                    # Construct relative path string for file
+                    f_rel = prefix + f
+
+                    if not self._is_excluded(f_rel):
+                        kept_files.append((f, f_rel))
 
                 # Directory Inventory
                 if dirs_inv_f:
                     entry = {
-                        "rel_path": rel_path.as_posix(),
+                        "rel_path": rel_path_str,
                         "depth": depth,
                         "n_files": len(kept_files),
                         "n_dirs": len(dirs),
@@ -225,7 +268,7 @@ class AtlasScanner:
 
                 self.stats["truncated"]["dirs_seen"] += 1
 
-                for f in kept_files:
+                for f, f_rel in kept_files:
                     f_path = current_root / f
                     # Exclusion check already done
 
@@ -255,9 +298,9 @@ class AtlasScanner:
                         # Inventory Output
                         if inv_f:
                             is_txt = is_probably_text(f_path, size)
-                            file_rel = f_path.relative_to(self.root).as_posix()
+                            # Use reused relative path string
                             entry = {
-                                "rel_path": file_rel,
+                                "rel_path": f_rel,
                                 "name": f,
                                 "ext": ext,
                                 "size_bytes": size,
@@ -274,7 +317,7 @@ class AtlasScanner:
                     break
 
                 self.stats["total_dirs"] += 1
-                dir_sizes[str(rel_path)] = dir_bytes
+                dir_sizes[rel_path_str] = dir_bytes
 
         finally:
             if inv_f: inv_f.close()
