@@ -150,6 +150,8 @@ class AtlasScanner:
             # Guardrails for string inputs to enforce relative semantics
             # Reject absolute POSIX paths (start with /)
             if str_path.startswith("/"):
+                # Special check: UNC paths normalized to //server/share should be rejected too
+                # startswith("/") covers "//" as well
                 return True
 
             # Reject drive letters (e.g. C:/)

@@ -38,6 +38,10 @@ def test_is_excluded_rejects_absolute_and_traversal_strings():
     assert scanner._is_excluded("C:\\secret\\file.txt") is True
     assert scanner._is_excluded("D:/data/file.txt") is True
 
+    # UNC path (absolute)
+    assert scanner._is_excluded("\\\\server\\share\\file.txt") is True
+    assert scanner._is_excluded("//server/share/file.txt") is True
+
 def test_scan_integration_excludes(tmp_path):
     # Setup temp directory structure
     (tmp_path / "public").mkdir()
