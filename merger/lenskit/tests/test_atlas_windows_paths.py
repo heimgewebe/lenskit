@@ -39,6 +39,7 @@ def test_scan_integration_excludes(tmp_path):
 
     # Read inventory
     paths = []
+    decoded_entries = 0
     with inventory_file.open() as f:
         for line in f:
             line = line.strip()
@@ -47,8 +48,12 @@ def test_scan_integration_excludes(tmp_path):
             try:
                 entry = json.loads(line)
                 paths.append(entry["rel_path"])
+                decoded_entries += 1
             except json.JSONDecodeError:
                 continue
+
+    # Assert that we actually processed something to avoid false positives
+    assert decoded_entries > 0, "Inventory produced no valid JSON entries; test may be skipping content."
 
     # Verification
     # "public/ok.txt" should be present

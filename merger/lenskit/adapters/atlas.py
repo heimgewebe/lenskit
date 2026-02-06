@@ -126,6 +126,14 @@ class AtlasScanner:
         return re.compile(combined, flags)
 
     def _is_excluded(self, path: Union[Path, str]) -> bool:
+        """
+        Checks if a path is excluded based on glob patterns.
+
+        Args:
+            path: Path object or relative path string.
+                  If string, it MUST be relative to root and use POSIX separators (/)
+                  unless it contains backslashes which will be normalized.
+        """
         # Check against globs
         # We match relative path from root
         if isinstance(path, Path):
