@@ -66,6 +66,22 @@ try {
 
 const API_BASE = '/api';
 
+// Guard: Ensure materialize.js is loaded
+if (typeof materializeRawFromCompressed !== 'function' || typeof normalizePath !== 'function') {
+    window.__RLENS_MATERIALIZE_MISSING__ = true;
+    const errorMsg = "CRITICAL: materialize.js not loaded. Application logic will fail.";
+    console.error(errorMsg);
+    // Attempt to show UI error if DOM is ready, otherwise wait
+    const showErr = () => {
+        const div = document.createElement('div');
+        div.className = "fixed top-0 left-0 right-0 bg-red-600 text-white text-center p-4 z-50 font-bold";
+        div.innerText = errorMsg;
+        document.body.prepend(div);
+    };
+    if (document.body) showErr();
+    else window.addEventListener('DOMContentLoaded', showErr);
+}
+
 // Token handling
 const TOKEN_KEY = 'rlens_token';
 const SETS_KEY = 'rlens_sets';
@@ -136,27 +152,7 @@ function selectionSetAll() {
 
 // --- Utilities ---
 
-function normalizePath(p) {
-    // Return null for invalid input to prevent accidental root selection (".")
-    if (typeof p !== 'string') return null;
-
-    p = p.trim();
-
-    // Absolute root protection
-    if (p === "/") return "/";
-
-    if (p.startsWith("./")) {
-        p = p.substring(2);
-    }
-
-    // Remove trailing slash only if not root "/" (guarded above)
-    if (p.length > 1 && p.endsWith("/")) {
-        p = p.substring(0, p.length - 1);
-    }
-
-    if (p === "") return ".";
-    return p;
-}
+// normalizePath and materializeRawFromCompressed are loaded from materialize.js
 
 // Helper to collect all file paths from the current tree for materialization
 function getAllPathsInTree(treeNode) {
@@ -172,52 +168,6 @@ function getAllPathsInTree(treeNode) {
     return paths;
 }
 
-// Materialize raw file paths from tree using compressed rules
-// This reconstructs the UI truth from compressed backend rules
-// TODO(perf): Prefix-matching over compressed paths is O(n*m) where n=files, m=compressed paths.
-// Consider optimizing via:
-// - sorted prefixes with early break
-// - prefix trie structure
-// - precomputed directory → files mapping
-function materializeRawFromCompressed(treeNode, compressedSet) {
-    const paths = new Set();
-    
-    function visit(node) {
-        const normalizedPath = normalizePath(node.path);
-        if (!normalizedPath) return;
-        
-        // Check if this path matches any compressed rule
-        if (compressedSet.has(normalizedPath)) {
-            // Direct match - if it's a file, add it; if it's a dir, add all files under it
-            if (node.type === 'file') {
-                paths.add(normalizedPath);
-            } else if (node.children) {
-                // It's a directory - add all files under it
-                node.children.forEach(visit);
-            }
-            // Already handled children for matched directories, so return early
-            return;
-        }
-        
-        if (node.type === 'file') {
-            // Check if any parent directory is in compressed set (prefix match)
-            for (const compressedPath of compressedSet) {
-                if (normalizedPath.startsWith(compressedPath + '/')) {
-                    paths.add(normalizedPath);
-                    break;
-                }
-            }
-        }
-
-        // Continue traversing for directory nodes that didn't match directly
-        if (node.children) {
-            node.children.forEach(visit);
-        }
-    }
-    
-    visit(treeNode);
-    return paths;
-}
 
 // Ensures prescanSelection is a Set for mutations when currently in ALL state
 // Returns true if materialization succeeded, false if failed
@@ -1942,7 +1892,13 @@ async function storePrescanSelectionInternal(append) {
                      // representation (and causing UI inconsistencies on reload), fall back to
                      // materializing raw from the tree using compressed rules.
                      if (!mergedRaw && mergedCompressed.size > 0) {
-                         if (prescanCurrentTree && prescanCurrentTree.tree) {
+                         if (window.__RLENS_MATERIALIZE_MISSING__) {
+                             if (!window.__RLENS_MATERIALIZE_WARNED__) {
+                                 window.__RLENS_MATERIALIZE_WARNED__ = true;
+                                 console.warn('Cannot materialize raw: materialize.js missing (degraded)');
+                             }
+                             mergedRaw = null;
+                         } else if (prescanCurrentTree && prescanCurrentTree.tree) {
                              mergedRaw = materializeRawFromCompressed(prescanCurrentTree.tree, mergedCompressed);
                          } else {
                              // Cannot materialize raw without tree. Keep raw as null (degraded state).
