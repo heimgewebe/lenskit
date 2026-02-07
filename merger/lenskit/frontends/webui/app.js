@@ -66,6 +66,21 @@ try {
 
 const API_BASE = '/api';
 
+// Guard: Ensure materialize.js is loaded
+if (typeof materializeRawFromCompressed !== 'function' || typeof normalizePath !== 'function') {
+    const errorMsg = "CRITICAL: materialize.js not loaded. Application logic will fail.";
+    console.error(errorMsg);
+    // Attempt to show UI error if DOM is ready, otherwise wait
+    const showErr = () => {
+        const div = document.createElement('div');
+        div.className = "fixed top-0 left-0 right-0 bg-red-600 text-white text-center p-4 z-50 font-bold";
+        div.innerText = errorMsg;
+        document.body.prepend(div);
+    };
+    if (document.body) showErr();
+    else window.addEventListener('DOMContentLoaded', showErr);
+}
+
 // Token handling
 const TOKEN_KEY = 'rlens_token';
 const SETS_KEY = 'rlens_sets';

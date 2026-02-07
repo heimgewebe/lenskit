@@ -20,8 +20,18 @@
 
         p = p.trim();
 
+        // Normalize backslashes
+        p = p.replace(/\\/g, '/');
+        // Collapse multiple slashes
+        p = p.replace(/\/{2,}/g, '/');
+
         // Absolute root protection
         if (p === "/") return "/";
+
+        // Security: Reject traversal
+        if (p === '..' || p.startsWith('../') || p.includes('/../') || p.endsWith('/..')) {
+            return null;
+        }
 
         if (p.startsWith("./")) {
             p = p.substring(2);

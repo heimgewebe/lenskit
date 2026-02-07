@@ -83,6 +83,30 @@ try {
         "Empty Set"
     );
 
+    // 8. Backslash Normalization
+    // compressedSet = ['src\\utils\\a.js'] -> should match 'src/utils/a.js'
+    assertSetEqual(
+        materializeRawFromCompressed(tree, new Set(['src\\utils\\a.js'])),
+        ['src/utils/a.js'],
+        "Backslash Normalization (src\\utils\\a.js -> src/utils/a.js)"
+    );
+
+    // 9. Traversal Rejection
+    // compressedSet = ['../secret'] -> should be ignored (null)
+    assertSetEqual(
+        materializeRawFromCompressed(tree, new Set(['../secret'])),
+        [],
+        "Traversal Rejection (../secret -> null)"
+    );
+
+    // 10. Multiple Slash Collapse
+    // compressedSet = ['src//utils'] -> should match 'src/utils'
+    assertSetEqual(
+        materializeRawFromCompressed(tree, new Set(['src//utils'])),
+        ['src/utils/a.js', 'src/utils/b.js', 'src/utils/sub/c.js'],
+        "Multiple Slash Collapse (src//utils -> src/utils)"
+    );
+
 } catch (e) {
     console.error("Test Failed:", e);
     process.exit(1);
