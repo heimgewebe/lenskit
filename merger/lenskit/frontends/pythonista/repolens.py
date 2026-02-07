@@ -1736,11 +1736,11 @@ class MergerUI(object):
                         display_ts = ts_sort
 
                     review_md = ts_dir / "review.md"
-                    bundle_path = ts_dir / BUNDLE_FILENAME
+                    bundle_json_path = ts_dir / BUNDLE_FILENAME
                     delta_json = ts_dir / "delta.json"
 
                     # Robustness: Include even if review.md missing, if metadata exists
-                    if review_md.exists() or bundle_path.exists() or delta_json.exists():
+                    if review_md.exists() or bundle_json_path.exists() or delta_json.exists():
                         display_text = f"{repo_name} @ {display_ts}"
                         if not review_md.exists():
                             display_text += " (no review.md)"
