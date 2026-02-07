@@ -4517,10 +4517,7 @@ def write_reports_v2(
                         pass
                 else:
                     # Just rename if we couldn't read/edit content
-                    try:
-                        path.rename(new_path)
-                    except OSError as e:
-                        sys.stderr.write(f"Error renaming {path} to {new_path}: {e}\n")
+                    path.replace(new_path)
 
                 final_paths.append(new_path)
 
