@@ -4517,7 +4517,10 @@ def write_reports_v2(
                         pass
                 else:
                     # Just rename if we couldn't read/edit content
-                    path.replace(new_path)
+                    try:
+                        path.replace(new_path)
+                    except OSError as e:
+                        raise OSError(f"Failed to replace '{path}' with '{new_path}': {e}") from e
 
                 final_paths.append(new_path)
 
