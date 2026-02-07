@@ -1893,7 +1893,10 @@ async function storePrescanSelectionInternal(append) {
                      // materializing raw from the tree using compressed rules.
                      if (!mergedRaw && mergedCompressed.size > 0) {
                          if (window.__RLENS_MATERIALIZE_MISSING__) {
-                             console.warn('Cannot materialize raw: materialize.js missing (degraded)');
+                             if (!window.__RLENS_MATERIALIZE_WARNED__) {
+                                 window.__RLENS_MATERIALIZE_WARNED__ = true;
+                                 console.warn('Cannot materialize raw: materialize.js missing (degraded)');
+                             }
                              mergedRaw = null;
                          } else if (prescanCurrentTree && prescanCurrentTree.tree) {
                              mergedRaw = materializeRawFromCompressed(prescanCurrentTree.tree, mergedCompressed);
