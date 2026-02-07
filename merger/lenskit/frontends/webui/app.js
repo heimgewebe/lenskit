@@ -68,6 +68,7 @@ const API_BASE = '/api';
 
 // Guard: Ensure materialize.js is loaded
 if (typeof materializeRawFromCompressed !== 'function' || typeof normalizePath !== 'function') {
+    window.__RLENS_MATERIALIZE_MISSING__ = true;
     const errorMsg = "CRITICAL: materialize.js not loaded. Application logic will fail.";
     console.error(errorMsg);
     // Attempt to show UI error if DOM is ready, otherwise wait
@@ -1891,7 +1892,10 @@ async function storePrescanSelectionInternal(append) {
                      // representation (and causing UI inconsistencies on reload), fall back to
                      // materializing raw from the tree using compressed rules.
                      if (!mergedRaw && mergedCompressed.size > 0) {
-                         if (prescanCurrentTree && prescanCurrentTree.tree) {
+                         if (window.__RLENS_MATERIALIZE_MISSING__) {
+                             console.warn('Cannot materialize raw: materialize.js missing (degraded)');
+                             mergedRaw = null;
+                         } else if (prescanCurrentTree && prescanCurrentTree.tree) {
                              mergedRaw = materializeRawFromCompressed(prescanCurrentTree.tree, mergedCompressed);
                          } else {
                              // Cannot materialize raw without tree. Keep raw as null (degraded state).
