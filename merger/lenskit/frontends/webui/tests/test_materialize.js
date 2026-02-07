@@ -1,7 +1,7 @@
 
 const assert = require('assert');
 // Static require - much cleaner!
-const { materializeRawFromCompressed, normalizePath } = require('../materialize.js');
+const { materializeRawFromCompressed } = require('../materialize.js');
 
 // --- Tests ---
 

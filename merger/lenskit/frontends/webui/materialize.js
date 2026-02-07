@@ -14,7 +14,8 @@
 }(typeof self !== 'undefined' ? self : this, function() {
 
     function normalizePath(p) {
-        // Return null for invalid input to prevent accidental root selection (".")
+        // Return null for invalid input.
+        // Empty string becomes "." (current directory/root of tree).
         if (typeof p !== 'string') return null;
 
         p = p.trim();
