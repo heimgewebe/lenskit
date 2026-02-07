@@ -136,27 +136,7 @@ function selectionSetAll() {
 
 // --- Utilities ---
 
-function normalizePath(p) {
-    // Return null for invalid input to prevent accidental root selection (".")
-    if (typeof p !== 'string') return null;
-
-    p = p.trim();
-
-    // Absolute root protection
-    if (p === "/") return "/";
-
-    if (p.startsWith("./")) {
-        p = p.substring(2);
-    }
-
-    // Remove trailing slash only if not root "/" (guarded above)
-    if (p.length > 1 && p.endsWith("/")) {
-        p = p.substring(0, p.length - 1);
-    }
-
-    if (p === "") return ".";
-    return p;
-}
+// normalizePath and materializeRawFromCompressed are loaded from materialize.js
 
 // Helper to collect all file paths from the current tree for materialization
 function getAllPathsInTree(treeNode) {
@@ -172,50 +152,6 @@ function getAllPathsInTree(treeNode) {
     return paths;
 }
 
-// Materialize raw file paths from tree using compressed rules
-// This reconstructs the UI truth from compressed backend rules
-// OPTIMIZED: Uses state propagation (parentIncluded) to avoid O(n*m) prefix scans.
-function materializeRawFromCompressed(treeNode, compressedSet) {
-    const paths = new Set();
-    
-    // Check if the root itself is implicitly included by an ancestor in compressedSet
-    // This handles cases where treeNode is a subtree (e.g. 'src/utils') but compressedSet contains a parent (e.g. 'src')
-    // This is the only O(m) check needed, and it's done once per call.
-    let rootImplicitlyIncluded = false;
-    const rootPath = normalizePath(treeNode.path);
-    if (rootPath && !compressedSet.has(rootPath)) {
-         for (const compressedPath of compressedSet) {
-             if (rootPath.startsWith(compressedPath + '/')) {
-                 rootImplicitlyIncluded = true;
-                 break;
-             }
-         }
-    }
-
-    function visit(node, parentIncluded) {
-        const normalizedPath = normalizePath(node.path);
-        if (!normalizedPath) return;
-        
-        let included = parentIncluded;
-
-        // If not inherited from parent, check if this specific node is selected
-        if (!included && compressedSet.has(normalizedPath)) {
-            included = true;
-        }
-
-        if (node.type === 'file') {
-            if (included) {
-                paths.add(normalizedPath);
-            }
-        } else if (node.children) {
-            // Recurse for directories
-            node.children.forEach(child => visit(child, included));
-        }
-    }
-    
-    visit(treeNode, rootImplicitlyIncluded);
-    return paths;
-}
 
 // Ensures prescanSelection is a Set for mutations when currently in ALL state
 // Returns true if materialization succeeded, false if failed
