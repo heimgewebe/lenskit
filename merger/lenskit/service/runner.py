@@ -287,6 +287,14 @@ class JobRunner:
 
             # 5. Register Artifacts
             out_paths = artifacts_obj.get_all_paths()
+
+            # Verify primary artifact exists (Sanity Check)
+            primary_path = artifacts_obj.get_primary_path()
+            if primary_path:
+                if not primary_path.exists():
+                    raise RuntimeError(f"FATAL: Primary artifact '{primary_path}' reported but not found on disk.")
+                log(f"Primary Artifact: {primary_path}")
+
             display_limit = 10
             truncated_paths = [str(p) for p in out_paths[:display_limit]]
             more_count = len(out_paths) - display_limit
