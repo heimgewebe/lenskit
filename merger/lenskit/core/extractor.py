@@ -346,11 +346,11 @@ def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int]:
                 h.update(chunk)
                 size += len(chunk)
         return h.hexdigest(), size
-    except Exception:
+    except OSError:
         # Best-effort size retrieval if hashing fails (e.g., permission error or file missing)
         try:
             return None, path.stat().st_size
-        except Exception:
+        except OSError:
             return None, 0
 
 
@@ -500,6 +500,8 @@ def generate_review_bundle(
         sha_status = "skipped" # default for removed or missing
 
         if status != "removed":
+            # Note: exists() check removed as _compute_sha256_with_size handles
+            # missing files and returns (None, 0) via best-effort stat/except.
             sha, size = _compute_sha256_with_size(fpath)
             if sha:
                 sha_status = "ok"
