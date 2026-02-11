@@ -8,7 +8,7 @@ Environment=RLENS_HUB=/home/alex/repos
 Environment=RLENS_HOST=127.0.0.1
 Environment=RLENS_PORT=8787
 Environment=RLENS_TOKEN=heimgewebe-local
-WorkingDirectory=/home/alex/repos/tools
+WorkingDirectory=/home/alex/repos/lenskit
 ExecStart=/usr/bin/python3 -m merger.lenskit.cli.rlens
 Restart=on-failure
 RestartSec=2

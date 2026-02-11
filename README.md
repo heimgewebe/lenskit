@@ -1,4 +1,4 @@
-# Tools – Index
+# lenskit – Index
 
 Kurzüberblick über Ordner:
 - `scripts/` – wiederverwendbare Helfer
@@ -37,6 +37,9 @@ bash scripts/jsonl-tail.sh --help
 ## Organismus-Kontext
 
 Dieses Repository ist Teil des **Heimgewebe-Organismus**.
+
+Rolle dieses Repos im Organismus: **Merger**, **Scanner** und epistemischer Kern
+für strukturierte Repository-Aufbereitung.
 
 Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschrieben im  
 👉 [`metarepo/docs/heimgewebe-organismus.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-organismus.md)  

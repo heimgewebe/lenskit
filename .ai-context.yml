@@ -2,9 +2,9 @@
 ai_context_version: 1.1
 
 project:
-  name: tools
-  summary: Pinned tool installers & shared scripts (e.g., yq/just pin).
-  role: shared_dev_tooling
+  name: lenskit
+  summary: RepoLens Merger & Scanner (epistemischer Kern) plus zugehörige Tooling-Skripte.
+  role: merger_scanner_epistemic_core
   primary_language: bash
   visibility: internal
 
@@ -44,7 +44,7 @@ architecture:
 
 conventions:
   branching: "main, feature/*"
-  commit_prefix: "tools"
+  commit_prefix: "lenskit"
   ci_platform: github_actions
 
 documentation:
