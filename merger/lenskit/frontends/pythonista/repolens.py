@@ -308,17 +308,6 @@ def _pick_human_md(paths) -> Optional[Path]:
     return None
 
 
-def _parse_extras_csv(extras_csv: str) -> List[str]:
-    items = [x.strip().lower() for x in (extras_csv or "").split(",") if x.strip()]
-    normalized = []
-    for item in items:
-        if item == "ai_heatmap":
-            _notify("Deprecated: 'ai_heatmap' is now 'heatmap'. Please update your config.", "info")
-            item = "heatmap"
-        normalized.append(item)
-    return normalized
-
-
 def _load_repolens_extractor_module():
     """Load extractor module from core."""
     try:
@@ -508,11 +497,9 @@ class MergerUI(object):
         args, _ = parser.parse_known_args()
 
         # Initiale Extras aus CLI args
-        self.extras_config = ExtrasConfig()
-        if args.extras and args.extras.lower() != "none":
-            for part in _parse_extras_csv(args.extras):
-                if hasattr(self.extras_config, part):
-                    setattr(self.extras_config, part, True)
+        self.extras_config, warnings = ExtrasConfig.from_csv(args.extras)
+        for w in warnings:
+            _notify(w, "info")
 
         v = ui.View()
         v.name = "WC-Merger"
@@ -3307,13 +3294,9 @@ def main_cli():
         split_size = parse_human_size(args.split_size)
         print(f"Splitting at {split_size} bytes")
 
-    extras_config = ExtrasConfig()
-    if args.extras and args.extras.lower() != "none":
-        for part in _parse_extras_csv(args.extras):
-            if hasattr(extras_config, part):
-                setattr(extras_config, part, True)
-            else:
-                print(f"Warning: Unknown extra '{part}' ignored.")
+    extras_config, warnings = ExtrasConfig.from_csv(args.extras)
+    for w in warnings:
+        print(f"Warning: {w}")
 
     # Handle --json-sidecar flag
     if args.json_sidecar:

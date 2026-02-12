@@ -309,6 +309,32 @@ class ExtrasConfig:
     def none(cls):
         return cls()
 
+    @classmethod
+    def from_csv(cls, csv_str: str) -> Tuple["ExtrasConfig", List[str]]:
+        """
+        Parses a comma-separated string of extras keys and returns a populated ExtrasConfig object
+        along with a list of warning messages (e.g. deprecations or unknown keys).
+        """
+        config = cls()
+        warnings = []
+
+        if not csv_str or csv_str.strip().lower() == "none":
+            return config, warnings
+
+        items = [x.strip().lower() for x in csv_str.split(",") if x.strip()]
+
+        for item in items:
+            if item == "ai_heatmap":
+                warnings.append("Deprecated: 'ai_heatmap' is now 'heatmap'. Please update your config.")
+                item = "heatmap"
+
+            if hasattr(config, item):
+                setattr(config, item, True)
+            else:
+                warnings.append(f"Unknown extra '{item}' ignored.")
+
+        return config, warnings
+
 
 class DebugCollector:
     """Sammelt Debug-Infos für optionale Report-Sektionen."""
