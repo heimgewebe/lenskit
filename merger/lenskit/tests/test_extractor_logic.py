@@ -11,7 +11,7 @@ def test_compute_sha256_with_size_oserror_preserves_size(monkeypatch):
     test_path = Path("fake_file_for_test.txt")
 
     def mock_open(self, *args, **kwargs):
-        raise OSError("Mocked Permission Error")
+        raise PermissionError("Mocked Permission Error")
 
     class MockStat:
         def __init__(self):
@@ -20,8 +20,10 @@ def test_compute_sha256_with_size_oserror_preserves_size(monkeypatch):
     def mock_stat(self):
         return MockStat()
 
-    monkeypatch.setattr(Path, "open", mock_open)
-    monkeypatch.setattr(Path, "stat", mock_stat)
+    # Patch the concrete class of the instance (e.g. PosixPath) instead of Path factory
+    cls = type(test_path)
+    monkeypatch.setattr(cls, "open", mock_open)
+    monkeypatch.setattr(cls, "stat", mock_stat)
 
     sha, size = _compute_sha256_with_size(test_path)
 
@@ -37,8 +39,9 @@ def test_compute_sha256_with_size_full_failure(monkeypatch):
     def mock_fail(self, *args, **kwargs):
         raise OSError("File not found")
 
-    monkeypatch.setattr(Path, "open", mock_fail)
-    monkeypatch.setattr(Path, "stat", mock_fail)
+    cls = type(test_path)
+    monkeypatch.setattr(cls, "open", mock_fail)
+    monkeypatch.setattr(cls, "stat", mock_fail)
 
     sha, size = _compute_sha256_with_size(test_path)
 

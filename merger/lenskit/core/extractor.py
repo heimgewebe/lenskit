@@ -501,7 +501,7 @@ def generate_review_bundle(
 
         if status != "removed":
             # Note: exists() check removed as _compute_sha256_with_size handles
-            # missing files and returns (None, 0) via best-effort stat/except.
+            # missing/unreadable files and returns (None, st_size-or-0) via best-effort stat().
             sha, size = _compute_sha256_with_size(fpath)
             if sha:
                 sha_status = "ok"
