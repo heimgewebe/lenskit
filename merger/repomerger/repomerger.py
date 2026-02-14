@@ -437,8 +437,8 @@ def write_report(files, level, max_file_bytes, output_path, sources,
     cat_stats = summarize_categories(files)
 
     with output_path.open("w", encoding=encoding) as f_out:
-        def wl(line):
-            f_out.write(line + "\n")
+        def wl(line=""):
+            f_out.write(str(line) + "\n")
 
         # Header & Hinweise
         wl("# Gewebe-Merge")
@@ -603,7 +603,8 @@ def write_report(files, level, max_file_bytes, output_path, sources,
 
                 except OSError as e:
                     if fence_opened:
-                        f_out.write("\n```\n\n")
+                        wl("```")
+                        wl("")
                     wl("_Fehler beim Lesen der Datei: {0}_".format(e))
                     wl("")
                     continue
