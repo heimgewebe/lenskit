@@ -507,8 +507,7 @@ def generate_review_bundle(
         fpath = root_path / rel_path
         size = 0
         sha = None
-        sha_status = "skipped" # default for removed or missing
-        err_code = None
+        sha_status = "skipped" # default for removed
 
         if status != "removed":
             # Note: exists() check removed as _compute_sha256_with_size handles
@@ -516,14 +515,16 @@ def generate_review_bundle(
             sha, size, err_code = _compute_sha256_with_size(fpath)
             if sha:
                 sha_status = "ok"
+            elif err_code:
+                sha_status = err_code
             else:
-                sha_status = "error" # file missing or error reading
+                sha_status = "error" # file missing or error reading (fallback)
         else:
             # For removed, use old snapshot size if available
             if rel_path in old_snap:
                 size = old_snap[rel_path][0]
 
-        entry = {
+        return {
             "path": rel_path,
             "status": status,
             "category": _heuristic_category(rel_path), # Heuristic category added
@@ -531,9 +532,6 @@ def generate_review_bundle(
             "sha256": sha,
             "sha256_status": sha_status
         }
-        if err_code:
-            entry["sha256_error_class"] = err_code
-        return entry
 
     # Populate delta_files with prioritization for review order
     # Priority: schema > ci > config > docs > code > other

@@ -1,5 +1,8 @@
+import json
+import pytest
 from pathlib import Path
-from merger.lenskit.core.extractor import _compute_sha256_with_size
+from merger.lenskit.core import extractor
+from merger.lenskit.core.extractor import _compute_sha256_with_size, generate_review_bundle
 
 def test_compute_sha256_with_size_happy_path(tmp_path):
     """
@@ -83,3 +86,56 @@ def test_compute_sha256_with_size_generic_oserror(monkeypatch):
 
     assert sha is None
     assert err_code == "io_error"
+
+
+def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
+    """
+    Verifies that make_entry sets sha256_status based on err_code
+    when sha256 is missing.
+    """
+    hub_dir = tmp_path / "hub"
+    hub_dir.mkdir()
+
+    old_repo = tmp_path / "old"
+    old_repo.mkdir()
+
+    new_repo = tmp_path / "new"
+    new_repo.mkdir()
+
+    # Create a file that will fail
+    (new_repo / "secret.txt").write_text("secret")
+
+    # Mock _compute_sha256_with_size to return error for secret.txt
+    original_compute = extractor._compute_sha256_with_size
+
+    def mock_compute(path):
+        if path.name == "secret.txt":
+            # Simulate a permission error
+            return None, 999, "permission"
+        # For other files (e.g. parts of the bundle), behave normally
+        return original_compute(path)
+
+    monkeypatch.setattr(extractor, "_compute_sha256_with_size", mock_compute)
+
+    generate_review_bundle(old_repo, new_repo, "test-repo", hub_dir)
+
+    # Check delta.json
+    pr_schau_dir = hub_dir / ".repolens" / "pr-schau" / "test-repo"
+    assert pr_schau_dir.exists()
+
+    # Find the timestamp folder
+    ts_folders = list(pr_schau_dir.iterdir())
+    assert len(ts_folders) == 1
+    bundle_dir = ts_folders[0]
+    delta_json_path = bundle_dir / "delta.json"
+
+    with open(delta_json_path) as f:
+        delta = json.load(f)
+
+    # Find the entry for secret.txt
+    entry = next(e for e in delta["files"] if e["path"] == "secret.txt")
+
+    assert entry["sha256_status"] == "permission"
+    assert entry["sha256"] is None
+    # ensure no sha256_error_class
+    assert "sha256_error_class" not in entry
