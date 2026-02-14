@@ -1,5 +1,3 @@
-
-import pytest
 from pathlib import Path
 from merger.lenskit.core.extractor import _compute_sha256_with_size
 
@@ -22,8 +20,8 @@ def test_compute_sha256_with_size_oserror_preserves_size(monkeypatch):
 
     # Patch the concrete class of the instance (e.g. PosixPath) instead of Path factory
     cls = type(test_path)
-    monkeypatch.setattr(cls, "open", mock_open)
-    monkeypatch.setattr(cls, "stat", mock_stat)
+    monkeypatch.setattr(cls, "open", mock_open, raising=True)
+    monkeypatch.setattr(cls, "stat", mock_stat, raising=True)
 
     sha, size = _compute_sha256_with_size(test_path)
 
@@ -40,8 +38,8 @@ def test_compute_sha256_with_size_full_failure(monkeypatch):
         raise OSError("File not found")
 
     cls = type(test_path)
-    monkeypatch.setattr(cls, "open", mock_fail)
-    monkeypatch.setattr(cls, "stat", mock_fail)
+    monkeypatch.setattr(cls, "open", mock_fail, raising=True)
+    monkeypatch.setattr(cls, "stat", mock_fail, raising=True)
 
     sha, size = _compute_sha256_with_size(test_path)
 
