@@ -341,7 +341,7 @@ def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, str]:
     - 'ok': Success.
     - 'missing': File not found.
     - 'permission': Access denied (PermissionError).
-    - 'io_error': Generic I/O error (OSError).
+    - 'io_error': Generic I/O error (OSError) during reading/opening.
     - 'error': Unexpected failure.
     """
     try:
@@ -775,15 +775,11 @@ def generate_review_bundle(
 
     for pname in parts_created:
         ppath = bundle_dir / pname
-        try:
-            psize = ppath.stat().st_size
-        except OSError as e:
-            raise RuntimeError(f"Bundle part missing: {ppath} ({e})")
+        sha, psize, status = _compute_sha256_with_size(ppath)
+        if status != "ok" or not sha or len(sha) != 64:
+            raise RuntimeError(f"Bundle part missing or computation failed: {ppath} (status={status})")
 
         emitted_bytes += psize
-        sha = _compute_sha256(ppath)
-        if not sha or len(sha) != 64:
-            raise RuntimeError(f"SHA256 computation failed for {ppath}")
 
         role = "canonical_md" if pname == "review.md" else "part_md"
         artifacts_list.append({

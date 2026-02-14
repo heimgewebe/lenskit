@@ -1,4 +1,3 @@
-import pytest
 import hashlib
 from pathlib import Path
 from merger.lenskit.core.extractor import _compute_sha256_with_size
