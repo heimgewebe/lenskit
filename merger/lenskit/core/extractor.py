@@ -333,8 +333,24 @@ def _construct_logical_payload(header_lines: List[str], content_chunks: List[str
     return "\n".join(header_lines + content_chunks)
 
 
-def _compute_sha256(path: Path) -> Optional[str]:
-    """Computes SHA256 for a file. Returns None on failure."""
+def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, str]:
+    """
+    Computes SHA256 and size for a file. Returns (sha, size, err_code).
+    Mapped err_code values: 'ok', 'missing', 'permission', 'io_error', 'error'.
+    """
+    try:
+        # Best-effort size before potential open failure
+        st = path.stat()
+        size = st.st_size
+    except FileNotFoundError:
+        return None, 0, "missing"
+    except PermissionError:
+        return None, 0, "permission"
+    except OSError:
+        return None, 0, "io_error"
+    except Exception:
+        return None, 0, "error"
+
     try:
         h = hashlib.sha256()
         with path.open("rb") as f:
@@ -343,9 +359,21 @@ def _compute_sha256(path: Path) -> Optional[str]:
                 if not chunk:
                     break
                 h.update(chunk)
-        return h.hexdigest()
+        return h.hexdigest(), size, "ok"
+    except FileNotFoundError:
+        return None, size, "missing"
+    except PermissionError:
+        return None, size, "permission"
+    except OSError:
+        return None, size, "io_error"
     except Exception:
-        return None
+        return None, size, "error"
+
+
+def _compute_sha256(path: Path) -> Optional[str]:
+    """Computes SHA256 for a file. Returns None on failure."""
+    sha, _, _ = _compute_sha256_with_size(path)
+    return sha
 
 
 def _is_secret_file(path_str: str) -> bool:
@@ -483,29 +511,28 @@ def generate_review_bundle(
     # Helper to build file entry
     def make_entry(rel_path, status, root_path):
         fpath = root_path / rel_path
-        size = 0
-        sha = None
-        sha_status = "skipped" # default for removed or missing
 
-        if status != "removed":
-            if fpath.exists():
-                size = fpath.stat().st_size
-                sha = _compute_sha256(fpath)
-                sha_status = "ok" if sha else "error"
-            else:
-                sha_status = "error" # file missing but should be there
-        else:
-            # For removed, use old snapshot size if available
-            if rel_path in old_snap:
-                size = old_snap[rel_path][0]
+        if status == "removed":
+            size = old_snap[rel_path][0] if rel_path in old_snap else 0
+            return {
+                "path": rel_path,
+                "status": status,
+                "category": _heuristic_category(rel_path),
+                "size_bytes": size,
+                "sha256": None,
+                "sha256_status": "skipped"
+            }
+
+        # For added/changed: use robust computation
+        sha, size, err_code = _compute_sha256_with_size(fpath)
 
         return {
             "path": rel_path,
             "status": status,
-            "category": _heuristic_category(rel_path), # Heuristic category added
+            "category": _heuristic_category(rel_path),
             "size_bytes": size,
             "sha256": sha,
-            "sha256_status": sha_status
+            "sha256_status": err_code
         }
 
     # Populate delta_files with prioritization for review order
@@ -742,19 +769,23 @@ def generate_review_bundle(
 
     for pname in parts_created:
         ppath = bundle_dir / pname
-        if ppath.exists():
+        try:
             psize = ppath.stat().st_size
-            emitted_bytes += psize
-            sha = _compute_sha256(ppath)
-            if not sha or len(sha) != 64:
-                raise RuntimeError(f"SHA256 computation failed for {ppath}")
-            role = "canonical_md" if pname == "review.md" else "part_md"
-            artifacts_list.append({
-                "role": role,
-                "basename": pname,
-                "mime": "text/markdown",
-                "sha256": sha
-            })
+        except OSError as e:
+            raise RuntimeError(f"Bundle part missing: {ppath} ({e})")
+
+        emitted_bytes += psize
+        sha = _compute_sha256(ppath)
+        if not sha or len(sha) != 64:
+            raise RuntimeError(f"SHA256 computation failed for {ppath}")
+
+        role = "canonical_md" if pname == "review.md" else "part_md"
+        artifacts_list.append({
+            "role": role,
+            "basename": pname,
+            "mime": "text/markdown",
+            "sha256": sha
+        })
 
     bundle_meta = {
         "kind": "repolens.pr_schau.bundle",

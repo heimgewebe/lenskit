@@ -1,6 +1,17 @@
 import unittest
 from merger.lenskit.frontends.pythonista.repolens_utils import normalize_path, normalize_repo_id
-from merger.lenskit.frontends.pythonista.repolens_helpers import resolve_pool_include_paths, deserialize_prescan_pool
+from merger.lenskit.frontends.pythonista.repolens_helpers import resolve_pool_include_paths, deserialize_prescan_pool, _sanitize_list
+
+class TestSanitizeListInternal(unittest.TestCase):
+    def test_sanitize_list_mixed(self):
+        # Mixed types
+        self.assertEqual(_sanitize_list(["a", 1, None, "b"]), (["a", "b"], True))
+        # Empty
+        self.assertEqual(_sanitize_list([]), ([], False))
+        # All valid
+        self.assertEqual(_sanitize_list(["a", "b"]), (["a", "b"], False))
+        # Unicode
+        self.assertEqual(_sanitize_list(["ü"]), (["ü"], False))
 
 class TestPrescanPool(unittest.TestCase):
 

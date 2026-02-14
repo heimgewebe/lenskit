@@ -584,9 +584,13 @@ def write_report(files, level, max_file_bytes, output_path, sources,
                             if remaining <= 0:
                                 wl("") # Ensure newline after truncation marker
                         else:
-                            # Volles Einlesen (Streaming-aware within the handle would be better,
-                            # but f.read() is okay for files within reasonable limits)
-                            f_out.write(f.read().rstrip("\n") + "\n")
+                            # Volles Einlesen per Chunks (Streaming)
+                            while True:
+                                chunk = f.read(65536)
+                                if not chunk:
+                                    break
+                                f_out.write(chunk)
+                            # Wir akzeptieren evtl. ein trailing newline der Datei vor dem Fence
 
                 except OSError as e:
                     # Wenn Fehler nach dem Öffnen des Fences auftritt: Block sauber schließen
