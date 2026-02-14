@@ -172,13 +172,10 @@ class TestPrescanPool(unittest.TestCase):
         self.assertNotIn("Hub/MyRepo/", res)
         self.assertEqual(res["myrepo"]["raw"], ["a"])
 
-    def test_empty_string_policy(self):
+    def test_empty_string_policy_legacy_list(self):
         """
-        Policy: Empty strings in prescan pool lists are treated as the repository root ('.').
-        This ensures that accidental empty entries do not result in silent errors or exclusion,
-        but explicitly include the root directory.
+        Policy (Legacy): Empty strings in prescan pool legacy lists are treated as the repository root ('.').
         """
-        # Case: Legacy List
         data_legacy = {
             "repo1": ["a", "", "b"]
         }
@@ -186,7 +183,10 @@ class TestPrescanPool(unittest.TestCase):
         self.assertEqual(res_legacy["repo1"]["raw"], ["a", ".", "b"])
         self.assertEqual(res_legacy["repo1"]["compressed"], ["a", ".", "b"])
 
-        # Case: Structured Format
+    def test_empty_string_policy_structured_format(self):
+        """
+        Policy (Structured): Empty strings in prescan pool structured fields are treated as the repository root ('.').
+        """
         data_structured = {
             "repo2": {
                 "raw": ["a", "", "b"],
