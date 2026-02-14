@@ -13,10 +13,11 @@ def test_compute_sha256_with_size_happy_path(tmp_path):
     # Expected SHA256 for "abc"
     expected_sha = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 
-    sha, size = _compute_sha256_with_size(test_file)
+    sha, size, err = _compute_sha256_with_size(test_file)
 
     assert sha == expected_sha
     assert size == len(content)
+    assert err is None
 
 def test_compute_sha256_with_size_oserror_preserves_size(monkeypatch):
     """
@@ -40,10 +41,11 @@ def test_compute_sha256_with_size_oserror_preserves_size(monkeypatch):
     monkeypatch.setattr(cls, "open", mock_open, raising=True)
     monkeypatch.setattr(cls, "stat", mock_stat, raising=True)
 
-    sha, size = _compute_sha256_with_size(test_path)
+    sha, size, err = _compute_sha256_with_size(test_path)
 
     assert sha is None
     assert size == 9999
+    assert err == "permission"
 
 def test_compute_sha256_with_size_full_failure(monkeypatch):
     """
@@ -58,7 +60,62 @@ def test_compute_sha256_with_size_full_failure(monkeypatch):
     monkeypatch.setattr(cls, "open", mock_fail, raising=True)
     monkeypatch.setattr(cls, "stat", mock_fail, raising=True)
 
-    sha, size = _compute_sha256_with_size(test_path)
+    sha, size, err = _compute_sha256_with_size(test_path)
 
     assert sha is None
     assert size == 0
+    assert err == "io_error"
+
+def test_compute_sha256_with_size_file_not_found(monkeypatch):
+    test_path = Path("non_existent.txt")
+
+    def mock_fail(*args, **kwargs):
+        raise FileNotFoundError("Mocked File Not Found")
+
+    cls = type(test_path)
+    monkeypatch.setattr(cls, "open", mock_fail, raising=True)
+    monkeypatch.setattr(cls, "stat", mock_fail, raising=True)
+
+    sha, size, err = _compute_sha256_with_size(test_path)
+
+    assert sha is None
+    assert size == 0
+    assert err == "missing"
+
+def test_compute_sha256_with_size_permission_error(monkeypatch):
+    test_path = Path("locked.txt")
+
+    def mock_open_fail(*args, **kwargs):
+        raise PermissionError("Access denied")
+
+    class MockStat:
+        st_size = 123
+
+    def mock_stat_success(*args, **kwargs):
+        return MockStat()
+
+    cls = type(test_path)
+    monkeypatch.setattr(cls, "open", mock_open_fail, raising=True)
+    monkeypatch.setattr(cls, "stat", mock_stat_success, raising=True)
+
+    sha, size, err = _compute_sha256_with_size(test_path)
+
+    assert sha is None
+    assert size == 123
+    assert err == "permission"
+
+def test_compute_sha256_with_size_generic_oserror(monkeypatch):
+    test_path = Path("bad_disk.txt")
+
+    def mock_open_fail(*args, **kwargs):
+        raise OSError("I/O error")
+
+    cls = type(test_path)
+    monkeypatch.setattr(cls, "open", mock_open_fail, raising=True)
+    monkeypatch.setattr(cls, "stat", mock_open_fail, raising=True)
+
+    sha, size, err = _compute_sha256_with_size(test_path)
+
+    assert sha is None
+    assert size == 0
+    assert err == "io_error"

@@ -333,8 +333,12 @@ def _construct_logical_payload(header_lines: List[str], content_chunks: List[str
     return "\n".join(header_lines + content_chunks)
 
 
-def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int]:
-    """Computes SHA256 and size for a file in a single pass. Returns (None, st_size-or-0) on OSError."""
+def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, Optional[str]]:
+    """
+    Computes SHA256 and size for a file in a single pass.
+    Returns (sha, size, err_code).
+    err_code is None if success, else "missing" | "permission" | "io_error".
+    """
     try:
         h = hashlib.sha256()
         size = 0
@@ -345,18 +349,26 @@ def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int]:
                     break
                 h.update(chunk)
                 size += len(chunk)
-        return h.hexdigest(), size
-    except OSError:
+        return h.hexdigest(), size, None
+    except OSError as e:
+        # Determine error class
+        if isinstance(e, FileNotFoundError):
+            err_code = "missing"
+        elif isinstance(e, PermissionError):
+            err_code = "permission"
+        else:
+            err_code = "io_error"
+
         # Best-effort size retrieval if hashing fails (e.g., permission error or file missing)
         try:
-            return None, path.stat().st_size
+            return None, path.stat().st_size, err_code
         except OSError:
-            return None, 0
+            return None, 0, err_code
 
 
 def _compute_sha256(path: Path) -> Optional[str]:
     """Computes SHA256 for a file. Returns None on failure."""
-    sha, _ = _compute_sha256_with_size(path)
+    sha, _, _ = _compute_sha256_with_size(path)
     return sha
 
 
@@ -502,11 +514,15 @@ def generate_review_bundle(
         if status != "removed":
             # Note: exists() check removed as _compute_sha256_with_size handles
             # missing/unreadable files and returns (None, st_size-or-0) via best-effort stat().
-            sha, size = _compute_sha256_with_size(fpath)
+            sha, size, err = _compute_sha256_with_size(fpath)
             if sha:
                 sha_status = "ok"
+            elif err:
+                sha_status = err
             else:
-                sha_status = "error" # file missing or error reading
+                sha_status = "error" # fallback if err is None but no sha
+
+        # sha_status values: "ok", "skipped" (removed), "missing", "permission", "io_error", "error"
         else:
             # For removed, use old snapshot size if available
             if rel_path in old_snap:
@@ -755,7 +771,7 @@ def generate_review_bundle(
 
     for pname in parts_created:
         ppath = bundle_dir / pname
-        sha, psize = _compute_sha256_with_size(ppath)
+        sha, psize, _ = _compute_sha256_with_size(ppath)
         if not sha or len(sha) != 64:
             raise RuntimeError(f"SHA256 computation failed for {ppath}")
         emitted_bytes += psize
