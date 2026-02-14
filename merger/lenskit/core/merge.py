@@ -1457,7 +1457,7 @@ def compute_file_roles(fi: "FileInfo") -> List[str]:
     return deduped
 
 
-def build_hotspots(processed_files: List[Tuple["FileInfo", str]], limit: int = 8) -> List[str]:
+def build_hotspots(processed_files: List[Tuple["FileInfo", str]], limit: int = 8, **kwargs) -> List[str]:
     """
     Build a concise hotspot list for quick navigation.
 
@@ -2347,6 +2347,32 @@ def _normalize_mode_flags(plan_only: bool, code_only: bool, meta_none: bool = Fa
     return plan_only, code_only, meta_none, requested_flags
 
 
+def _resolve_effective_meta_density(
+    meta_density: str,
+    path_filter: Optional[str] = None,
+    ext_filter: Optional[List[str]] = None,
+    meta_none: bool = False,
+) -> str:
+    """
+    Resolves the effective meta density based on filters and flags.
+    Standardizes logic between Markdown and JSON sidecar.
+    """
+    if meta_none:
+        return "min"  # Interpretation disabled implies minimal metadata overhead
+
+    if meta_density == "auto":
+        # Auto-Throttling: resolve to standard if filters are active, otherwise full.
+        if path_filter or ext_filter:
+            return "standard"
+        return "full"
+
+    # For explicit min/standard/full, return as requested (ignoring "none" if passed)
+    if meta_density == "none":
+        return "min"
+
+    return meta_density
+
+
 def _generate_run_id(
     repo_names: List[str],
     detail: str,
@@ -3045,16 +3071,11 @@ def iter_report_blocks(
     if debug:
         print("[lenskit] merge.py loaded from:", __file__)
 
-    # Resolve Auto-Throttling
-    # "Wenn Filter aktiv -> default meta_density=standard (oder min)"
-    original_meta_density = meta_density
-    if meta_none:
-        meta_density = "none"
-    elif meta_density == "auto":
-        if path_filter or ext_filter:
-            meta_density = "standard"
-        else:
-            meta_density = "full"
+    # Resolve Effective Meta Density (Consistency Fix)
+    requested_meta_density = meta_density
+    meta_density = _resolve_effective_meta_density(
+        meta_density, path_filter, ext_filter, meta_none
+    )
 
     # Navigation style: default should be quiet.
     # You can later expose this as a UI toggle if desired.
@@ -3246,7 +3267,7 @@ def iter_report_blocks(
         header.append("")
     elif meta_density != "full":
         header.append(f"**Meta-Density:** `{meta_density}` (Reduzierter Overhead)")
-        if original_meta_density == "auto" and meta_density == "standard":
+        if requested_meta_density == "auto" and meta_density == "standard":
             header.append("⚠️ **Auto-Drosselung:** Wegen aktiver Filter wurde der Meta-Overhead reduziert.")
         header.append("")
 
@@ -3612,16 +3633,18 @@ def iter_report_blocks(
         plan.append("")
 
     # Meta-Throttling for Hotspots (Spec 3e)
-    hotspots_limit = 8
+    # hotspots_limit: min/none=0, standard=3, full=8
+    hotspots_limit = 0
     if meta_density == "standard":
         hotspots_limit = 3
-    elif meta_density == "min":
-        hotspots_limit = 0
+    elif meta_density == "full":
+        hotspots_limit = 8
 
-    hotspots = build_hotspots(processed_files, limit=hotspots_limit)
-    if hotspots and meta_density != "min" and hotspots_limit > 0:
-        plan.extend(hotspots)
-        plan.append("")
+    if hotspots_limit > 0:
+        hotspots = build_hotspots(processed_files, limit=hotspots_limit)
+        if hotspots:
+            plan.extend(hotspots)
+            plan.append("")
     plan.append("**Folder Highlights:**")
     if code_folders: plan.append(f"- Code: `{', '.join(sorted(code_folders))}`")
     if doc_folders: plan.append(f"- Docs: `{', '.join(sorted(doc_folders))}`")
@@ -4142,6 +4165,12 @@ def generate_json_sidecar(
     if text_files_count > 0:
         coverage_pct = round((ep_metrics["counts"]["text_contact"] / text_files_count) * 100, 1)
 
+    # Resolve Effective Meta Density (Consistency Fix)
+    requested_meta_density = meta_density
+    meta_density = _resolve_effective_meta_density(
+        meta_density, path_filter, ext_filter, meta_none
+    )
+
     # Build meta block (agent-first contract)
     meta = {
         "contract": AGENT_CONTRACT_NAME,
@@ -4157,6 +4186,7 @@ def generate_json_sidecar(
             "plan_only": bool(requested_flags["plan_only"]),
             "code_only": bool(requested_flags["code_only"]),
             "meta_none": bool(requested_flags.get("meta_none", False)),
+            "meta_density": requested_meta_density,
         },
         "max_file_bytes": max_file_bytes,
         "meta_density": meta_density,
