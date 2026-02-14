@@ -1,5 +1,4 @@
 import json
-import pytest
 from pathlib import Path
 from merger.lenskit.core import extractor
 from merger.lenskit.core.extractor import _compute_sha256_with_size, generate_review_bundle
@@ -130,7 +129,7 @@ def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
 
     delta_json_path = bundle_dir / "delta.json"
 
-    with open(delta_json_path) as f:
+    with open(delta_json_path, encoding="utf-8") as f:
         delta = json.load(f)
 
     # Find the entry for secret.txt

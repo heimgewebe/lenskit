@@ -504,6 +504,10 @@ def generate_review_bundle(
 
     # Helper to build file entry
     def make_entry(rel_path, status, root_path):
+        """
+        Creates a file entry for the delta report.
+        sha256_status values: "ok", "skipped" (removed), "error", "missing", "permission", "io_error".
+        """
         fpath = root_path / rel_path
         size = 0
         sha = None
