@@ -937,29 +937,21 @@ class HeatmapCollector:
 def _build_extras_meta(extras: "ExtrasConfig", num_repos: int) -> Dict[str, bool]:
     """
     Hilfsfunktion: baut den extras-Block für den @meta-Contract.
-    Nur aktivierte Flags werden gesetzt, damit das Schema schlank bleibt.
+    Alle Flags werden explizit gesetzt, um Konsistenz zu gewährleisten.
 
     Args:
         extras: ExtrasConfig mit den gewünschten Extras
         num_repos: Anzahl der Repos im Merge (für Fleet Panorama - muss explizit übergeben werden)
     """
-    extras_meta: Dict[str, bool] = {}
-    if extras.health:
-        extras_meta["health"] = True
-    if extras.organism_index:
-        extras_meta["organism_index"] = True
-    # Fleet Panorama nur bei Multi-Repo-Merges
-    if extras.fleet_panorama and num_repos > 1:
-        extras_meta["fleet_panorama"] = True
-    if extras.augment_sidecar:
-        extras_meta["augment_sidecar"] = True
-    if extras.delta_reports:
-        extras_meta["delta_reports"] = True
-    if extras.json_sidecar:
-        extras_meta["json_sidecar"] = True
-    if extras.heatmap:
-        extras_meta["heatmap"] = True
-    return extras_meta
+    return {
+        "health": extras.health,
+        "organism_index": extras.organism_index,
+        "fleet_panorama": extras.fleet_panorama and num_repos > 1,
+        "augment_sidecar": extras.augment_sidecar,
+        "delta_reports": extras.delta_reports,
+        "json_sidecar": extras.json_sidecar,
+        "heatmap": extras.heatmap,
+    }
 
 
 def _build_augment_meta(sources: List[Path]) -> Optional[Dict[str, Any]]:
@@ -3144,16 +3136,19 @@ def iter_report_blocks(
     # um später im Plan pro Repo eine Coverage-Zeile auszugeben
     included_by_root: Dict[str, int] = {}
 
-    # Declared Purpose (Patch C)
-    declared_purpose = ""
+    # Declared Purpose (Spec v2.4): based on Profile (level)
+    declared_purpose = PROFILE_USECASE.get(level, "(none)")
+
+    # Repository Purpose (extracted from README/docs)
+    repo_purpose = ""
     try:
         if sources:
-            declared_purpose = extract_purpose(sources[0])
+            repo_purpose = extract_purpose(sources[0])
     except Exception as e:
         sys.stderr.write(f"Warning: extract_purpose failed: {e}\n")
 
-    if not declared_purpose:
-        declared_purpose = "(none)"
+    if not repo_purpose:
+        repo_purpose = "(none)"
 
     infra_folders = set()
     code_folders = set()
@@ -3317,12 +3312,9 @@ def iter_report_blocks(
         header.append(EPISTEMIC_HUMILITY_WARNING)
         header.append("")
 
-    # Semantische Use-Case-Zeile pro Profil (ergänzend zum Repo-Zweck)
-    profile_usecase = PROFILE_USECASE.get(level)
-    if profile_usecase:
-        header.append(f"- **Profile Use-Case:** {profile_usecase}")
-
     header.append(f"- **Declared Purpose:** {declared_purpose}")
+    if repo_purpose and repo_purpose != "(none)":
+        header.append(f"- **Repo Purpose:** {repo_purpose}")
 
     # Scope-Zeile: welche Roots/Repos sind beteiligt?
     scope_desc = describe_scope(files)
@@ -3344,9 +3336,8 @@ def iter_report_blocks(
 
     # Coverage in header (for quick AI assessment)
     if text_files:
-        coverage_pct = int((included_count / len(text_files)) * 100)
-        # Spec v2.4: Coverage line with German suffix
-        header.append(f"- **Coverage:** {coverage_pct}% ({included_count}/{len(text_files)} Dateien mit vollem Inhalt)")
+        # Spec v2.4: Coverage line
+        header.append(f"- **Coverage:** {included_count}/{len(text_files)} Dateien mit vollem Inhalt")
 
     header.append("")
 
@@ -3578,7 +3569,7 @@ def iter_report_blocks(
     plan.append(f"- **Included Content:** {included_count} files (full)")
     if text_files:
         plan.append(
-            f"- **Coverage:** {included_count}/{len(text_files)} Textdateien mit Inhalt (`full`/`truncated`)"
+            f"- **Coverage:** {included_count}/{len(text_files)} Dateien mit vollem Inhalt"
         )
     plan.append("")
 
@@ -3620,8 +3611,15 @@ def iter_report_blocks(
             )
         plan.append("")
 
-    hotspots = build_hotspots(processed_files)
-    if hotspots and meta_density != "min":
+    # Meta-Throttling for Hotspots (Spec 3e)
+    hotspots_limit = 8
+    if meta_density == "standard":
+        hotspots_limit = 3
+    elif meta_density == "min":
+        hotspots_limit = 0
+
+    hotspots = build_hotspots(processed_files, limit=hotspots_limit)
+    if hotspots and meta_density != "min" and hotspots_limit > 0:
         plan.extend(hotspots)
         plan.append("")
     plan.append("**Folder Highlights:**")
@@ -4098,6 +4096,7 @@ def generate_json_sidecar(
     total_size: int = 0,
     delta_meta: Optional[Dict[str, Any]] = None,
     requested_flags: Optional[Dict[str, bool]] = None,
+    meta_density: str = "auto",
     meta_none: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -4160,6 +4159,7 @@ def generate_json_sidecar(
             "meta_none": bool(requested_flags.get("meta_none", False)),
         },
         "max_file_bytes": max_file_bytes,
+        "meta_density": meta_density,
         "total_files": len(files),
         "total_size_bytes": total_size,
         "source_repos": sorted([s.name for s in sources]) if sources else [],
@@ -4613,6 +4613,7 @@ def write_reports_v2(
                 total_size,
                 delta_meta,
                 requested_flags=requested_flags,
+                meta_density=meta_density,
                 meta_none=meta_none,
             )
             # Generate JSON filename: use first MD file for name, or fallback to deterministic name
@@ -4698,6 +4699,7 @@ def write_reports_v2(
                     total_size,
                     delta_meta,
                     requested_flags=requested_flags,
+                    meta_density=meta_density,
                     meta_none=meta_none,
                 )
                 # Generate JSON filename: use last MD file for name, or fallback to deterministic name
