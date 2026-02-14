@@ -179,11 +179,23 @@ class TestPrescanPool(unittest.TestCase):
         but explicitly include the root directory.
         """
         # Case: Legacy List
-        data = {
+        data_legacy = {
             "repo1": ["a", "", "b"]
         }
-        res = deserialize_prescan_pool(data)
-        self.assertEqual(res["repo1"]["compressed"], ["a", ".", "b"])
+        res_legacy = deserialize_prescan_pool(data_legacy)
+        self.assertEqual(res_legacy["repo1"]["raw"], ["a", ".", "b"])
+        self.assertEqual(res_legacy["repo1"]["compressed"], ["a", ".", "b"])
+
+        # Case: Structured Format
+        data_structured = {
+            "repo2": {
+                "raw": ["a", "", "b"],
+                "compressed": ["x", "", "y"]
+            }
+        }
+        res_structured = deserialize_prescan_pool(data_structured)
+        self.assertEqual(res_structured["repo2"]["raw"], ["a", ".", "b"])
+        self.assertEqual(res_structured["repo2"]["compressed"], ["x", ".", "y"])
 
 if __name__ == '__main__':
     unittest.main()
