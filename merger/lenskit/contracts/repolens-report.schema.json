@@ -22,7 +22,6 @@
         "source_repos",
         "path_filter",
         "ext_filter",
-        "meta_density",
         "generated_at",
         "total_files",
         "total_size_bytes"

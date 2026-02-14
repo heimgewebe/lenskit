@@ -2366,10 +2366,6 @@ def _resolve_effective_meta_density(
             return "standard"
         return "full"
 
-    # For explicit min/standard/full, return as requested (ignoring "none" if passed)
-    if meta_density == "none":
-        return "min"
-
     return meta_density
 
 
@@ -3073,7 +3069,7 @@ def iter_report_blocks(
 
     # Resolve Effective Meta Density (Consistency Fix)
     requested_meta_density = meta_density
-    meta_density = _resolve_effective_meta_density(
+    effective_meta_density = _resolve_effective_meta_density(
         meta_density, path_filter, ext_filter, meta_none
     )
 
@@ -3265,9 +3261,9 @@ def iter_report_blocks(
     if meta_none:
         header.append("**Meta-Mode:** `none` (Interpretation disabled)")
         header.append("")
-    elif meta_density != "full":
-        header.append(f"**Meta-Density:** `{meta_density}` (Reduzierter Overhead)")
-        if requested_meta_density == "auto" and meta_density == "standard":
+    elif effective_meta_density != "full":
+        header.append(f"**Meta-Density:** `{effective_meta_density}` (Reduzierter Overhead)")
+        if requested_meta_density == "auto" and effective_meta_density == "standard":
             header.append("⚠️ **Auto-Drosselung:** Wegen aktiver Filter wurde der Meta-Overhead reduziert.")
         header.append("")
 
@@ -3419,7 +3415,7 @@ def iter_report_blocks(
             "source_repos": sorted([s.name for s in sources]) if sources else [],
             "path_filter": path_filter,  # Use actual value, not description
             "ext_filter": sorted(ext_filter) if ext_filter else None,  # Use actual value, not description
-            "meta_density": meta_density,
+            "meta_density": effective_meta_density,
             "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),  # ISO-8601 timestamp
             "total_files": total_files,        # Total number of files in the merge
             "total_size_bytes": total_size,    # Sum of all file sizes
@@ -3526,7 +3522,7 @@ def iter_report_blocks(
 
         # Reading Lenses
         # Pass meta_density for budgeting
-        header.extend(_render_reading_lenses(files, active_lenses, meta_density=meta_density))
+        header.extend(_render_reading_lenses(files, active_lenses, meta_density=effective_meta_density))
 
         # Epistemic Status
         header.extend(_render_epistemic_status(files, active_lenses, ep_metrics))
@@ -3635,9 +3631,9 @@ def iter_report_blocks(
     # Meta-Throttling for Hotspots (Spec 3e)
     # hotspots_limit: min/none=0, standard=3, full=8
     hotspots_limit = 0
-    if meta_density == "standard":
+    if effective_meta_density == "standard":
         hotspots_limit = 3
-    elif meta_density == "full":
+    elif effective_meta_density == "full":
         hotspots_limit = 8
 
     if hotspots_limit > 0:
@@ -3771,7 +3767,7 @@ def iter_report_blocks(
 
     # --- Augment Intelligence (Stage 4: Sidecar) ---
     if extras.augment_sidecar:
-        augment_block = _render_augment_block(sources, meta_density=meta_density)
+        augment_block = _render_augment_block(sources, meta_density=effective_meta_density)
         if augment_block:
             yield augment_block
 
@@ -3794,7 +3790,7 @@ def iter_report_blocks(
     index_blocks = []
     index_blocks.extend(_heading_block(2, "index", "🧭 Index", nav=nav))
 
-    if meta_density == "min":
+    if effective_meta_density == "min":
         index_blocks.append("_Index reduced (meta=min)_")
         index_blocks.append("")
     else:
@@ -4000,7 +3996,7 @@ def iter_report_blocks(
         block.append(f"**Path:** `{fi.rel_path}`")
 
         # Header Drosselung: meta=min versteckt Details
-        if meta_density != "min":
+        if effective_meta_density != "min":
             block.append(f"- Category: {fi.category}")
             if fi.tags:
                 block.append(f"- Tags: {', '.join(fi.tags)}")
@@ -4010,7 +4006,7 @@ def iter_report_blocks(
             block.append(f"- Included: {status}")
 
             # MD5 nur bei full oder standard (wenn gewünscht, hier full only)
-            if meta_density == "full":
+            if effective_meta_density == "full":
                 block.append(f"- MD5: {fi.md5}")
 
         content, truncated, trunc_msg = read_smart_content(fi, max_file_bytes)
@@ -4018,9 +4014,9 @@ def iter_report_blocks(
         # File Meta Block (Spec Patch)
         # Gate: min -> aus, standard -> nur wenn partial/truncated, full -> immer
         show_file_meta = False
-        if meta_density == "full":
+        if effective_meta_density == "full":
             show_file_meta = True
-        elif meta_density == "standard":
+        elif effective_meta_density == "standard":
             if status != "full":
                 show_file_meta = True
         # Sonderregel: bei partial/truncated zwingend minimale Herkunftsspur
@@ -4119,7 +4115,7 @@ def generate_json_sidecar(
     total_size: int = 0,
     delta_meta: Optional[Dict[str, Any]] = None,
     requested_flags: Optional[Dict[str, bool]] = None,
-    meta_density: str = "auto",
+    requested_meta_density: str = "auto",
     meta_none: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -4166,9 +4162,8 @@ def generate_json_sidecar(
         coverage_pct = round((ep_metrics["counts"]["text_contact"] / text_files_count) * 100, 1)
 
     # Resolve Effective Meta Density (Consistency Fix)
-    requested_meta_density = meta_density
-    meta_density = _resolve_effective_meta_density(
-        meta_density, path_filter, ext_filter, meta_none
+    effective_meta_density = _resolve_effective_meta_density(
+        requested_meta_density, path_filter, ext_filter, meta_none
     )
 
     # Build meta block (agent-first contract)
@@ -4189,7 +4184,7 @@ def generate_json_sidecar(
             "meta_density": requested_meta_density,
         },
         "max_file_bytes": max_file_bytes,
-        "meta_density": meta_density,
+        "meta_density": effective_meta_density,
         "total_files": len(files),
         "total_size_bytes": total_size,
         "source_repos": sorted([s.name for s in sources]) if sources else [],
@@ -4643,7 +4638,7 @@ def write_reports_v2(
                 total_size,
                 delta_meta,
                 requested_flags=requested_flags,
-                meta_density=meta_density,
+                requested_meta_density=meta_density,
                 meta_none=meta_none,
             )
             # Generate JSON filename: use first MD file for name, or fallback to deterministic name
@@ -4729,7 +4724,7 @@ def write_reports_v2(
                     total_size,
                     delta_meta,
                     requested_flags=requested_flags,
-                    meta_density=meta_density,
+                    requested_meta_density=meta_density,
                     meta_none=meta_none,
                 )
                 # Generate JSON filename: use last MD file for name, or fallback to deterministic name

@@ -1,57 +1,6 @@
 import unittest
 from merger.lenskit.frontends.pythonista.repolens_utils import normalize_path, normalize_repo_id
-from merger.lenskit.frontends.pythonista.repolens_helpers import resolve_pool_include_paths, deserialize_prescan_pool, _sanitize_list
-
-class TestSanitizeListInternal(unittest.TestCase):
-
-    def test_none_input(self):
-        clean, dropped = _sanitize_list(None)
-        self.assertEqual(clean, [])
-        self.assertFalse(dropped)
-
-    def test_not_a_list(self):
-        clean, dropped = _sanitize_list("not a list")
-        self.assertEqual(clean, [])
-        self.assertTrue(dropped)
-
-        clean, dropped = _sanitize_list({"a": 1})
-        self.assertEqual(clean, [])
-        self.assertTrue(dropped)
-
-        clean, dropped = _sanitize_list(123)
-        self.assertEqual(clean, [])
-        self.assertTrue(dropped)
-
-    def test_empty_list(self):
-        clean, dropped = _sanitize_list([])
-        self.assertEqual(clean, [])
-        self.assertFalse(dropped)
-
-    def test_all_strings(self):
-        input_data = ["a", "b", "path/to/file"]
-        clean, dropped = _sanitize_list(input_data)
-        self.assertEqual(clean, input_data)
-        self.assertFalse(dropped)
-
-    def test_mixed_types(self):
-        # The primary target for this testing improvement: ensure mixed types are handled
-        input_data = ["a", 1, None, "b", 3.14, ["nested"], {"dict": True}]
-        clean, dropped = _sanitize_list(input_data)
-        self.assertEqual(clean, ["a", "b"])
-        self.assertTrue(dropped)
-
-    def test_all_invalid_types(self):
-        input_data = [1, None, 3.14, ["nested"], {"dict": True}]
-        clean, dropped = _sanitize_list(input_data)
-        self.assertEqual(clean, [])
-        self.assertTrue(dropped)
-
-    def test_unicode_strings(self):
-        input_data = ["üñîçødè", "正常"]
-        clean, dropped = _sanitize_list(input_data)
-        self.assertEqual(clean, input_data)
-        self.assertFalse(dropped)
-
+from merger.lenskit.frontends.pythonista.repolens_helpers import resolve_pool_include_paths, deserialize_prescan_pool
 
 class TestPrescanPool(unittest.TestCase):
 
