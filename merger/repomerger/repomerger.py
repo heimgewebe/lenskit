@@ -589,9 +589,13 @@ def write_report(files, level, max_file_bytes, output_path, sources,
                             f_out.write(f.read().rstrip("\n") + "\n")
 
                 except OSError as e:
+                    # Wenn Fehler nach dem Öffnen des Fences auftritt: Block sauber schließen
+                    if fence_opened:
+                        wl("```")
+                        fence_opened = False
                     wl("_Fehler beim Lesen der Datei: {0}_".format(e))
 
-                # Einheitliches Fence-Schließen
+                # Einheitliches Fence-Schließen (falls noch offen)
                 if fence_opened:
                     wl("```")
                 wl("")
