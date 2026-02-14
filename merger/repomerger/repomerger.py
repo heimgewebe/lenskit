@@ -557,11 +557,12 @@ def write_report(files, level, max_file_bytes, output_path, sources,
                     )
                     wl("")
 
+                fence_opened = False
                 try:
-                    wl("```{0}".format(lang_for(fi.ext)))
-
                     with fi.abs_path.open("r", encoding=encoding, errors="replace") as f_in:
-                        remaining = max_file_bytes if (level == "full") else None
+                        wl("```{0}".format(lang_for(fi.ext)))
+                        fence_opened = True
+                        remaining = max_file_bytes if (level == "full" and fi.size > max_file_bytes) else None
                         last_chunk = ""
                         finished_by_truncation = False
 
@@ -597,9 +598,12 @@ def write_report(files, level, max_file_bytes, output_path, sources,
                         else:
                             f_out.write(last_chunk.rstrip("\n"))
 
-                    f_out.write("\n```\n\n")
+                        f_out.write("\n```\n\n")
+                        fence_opened = False
 
                 except OSError as e:
+                    if fence_opened:
+                        f_out.write("\n```\n\n")
                     wl("_Fehler beim Lesen der Datei: {0}_".format(e))
                     wl("")
                     continue
