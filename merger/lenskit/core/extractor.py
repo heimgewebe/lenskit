@@ -335,8 +335,14 @@ def _construct_logical_payload(header_lines: List[str], content_chunks: List[str
 
 def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, str]:
     """
-    Computes SHA256 and size for a file. Returns (sha, size, err_code).
-    Mapped err_code values: 'ok', 'missing', 'permission', 'io_error', 'error'.
+    Computes SHA256 and size for a file. Returns (sha, size, sha256_status).
+
+    Allowed sha256_status values:
+    - 'ok': Success.
+    - 'missing': File not found.
+    - 'permission': Access denied (PermissionError).
+    - 'io_error': Generic I/O error (OSError).
+    - 'error': Unexpected failure.
     """
     try:
         # Best-effort size before potential open failure
