@@ -188,14 +188,14 @@ class TestPrescanPool(unittest.TestCase):
         Policy (Structured): Empty strings in prescan pool structured fields are treated as the repository root ('.').
         """
         data_structured = {
-            "repo2": {
+            "repo_structured": {
                 "raw": ["a", "", "b"],
                 "compressed": ["x", "", "y"]
             }
         }
         res_structured = deserialize_prescan_pool(data_structured)
-        self.assertEqual(res_structured["repo2"]["raw"], ["a", ".", "b"])
-        self.assertEqual(res_structured["repo2"]["compressed"], ["x", ".", "y"])
+        self.assertEqual(res_structured["repo_structured"]["raw"], ["a", ".", "b"])
+        self.assertEqual(res_structured["repo_structured"]["compressed"], ["x", ".", "y"])
 
 if __name__ == '__main__':
     unittest.main()
