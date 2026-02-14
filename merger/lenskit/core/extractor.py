@@ -26,6 +26,7 @@ import datetime
 import json
 import hashlib
 import fnmatch
+import os
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List, Any
 
@@ -348,6 +349,30 @@ def _compute_sha256(path: Path) -> Optional[str]:
         return None
 
 
+def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, Optional[str]]:
+    """
+    Computes SHA256 and size for a file.
+    Returns (sha, size, error_code).
+    error_code is None if successful, or one of "missing", "permission", "io_error".
+    """
+    try:
+        with path.open("rb") as f:
+            size = os.fstat(f.fileno()).st_size
+            h = hashlib.sha256()
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                h.update(chunk)
+        return h.hexdigest(), size, None
+    except FileNotFoundError:
+        return None, 0, "missing"
+    except PermissionError:
+        return None, 0, "permission"
+    except OSError:
+        return None, 0, "io_error"
+
+
 def _is_secret_file(path_str: str) -> bool:
     """Checks for sensitive files based on naming patterns."""
     name = Path(path_str).name
@@ -488,12 +513,13 @@ def generate_review_bundle(
         sha_status = "skipped" # default for removed or missing
 
         if status != "removed":
-            if fpath.exists():
-                size = fpath.stat().st_size
-                sha = _compute_sha256(fpath)
-                sha_status = "ok" if sha else "error"
+            sha, size, error_code = _compute_sha256_with_size(fpath)
+            if sha:
+                sha_status = "ok"
+            elif error_code:
+                sha_status = error_code
             else:
-                sha_status = "error" # file missing but should be there
+                sha_status = "error"
         else:
             # For removed, use old snapshot size if available
             if rel_path in old_snap:
