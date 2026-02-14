@@ -1,6 +1,23 @@
 from pathlib import Path
 from merger.lenskit.core.extractor import _compute_sha256_with_size
 
+def test_compute_sha256_with_size_happy_path(tmp_path):
+    """
+    Verifies that _compute_sha256_with_size correctly computes hash and size
+    for a normal file.
+    """
+    test_file = tmp_path / "test.txt"
+    content = b"abc"
+    test_file.write_bytes(content)
+
+    # Expected SHA256 for "abc"
+    expected_sha = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+
+    sha, size = _compute_sha256_with_size(test_file)
+
+    assert sha == expected_sha
+    assert size == len(content)
+
 def test_compute_sha256_with_size_oserror_preserves_size(monkeypatch):
     """
     Verifies that if hashing fails with an OSError (e.g. PermissionError),

@@ -334,7 +334,7 @@ def _construct_logical_payload(header_lines: List[str], content_chunks: List[str
 
 
 def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int]:
-    """Computes SHA256 and size for a file in a single pass. Returns (None, st_size-or-0) on failure."""
+    """Computes SHA256 and size for a file in a single pass. Returns (None, st_size-or-0) on OSError."""
     try:
         h = hashlib.sha256()
         size = 0
