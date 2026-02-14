@@ -172,5 +172,30 @@ class TestPrescanPool(unittest.TestCase):
         self.assertNotIn("Hub/MyRepo/", res)
         self.assertEqual(res["myrepo"]["raw"], ["a"])
 
+    def test_empty_string_policy_legacy_list(self):
+        """
+        Policy (Legacy): Empty strings in prescan pool legacy lists are treated as the repository root ('.').
+        """
+        data_legacy = {
+            "repo1": ["a", "", "b"]
+        }
+        res_legacy = deserialize_prescan_pool(data_legacy)
+        self.assertEqual(res_legacy["repo1"]["raw"], ["a", ".", "b"])
+        self.assertEqual(res_legacy["repo1"]["compressed"], ["a", ".", "b"])
+
+    def test_empty_string_policy_structured_format(self):
+        """
+        Policy (Structured): Empty strings in prescan pool structured fields are treated as the repository root ('.').
+        """
+        data_structured = {
+            "repo_structured": {
+                "raw": ["a", "", "b"],
+                "compressed": ["x", "", "y"]
+            }
+        }
+        res_structured = deserialize_prescan_pool(data_structured)
+        self.assertEqual(res_structured["repo_structured"]["raw"], ["a", ".", "b"])
+        self.assertEqual(res_structured["repo_structured"]["compressed"], ["x", ".", "y"])
+
 if __name__ == '__main__':
     unittest.main()
