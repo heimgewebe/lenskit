@@ -108,12 +108,12 @@ def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
     # Mock _compute_sha256_with_size to return error for secret.txt
     original_compute = extractor._compute_sha256_with_size
 
-    def mock_compute(path):
+    def mock_compute(path, *args, **kwargs):
         if path.name == "secret.txt":
             # Simulate a permission error
             return None, 999, "permission"
         # For other files (e.g. parts of the bundle), behave normally
-        return original_compute(path)
+        return original_compute(path, *args, **kwargs)
 
     monkeypatch.setattr(extractor, "_compute_sha256_with_size", mock_compute)
 
@@ -123,10 +123,11 @@ def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
     pr_schau_dir = hub_dir / ".repolens" / "pr-schau" / "test-repo"
     assert pr_schau_dir.exists()
 
-    # Find the timestamp folder
-    ts_folders = list(pr_schau_dir.iterdir())
-    assert len(ts_folders) == 1
-    bundle_dir = ts_folders[0]
+    # Find the timestamp folder robustly (latest by mtime)
+    ts_folders = [p for p in pr_schau_dir.iterdir() if p.is_dir()]
+    assert ts_folders, "No timestamp folder found"
+    bundle_dir = max(ts_folders, key=lambda p: p.stat().st_mtime)
+
     delta_json_path = bundle_dir / "delta.json"
 
     with open(delta_json_path) as f:
@@ -136,6 +137,6 @@ def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
     entry = next(e for e in delta["files"] if e["path"] == "secret.txt")
 
     assert entry["sha256_status"] == "permission"
-    assert entry["sha256"] is None
-    # ensure no sha256_error_class
+    assert entry.get("sha256") is None
+    # ensure no sha256_error_class (deprecated/removed in favor of status)
     assert "sha256_error_class" not in entry

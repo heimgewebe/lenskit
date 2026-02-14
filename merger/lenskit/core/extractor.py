@@ -508,6 +508,7 @@ def generate_review_bundle(
         size = 0
         sha = None
         sha_status = "skipped" # default for removed
+        err_code = None
 
         if status != "removed":
             # Note: exists() check removed as _compute_sha256_with_size handles
