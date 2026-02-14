@@ -418,7 +418,7 @@ def make_output_filename(sources, now):
 def write_report(files, level, max_file_bytes, output_path, sources,
                  encoding="utf-8", plan_only=False):
     """
-    Schreibt den Merge-Report.
+    Schreibt den Merge-Report (Streaming Writer).
     """
     now = datetime.datetime.now()
 
@@ -436,156 +436,165 @@ def write_report(files, level, max_file_bytes, output_path, sources,
     ext_counts, ext_sizes = summarize_extensions(files)
     cat_stats = summarize_categories(files)
 
-    lines = []
+    with output_path.open("w", encoding=encoding) as f_out:
+        def wl(line=""):
+            """Defensive line writer to prevent type errors and ensure newlines."""
+            f_out.write(str(line) + "\n")
 
-    # Header & Hinweise
-    lines.append("# Gewebe-Merge")
-    lines.append("")
-    lines.append("**Zeitpunkt:** {0}".format(now.strftime("%Y-%m-%d %H:%M:%S")))
-    if sources:
-        lines.append("**Quellen:**")
-        for src in sources:
-            lines.append("- `{0}`".format(src))
-    lines.append("**Detailstufe:** `{0}`".format(level))
-    lines.append("**Maximale Inhaltsgröße pro Datei:** {0}".format(human_size(max_file_bytes)))
-    lines.append("")
-    lines.append("> Hinweis für KIs:")
-    lines.append("> - Dies ist ein Schnappschuss des Dateisystems, keine vollständige Git-Historie.")
-    lines.append("> - Baumansicht: `## 📁 Struktur`.")
-    lines.append("> - Manifest: `## 🧾 Manifest`.")
-    if level == "overview":
-        lines.append("> - In dieser Detailstufe werden keine Dateiinhalte eingebettet.")
-    elif level == "summary":
-        lines.append("> - In dieser Detailstufe werden Inhalte kleiner Textdateien eingebettet;")
-        lines.append(">   größere Textdateien erscheinen nur im Manifest.")
-    else:
-        lines.append("> - In dieser Detailstufe werden Inhalte aller Textdateien eingebettet;")
-        lines.append(">   große Dateien werden nach einer einstellbaren Byte-Grenze gekürzt.")
-    lines.append("> - `.env`-ähnliche Dateien werden gefiltert; sensible Daten können trotzdem in")
-    lines.append(">   anderen Textdateien vorkommen. Nutze den Merge nicht als öffentlichen Dump.")
-    lines.append("")
+        # Header & Hinweise
+        wl("# Gewebe-Merge")
+        wl("")
+        wl("**Zeitpunkt:** {0}".format(now.strftime("%Y-%m-%d %H:%M:%S")))
+        if sources:
+            wl("**Quellen:**")
+            for src in sources:
+                wl("- `{0}`".format(src))
+        wl("**Detailstufe:** `{0}`".format(level))
+        wl("**Maximale Inhaltsgröße pro Datei:** {0}".format(human_size(max_file_bytes)))
+        wl("")
+        wl("> Hinweis für KIs:")
+        wl("> - Dies ist ein Schnappschuss des Dateisystems, keine vollständige Git-Historie.")
+        wl("> - Baumansicht: `## 📁 Struktur`.")
+        wl("> - Manifest: `## 🧾 Manifest`.")
+        if level == "overview":
+            wl("> - In dieser Detailstufe werden keine Dateiinhalte eingebettet.")
+        elif level == "summary":
+            wl("> - In dieser Detailstufe werden Inhalte kleiner Textdateien eingebettet;")
+            wl(">   größere Textdateien erscheinen nur im Manifest.")
+        else:
+            wl("> - In dieser Detailstufe werden Inhalte aller Textdateien eingebettet;")
+            wl(">   große Dateien werden nach einer einstellbaren Byte-Grenze gekürzt.")
+        wl("> - `.env`-ähnliche Dateien werden gefiltert; sensible Daten können trotzdem in")
+        wl(">   anderen Textdateien vorkommen. Nutze den Merge nicht als öffentlichen Dump.")
+        wl("")
 
-    # Plan
-    lines.append("## 🧮 Plan")
-    lines.append("")
-    lines.append("- Gefundene Dateien gesamt: **{0}**".format(len(files)))
-    lines.append("- Davon Textdateien: **{0}**".format(len(text_files)))
-    lines.append("- Davon Binärdateien: **{0}**".format(len(binary_files)))
-    lines.append("- Geplante Dateien mit Inhalteinbettung: **{0}**".format(planned_with_content))
-    lines.append("- Gesamtgröße der Quellen: **{0}**".format(human_size(total_size)))
-    if any(fi.size > max_file_bytes for fi in text_files):
-        lines.append(
-            "- Hinweis: Textdateien größer als {0} werden abhängig von der Detailstufe "
-            "gekürzt oder nur im Manifest aufgeführt.".format(human_size(max_file_bytes))
-        )
-    lines.append("")
-
-    if cat_stats:
-        lines.append("**Dateien nach Kategorien:**")
-        lines.append("")
-        lines.append("| Kategorie | Dateien | Gesamtgröße |")
-        lines.append("| --- | ---: | ---: |")
-        for cat in sorted(cat_stats.keys()):
-            cnt, sz = cat_stats[cat]
-            lines.append("| `{0}` | {1} | {2} |".format(cat, cnt, human_size(sz)))
-        lines.append("")
-
-    if ext_counts:
-        lines.append("**Grobe Statistik nach Dateiendungen:**")
-        lines.append("")
-        lines.append("| Ext | Dateien | Gesamtgröße |")
-        lines.append("| --- | ---: | ---: |")
-        for ext in sorted(ext_counts.keys()):
-            lines.append("| `{0}` | {1} | {2} |".format(
-                ext, ext_counts[ext], human_size(ext_sizes[ext])
-            ))
-        lines.append("")
-
-    lines.append(
-        "Da der repomerger häufig nacheinander unterschiedliche Repos verarbeitet, "
-        "werden keine Diffs zu früheren Läufen berechnet. "
-        "Jeder Merge ist ein eigenständiger Schnappschuss."
-    )
-    lines.append("")
-
-    if plan_only:
-        output_path.write_text("\n".join(lines), encoding=encoding)
-        return
-
-    # Struktur
-    lines.append("## 📁 Struktur")
-    lines.append("")
-    lines.append(build_tree(files))
-    lines.append("")
-
-    # Manifest
-    lines.append("## 🧾 Manifest")
-    lines.append("")
-    lines.append("| Root | Pfad | Kategorie | Text | Größe | MD5 |")
-    lines.append("| --- | --- | --- | --- | ---: | --- |")
-    for fi in files:
-        lines.append(
-            "| `{0}` | `{1}` | `{2}` | {3} | {4} | `{5}` |".format(
-                fi.root_label,
-                fi.rel_path,
-                fi.category,
-                "ja" if fi.is_text else "nein",
-                human_size(fi.size),
-                fi.md5,
+        # Plan
+        wl("## 🧮 Plan")
+        wl("")
+        wl("- Gefundene Dateien gesamt: **{0}**".format(len(files)))
+        wl("- Davon Textdateien: **{0}**".format(len(text_files)))
+        wl("- Davon Binärdateien: **{0}**".format(len(binary_files)))
+        wl("- Geplante Dateien mit Inhalteinbettung: **{0}**".format(planned_with_content))
+        wl("- Gesamtgröße der Quellen: **{0}**".format(human_size(total_size)))
+        if any(fi.size > max_file_bytes for fi in text_files):
+            wl(
+                "- Hinweis: Textdateien größer als {0} werden abhängig von der Detailstufe "
+                "gekürzt oder nur im Manifest aufgeführt.".format(human_size(max_file_bytes))
             )
+        wl("")
+
+        if cat_stats:
+            wl("**Dateien nach Kategorien:**")
+            wl("")
+            wl("| Kategorie | Dateien | Gesamtgröße |")
+            wl("| --- | ---: | ---: |")
+            for cat in sorted(cat_stats.keys()):
+                cnt, sz = cat_stats[cat]
+                wl("| `{0}` | {1} | {2} |".format(cat, cnt, human_size(sz)))
+            wl("")
+
+        if ext_counts:
+            wl("**Grobe Statistik nach Dateiendungen:**")
+            wl("")
+            wl("| Ext | Dateien | Gesamtgröße |")
+            wl("| --- | ---: | ---: |")
+            for ext in sorted(ext_counts.keys()):
+                wl("| `{0}` | {1} | {2} |".format(
+                    ext, ext_counts[ext], human_size(ext_sizes[ext])
+                ))
+            wl("")
+
+        wl(
+            "Da der repomerger häufig nacheinander unterschiedliche Repos verarbeitet, "
+            "werden keine Diffs zu früheren Läufen berechnet. "
+            "Jeder Merge ist ein eigenständiger Schnappschuss."
         )
-    lines.append("")
+        wl("")
 
-    # Inhalte
-    if level != "overview":
-        lines.append("## 📄 Dateiinhalte")
-        lines.append("")
+        if plan_only:
+            return
+
+        # Struktur
+        wl("## 📁 Struktur")
+        wl("")
+        wl(build_tree(files))
+        wl("")
+
+        # Manifest
+        wl("## 🧾 Manifest")
+        wl("")
+        wl("| Root | Pfad | Kategorie | Text | Größe | MD5 |")
+        wl("| --- | --- | --- | --- | ---: | --- |")
         for fi in files:
-            if not fi.is_text:
-                continue
-
-            if level == "summary" and fi.size > max_file_bytes:
-                continue
-
-            lines.append("### `{0}/{1}`".format(fi.root_label, fi.rel_path))
-            lines.append("")
-            if fi.size > max_file_bytes and level == "full":
-                lines.append(
-                    "**Hinweis:** Datei ist größer als {0} – es wird nur ein Ausschnitt "
-                    "bis zu dieser Grenze gezeigt.".format(human_size(max_file_bytes))
+            wl(
+                "| `{0}` | `{1}` | `{2}` | {3} | {4} | `{5}` |".format(
+                    fi.root_label,
+                    fi.rel_path,
+                    fi.category,
+                    "ja" if fi.is_text else "nein",
+                    human_size(fi.size),
+                    fi.md5,
                 )
-                lines.append("")
+            )
+        wl("")
 
-            try:
-                with fi.abs_path.open("r", encoding=encoding, errors="replace") as f:
-                    if fi.size > max_file_bytes and level == "full":
-                        remaining = max_file_bytes
-                        collected = []
-                        for line in f:
-                            encoded = line.encode(encoding, errors="replace")
+        # Inhalte
+        if level != "overview":
+            wl("## 📄 Dateiinhalte")
+            wl("")
+            for fi in files:
+                if not fi.is_text:
+                    continue
+
+                if level == "summary" and fi.size > max_file_bytes:
+                    continue
+
+                wl("### `{0}/{1}`".format(fi.root_label, fi.rel_path))
+                wl("")
+
+                fence_opened = False
+                try:
+                    # Truncation logic (preserved as per instructions)
+                    remaining = max_file_bytes if (level == "full" and fi.size > max_file_bytes) else None
+
+                    if remaining is not None:
+                        wl(
+                            "**Hinweis:** Datei ist größer als {0} – es wird nur ein Ausschnitt "
+                            "bis zu dieser Grenze gezeigt.".format(human_size(max_file_bytes))
+                        )
+                        wl("")
+
+                    with fi.abs_path.open("r", encoding=encoding, errors="replace") as f:
+                        # Öffnender Fence nur NACH erfolgreichem open()
+                        wl("```{0}".format(lang_for(fi.ext)))
+                        fence_opened = True
+
+                        if remaining is not None:
+                            for line in f:
+                                encoded = line.encode(encoding, errors="replace")
+                                if remaining <= 0:
+                                    break
+                                if len(encoded) > remaining:
+                                    part = encoded[:remaining].decode(encoding, errors="replace")
+                                    f_out.write(part + "\n[... gekürzt ...]\n")
+                                    remaining = 0
+                                    break
+                                f_out.write(line)
+                                remaining -= len(encoded)
                             if remaining <= 0:
-                                break
-                            if len(encoded) > remaining:
-                                part = encoded[:remaining].decode(encoding, errors="replace")
-                                collected.append(part + "\n[... gekürzt ...]\n")
-                                remaining = 0
-                                break
-                            collected.append(line)
-                            remaining -= len(encoded)
-                        content = "".join(collected)
-                    else:
-                        content = f.read()
-            except OSError as e:
-                lines.append("_Fehler beim Lesen der Datei: {0}_".format(e))
-                lines.append("")
-                continue
+                                wl("") # Ensure newline after truncation marker
+                        else:
+                            # Volles Einlesen (Streaming-aware within the handle would be better,
+                            # but f.read() is okay for files within reasonable limits)
+                            f_out.write(f.read().rstrip("\n") + "\n")
 
-            lines.append("```{0}".format(lang_for(fi.ext)))
-            lines.append(content.rstrip("\n"))
-            lines.append("```")
-            lines.append("")
+                except OSError as e:
+                    wl("_Fehler beim Lesen der Datei: {0}_".format(e))
 
-    output_path.write_text("\n".join(lines), encoding=encoding)
+                # Einheitliches Fence-Schließen
+                if fence_opened:
+                    wl("```")
+                wl("")
 
 
 # --- CLI / Source-Erkennung / Delete-Logik ----------------------------------
