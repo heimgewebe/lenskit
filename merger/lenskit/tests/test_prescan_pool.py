@@ -172,5 +172,18 @@ class TestPrescanPool(unittest.TestCase):
         self.assertNotIn("Hub/MyRepo/", res)
         self.assertEqual(res["myrepo"]["raw"], ["a"])
 
+    def test_empty_string_policy(self):
+        """
+        Policy: Empty strings in prescan pool lists are treated as the repository root ('.').
+        This ensures that accidental empty entries do not result in silent errors or exclusion,
+        but explicitly include the root directory.
+        """
+        # Case: Legacy List
+        data = {
+            "repo1": ["a", "", "b"]
+        }
+        res = deserialize_prescan_pool(data)
+        self.assertEqual(res["repo1"]["compressed"], ["a", ".", "b"])
+
 if __name__ == '__main__':
     unittest.main()
