@@ -559,8 +559,14 @@ def write_report(files, level, max_file_bytes, output_path, sources,
 
                 fence_opened = False
                 try:
+                    # Sprache defensiv ermitteln
+                    try:
+                        lang = lang_for(fi.ext)
+                    except Exception:
+                        lang = ""
+
                     with fi.abs_path.open("r", encoding=encoding, errors="replace") as f_in:
-                        wl("```{0}".format(lang_for(fi.ext)))
+                        wl("```{0}".format(lang))
                         fence_opened = True
                         remaining = max_file_bytes if (level == "full" and fi.size > max_file_bytes) else None
                         last_chunk = ""
