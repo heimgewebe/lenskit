@@ -1,91 +1,73 @@
 import json
+import hashlib
 from pathlib import Path
 from merger.lenskit.core import extractor
 from merger.lenskit.core.extractor import _compute_sha256_with_size, generate_review_bundle
 
 def test_compute_sha256_with_size_happy_path(tmp_path):
-    """
-    Verifies that _compute_sha256_with_size correctly computes hash and size
-    for a normal file.
-    """
-    test_file = tmp_path / "test.txt"
-    content = b"abc"
-    test_file.write_bytes(content)
+    f = tmp_path / "test.txt"
+    content = "hello world ü" # Unicode to test byte length
+    f.write_text(content, encoding="utf-8")
 
-    # Expected SHA256 for "abc"
-    expected_sha = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-
-    sha, size, err_code = _compute_sha256_with_size(test_file)
+    content_bytes = content.encode("utf-8")
+    expected_sha = hashlib.sha256(content_bytes).hexdigest()
+    sha, size, status = _compute_sha256_with_size(f)
 
     assert sha == expected_sha
-    assert size == len(content)
-    assert err_code is None
+    assert size == len(content_bytes)
+    assert status == "ok"
 
-def test_compute_sha256_with_size_oserror_preserves_size(monkeypatch):
-    """
-    Verifies that if hashing fails with an OSError (e.g. PermissionError),
-    the file size is still retrieved via best-effort stat().
-    """
-    test_path = Path("fake_file_for_test.txt")
-
-    def mock_open(self, *args, **kwargs):
-        raise PermissionError("Mocked Permission Error")
-
-    class MockStat:
-        def __init__(self):
-            self.st_size = 9999
-
-    def mock_stat(self):
-        return MockStat()
-
-    # Patch the concrete class of the instance (e.g. PosixPath) instead of Path factory
-    cls = type(test_path)
-    monkeypatch.setattr(cls, "open", mock_open, raising=True)
-    monkeypatch.setattr(cls, "stat", mock_stat, raising=True)
-
-    sha, size, err_code = _compute_sha256_with_size(test_path)
-
-    assert sha is None
-    assert size == 9999
-    assert err_code == "permission"
-
-def test_compute_sha256_with_size_full_failure(monkeypatch):
-    """
-    Verifies that if both hashing and stat() fail, it returns (None, 0).
-    """
-    test_path = Path("missing_file_for_test.txt")
-
-    def mock_fail(self, *args, **kwargs):
-        raise FileNotFoundError("File not found")
-
-    cls = type(test_path)
-    monkeypatch.setattr(cls, "open", mock_fail, raising=True)
-    monkeypatch.setattr(cls, "stat", mock_fail, raising=True)
-
-    sha, size, err_code = _compute_sha256_with_size(test_path)
+def test_compute_sha256_with_size_missing(tmp_path):
+    path = tmp_path / "does_not_exist_repolens"
+    sha, size, status = _compute_sha256_with_size(path)
 
     assert sha is None
     assert size == 0
-    assert err_code == "missing"
+    assert status == "missing"
 
-def test_compute_sha256_with_size_generic_oserror(monkeypatch):
-    """
-    Verifies that generic OSErrors are classified as 'io_error'.
-    """
-    test_path = Path("generic_error.txt")
+def test_compute_sha256_with_size_permission(tmp_path, monkeypatch):
+    f = tmp_path / "perm.txt"
+    f.write_text("no access", encoding="utf-8")
 
-    def mock_fail(self, *args, **kwargs):
-        raise OSError("Generic I/O Error")
+    cls = type(f)
+    original_stat = cls.stat
 
-    cls = type(test_path)
-    monkeypatch.setattr(cls, "open", mock_fail, raising=True)
-    monkeypatch.setattr(cls, "stat", mock_fail, raising=True)
+    def mock_stat(self, *args, **kwargs):
+        # Targeted patch: only fail for our specific test file
+        if self.name == "perm.txt":
+            raise PermissionError("Access denied")
+        return original_stat(self, *args, **kwargs)
 
-    sha, size, err_code = _compute_sha256_with_size(test_path)
+    monkeypatch.setattr(cls, "stat", mock_stat)
+
+    sha, size, status = _compute_sha256_with_size(f)
 
     assert sha is None
-    assert err_code == "io_error"
+    assert size == 0
+    assert status == "permission"
 
+def test_compute_sha256_with_size_open_error(tmp_path, monkeypatch):
+    f = tmp_path / "open_err.txt"
+    content = "can stat but not open"
+    f.write_text(content, encoding="utf-8")
+    content_bytes = content.encode("utf-8")
+
+    # Targeted patch for open
+    cls = type(f)
+    original_open = cls.open
+
+    def mock_open(self, *args, **kwargs):
+        if self.name == "open_err.txt":
+            raise OSError("Read error")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(cls, "open", mock_open)
+
+    sha, size, status = _compute_sha256_with_size(f)
+
+    assert sha is None
+    assert size == len(content_bytes) # best-effort size from stat succeeded
+    assert status == "io_error"
 
 def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
     """

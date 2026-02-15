@@ -333,35 +333,47 @@ def _construct_logical_payload(header_lines: List[str], content_chunks: List[str
     return "\n".join(header_lines + content_chunks)
 
 
-def _classify_oserror(e: OSError) -> str:
-    """Classifies an OSError into 'missing', 'permission', or 'io_error'."""
-    if isinstance(e, FileNotFoundError):
-        return "missing"
-    if isinstance(e, PermissionError):
-        return "permission"
-    return "io_error"
+def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, str]:
+    """
+    Computes SHA256 and size for a file. Returns (sha, size, sha256_status).
 
+    Allowed sha256_status values:
+    - 'ok': Success.
+    - 'missing': File not found.
+    - 'permission': Access denied (PermissionError).
+    - 'io_error': Generic I/O error (OSError) during reading/opening.
+    - 'error': Unexpected failure.
+    """
+    try:
+        # Best-effort size before potential open failure
+        st = path.stat()
+        size = st.st_size
+    except FileNotFoundError:
+        return None, 0, "missing"
+    except PermissionError:
+        return None, 0, "permission"
+    except OSError:
+        return None, 0, "io_error"
+    except Exception:
+        return None, 0, "error"
 
-def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, Optional[str]]:
-    """Computes SHA256 and size for a file in a single pass. Returns (sha, size, error_code)."""
     try:
         h = hashlib.sha256()
-        size = 0
         with path.open("rb") as f:
             while True:
                 chunk = f.read(65536)
                 if not chunk:
                     break
                 h.update(chunk)
-                size += len(chunk)
-        return h.hexdigest(), size, None
-    except OSError as e:
-        error_code = _classify_oserror(e)
-        # Best-effort size retrieval if hashing fails (e.g., permission error or file missing)
-        try:
-            return None, path.stat().st_size, error_code
-        except OSError:
-            return None, 0, error_code
+        return h.hexdigest(), size, "ok"
+    except FileNotFoundError:
+        return None, size, "missing"
+    except PermissionError:
+        return None, size, "permission"
+    except OSError:
+        return None, size, "io_error"
+    except Exception:
+        return None, size, "error"
 
 
 def _compute_sha256(path: Path) -> Optional[str]:
@@ -504,38 +516,29 @@ def generate_review_bundle(
 
     # Helper to build file entry
     def make_entry(rel_path, status, root_path):
-        """
-        Creates a file entry for the delta report.
-        sha256_status values: "ok", "skipped" (removed), "error", "missing", "permission", "io_error".
-        """
         fpath = root_path / rel_path
-        size = 0
-        sha = None
-        sha_status = "skipped" # default for removed
-        err_code = None
 
-        if status != "removed":
-            # Note: exists() check removed as _compute_sha256_with_size handles
-            # missing/unreadable files and returns (None, st_size-or-0) via best-effort stat().
-            sha, size, err_code = _compute_sha256_with_size(fpath)
-            if sha:
-                sha_status = "ok"
-            elif err_code:
-                sha_status = err_code
-            else:
-                sha_status = "error" # file missing or error reading (fallback)
-        else:
-            # For removed, use old snapshot size if available
-            if rel_path in old_snap:
-                size = old_snap[rel_path][0]
+        if status == "removed":
+            size = old_snap[rel_path][0] if rel_path in old_snap else 0
+            return {
+                "path": rel_path,
+                "status": status,
+                "category": _heuristic_category(rel_path),
+                "size_bytes": size,
+                "sha256": None,
+                "sha256_status": "skipped"
+            }
+
+        # For added/changed: use robust computation
+        sha, size, status_code = _compute_sha256_with_size(fpath)
 
         return {
             "path": rel_path,
             "status": status,
-            "category": _heuristic_category(rel_path), # Heuristic category added
+            "category": _heuristic_category(rel_path),
             "size_bytes": size,
             "sha256": sha,
-            "sha256_status": sha_status
+            "sha256_status": status_code
         }
 
     # Populate delta_files with prioritization for review order
@@ -772,10 +775,12 @@ def generate_review_bundle(
 
     for pname in parts_created:
         ppath = bundle_dir / pname
-        sha, psize, _ = _compute_sha256_with_size(ppath)
-        if not sha or len(sha) != 64:
-            raise RuntimeError(f"SHA256 computation failed for {ppath}")
+        sha, psize, status = _compute_sha256_with_size(ppath)
+        if status != "ok" or not sha or len(sha) != 64:
+            raise RuntimeError(f"Bundle part missing or computation failed: {ppath} (status={status})")
+
         emitted_bytes += psize
+
         role = "canonical_md" if pname == "review.md" else "part_md"
         artifacts_list.append({
             "role": role,
