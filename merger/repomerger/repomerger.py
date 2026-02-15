@@ -418,7 +418,7 @@ def make_output_filename(sources, now):
 def write_report(files, level, max_file_bytes, output_path, sources,
                  encoding="utf-8", plan_only=False):
     """
-    Schreibt den Merge-Report.
+    Schreibt den Merge-Report (Streaming Writer).
     """
     now = datetime.datetime.now()
 
@@ -438,6 +438,7 @@ def write_report(files, level, max_file_bytes, output_path, sources,
 
     with output_path.open("w", encoding=encoding) as f_out:
         def wl(line=""):
+            """Defensive line writer to prevent type errors and ensure newlines."""
             f_out.write(str(line) + "\n")
 
         # Header & Hinweise
@@ -550,70 +551,58 @@ def write_report(files, level, max_file_bytes, output_path, sources,
 
                 wl("### `{0}/{1}`".format(fi.root_label, fi.rel_path))
                 wl("")
-                if fi.size > max_file_bytes and level == "full":
-                    wl(
-                        "**Hinweis:** Datei ist größer als {0} – es wird nur ein Ausschnitt "
-                        "bis zu dieser Grenze gezeigt.".format(human_size(max_file_bytes))
-                    )
-                    wl("")
 
                 fence_opened = False
                 try:
-                    # Sprache defensiv ermitteln
-                    try:
-                        lang = lang_for(fi.ext)
-                    except Exception:
-                        lang = ""
+                    # Truncation logic (preserved as per instructions)
+                    remaining = max_file_bytes if (level == "full" and fi.size > max_file_bytes) else None
 
-                    with fi.abs_path.open("r", encoding=encoding, errors="replace") as f_in:
-                        wl("```{0}".format(lang))
+                    if remaining is not None:
+                        wl(
+                            "**Hinweis:** Datei ist größer als {0} – es wird nur ein Ausschnitt "
+                            "bis zu dieser Grenze gezeigt.".format(human_size(max_file_bytes))
+                        )
+                        wl("")
+
+                    with fi.abs_path.open("r", encoding=encoding, errors="replace") as f:
+                        # Öffnender Fence nur NACH erfolgreichem open()
+                        wl("```{0}".format(lang_for(fi.ext)))
                         fence_opened = True
-                        remaining = max_file_bytes if (level == "full" and fi.size > max_file_bytes) else None
-                        last_chunk = ""
-                        finished_by_truncation = False
 
                         if remaining is not None:
-                            # Truncated mode
-                            for line in f_in:
+                            for line in f:
                                 encoded = line.encode(encoding, errors="replace")
                                 if remaining <= 0:
-                                    finished_by_truncation = True
                                     break
                                 if len(encoded) > remaining:
                                     part = encoded[:remaining].decode(encoding, errors="replace")
-                                    f_out.write(last_chunk)
-                                    last_chunk = part
+                                    f_out.write(part + "\n[... gekürzt ...]\n")
                                     remaining = 0
-                                    finished_by_truncation = True
                                     break
-                                f_out.write(last_chunk)
-                                last_chunk = line
+                                f_out.write(line)
                                 remaining -= len(encoded)
+                            if remaining <= 0:
+                                wl("") # Ensure newline after truncation marker
                         else:
-                            # Normal mode
+                            # Volles Einlesen per Chunks (Streaming)
                             while True:
-                                chunk = f_in.read(65536)
+                                chunk = f.read(65536)
                                 if not chunk:
                                     break
-                                f_out.write(last_chunk)
-                                last_chunk = chunk
-
-                        if finished_by_truncation:
-                            f_out.write(last_chunk.rstrip("\n"))
-                            f_out.write("\n[... gekürzt ...]")
-                        else:
-                            f_out.write(last_chunk.rstrip("\n"))
-
-                        f_out.write("\n```\n\n")
-                        fence_opened = False
+                                f_out.write(chunk)
+                            # Wir akzeptieren evtl. ein trailing newline der Datei vor dem Fence
 
                 except OSError as e:
+                    # Wenn Fehler nach dem Öffnen des Fences auftritt: Block sauber schließen
                     if fence_opened:
                         wl("```")
-                        wl("")
+                        fence_opened = False
                     wl("_Fehler beim Lesen der Datei: {0}_".format(e))
-                    wl("")
-                    continue
+
+                # Einheitliches Fence-Schließen (falls noch offen)
+                if fence_opened:
+                    wl("```")
+                wl("")
 
 
 # --- CLI / Source-Erkennung / Delete-Logik ----------------------------------

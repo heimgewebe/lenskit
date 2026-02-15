@@ -81,6 +81,11 @@
             "pattern": "^\\.[A-Za-z0-9._-]+$"
           }
         },
+        "meta_density": {
+          "type": "string",
+          "enum": ["min", "standard", "full", "auto"],
+          "description": "Drosselungs-Grad für Metadaten-Overhead."
+        },
         "generated_at": {
           "type": "string",
           "description": "ISO-8601 UTC timestamp of when the merge was generated (e.g., 2025-12-11T05:55:00Z).",
