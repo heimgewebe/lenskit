@@ -530,7 +530,7 @@ def generate_review_bundle(
             }
 
         # For added/changed: use robust computation
-        sha, size, err_code = _compute_sha256_with_size(fpath)
+        sha, size, status_code = _compute_sha256_with_size(fpath)
 
         return {
             "path": rel_path,
@@ -538,7 +538,7 @@ def generate_review_bundle(
             "category": _heuristic_category(rel_path),
             "size_bytes": size,
             "sha256": sha,
-            "sha256_status": err_code
+            "sha256_status": status_code
         }
 
     # Populate delta_files with prioritization for review order

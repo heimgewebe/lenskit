@@ -44,7 +44,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "status", "size_bytes", "sha256_status"],
+        "required": ["path", "status", "size_bytes", "sha256", "sha256_status"],
         "properties": {
           "path": { "type": "string" },
           "status": { "type": "string", "enum": ["added", "changed", "removed"] },
@@ -64,7 +64,10 @@
         },
         "allOf": [
           {
-            "if": { "properties": { "status": { "const": "removed" } } },
+            "if": {
+              "properties": { "status": { "const": "removed" } },
+              "required": ["status"]
+            },
             "then": {
               "properties": {
                 "sha256": { "type": "null" },
@@ -73,7 +76,10 @@
             }
           },
           {
-            "if": { "properties": { "status": { "enum": ["added", "changed"] } } },
+            "if": {
+              "properties": { "status": { "enum": ["added", "changed"] } },
+              "required": ["status"]
+            },
             "then": {
               "properties": {
                 "sha256_status": { "not": { "const": "skipped" } }

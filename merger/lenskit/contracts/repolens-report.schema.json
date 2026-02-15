@@ -83,7 +83,7 @@
         },
         "meta_density": {
           "type": "string",
-          "enum": ["min", "standard", "full", "auto"],
+          "enum": ["min", "standard", "full"],
           "description": "Drosselungs-Grad für Metadaten-Overhead."
         },
         "generated_at": {
