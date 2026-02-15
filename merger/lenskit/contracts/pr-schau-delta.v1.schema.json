@@ -1,6 +1,6 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://heimgewebe.local/schema/pr-schau-delta.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heimgewebe.tools/contracts/pr-schau-delta.v1.schema.json",
   "title": "PR-Schau Delta Contract (pr-schau-delta v1.0)",
   "description": "Schema for the detailed delta.json in a PR-Schau bundle, including file-level hash status.",
   "type": "object",
@@ -31,6 +31,7 @@
     },
     "summary": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["added", "changed", "removed"],
       "properties": {
         "added": { "type": "integer", "minimum": 0 },
@@ -42,20 +43,44 @@
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["path", "status", "size_bytes", "sha256_status"],
         "properties": {
           "path": { "type": "string" },
           "status": { "type": "string", "enum": ["added", "changed", "removed"] },
           "category": { "type": "string" },
           "size_bytes": { "type": "integer", "minimum": 0 },
-          "sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+          "sha256": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              { "type": "null" }
+            ]
+          },
           "sha256_status": {
             "type": "string",
             "enum": ["ok", "missing", "permission", "io_error", "skipped", "error"],
             "description": "Cryptographic hash status. 'skipped' is used for removed files."
           }
         },
-        "additionalProperties": true
+        "allOf": [
+          {
+            "if": { "properties": { "status": { "const": "removed" } } },
+            "then": {
+              "properties": {
+                "sha256": { "type": "null" },
+                "sha256_status": { "const": "skipped" }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "status": { "enum": ["added", "changed"] } } },
+            "then": {
+              "properties": {
+                "sha256_status": { "not": { "const": "skipped" } }
+              }
+            }
+          }
+        ]
       }
     }
   }
