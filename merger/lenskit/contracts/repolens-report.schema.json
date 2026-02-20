@@ -88,6 +88,7 @@
         },
         "requested_meta_density": {
           "type": "string",
+          "enum": ["min", "standard", "full", "auto"],
           "description": "Ursprünglich angeforderte Dichte (z.B. 'auto')."
         },
         "generated_at": {
