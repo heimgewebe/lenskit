@@ -84,7 +84,11 @@
         "meta_density": {
           "type": "string",
           "enum": ["min", "standard", "full"],
-          "description": "Drosselungs-Grad für Metadaten-Overhead."
+          "description": "Effektiver Drosselungs-Grad (berechnet)."
+        },
+        "requested_meta_density": {
+          "type": "string",
+          "description": "Ursprünglich angeforderte Dichte (z.B. 'auto')."
         },
         "generated_at": {
           "type": "string",

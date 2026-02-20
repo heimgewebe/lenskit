@@ -46,9 +46,9 @@ def test_compute_sha256_with_size_permission(tmp_path, monkeypatch):
     assert size == 0
     assert status == "permission"
 
-def test_compute_sha256_with_size_open_error(tmp_path, monkeypatch):
-    f = tmp_path / "open_err.txt"
-    content = "can stat but not open"
+def test_compute_sha256_with_size_open_permission_error(tmp_path, monkeypatch):
+    f = tmp_path / "open_perm.txt"
+    content = "can stat but not open due to permission"
     f.write_text(content, encoding="utf-8")
     content_bytes = content.encode("utf-8")
 
@@ -57,8 +57,8 @@ def test_compute_sha256_with_size_open_error(tmp_path, monkeypatch):
     original_open = cls.open
 
     def mock_open(self, *args, **kwargs):
-        if self.name == "open_err.txt":
-            raise OSError("Read error")
+        if self.name == "open_perm.txt":
+            raise PermissionError("Access denied")
         return original_open(self, *args, **kwargs)
 
     monkeypatch.setattr(cls, "open", mock_open)
@@ -67,7 +67,7 @@ def test_compute_sha256_with_size_open_error(tmp_path, monkeypatch):
 
     assert sha is None
     assert size == len(content_bytes) # best-effort size from stat succeeded
-    assert status == "io_error"
+    assert status == "permission"
 
 def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
     """

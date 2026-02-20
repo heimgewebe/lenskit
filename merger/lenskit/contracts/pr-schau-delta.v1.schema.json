@@ -85,6 +85,28 @@
                 "sha256_status": { "not": { "const": "skipped" } }
               }
             }
+          },
+          {
+            "if": {
+              "properties": { "sha256_status": { "const": "ok" } },
+              "required": ["sha256_status"]
+            },
+            "then": {
+              "properties": {
+                "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": { "sha256_status": { "not": { "const": "ok" } } },
+              "required": ["sha256_status"]
+            },
+            "then": {
+              "properties": {
+                "sha256": { "type": "null" }
+              }
+            }
           }
         ]
       }
