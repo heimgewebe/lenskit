@@ -3416,6 +3416,7 @@ def iter_report_blocks(
             "path_filter": path_filter,  # Use actual value, not description
             "ext_filter": sorted(ext_filter) if ext_filter else None,  # Use actual value, not description
             "meta_density": effective_meta_density,
+            "requested_meta_density": requested_meta_density,
             "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),  # ISO-8601 timestamp
             "total_files": total_files,        # Total number of files in the merge
             "total_size_bytes": total_size,    # Sum of all file sizes
