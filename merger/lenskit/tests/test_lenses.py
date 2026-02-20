@@ -23,7 +23,7 @@ from merger.lenskit.core.lenses import infer_lens
 
     # UI
     (Path("src/ui/button.tsx"), "ui"),
-    (Path("style.css"), "ui"),
+    (Path("src/web/styles.css"), "ui"),
     (Path("templates/index.html"), "ui"),
 
     # Interfaces
@@ -33,7 +33,7 @@ from merger.lenskit.core.lenses import infer_lens
     # Core
     (Path("src/logic/calculator.py"), "core"),
     (Path("src/domain/entity.py"), "core"),
-    (Path("engine.py"), "core"),
+    (Path("src/core/engine.py"), "core"),
 ])
 def test_infer_lens_markers(path, expected):
     """Tests high-signal markers for each lens ID."""
@@ -41,7 +41,7 @@ def test_infer_lens_markers(path, expected):
 
 
 @pytest.mark.parametrize("path,expected", [
-    # core beats service (explicit policy in Step 6)
+    # Precedence policy: 'core' paths must classify as core even if 'service' appears
     (Path("src/core/service/logic.py"), "core"),
 ])
 def test_infer_lens_precedence(path, expected):
