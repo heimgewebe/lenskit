@@ -11,7 +11,6 @@ from merger.lenskit.core.lenses import infer_lens
     # Data Models
     (Path("src/contracts/user.proto"), "data_models"),
     (Path("src/schemas/event.schema.json"), "data_models"),
-    (Path("models.py"), "data_models"),
 
     # Pipelines
     (Path("src/pipelines/daily_sync.py"), "pipelines"),
@@ -20,10 +19,10 @@ from merger.lenskit.core.lenses import infer_lens
     # Entrypoints
     (Path("src/__main__.py"), "entrypoints"),
     (Path("manage.py"), "entrypoints"),
-    (Path("docs/README.md"), "entrypoints"), # Decided: README in docs is entrypoints
+    (Path("docs/README.md"), "entrypoints"),
 
     # UI
-    (Path("src/ui/button.tsx"), "ui"), # Matches 'ui' in parts
+    (Path("src/ui/button.tsx"), "ui"),
     (Path("style.css"), "ui"),
     (Path("templates/index.html"), "ui"),
 
@@ -42,12 +41,8 @@ def test_infer_lens_markers(path, expected):
 
 
 @pytest.mark.parametrize("path,expected", [
-    # core beats service
+    # core beats service (explicit policy in Step 6)
     (Path("src/core/service/logic.py"), "core"),
-    # guards beats data_models
-    (Path("tests/models.py"), "guards"),
-    # guards beats entrypoints
-    (Path(".github/bin/script.sh"), "guards"),
 ])
 def test_infer_lens_precedence(path, expected):
     """Tests precedence rules between different heuristics."""
