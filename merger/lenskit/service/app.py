@@ -700,6 +700,10 @@ def download_artifact(id: str, key: str = "md"):
         # Default: hub/merges
         merges_dir = get_merges_dir(Path(art.hub))
 
+    # Ensure merges_dir is absolute/canonical for security validation
+    # (Addresses potential relative paths in legacy artifacts)
+    merges_dir = merges_dir.resolve()
+
     # Unified file serving with security checks
     return _serve_file(merges_dir, filename, filename=filename)
 
