@@ -1457,7 +1457,7 @@ def compute_file_roles(fi: "FileInfo") -> List[str]:
     return deduped
 
 
-def build_hotspots(processed_files: List[Tuple["FileInfo", str]], limit: int = 8, **kwargs) -> List[str]:
+def build_hotspots(processed_files: List[Tuple["FileInfo", str]], limit: int = 8) -> List[str]:
     """
     Build a concise hotspot list for quick navigation.
 
