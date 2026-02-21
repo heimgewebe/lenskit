@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heimgewebe.tools/contracts/pr-schau-delta.v1.schema.json",
+  "title": "PR-Schau Delta Contract (pr-schau-delta v1.0)",
+  "description": "Schema for the detailed delta.json in a PR-Schau bundle, including file-level hash status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "repo",
+    "generated_at",
+    "summary",
+    "files"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "repolens.pr_schau.delta"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "repo": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "changed", "removed"],
+      "properties": {
+        "added": { "type": "integer", "minimum": 0 },
+        "changed": { "type": "integer", "minimum": 0 },
+        "removed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "status", "size_bytes", "sha256", "sha256_status"],
+        "properties": {
+          "path": { "type": "string" },
+          "status": { "type": "string", "enum": ["added", "changed", "removed"] },
+          "category": { "type": "string" },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "sha256": {
+            "anyOf": [
+              { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              { "type": "null" }
+            ]
+          },
+          "sha256_status": {
+            "type": "string",
+            "enum": ["ok", "missing", "permission", "io_error", "skipped", "error"],
+            "description": "Cryptographic hash status. 'skipped' is used for removed files."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "status": { "const": "removed" } },
+              "required": ["status"]
+            },
+            "then": {
+              "properties": {
+                "sha256": { "type": "null" },
+                "sha256_status": { "const": "skipped" }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": { "status": { "enum": ["added", "changed"] } },
+              "required": ["status"]
+            },
+            "then": {
+              "properties": {
+                "sha256_status": { "not": { "const": "skipped" } }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": { "sha256_status": { "const": "ok" } },
+              "required": ["sha256_status"]
+            },
+            "then": {
+              "properties": {
+                "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": { "sha256_status": { "not": { "const": "ok" } } },
+              "required": ["sha256_status"]
+            },
+            "then": {
+              "properties": {
+                "sha256": { "type": "null" }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

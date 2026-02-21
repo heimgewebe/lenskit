@@ -63,7 +63,7 @@ def test_meta_density_min_gates_hotspots_and_reading_lenses_everywhere(monkeypat
         create_file_info("docs/readme.md", category="doc"),
     ]
 
-    def fake_build_hotspots(_processed_files):
+    def fake_build_hotspots(_processed_files, **kwargs):
         return ["### Hotspots (Einstiegspunkte)\n- fake\n"]
 
     monkeypatch.setattr(merge, "build_hotspots", fake_build_hotspots)
@@ -94,7 +94,7 @@ def test_meta_density_standard_allows_hotspots(monkeypatch):
     """
     files = [create_file_info("src/main.py", category="source", tags=["entrypoint"])]
 
-    def fake_build_hotspots(_processed_files):
+    def fake_build_hotspots(_processed_files, **kwargs):
         return ["### Hotspots (Einstiegspunkte)\n- fake\n"]
 
     monkeypatch.setattr(merge, "build_hotspots", fake_build_hotspots)

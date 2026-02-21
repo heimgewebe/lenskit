@@ -937,29 +937,21 @@ class HeatmapCollector:
 def _build_extras_meta(extras: "ExtrasConfig", num_repos: int) -> Dict[str, bool]:
     """
     Hilfsfunktion: baut den extras-Block für den @meta-Contract.
-    Nur aktivierte Flags werden gesetzt, damit das Schema schlank bleibt.
+    Alle Flags werden explizit gesetzt, um Konsistenz zu gewährleisten.
 
     Args:
         extras: ExtrasConfig mit den gewünschten Extras
         num_repos: Anzahl der Repos im Merge (für Fleet Panorama - muss explizit übergeben werden)
     """
-    extras_meta: Dict[str, bool] = {}
-    if extras.health:
-        extras_meta["health"] = True
-    if extras.organism_index:
-        extras_meta["organism_index"] = True
-    # Fleet Panorama nur bei Multi-Repo-Merges
-    if extras.fleet_panorama and num_repos > 1:
-        extras_meta["fleet_panorama"] = True
-    if extras.augment_sidecar:
-        extras_meta["augment_sidecar"] = True
-    if extras.delta_reports:
-        extras_meta["delta_reports"] = True
-    if extras.json_sidecar:
-        extras_meta["json_sidecar"] = True
-    if extras.heatmap:
-        extras_meta["heatmap"] = True
-    return extras_meta
+    return {
+        "health": extras.health,
+        "organism_index": extras.organism_index,
+        "fleet_panorama": extras.fleet_panorama and num_repos > 1,
+        "augment_sidecar": extras.augment_sidecar,
+        "delta_reports": extras.delta_reports,
+        "json_sidecar": extras.json_sidecar,
+        "heatmap": extras.heatmap,
+    }
 
 
 def _build_augment_meta(sources: List[Path]) -> Optional[Dict[str, Any]]:
@@ -2355,6 +2347,28 @@ def _normalize_mode_flags(plan_only: bool, code_only: bool, meta_none: bool = Fa
     return plan_only, code_only, meta_none, requested_flags
 
 
+def _resolve_effective_meta_density(
+    meta_density: str,
+    path_filter: Optional[str] = None,
+    ext_filter: Optional[List[str]] = None,
+    meta_none: bool = False,
+) -> str:
+    """
+    Resolves the effective meta density based on filters and flags.
+    Standardizes logic between Markdown and JSON sidecar.
+    """
+    if meta_none:
+        return "min"  # Interpretation disabled implies minimal metadata overhead
+
+    if meta_density == "auto":
+        # Auto-Throttling: resolve to standard if filters are active, otherwise full.
+        if path_filter or ext_filter:
+            return "standard"
+        return "full"
+
+    return meta_density
+
+
 def _generate_run_id(
     repo_names: List[str],
     detail: str,
@@ -3053,16 +3067,11 @@ def iter_report_blocks(
     if debug:
         print("[lenskit] merge.py loaded from:", __file__)
 
-    # Resolve Auto-Throttling
-    # "Wenn Filter aktiv -> default meta_density=standard (oder min)"
-    original_meta_density = meta_density
-    if meta_none:
-        meta_density = "none"
-    elif meta_density == "auto":
-        if path_filter or ext_filter:
-            meta_density = "standard"
-        else:
-            meta_density = "full"
+    # Resolve Effective Meta Density (Consistency Fix)
+    requested_meta_density = meta_density
+    effective_meta_density = _resolve_effective_meta_density(
+        meta_density, path_filter, ext_filter, meta_none
+    )
 
     # Navigation style: default should be quiet.
     # You can later expose this as a UI toggle if desired.
@@ -3144,16 +3153,19 @@ def iter_report_blocks(
     # um später im Plan pro Repo eine Coverage-Zeile auszugeben
     included_by_root: Dict[str, int] = {}
 
-    # Declared Purpose (Patch C)
-    declared_purpose = ""
+    # Declared Purpose (Spec v2.4): based on Profile (level)
+    declared_purpose = PROFILE_USECASE.get(level, "(none)")
+
+    # Repository Purpose (extracted from README/docs)
+    repo_purpose = ""
     try:
         if sources:
-            declared_purpose = extract_purpose(sources[0])
+            repo_purpose = extract_purpose(sources[0])
     except Exception as e:
         sys.stderr.write(f"Warning: extract_purpose failed: {e}\n")
 
-    if not declared_purpose:
-        declared_purpose = "(none)"
+    if not repo_purpose:
+        repo_purpose = "(none)"
 
     infra_folders = set()
     code_folders = set()
@@ -3249,9 +3261,9 @@ def iter_report_blocks(
     if meta_none:
         header.append("**Meta-Mode:** `none` (Interpretation disabled)")
         header.append("")
-    elif meta_density != "full":
-        header.append(f"**Meta-Density:** `{meta_density}` (Reduzierter Overhead)")
-        if original_meta_density == "auto" and meta_density == "standard":
+    elif effective_meta_density != "full":
+        header.append(f"**Meta-Density:** `{effective_meta_density}` (Reduzierter Overhead)")
+        if requested_meta_density == "auto" and effective_meta_density == "standard":
             header.append("⚠️ **Auto-Drosselung:** Wegen aktiver Filter wurde der Meta-Overhead reduziert.")
         header.append("")
 
@@ -3317,12 +3329,9 @@ def iter_report_blocks(
         header.append(EPISTEMIC_HUMILITY_WARNING)
         header.append("")
 
-    # Semantische Use-Case-Zeile pro Profil (ergänzend zum Repo-Zweck)
-    profile_usecase = PROFILE_USECASE.get(level)
-    if profile_usecase:
-        header.append(f"- **Profile Use-Case:** {profile_usecase}")
-
     header.append(f"- **Declared Purpose:** {declared_purpose}")
+    if repo_purpose and repo_purpose != "(none)":
+        header.append(f"- **Repo Purpose:** {repo_purpose}")
 
     # Scope-Zeile: welche Roots/Repos sind beteiligt?
     scope_desc = describe_scope(files)
@@ -3344,9 +3353,8 @@ def iter_report_blocks(
 
     # Coverage in header (for quick AI assessment)
     if text_files:
-        coverage_pct = int((included_count / len(text_files)) * 100)
-        # Spec v2.4: Coverage line with German suffix
-        header.append(f"- **Coverage:** {coverage_pct}% ({included_count}/{len(text_files)} Dateien mit vollem Inhalt)")
+        # Spec v2.4: Coverage line
+        header.append(f"- **Coverage:** {included_count}/{len(text_files)} Dateien mit vollem Inhalt")
 
     header.append("")
 
@@ -3407,7 +3415,8 @@ def iter_report_blocks(
             "source_repos": sorted([s.name for s in sources]) if sources else [],
             "path_filter": path_filter,  # Use actual value, not description
             "ext_filter": sorted(ext_filter) if ext_filter else None,  # Use actual value, not description
-            "meta_density": meta_density,
+            "meta_density": effective_meta_density,
+            "requested_meta_density": requested_meta_density,
             "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),  # ISO-8601 timestamp
             "total_files": total_files,        # Total number of files in the merge
             "total_size_bytes": total_size,    # Sum of all file sizes
@@ -3514,7 +3523,7 @@ def iter_report_blocks(
 
         # Reading Lenses
         # Pass meta_density for budgeting
-        header.extend(_render_reading_lenses(files, active_lenses, meta_density=meta_density))
+        header.extend(_render_reading_lenses(files, active_lenses, meta_density=effective_meta_density))
 
         # Epistemic Status
         header.extend(_render_epistemic_status(files, active_lenses, ep_metrics))
@@ -3578,7 +3587,7 @@ def iter_report_blocks(
     plan.append(f"- **Included Content:** {included_count} files (full)")
     if text_files:
         plan.append(
-            f"- **Coverage:** {included_count}/{len(text_files)} Textdateien mit Inhalt (`full`/`truncated`)"
+            f"- **Coverage:** {included_count}/{len(text_files)} Dateien mit vollem Inhalt"
         )
     plan.append("")
 
@@ -3620,10 +3629,19 @@ def iter_report_blocks(
             )
         plan.append("")
 
-    hotspots = build_hotspots(processed_files)
-    if hotspots and meta_density != "min":
-        plan.extend(hotspots)
-        plan.append("")
+    # Meta-Throttling for Hotspots (Spec 3e)
+    # hotspots_limit: min/none=0, standard=3, full=8
+    hotspots_limit = 0
+    if effective_meta_density == "standard":
+        hotspots_limit = 3
+    elif effective_meta_density == "full":
+        hotspots_limit = 8
+
+    if hotspots_limit > 0:
+        hotspots = build_hotspots(processed_files, limit=hotspots_limit)
+        if hotspots:
+            plan.extend(hotspots)
+            plan.append("")
     plan.append("**Folder Highlights:**")
     if code_folders: plan.append(f"- Code: `{', '.join(sorted(code_folders))}`")
     if doc_folders: plan.append(f"- Docs: `{', '.join(sorted(doc_folders))}`")
@@ -3750,7 +3768,7 @@ def iter_report_blocks(
 
     # --- Augment Intelligence (Stage 4: Sidecar) ---
     if extras.augment_sidecar:
-        augment_block = _render_augment_block(sources, meta_density=meta_density)
+        augment_block = _render_augment_block(sources, meta_density=effective_meta_density)
         if augment_block:
             yield augment_block
 
@@ -3773,7 +3791,7 @@ def iter_report_blocks(
     index_blocks = []
     index_blocks.extend(_heading_block(2, "index", "🧭 Index", nav=nav))
 
-    if meta_density == "min":
+    if effective_meta_density == "min":
         index_blocks.append("_Index reduced (meta=min)_")
         index_blocks.append("")
     else:
@@ -3979,7 +3997,7 @@ def iter_report_blocks(
         block.append(f"**Path:** `{fi.rel_path}`")
 
         # Header Drosselung: meta=min versteckt Details
-        if meta_density != "min":
+        if effective_meta_density != "min":
             block.append(f"- Category: {fi.category}")
             if fi.tags:
                 block.append(f"- Tags: {', '.join(fi.tags)}")
@@ -3989,7 +4007,7 @@ def iter_report_blocks(
             block.append(f"- Included: {status}")
 
             # MD5 nur bei full oder standard (wenn gewünscht, hier full only)
-            if meta_density == "full":
+            if effective_meta_density == "full":
                 block.append(f"- MD5: {fi.md5}")
 
         content, truncated, trunc_msg = read_smart_content(fi, max_file_bytes)
@@ -3997,9 +4015,9 @@ def iter_report_blocks(
         # File Meta Block (Spec Patch)
         # Gate: min -> aus, standard -> nur wenn partial/truncated, full -> immer
         show_file_meta = False
-        if meta_density == "full":
+        if effective_meta_density == "full":
             show_file_meta = True
-        elif meta_density == "standard":
+        elif effective_meta_density == "standard":
             if status != "full":
                 show_file_meta = True
         # Sonderregel: bei partial/truncated zwingend minimale Herkunftsspur
@@ -4098,6 +4116,7 @@ def generate_json_sidecar(
     total_size: int = 0,
     delta_meta: Optional[Dict[str, Any]] = None,
     requested_flags: Optional[Dict[str, bool]] = None,
+    requested_meta_density: str = "auto",
     meta_none: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -4143,6 +4162,11 @@ def generate_json_sidecar(
     if text_files_count > 0:
         coverage_pct = round((ep_metrics["counts"]["text_contact"] / text_files_count) * 100, 1)
 
+    # Resolve Effective Meta Density (Consistency Fix)
+    effective_meta_density = _resolve_effective_meta_density(
+        requested_meta_density, path_filter, ext_filter, meta_none
+    )
+
     # Build meta block (agent-first contract)
     meta = {
         "contract": AGENT_CONTRACT_NAME,
@@ -4160,6 +4184,8 @@ def generate_json_sidecar(
             "meta_none": bool(requested_flags.get("meta_none", False)),
         },
         "max_file_bytes": max_file_bytes,
+        "meta_density": effective_meta_density,
+        "requested_meta_density": requested_meta_density,
         "total_files": len(files),
         "total_size_bytes": total_size,
         "source_repos": sorted([s.name for s in sources]) if sources else [],
@@ -4613,6 +4639,7 @@ def write_reports_v2(
                 total_size,
                 delta_meta,
                 requested_flags=requested_flags,
+                requested_meta_density=meta_density,
                 meta_none=meta_none,
             )
             # Generate JSON filename: use first MD file for name, or fallback to deterministic name
@@ -4698,6 +4725,7 @@ def write_reports_v2(
                     total_size,
                     delta_meta,
                     requested_flags=requested_flags,
+                    requested_meta_density=meta_density,
                     meta_none=meta_none,
                 )
                 # Generate JSON filename: use last MD file for name, or fallback to deterministic name
