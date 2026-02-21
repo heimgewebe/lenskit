@@ -651,6 +651,9 @@ def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Opti
         if not resolved_file.exists():
             raise HTTPException(status_code=404, detail="File on disk missing")
 
+        if not resolved_file.is_file():
+            raise HTTPException(status_code=404, detail="File on disk missing")
+
         return FileResponse(resolved_file, filename=filename or resolved_file.name)
     except AccessDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -998,8 +1001,13 @@ def download_atlas(id: str, key: str = "md"):
         raise HTTPException(status_code=404, detail="File not found")
 
     # Unified file serving with security checks
-    # Use relative_to for strict enforcement even if file_path came from glob()
-    return _serve_file(merges_dir, file_path.relative_to(merges_dir))
+    try:
+        # Use relative_to for strict enforcement even if file_path came from glob()
+        rel_path = file_path.relative_to(merges_dir)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return _serve_file(merges_dir, rel_path)
 
 @app.post("/api/export/webmaschine", dependencies=[Depends(verify_token)])
 def export_webmaschine():
