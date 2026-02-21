@@ -132,9 +132,11 @@ def test_generated_delta_compliance(schema, tmp_path):
     pr_schau_dir = hub_dir / ".repolens" / "pr-schau" / repo_name
     assert pr_schau_dir.exists()
 
-    ts_folders = list(pr_schau_dir.iterdir())
-    assert len(ts_folders) >= 1
-    # Pick the newest folder if multiple exist (defensive)
+    # Filter for directories only (defensive)
+    ts_folders = [p for p in pr_schau_dir.iterdir() if p.is_dir()]
+    assert len(ts_folders) >= 1, "Expected at least one bundle directory"
+
+    # Pick the newest folder if multiple exist
     bundle_dir = max(ts_folders, key=lambda p: p.stat().st_mtime)
 
     delta_json_path = bundle_dir / "delta.json"
