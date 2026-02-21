@@ -652,7 +652,7 @@ def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Opti
             raise HTTPException(status_code=404, detail="File on disk missing")
 
         if not resolved_file.is_file():
-            raise HTTPException(status_code=404, detail="File on disk missing")
+            raise HTTPException(status_code=404, detail="Not a regular file")
 
         return FileResponse(resolved_file, filename=filename or resolved_file.name)
     except AccessDeniedError as e:
@@ -1006,8 +1006,8 @@ def download_atlas(id: str, key: str = "md"):
 
     # Unified file serving with security checks
     try:
-        # Use relative_to for strict enforcement even if file_path came from glob()
-        rel_path = file_path.relative_to(merges_dir)
+        # Use relative_to on resolved paths for maximum robustness even if file_path came from glob()
+        rel_path = file_path.resolve().relative_to(merges_dir.resolve())
     except ValueError:
         raise HTTPException(status_code=403, detail="Access denied")
 
