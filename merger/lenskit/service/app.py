@@ -628,7 +628,8 @@ def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Opti
     """
     # 1. Early Traversal & Absolute Path Guard (UX/400)
     req_p = Path(requested_path)
-    if req_p.is_absolute() or ".." in str(req_p) or "\\" in str(req_p):
+    # Stricter segment check to allow filenames like "foo..bar.md" while blocking traversal
+    if req_p.is_absolute() or any(part == ".." for part in req_p.parts) or "\\" in str(req_p):
         raise HTTPException(status_code=400, detail="Invalid path: Traversal, absolute paths, or backslashes not allowed")
 
     sec = get_security_config()
@@ -997,7 +998,7 @@ def download_atlas(id: str, key: str = "md"):
         raise HTTPException(status_code=404, detail="File not found")
 
     # Unified file serving with security checks
-    # Deriving relative path from absolute file_path (guaranteed to be under merges_dir by glob)
+    # Use relative_to for strict enforcement even if file_path came from glob()
     return _serve_file(merges_dir, file_path.relative_to(merges_dir))
 
 @app.post("/api/export/webmaschine", dependencies=[Depends(verify_token)])
