@@ -42,6 +42,7 @@ def page_with_static(page: Page):
             route.continue_()
 
     page.route("**/app.js*", handle_static)
+    page.route("**/materialize.js*", handle_static)
     page.route("**/style.css*", handle_static)
 
     page.route("**/api/version", lambda route: route.fulfill(json={"version": "test", "build_id": "test-1"}))
