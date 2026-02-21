@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from pathlib import Path
 import os
 import asyncio
@@ -618,25 +618,37 @@ def get_artifact(id: str):
         raise HTTPException(status_code=404, detail="Artifact not found")
     return art
 
-def _serve_file(file_path: Path, base_dir: Path, filename: Optional[str] = None) -> FileResponse:
+def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Optional[str] = None) -> FileResponse:
     """
     Unified file serving logic with security checks.
-    1. Validates base_dir and file_path against security allowlist.
-    2. Ensures file_path is within base_dir.
-    3. Returns a FileResponse.
+    1. Validates base_dir against security allowlist.
+    2. Derives file_path from base_dir + requested_path.
+    3. Ensures file_path is within base_dir.
+    4. Returns a FileResponse.
     """
+    # 1. Early Traversal & Absolute Path Guard (UX/400)
+    req_p = Path(requested_path)
+    if req_p.is_absolute() or ".." in str(req_p) or "\\" in str(req_p):
+        raise HTTPException(status_code=400, detail="Invalid path: Traversal, absolute paths, or backslashes not allowed")
+
     sec = get_security_config()
     try:
-        # validate_path returns resolved/canonical paths.
-        # This ensures we are comparing canonical paths in the containment check.
+        # 2. Validate Base (returns canonical path)
         resolved_base = sec.validate_path(base_dir)
-        resolved_file = sec.validate_path(file_path)
 
-        # Consistency: Explicitly check if file is inside the intended validated base_dir
+        # 3. Derive File Path
+        # Joining with Path(requested_path) is now safe because we checked is_absolute()
+        target_path = resolved_base / req_p
+
+        # 4. Validate Target
+        # validate_path returns resolved/canonical paths.
+        resolved_file = sec.validate_path(target_path)
+
+        # 5. Consistency: Explicitly check if file is inside the intended validated base_dir
         resolved_file.relative_to(resolved_base)
 
         if not resolved_file.exists():
-             raise HTTPException(status_code=404, detail="File on disk missing")
+            raise HTTPException(status_code=404, detail="File on disk missing")
 
         return FileResponse(resolved_file, filename=filename or resolved_file.name)
     except AccessDeniedError as e:
@@ -685,7 +697,7 @@ def download_artifact(id: str, key: str = "md"):
         merges_dir = get_merges_dir(Path(art.hub))
 
     # Unified file serving with security checks
-    return _serve_file(merges_dir / filename, merges_dir, filename=filename)
+    return _serve_file(merges_dir, filename, filename=filename)
 
 # Atlas API
 
@@ -985,7 +997,8 @@ def download_atlas(id: str, key: str = "md"):
         raise HTTPException(status_code=404, detail="File not found")
 
     # Unified file serving with security checks
-    return _serve_file(file_path, merges_dir)
+    # Deriving relative path from absolute file_path (guaranteed to be under merges_dir by glob)
+    return _serve_file(merges_dir, file_path.relative_to(merges_dir))
 
 @app.post("/api/export/webmaschine", dependencies=[Depends(verify_token)])
 def export_webmaschine():
