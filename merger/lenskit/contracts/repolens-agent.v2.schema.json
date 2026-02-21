@@ -33,6 +33,16 @@
         "plan_only": { "type": "boolean" },
         "code_only": { "type": "boolean" },
         "max_file_bytes": { "type": "integer" },
+        "meta_density": {
+          "type": "string",
+          "enum": ["min", "standard", "full"],
+          "description": "Effektiver Drosselungs-Grad (berechnet)."
+        },
+        "requested_meta_density": {
+          "type": "string",
+          "enum": ["min", "standard", "full", "auto"],
+          "description": "Ursprünglich angeforderte Dichte (z.B. 'auto')."
+        },
         "total_files": { "type": "integer" },
         "total_size_bytes": { "type": "integer" },
         "source_repos": { "type": "array", "items": { "type": "string" } },
