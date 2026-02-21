@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from pathlib import Path
 import os
 import asyncio
@@ -618,6 +618,51 @@ def get_artifact(id: str):
         raise HTTPException(status_code=404, detail="Artifact not found")
     return art
 
+def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Optional[str] = None) -> FileResponse:
+    """
+    Unified file serving logic with security checks.
+    1. Validates base_dir against security allowlist.
+    2. Derives file_path from base_dir + requested_path.
+    3. Ensures file_path is within base_dir.
+    4. Returns a FileResponse.
+    """
+    # 1. Early Traversal & Absolute Path Guard (UX/400)
+    req_p = Path(requested_path)
+    # Stricter segment check to allow filenames like "foo..bar.md" while blocking traversal
+    if req_p.is_absolute() or any(part == ".." for part in req_p.parts) or "\\" in str(req_p):
+        raise HTTPException(status_code=400, detail="Invalid path: Traversal, absolute paths, or backslashes not allowed")
+
+    sec = get_security_config()
+    try:
+        # 2. Validate Base (returns canonical path)
+        resolved_base = sec.validate_path(base_dir)
+
+        # 3. Derive File Path
+        # Joining with Path(requested_path) is now safe because we checked is_absolute()
+        target_path = resolved_base / req_p
+
+        # 4. Validate Target
+        # validate_path returns resolved/canonical paths.
+        resolved_file = sec.validate_path(target_path)
+
+        # 5. Consistency: Explicitly check if file is inside the intended validated base_dir
+        resolved_file.relative_to(resolved_base)
+
+        if not resolved_file.exists():
+            raise HTTPException(status_code=404, detail="File on disk missing")
+
+        if not resolved_file.is_file():
+            raise HTTPException(status_code=404, detail="Not a regular file")
+
+        return FileResponse(resolved_file, filename=filename or resolved_file.name)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except InvalidPathError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied: File outside of expected directory")
+
+
 @app.get("/api/artifacts/{id}/download", dependencies=[Depends(verify_token)])
 def download_artifact(id: str, key: str = "md"):
     art = state.job_store.get_artifact(id)
@@ -634,80 +679,33 @@ def download_artifact(id: str, key: str = "md"):
         else:
              raise HTTPException(status_code=404, detail=f"File key '{key}' not found in artifact")
 
-    sec = get_security_config()
-
     # Determine base directory
     # Priority 1: Effective merges_dir captured at creation time (new field)
     if art.merges_dir:
         p = Path(art.merges_dir)
-        try:
-            if not p.is_absolute():
-                # Resolve relative paths against HUB (defense in depth for drifted persistence)
-                merges_dir = (Path(art.hub) / p).resolve()
-            else:
-                merges_dir = p.resolve()
-            merges_dir = sec.validate_path(merges_dir)
-        except AccessDeniedError:
-            raise HTTPException(
-                status_code=403,
-                detail="Access denied: Artifact merges directory not allowed",
-            )
-        except InvalidPathError:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid path: Artifact merges directory invalid",
-            )
-
+        if not p.is_absolute():
+            # Resolve relative paths against HUB (defense in depth for drifted persistence)
+            merges_dir = (Path(art.hub) / p)
+        else:
+            merges_dir = p
     # Priority 2: Requested merges_dir (params)
     # Backward compatibility: if art.merges_dir is None (legacy artifacts)
     elif art.params.merges_dir:
         p = Path(art.params.merges_dir)
-        try:
-            if not p.is_absolute():
-                merges_dir = (Path(art.hub) / p).resolve()
-            else:
-                merges_dir = p.resolve()
-            merges_dir = sec.validate_path(merges_dir)
-        except AccessDeniedError:
-            raise HTTPException(
-                status_code=403,
-                detail="Access denied: Custom merges directory not allowed",
-            )
-        except InvalidPathError:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid path: Custom merges directory invalid",
-            )
+        if not p.is_absolute():
+            merges_dir = (Path(art.hub) / p)
+        else:
+            merges_dir = p
     else:
         # Default: hub/merges
-        # Ensure it is resolved to be robust against symlinks when checking containment later
-        merges_dir = get_merges_dir(Path(art.hub)).resolve()
+        merges_dir = get_merges_dir(Path(art.hub))
 
-    file_path = merges_dir / filename
+    # Ensure merges_dir is absolute/canonical for security validation
+    # (Addresses potential relative paths in legacy artifacts)
+    merges_dir = merges_dir.resolve()
 
-    # Security: Validate final file path against allowlist
-    # Double-check: even if merges_dir is valid, the file_path must also be valid
-    try:
-        if not file_path.is_absolute():
-            file_path = file_path.resolve()
-        file_path = sec.validate_path(file_path)
-    except AccessDeniedError:
-        raise HTTPException(status_code=403, detail="Access denied: File path not allowed by security policy")
-    except InvalidPathError:
-        raise HTTPException(status_code=400, detail="Invalid path: File path invalid")
-
-    # Consistency: Explicitly check if file is inside the *intended* validated merges_dir
-    # Both paths are now resolved/validated by sec.validate_path
-    try:
-        # We use resolved paths for comparison to be robust against symlinks/..
-        file_path.relative_to(merges_dir)
-    except ValueError:
-         raise HTTPException(status_code=403, detail="Access denied: File outside of expected merges directory")
-
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File on disk missing")
-
-    return FileResponse(file_path, filename=filename)
+    # Unified file serving with security checks
+    return _serve_file(merges_dir, filename, filename=filename)
 
 # Atlas API
 
@@ -1006,13 +1004,14 @@ def download_atlas(id: str, key: str = "md"):
     if not file_path:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Final belt-and-suspenders containment check
+    # Unified file serving with security checks
     try:
-        file_path.relative_to(merges_dir)
+        # Use relative_to on resolved paths for maximum robustness even if file_path came from glob()
+        rel_path = file_path.resolve().relative_to(merges_dir.resolve())
     except ValueError:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    return FileResponse(file_path, filename=file_path.name)
+    return _serve_file(merges_dir, rel_path)
 
 @app.post("/api/export/webmaschine", dependencies=[Depends(verify_token)])
 def export_webmaschine():
