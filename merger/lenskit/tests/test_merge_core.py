@@ -306,5 +306,46 @@ class TestMergeCore(unittest.TestCase):
         # Check for alias anchor (legacy/backward compatibility)
         self.assertIn(f'<a id="{base_anchor}"></a>', full_report)
 
+    def test_extras_config_from_csv(self):
+        from lenskit.core.merge import ExtrasConfig
+
+        # 1. Normal case
+        csv = "health, delta_reports, json_sidecar"
+        config, warnings = ExtrasConfig.from_csv(csv)
+        self.assertTrue(config.health)
+        self.assertTrue(config.delta_reports)
+        self.assertTrue(config.json_sidecar)
+        self.assertFalse(config.organism_index)
+        self.assertEqual(len(warnings), 0)
+
+        # 2. Deprecation case
+        csv = "ai_heatmap, health"
+        config, warnings = ExtrasConfig.from_csv(csv)
+        self.assertTrue(config.heatmap) # ai_heatmap -> heatmap
+        self.assertTrue(config.health)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Deprecated", warnings[0])
+        self.assertIn("ai_heatmap", warnings[0])
+
+        # 3. Unknown extra case
+        csv = "unknown_thing, health"
+        config, warnings = ExtrasConfig.from_csv(csv)
+        self.assertTrue(config.health)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Unknown extra 'unknown_thing' ignored", warnings[0])
+
+        # 4. None/Empty case
+        config, warnings = ExtrasConfig.from_csv(None)
+        self.assertFalse(config.health)
+        self.assertEqual(len(warnings), 0)
+
+        config, warnings = ExtrasConfig.from_csv("none")
+        self.assertFalse(config.health)
+        self.assertEqual(len(warnings), 0)
+
+        config, warnings = ExtrasConfig.from_csv("")
+        self.assertFalse(config.health)
+        self.assertEqual(len(warnings), 0)
+
 if __name__ == '__main__':
     unittest.main()
