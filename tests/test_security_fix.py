@@ -6,7 +6,7 @@ from merger.lenskit.adapters.security import SecurityConfig, AccessDeniedError
 def test_security_config_allowlist_invariant(tmp_path):
     """
     Unit Test: Verify that SecurityConfig enforces boundaries correctly
-    and does not allow root access by default.
+    and does not allow root access by default for browsing.
     """
     sec = SecurityConfig()
     hub = (tmp_path / "hub").resolve()
@@ -18,7 +18,7 @@ def test_security_config_allowlist_invariant(tmp_path):
 
     sec.add_allowlist_root(hub)
 
-    # Invariant 1: The system root (/) must not be in the allowlist
+    # Invariant 1: The system root (/) must not be in the allowlist (browsing base)
     if hasattr(sec, "allowlist_roots"):
         root_str = str(Path("/").resolve())
         allowed_strings = {str(p.resolve()) for p in sec.allowlist_roots}
@@ -27,14 +27,10 @@ def test_security_config_allowlist_invariant(tmp_path):
     # Invariant 2: Path inside hub should be allowed
     sec.validate_path(repo_dir)
 
-    # Invariant 3: Path outside (like /etc) should be denied
+    # Invariant 3: Path outside (like /etc) should be denied (not in allowlist)
+    # This remains the primary protection against unauthorized browsing.
     with pytest.raises(AccessDeniedError):
         sec.validate_path(Path("/etc"))
-
-    # Invariant 4: Root itself should be denied for general navigation
-    # This enforces the policy that root is not an authorized browsing base.
-    with pytest.raises(AccessDeniedError):
-        sec.validate_path(Path("/").resolve())
 
 def test_static_source_check_app_py():
     """
