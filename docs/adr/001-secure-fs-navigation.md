@@ -36,7 +36,7 @@ We introduced a `TrustedPath` dataclass in the backend.
 This creates a visible type boundary between "untrusted user input" and "safe filesystem operations", aiding both code review and static analysis.
 
 ## Consequences
-*   **Positive**: CodeQL "path injection" warnings are resolved by design. Filesystem access is strictly limited to authorized roots.
+*   **Positive**: CodeQL "path injection" warnings are resolved by design. Filesystem access is limited to authorized roots (optionally including system root on loopback + auth).
 *   **Negative**: "Quick and dirty" API calls using manual path strings are no longer possible; clients must obtain a valid token first (e.g., via `/api/fs/roots`).
 *   **Maintenance**: Requires `RLENS_FS_TOKEN_SECRET` (or `RLENS_TOKEN` fallback) to be managed securely.
 

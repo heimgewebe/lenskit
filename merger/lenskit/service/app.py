@@ -170,8 +170,10 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
     has_token = bool(token or os.getenv("RLENS_TOKEN") or os.getenv("RLENS_FS_TOKEN_SECRET"))
 
     if is_loopback and has_token:
-        logger.warning("Root allowlisted (loopback + auth).")
-        sec.add_allowlist_root(Path("/"))
+        root = Path("/").resolve()
+        if root not in getattr(sec, "allowlist_roots", []):
+            logger.warning("Root allowlisted (loopback + auth).")
+            sec.add_allowlist_root(root)
     else:
         logger.warning(
             "Root browsing refused (loopback=%s, has_token=%s).",

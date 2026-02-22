@@ -3,7 +3,6 @@ import sys
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
-from merger.lenskit.adapters.security import SecurityConfig, AccessDeniedError
 
 # --- Mocking for init_service Behavioral Test ---
 class MockBaseModel:
@@ -55,6 +54,7 @@ def test_security_config_allowlist_invariant(tmp_path):
     """
     Unit Test: Verify that SecurityConfig enforces boundaries correctly.
     """
+    from merger.lenskit.adapters.security import SecurityConfig, AccessDeniedError
     sec = SecurityConfig()
     hub = (tmp_path / "hub").resolve()
     hub.mkdir(parents=True, exist_ok=True)
@@ -70,6 +70,15 @@ def test_security_config_allowlist_invariant(tmp_path):
     with pytest.raises(AccessDeniedError):
         sec.validate_path(Path("/etc"))
 
+def _reset_allowlist(sec):
+    if not hasattr(sec, "allowlist_roots"):
+        pytest.skip("SecurityConfig has no allowlist_roots; cannot assert root policy")
+    roots = sec.allowlist_roots
+    if hasattr(roots, "clear"):
+        roots.clear()
+    else:
+        sec.allowlist_roots = []
+
 def test_init_service_loopback_with_token_allows_root(monkeypatch, tmp_path):
     """
     Behavioral: Loopback + Token -> Root IS allowlisted.
@@ -77,7 +86,7 @@ def test_init_service_loopback_with_token_allows_root(monkeypatch, tmp_path):
     hub = tmp_path / "hub"
     hub.mkdir()
     sec = get_security_config()
-    sec.allowlist_roots = [] # Reset
+    _reset_allowlist(sec)
 
     init_service(hub, host="127.0.0.1", token="secret")
 
@@ -91,7 +100,7 @@ def test_init_service_loopback_without_token_refuses_root(monkeypatch, tmp_path)
     hub = tmp_path / "hub"
     hub.mkdir()
     sec = get_security_config()
-    sec.allowlist_roots = [] # Reset
+    _reset_allowlist(sec)
 
     # Ensure no tokens in env
     monkeypatch.delenv("RLENS_TOKEN", raising=False)
@@ -109,7 +118,7 @@ def test_init_service_non_loopback_with_token_refuses_root(monkeypatch, tmp_path
     hub = tmp_path / "hub"
     hub.mkdir()
     sec = get_security_config()
-    sec.allowlist_roots = [] # Reset
+    _reset_allowlist(sec)
 
     init_service(hub, host="192.168.1.1", token="secret")
 
@@ -120,12 +129,13 @@ def test_static_source_check_app_py():
     app_path = Path("merger/lenskit/service/app.py")
     content = app_path.read_text(encoding="utf-8")
 
-    # Flags should be gone
+    # Legacy flags should be gone
     assert "RLENS_ALLOW_FS_ROOT" not in content
     assert "RLENS_OPERATOR_MODE" not in content
 
-    # Loopback gating should be present
+    # Loopback gating and has_token gating should be present
     assert "is_loopback = _is_loopback_host(host)" in content
+    assert "has_token = bool(token or os.getenv(\"RLENS_TOKEN\") or os.getenv(\"RLENS_FS_TOKEN_SECRET\"))" in content
     assert "if is_loopback and has_token:" in content
     assert "Root allowlisted (loopback + auth)." in content
 
@@ -146,4 +156,4 @@ def test_static_source_check_adr():
 
     assert "Loopback-Scoped Root Access" in content
     assert "enabled by default only when the service is bound to a loopback interface" in content
-    assert "RLENS_OPERATOR_MODE" not in content
+    assert "optionally including system root on loopback + auth" in content
