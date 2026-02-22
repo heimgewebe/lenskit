@@ -148,7 +148,7 @@ def test_static_source_check_rlens_cli():
     assert "RLENS_OPERATOR_MODE" not in content
 
     # Notice for non-loopback should be present
-    assert "Root browsing will be disabled (non-loopback host)" in content
+    assert "Root browsing will be refused by policy (non-loopback host)" in content
 
 def test_static_source_check_adr():
     adr_path = Path("docs/adr/001-secure-fs-navigation.md")
