@@ -4,6 +4,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
+pytestmark = pytest.mark.skipif(os.name != "posix", reason="root policy tests assume POSIX paths")
+
 # --- Mocking for init_service Behavioral Test ---
 class MockBaseModel:
     def __init__(self, **kwargs):
