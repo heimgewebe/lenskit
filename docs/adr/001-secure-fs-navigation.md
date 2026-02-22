@@ -12,16 +12,14 @@ However, standard implementation of absolute path browsing poses significant sec
 ## Decision
 We implement a "Secure Capability" architecture that balances functionality with strict governance and scanner compliance.
 
-### 1. Gated Root Access (Operator Mode)
-Browsing the system root (`/`) via API is disabled by default. The service is normally restricted to navigation within allowlisted directories (Hub, Merges directory, and User Home).
+### 1. Loopback-Scoped Root Access
+Browsing the system root (`/`) via API is enabled by default only when the service is bound to a loopback interface (`localhost` / `127.0.0.1`) and authentication is configured.
 
-Root access can be explicitly enabled for administrative tasks ("Operator Mode") only under strict security constraints:
-1.  **Environment Flag**: `RLENS_ALLOW_FS_ROOT=1` must be set.
-2.  **Operator Flag**: `RLENS_OPERATOR_MODE=1` must be set.
-3.  **Local Only**: The service must be bound to a loopback interface (`localhost`/`127.0.0.1`).
-4.  **Auth Required**: A security token or secret must be configured.
+If the service is bound to any non-loopback interface, root browsing is automatically refused.
 
-This ensures that root access is auditible, intentional, and not exposed to the network by accident.
+This ensures:
+- Full operator capability in local deployments
+- No accidental exposure of system root over the network
 
 ### 2. Token-Based Navigation (The "Hard Cut")
 To satisfy security scanners and prevent path traversal, the API no longer accepts raw path strings for navigation.
