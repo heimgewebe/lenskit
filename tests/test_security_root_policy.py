@@ -31,17 +31,17 @@ def setup_mocks():
         sys.modules["starlette"] = MagicMock()
         sys.modules["starlette.concurrency"] = MagicMock()
 
-    # Always mock heavy service components for these targeted tests
+    # Mock heavy service components if not present
     # BUT DO NOT mock merger.lenskit.adapters.security
-    sys.modules["merger.lenskit.service.jobstore"] = MagicMock()
-    sys.modules["merger.lenskit.service.runner"] = MagicMock()
-    sys.modules["merger.lenskit.service.logging_provider"] = MagicMock()
-    sys.modules["merger.lenskit.service.auth"] = MagicMock()
-    sys.modules["merger.lenskit.adapters.atlas"] = MagicMock()
-    sys.modules["merger.lenskit.adapters.metarepo"] = MagicMock()
-    sys.modules["merger.lenskit.adapters.sources"] = MagicMock()
-    sys.modules["merger.lenskit.adapters.diagnostics"] = MagicMock()
-    sys.modules["merger.lenskit.core.merge"] = MagicMock()
+    sys.modules.setdefault("merger.lenskit.service.jobstore", MagicMock())
+    sys.modules.setdefault("merger.lenskit.service.runner", MagicMock())
+    sys.modules.setdefault("merger.lenskit.service.logging_provider", MagicMock())
+    sys.modules.setdefault("merger.lenskit.service.auth", MagicMock())
+    sys.modules.setdefault("merger.lenskit.adapters.atlas", MagicMock())
+    sys.modules.setdefault("merger.lenskit.adapters.metarepo", MagicMock())
+    sys.modules.setdefault("merger.lenskit.adapters.sources", MagicMock())
+    sys.modules.setdefault("merger.lenskit.adapters.diagnostics", MagicMock())
+    sys.modules.setdefault("merger.lenskit.core.merge", MagicMock())
 
 setup_mocks()
 # Ensure repo root is in path
