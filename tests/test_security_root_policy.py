@@ -74,10 +74,13 @@ def _reset_allowlist(sec):
     if not hasattr(sec, "allowlist_roots"):
         pytest.skip("SecurityConfig has no allowlist_roots; cannot assert root policy")
     roots = sec.allowlist_roots
-    if hasattr(roots, "clear"):
+    try:
         roots.clear()
-    else:
-        sec.allowlist_roots = []
+        return
+    except Exception:
+        pass
+    # fallback: replace with empty list
+    sec.allowlist_roots = []
 
 def test_init_service_loopback_with_token_allows_root(monkeypatch, tmp_path):
     """
