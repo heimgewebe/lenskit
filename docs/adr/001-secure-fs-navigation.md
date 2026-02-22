@@ -13,7 +13,9 @@ However, standard implementation of absolute path browsing poses significant sec
 We implement a "Secure Capability" architecture that balances functionality with strict governance and scanner compliance.
 
 ### 1. Restricted Root Access
-Access to the system root (`/`) is strictly prohibited. The service is restricted to allowlisted directories (Hub, Merges directory, and User Home).
+Browsing the system root (`/`) via API is prohibited. The service is restricted to navigation within allowlisted directories (Hub, Merges directory, and User Home).
+
+Future system-wide scans, if ever introduced, must be implemented as a separate, local-only capability with explicit governance (e.g. job-based inventory with redaction), rather than widening the filesystem allowlist for general browsing.
 
 ### 2. Token-Based Navigation (The "Hard Cut")
 To satisfy security scanners and prevent path traversal, the API no longer accepts raw path strings for navigation.
