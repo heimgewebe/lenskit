@@ -12,11 +12,14 @@ However, standard implementation of absolute path browsing poses significant sec
 ## Decision
 We implement a "Secure Capability" architecture that balances functionality with strict governance and scanner compliance.
 
-### 1. Opt-In Root Access
-System root (`/`) access is disabled by default. It can only be enabled by setting the environment variable:
-`RLENS_ALLOW_FS_ROOT=1`
+### 1. Loopback-Scoped Root Access
+Browsing the system root (`/`) via API is enabled by default only when the service is bound to a loopback interface (`localhost` / `127.0.0.1`) and authentication is configured (via the `token` parameter, `RLENS_TOKEN`, or `RLENS_FS_TOKEN_SECRET`).
 
-This ensures that the capability is explicit, auditible, and not active by accident.
+If the service is bound to any non-loopback interface, root browsing is automatically refused.
+
+This ensures:
+- Full operator capability in local deployments
+- No accidental exposure of system root over the network
 
 ### 2. Token-Based Navigation (The "Hard Cut")
 To satisfy security scanners and prevent path traversal, the API no longer accepts raw path strings for navigation.
@@ -33,7 +36,7 @@ We introduced a `TrustedPath` dataclass in the backend.
 This creates a visible type boundary between "untrusted user input" and "safe filesystem operations", aiding both code review and static analysis.
 
 ## Consequences
-*   **Positive**: CodeQL "path injection" warnings are resolved by design. Root access is possible but secure.
+*   **Positive**: CodeQL "path injection" warnings are resolved by design. Filesystem access is limited to authorized roots (optionally including system root on loopback + auth).
 *   **Negative**: "Quick and dirty" API calls using manual path strings are no longer possible; clients must obtain a valid token first (e.g., via `/api/fs/roots`).
 *   **Maintenance**: Requires `RLENS_FS_TOKEN_SECRET` (or `RLENS_TOKEN` fallback) to be managed securely.
 

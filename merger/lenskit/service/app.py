@@ -104,11 +104,6 @@ GC_MAX_AGE_HOURS = int(os.getenv("RLENS_GC_MAX_AGE_HOURS", "24"))
 # SSE polling (seconds)
 SSE_POLL_SEC = float(os.getenv("RLENS_SSE_POLL_SEC", "0.25"))
 
-# Security: Root Jail for File System Browsing
-# Set to system root to allow full access, but preventing traversal above it (which is impossible anyway).
-# Can be overridden if needed via Env or Config in future.
-FS_ROOT = Path("/").resolve()
-
 def _is_loopback_host(host: str) -> bool:
     h = (host or "").strip().lower()
     if h in ("127.0.0.1", "localhost", "::1"):
@@ -170,11 +165,21 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
     except Exception as e:
         logger.debug("Could not allow system root: %s", e, exc_info=True)
 
-    # DANGEROUS CAPABILITY:
-    # Allows rLens to browse the entire filesystem ("/") via API.
-    # Must be explicitly enabled.
-    if os.getenv("RLENS_ALLOW_FS_ROOT", "0") == "1":
-        sec.add_allowlist_root(Path("/"))
+    # Root Access: enabled by default on loopback with auth
+    is_loopback = _is_loopback_host(host)
+    has_token = bool(token or os.getenv("RLENS_TOKEN") or os.getenv("RLENS_FS_TOKEN_SECRET"))
+
+    if is_loopback and has_token:
+        root = Path("/").resolve()
+        if root not in getattr(sec, "allowlist_roots", []):
+            logger.warning("Root allowlisted (loopback + auth).")
+            sec.add_allowlist_root(root)
+    else:
+        logger.warning(
+            "Root browsing refused (loopback=%s, has_token=%s).",
+            is_loopback,
+            has_token
+        )
 
     # Apply CORS based on host
     # Prevent middleware duplication (if init called multiple times in tests)
