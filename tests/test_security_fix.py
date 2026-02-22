@@ -3,23 +3,27 @@ import pytest
 from pathlib import Path
 from merger.lenskit.adapters.security import SecurityConfig, AccessDeniedError
 
-def test_security_config_allowlist_invariant():
+def test_security_config_allowlist_invariant(tmp_path):
     """
     Unit Test: Verify that SecurityConfig enforces boundaries correctly
     and does not allow root access by default.
     """
     sec = SecurityConfig()
-    hub = Path("/tmp/hub").resolve()
+    hub = (tmp_path / "hub").resolve()
+    hub.mkdir(parents=True, exist_ok=True)
     sec.add_allowlist_root(hub)
 
     # Path inside hub should be allowed
     sec.validate_path(hub / "repo")
 
-    # Path outside (like /etc) should be denied
+    # Path outside (like /etc) should be denied (not in allowlist)
     with pytest.raises(AccessDeniedError):
         sec.validate_path(Path("/etc"))
 
-    # Root itself should be denied
+    # Root itself should be denied for API browsing/navigation contexts.
+    # Note: If a system-wide scan capability is introduced later, it should
+    # be implemented as a separate, local-only capability with explicit
+    # governance, rather than widening this general-purpose allowlist.
     root_path = Path("/").resolve()
     with pytest.raises(AccessDeniedError):
         sec.validate_path(root_path)
