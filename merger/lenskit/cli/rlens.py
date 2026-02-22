@@ -103,7 +103,7 @@ def main():
         sys.exit(1)
 
     if not _is_loopback_host(args.host):
-        print("[rlens] Notice: Root browsing will be refused by policy (non-loopback host).")
+        print("[rlens] Notice: Root browsing will be refused by policy (non-loopback host).", file=sys.stderr)
 
     # 4. Initialize Service
     init_service(
