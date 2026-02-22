@@ -13,7 +13,7 @@ However, standard implementation of absolute path browsing poses significant sec
 We implement a "Secure Capability" architecture that balances functionality with strict governance and scanner compliance.
 
 ### 1. Loopback-Scoped Root Access
-Browsing the system root (`/`) via API is enabled by default only when the service is bound to a loopback interface (`localhost` / `127.0.0.1`) and authentication is configured.
+Browsing the system root (`/`) via API is enabled by default only when the service is bound to a loopback interface (`localhost` / `127.0.0.1`) and authentication is configured (via the `token` parameter, `RLENS_TOKEN`, or `RLENS_FS_TOKEN_SECRET`).
 
 If the service is bound to any non-loopback interface, root browsing is automatically refused.
 

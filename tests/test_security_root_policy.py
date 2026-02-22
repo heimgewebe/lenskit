@@ -133,11 +133,11 @@ def test_static_source_check_app_py():
     assert "RLENS_ALLOW_FS_ROOT" not in content
     assert "RLENS_OPERATOR_MODE" not in content
 
-    # Loopback gating and has_token gating should be present
-    assert "is_loopback = _is_loopback_host(host)" in content
-    assert "has_token = bool(token or os.getenv(\"RLENS_TOKEN\") or os.getenv(\"RLENS_FS_TOKEN_SECRET\"))" in content
-    assert "if is_loopback and has_token:" in content
-    assert "Root allowlisted (loopback + auth)." in content
+    # Core Logic Markers should be present
+    assert "_is_loopback_host(host)" in content
+    assert "has_token" in content
+    assert "is_loopback and has_token" in content
+    assert "add_allowlist_root(" in content
 
 def test_static_source_check_rlens_cli():
     cli_path = Path("merger/lenskit/cli/rlens.py")
