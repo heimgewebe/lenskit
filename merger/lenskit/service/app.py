@@ -104,11 +104,6 @@ GC_MAX_AGE_HOURS = int(os.getenv("RLENS_GC_MAX_AGE_HOURS", "24"))
 # SSE polling (seconds)
 SSE_POLL_SEC = float(os.getenv("RLENS_SSE_POLL_SEC", "0.25"))
 
-# Security: Root Jail for File System Browsing
-# Set to system root to allow full access, but preventing traversal above it (which is impossible anyway).
-# Can be overridden if needed via Env or Config in future.
-FS_ROOT = Path("/").resolve()
-
 def _is_loopback_host(host: str) -> bool:
     h = (host or "").strip().lower()
     if h in ("127.0.0.1", "localhost", "::1"):
@@ -169,12 +164,6 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
         sec.add_allowlist_root(Path.home().resolve())
     except Exception as e:
         logger.debug("Could not allow system root: %s", e, exc_info=True)
-
-    # DANGEROUS CAPABILITY:
-    # Allows rLens to browse the entire filesystem ("/") via API.
-    # Must be explicitly enabled.
-    if os.getenv("RLENS_ALLOW_FS_ROOT", "0") == "1":
-        sec.add_allowlist_root(Path("/"))
 
     # Apply CORS based on host
     # Prevent middleware duplication (if init called multiple times in tests)
