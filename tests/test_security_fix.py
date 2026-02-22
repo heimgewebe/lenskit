@@ -11,22 +11,30 @@ def test_security_config_allowlist_invariant(tmp_path):
     sec = SecurityConfig()
     hub = (tmp_path / "hub").resolve()
     hub.mkdir(parents=True, exist_ok=True)
+
+    # Ensure test target exists to be robust against any resolve/existence checks
+    repo_dir = hub / "repo"
+    repo_dir.mkdir()
+
     sec.add_allowlist_root(hub)
 
-    # Path inside hub should be allowed
-    sec.validate_path(hub / "repo")
+    # Invariant 1: The system root (/) must not be in the allowlist
+    if hasattr(sec, "allowlist_roots"):
+        root_str = str(Path("/").resolve())
+        allowed_strings = {str(p.resolve()) for p in sec.allowlist_roots}
+        assert root_str not in allowed_strings, "System root found in allowlist"
 
-    # Path outside (like /etc) should be denied (not in allowlist)
+    # Invariant 2: Path inside hub should be allowed
+    sec.validate_path(repo_dir)
+
+    # Invariant 3: Path outside (like /etc) should be denied
     with pytest.raises(AccessDeniedError):
         sec.validate_path(Path("/etc"))
 
-    # Root itself should be denied for API browsing/navigation contexts.
-    # Note: If a system-wide scan capability is introduced later, it should
-    # be implemented as a separate, local-only capability with explicit
-    # governance, rather than widening this general-purpose allowlist.
-    root_path = Path("/").resolve()
+    # Invariant 4: Root itself should be denied for general navigation
+    # This enforces the policy that root is not an authorized browsing base.
     with pytest.raises(AccessDeniedError):
-        sec.validate_path(root_path)
+        sec.validate_path(Path("/").resolve())
 
 def test_static_source_check_app_py():
     """
