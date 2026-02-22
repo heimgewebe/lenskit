@@ -102,6 +102,17 @@ def main():
         print("[rlens] Hint: Set --token or RLENS_TOKEN.", file=sys.stderr)
         sys.exit(1)
 
+    # Check 2: Operator Mode Root FS Capability vs Loopback
+    allow_fs_root = os.environ.get("RLENS_ALLOW_FS_ROOT", "0") == "1"
+    if allow_fs_root:
+        if not _is_loopback_host(args.host):
+            print("[rlens] Security Error: RLENS_ALLOW_FS_ROOT=1 requires loopback host (localhost/127.0.0.1).", file=sys.stderr)
+            print(f"[rlens] Current host: {args.host}", file=sys.stderr)
+            sys.exit(1)
+        if os.environ.get("RLENS_OPERATOR_MODE", "0") != "1":
+            print("[rlens] Security Error: RLENS_ALLOW_FS_ROOT=1 also requires RLENS_OPERATOR_MODE=1.", file=sys.stderr)
+            sys.exit(1)
+
     # 4. Initialize Service
     init_service(
         hub_path=hub_path,

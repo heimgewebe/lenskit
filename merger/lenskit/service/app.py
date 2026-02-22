@@ -165,6 +165,23 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
     except Exception as e:
         logger.debug("Could not allow system root: %s", e, exc_info=True)
 
+    # OPERATOR MODE: Allow System Root ("/")
+    # Gated by environment flags, loopback constraint, and token presence.
+    if os.getenv("RLENS_ALLOW_FS_ROOT", "0") == "1":
+        is_loopback = _is_loopback_host(host)
+        has_token = bool(token or os.getenv("RLENS_TOKEN") or os.getenv("RLENS_FS_TOKEN_SECRET"))
+        operator_enabled = os.getenv("RLENS_OPERATOR_MODE", "0") == "1"
+
+        if is_loopback and has_token and operator_enabled:
+            logger.warning("Operator Mode: Allowlisting system root '/' for navigation")
+            sec.add_allowlist_root(Path("/"))
+        else:
+            reasons = []
+            if not is_loopback: reasons.append("non-loopback host")
+            if not has_token: reasons.append("missing token/secret")
+            if not operator_enabled: reasons.append("RLENS_OPERATOR_MODE != 1")
+            logger.warning("Operator Mode Refused: %s", ", ".join(reasons))
+
     # Apply CORS based on host
     # Prevent middleware duplication (if init called multiple times in tests)
     has_cors = any(m.cls == CORSMiddleware for m in app.user_middleware)
