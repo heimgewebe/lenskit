@@ -6,6 +6,7 @@ import sys
 import os
 import re
 import hashlib
+import uuid
 
 # Add root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
@@ -148,13 +149,12 @@ def test_redaction_mode():
 
         # Create file with secret
         secret_file = repo_root / "config.txt"
-        # Dynamically construct secret to avoid CodeQL flagging this test data
-        secret_part1 = "1234567890"
-        secret_part2 = "1234567890"
-        secret_part3 = "aabbccddeeff"
-        full_secret = secret_part1 + secret_part2 + secret_part3
-        secret_content = f'api_key = "{full_secret}"\n'
-        secret_file.write_text(secret_content, encoding="utf-8")
+        # Generate a random secret to avoid CodeQL flagging
+        # UUID is alphanumeric + dashes, length 36, sufficient for regex >20 chars
+        random_secret_val = str(uuid.uuid4())
+
+        test_config_content = f'api_key = "{random_secret_val}"\n'
+        secret_file.write_text(test_config_content, encoding="utf-8")
 
         summary = scan_repo(repo_root, calculate_md5=True)
         summaries = [summary]
@@ -182,7 +182,7 @@ def test_redaction_mode():
         # Check Markdown
         md_content = artifacts.canonical_md.read_text(encoding="utf-8")
         assert "[REDACTED]" in md_content
-        assert full_secret not in md_content
+        assert random_secret_val not in md_content
 
         print("Redaction Test passed!")
 
