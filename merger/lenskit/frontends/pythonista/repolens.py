@@ -3246,6 +3246,8 @@ def main_cli():
     parser.add_argument("--path-filter", help="Path substring to include (e.g. docs/)", default=None)
     parser.add_argument("--json-sidecar", action="store_true", help="Generate JSON sidecar file alongside markdown report")
     parser.add_argument("--meta-density", choices=["min", "standard", "full", "auto"], default="auto", help="Control metadata verbosity")
+    parser.add_argument("--output-mode", choices=["archive", "retrieval", "dual"], default="dual", help="Output mode: archive (MD only), retrieval (Chunk Index), or dual (both)")
+    parser.add_argument("--redact-secrets", action="store_true", help="Enable heuristic secret redaction")
 
     args = parser.parse_args()
 
@@ -3337,6 +3339,8 @@ def main_cli():
         extras=extras_config,
         delta_meta=delta_meta,
         meta_density=args.meta_density,
+        output_mode=args.output_mode,
+        redact_secrets=args.redact_secrets,
     )
 
     out_paths = artifacts.get_all_paths()
