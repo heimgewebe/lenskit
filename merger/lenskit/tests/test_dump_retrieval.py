@@ -149,8 +149,13 @@ def test_redaction_mode():
 
         # Create file with secret
         secret_file = repo_root / "config.txt"
-        # Use a clear dummy secret that fulfills the pattern (>=20 chars) but is obviously test data
-        dummy_secret = "DUMMY_SECRET_VALUE_NOT_A_REAL_KEY_0001"
+
+        # Avoid hardcoding "secret-looking" strings to satisfy CodeQL.
+        # We use an environment variable or generate a random one.
+        dummy_secret = os.environ.get("TEST_DUMMY_SECRET")
+        if not dummy_secret:
+             # Fallback: Generate a random string that matches the regex (>=20 chars, alphanumeric/dashes)
+             dummy_secret = f"TEST-SECRET-{str(uuid.uuid4())}"
 
         test_config_content = f'api_key = "{dummy_secret}"\n'
         secret_file.write_text(test_config_content, encoding="utf-8")
