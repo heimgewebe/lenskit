@@ -149,11 +149,10 @@ def test_redaction_mode():
 
         # Create file with secret
         secret_file = repo_root / "config.txt"
-        # Generate a random secret to avoid CodeQL flagging
-        # UUID is alphanumeric + dashes, length 36, sufficient for regex >20 chars
-        random_secret_val = str(uuid.uuid4())
+        # Use a clear dummy secret that fulfills the pattern (>=20 chars) but is obviously test data
+        dummy_secret = "DUMMY_SECRET_VALUE_NOT_A_REAL_KEY_0001"
 
-        test_config_content = f'api_key = "{random_secret_val}"\n'
+        test_config_content = f'api_key = "{dummy_secret}"\n'
         secret_file.write_text(test_config_content, encoding="utf-8")
 
         summary = scan_repo(repo_root, calculate_md5=True)
@@ -182,7 +181,7 @@ def test_redaction_mode():
         # Check Markdown
         md_content = artifacts.canonical_md.read_text(encoding="utf-8")
         assert "[REDACTED]" in md_content
-        assert random_secret_val not in md_content
+        assert dummy_secret not in md_content
 
         print("Redaction Test passed!")
 

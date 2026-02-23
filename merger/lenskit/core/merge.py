@@ -4476,8 +4476,8 @@ def write_reports_v2(
             if not fi.is_text or status not in ("full", "truncated"):
                 continue
 
-            # Read full content for chunking
-            content, _, _ = read_smart_content(fi, 0)
+            # Read content for chunking using the same limit as report
+            content, _, _ = read_smart_content(fi, max_bytes)
 
             if redactor:
                 content, _ = redactor.redact(content)
@@ -4492,6 +4492,7 @@ def write_reports_v2(
                 d["path"] = fi.rel_path.as_posix()
                 d["repo"] = fi.root_label
                 d["language"] = lang
+                d["source_status"] = status
                 all_chunks.append(d)
 
         if not all_chunks:
