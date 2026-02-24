@@ -35,6 +35,7 @@ class ReportParser:
         # Group 1: begin type
         # Group 2: begin attrs
         # Group 3: end type (required)
+        # Group 4: end attrs (optional, e.g. id=...)
         # Note: We match <!-- zone:begin ... --> OR <!-- zone:end ... -->
         token_pattern = re.compile(
             r'<!-- zone:begin type=([a-zA-Z0-9_-]+)(.*?) -->|<!-- zone:end\s+type=([a-zA-Z0-9_-]+)(.*?) -->',
@@ -59,6 +60,7 @@ class ReportParser:
             else:
                 # is end
                 end_type = match.group(3)
+                end_attrs_str = match.group(4) # Capturing for debugging if needed
 
                 if not stack:
                     raise ValueError(f"Orphaned end tag at {match.start()}")
@@ -427,3 +429,19 @@ def test_json_marker_matches_markdown_marker(tmp_path):
 
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     jsonschema.validate(instance=json_content, schema=schema)
+
+def test_zone_end_parsing_with_attributes():
+    """
+    Verify that the parser correctly handles zone:end tags with attributes (e.g. id).
+    """
+    content = """
+<!-- zone:begin type=code id=test1 -->
+some code
+<!-- zone:end type=code id=test1 -->
+"""
+    parser = ReportParser(content)
+    assert len(parser.zones) == 1
+    zone = parser.zones[0]
+    assert zone['type'] == 'code'
+    assert zone['attrs'].get('id') == 'test1'
+    assert 'some code' in zone['content']

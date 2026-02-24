@@ -4458,6 +4458,7 @@ def write_reports_v2(
     )
 
     # Define consistent limit for both report and chunks
+    # max_bytes is a per-file read limit (historical naming).
     max_file_bytes = max_bytes
 
     # Helper for chunking (PR-Optimierung)
