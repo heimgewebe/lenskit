@@ -37,7 +37,7 @@ class ReportParser:
         # Group 3: end type (required)
         # Note: We match <!-- zone:begin ... --> OR <!-- zone:end ... -->
         token_pattern = re.compile(
-            r'<!-- zone:begin type=([a-zA-Z0-9_-]+)(.*?) -->|<!-- zone:end\s+type=([a-zA-Z0-9_-]+) -->',
+            r'<!-- zone:begin type=([a-zA-Z0-9_-]+)(.*?) -->|<!-- zone:end\s+type=([a-zA-Z0-9_-]+)(.*?) -->',
             re.DOTALL
         )
 

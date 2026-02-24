@@ -4457,6 +4457,9 @@ def write_reports_v2(
         plan_only=plan_only, code_only=code_only, timestamp=global_ts, meta_none=meta_none
     )
 
+    # Define consistent limit for both report and chunks
+    report_file_limit = max_bytes
+
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func):
         if output_mode not in ("retrieval", "dual"):
@@ -4476,8 +4479,8 @@ def write_reports_v2(
             if not fi.is_text or status not in ("full", "truncated"):
                 continue
 
-            # Read content for chunking using the same limit as report
-            content, _, _ = read_smart_content(fi, max_bytes)
+            # Read content for chunking using the same limit as report to ensure coherence
+            content, truncated, trunc_msg = read_smart_content(fi, report_file_limit)
 
             if redactor:
                 content, _ = redactor.redact(content)
@@ -4493,6 +4496,9 @@ def write_reports_v2(
                 d["repo"] = fi.root_label
                 d["language"] = lang
                 d["source_status"] = status
+                d["truncated"] = truncated
+                if trunc_msg:
+                    d["truncation_msg"] = trunc_msg
                 all_chunks.append(d)
 
         if not all_chunks:
