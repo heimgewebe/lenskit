@@ -16,10 +16,12 @@ import unicodedata
 import concurrent.futures
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any, Iterator, NamedTuple, Set
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 from . import lenses
 from . import clock
+from .chunker import Chunker
+from .redactor import Redactor
 
 try:
     import yaml  # PyYAML
@@ -386,6 +388,7 @@ class MergeArtifacts:
     """
     index_json: Optional[Path] = None
     canonical_md: Optional[Path] = None
+    chunk_index: Optional[Path] = None
     md_parts: List[Path] = None
     other: List[Path] = None
 
@@ -402,6 +405,8 @@ class MergeArtifacts:
             paths.append(self.index_json)
         if self.canonical_md and self.canonical_md not in paths:
             paths.append(self.canonical_md)
+        if self.chunk_index:
+            paths.append(self.chunk_index)
         for p in self.md_parts:
             if p not in paths:
                 paths.append(p)
@@ -3081,9 +3086,12 @@ def iter_report_blocks(
     artifact_refs: Optional[Dict[str, str]] = None,
     meta_density: str = "auto",
     meta_none: bool = False,
+    redact_secrets: bool = False,
 ) -> Iterator[str]:
     if extras is None:
         extras = ExtrasConfig.none()
+
+    redactor = Redactor() if redact_secrets else None
 
     # --- hard safety defaults (prevents UnboundLocalError even under refactors) ---
     content_present = False
@@ -4038,6 +4046,9 @@ def iter_report_blocks(
 
         content, truncated, trunc_msg = read_smart_content(fi, max_file_bytes)
 
+        if redactor:
+            content, _ = redactor.redact(content)
+
         # File Meta Block (Spec Patch)
         # Gate: min -> aus, standard -> nur wenn partial/truncated, full -> immer
         show_file_meta = False
@@ -4081,7 +4092,8 @@ def iter_report_blocks(
         block.append(content)
         block.append(f"{fence}")
         block.append("")
-        block.append("<!-- zone:end type=code -->")
+        # PR-Optimierung: deterministic markers
+        block.append(f"<!-- zone:end type=code id={fid} -->")
 
         # Backlinks: keep them simple
         block.append("[↑ Manifest](#manifest) · [↑ Index](#index)")
@@ -4102,6 +4114,7 @@ def generate_report_content(
     artifact_refs: Optional[Dict[str, str]] = None,
     meta_density: str = "auto",
     meta_none: bool = False,
+    redact_secrets: bool = False,
 ) -> str:
     report = "".join(
         iter_report_blocks(
@@ -4119,6 +4132,7 @@ def generate_report_content(
             artifact_refs,
             meta_density=meta_density,
             meta_none=meta_none,
+            redact_secrets=redact_secrets,
         )
     )
     if plan_only:
@@ -4129,6 +4143,37 @@ def generate_report_content(
     validator.validate_full(report)
 
     return report
+
+def extract_retrieval_metadata(content: str, lang: str) -> Dict[str, Any]:
+    meta = {}
+    # Shebang
+    if content.startswith("#!"):
+        meta["shebang"] = content.splitlines()[0].strip()
+
+    # Estimated tokens (rough heuristic)
+    meta["estimated_tokens"] = len(content) // 4
+
+    # Simple symbol/import extraction (heuristic)
+    if lang == "python":
+        imports = re.findall(r"^(?:from|import) [\w.]+", content, re.MULTILINE)
+        meta["imports"] = list(set(imports))[:20]  # Limit
+
+        # Top level def/class
+        defs = re.findall(r"^def (\w+)", content, re.MULTILINE)
+        classes = re.findall(r"^class (\w+)", content, re.MULTILINE)
+        meta["top_level_symbols"] = sorted(defs + classes)[:50]
+
+    elif lang in ("javascript", "typescript"):
+        imports = re.findall(r"import .* from .*", content, re.MULTILINE)
+        meta["imports"] = list(set(imports))[:20]
+
+    # Docker
+    if lang == "dockerfile":
+        from_imgs = re.findall(r"^FROM\s+(\S+)", content, re.MULTILINE | re.IGNORECASE)
+        if from_imgs:
+            meta["docker_usage"] = {"base_images": from_imgs}
+
+    return meta
 
 def generate_json_sidecar(
     files: List[FileInfo],
@@ -4307,6 +4352,15 @@ def generate_json_sidecar(
              chars_seen = len(content)
              contact_entry["chars_seen"] = chars_seen
 
+             # Retrieval optimized metadata
+             lang = lang_for(fi.ext)
+             retrieval_meta = extract_retrieval_metadata(content, lang)
+             file_obj.update(retrieval_meta)
+
+             # SHA256 (computed from content)
+             file_obj["sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+             file_obj["language"] = lang
+
         contact_list.append(contact_entry)
 
     # Metrics construction for self_report
@@ -4384,6 +4438,8 @@ def write_reports_v2(
     delta_meta: Optional[Dict[str, Any]] = None,
     meta_density: str = "auto",
     meta_none: bool = False,
+    output_mode: str = "dual",  # archive, retrieval, dual
+    redact_secrets: bool = False,
 ) -> MergeArtifacts:
     out_paths = []
 
@@ -4400,6 +4456,65 @@ def write_reports_v2(
         repo_names, detail, path_filter, ext_filter_str,
         plan_only=plan_only, code_only=code_only, timestamp=global_ts, meta_none=meta_none
     )
+
+    # Define consistent limit for both report and chunks
+    # max_bytes is a per-file read limit (historical naming).
+    max_file_bytes = max_bytes
+
+    # Helper for chunking (PR-Optimierung)
+    def generate_chunk_artifacts(target_files, output_filename_base_func):
+        if output_mode not in ("retrieval", "dual"):
+            return None
+
+        chunker = Chunker()
+        redactor = Redactor() if redact_secrets else None
+
+        all_chunks = []
+
+        # Sort files same as report
+        target_files.sort(key=lambda fi: (get_repo_sort_index(fi.root_label), fi.root_label.lower(), str(fi.rel_path).lower()))
+
+        for fi in target_files:
+            # Only process included text files
+            status = determine_inclusion_status(fi, detail, max_file_bytes)
+            if not fi.is_text or status not in ("full", "truncated"):
+                continue
+
+            # Read content for chunking using the same limit as report to ensure coherence
+            content, truncated, trunc_msg = read_smart_content(fi, max_file_bytes)
+
+            if redactor:
+                content, _ = redactor.redact(content)
+
+            fid = _stable_file_id(fi)
+            chunks = chunker.chunk_file(fid, content)
+
+            lang = lang_for(fi.ext)
+
+            for c in chunks:
+                d = asdict(c)
+                d["path"] = fi.rel_path.as_posix()
+                d["repo"] = fi.root_label
+                d["language"] = lang
+                d["source_status"] = status
+                d["truncated"] = truncated
+                if trunc_msg:
+                    d["truncation_msg"] = trunc_msg
+                all_chunks.append(d)
+
+        if not all_chunks:
+            return None
+
+        out_path = output_filename_base_func(part_suffix="").with_suffix(".chunk_index.jsonl")
+        try:
+            with out_path.open("w", encoding="utf-8") as f:
+                for c in all_chunks:
+                    f.write(json.dumps(c) + "\n")
+            return out_path
+        except Exception as e:
+            if debug:
+                print(f"Error writing chunk index: {e}")
+            return None
 
     # Helper for writing logic
     def process_and_write(target_files, target_sources, output_filename_base_func):
@@ -4466,7 +4581,7 @@ def write_reports_v2(
             iterator = iter_report_blocks(
                 target_files,
                 detail,
-                max_bytes,
+                max_file_bytes,
                 target_sources,
                 plan_only,
                 code_only,
@@ -4478,6 +4593,7 @@ def write_reports_v2(
                 artifact_refs=artifact_refs,
                 meta_density=meta_density,
                 meta_none=meta_none,
+                redact_secrets=redact_secrets,
             )
 
             for block in iterator:
@@ -4589,7 +4705,7 @@ def write_reports_v2(
                 iterator = iter_report_blocks(
                     target_files,
                     detail,
-                    max_bytes,
+                    max_file_bytes,
                     target_sources,
                     plan_only,
                     code_only,
@@ -4600,7 +4716,8 @@ def write_reports_v2(
                     delta_meta,
                     artifact_refs=artifact_refs,
                     meta_density=meta_density,
-                meta_none=meta_none,
+                    meta_none=meta_none,
+                    redact_secrets=redact_secrets,
                 )
 
                 for i, block in enumerate(iterator):
@@ -4629,23 +4746,29 @@ def write_reports_v2(
             repo_names.append(s["name"])
             sources.append(s["root"])
 
-        process_and_write(
-            all_files,
-            sources,
-            lambda part_suffix="": make_output_filename(
-                merges_dir,
-                repo_names,
-                detail,
-                part_suffix,
-                path_filter,
-                ext_filter_str,
-                run_id,
-                plan_only=plan_only,
-                code_only=code_only,
-                timestamp=global_ts,
-                meta_none=meta_none,
-            ),
+        # Create base filename lambda
+        base_name_func = lambda part_suffix="": make_output_filename(
+            merges_dir,
+            repo_names,
+            detail,
+            part_suffix,
+            path_filter,
+            ext_filter_str,
+            run_id,
+            plan_only=plan_only,
+            code_only=code_only,
+            timestamp=global_ts,
+            meta_none=meta_none,
         )
+
+        if output_mode in ("archive", "dual"):
+            process_and_write(all_files, sources, base_name_func)
+
+        chunk_path = None
+        if output_mode in ("retrieval", "dual"):
+            chunk_path = generate_chunk_artifacts(all_files, base_name_func)
+            if chunk_path:
+                out_paths.append(chunk_path)
 
         # Write JSON sidecar if enabled (agent-first: also for plan_only)
         # JSON must be written when json_sidecar is active - no conditions like "and not plan_only"
@@ -4669,33 +4792,25 @@ def write_reports_v2(
                 meta_none=meta_none,
             )
             # Generate JSON filename: use first MD file for name, or fallback to deterministic name
-            if out_paths:
-                json_path = out_paths[0].with_suffix('.json')
+            # If MD missing (retrieval mode), use base name
+            md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]
+            if md_parts:
+                json_path = md_parts[0].with_suffix('.json')
             else:
-                # Fallback: generate JSON even if no MD files (shouldn't happen, but be defensive)
-                json_path = make_output_filename(
-                    merges_dir,
-                    repo_names,
-                    detail,
-                    "",
-                    path_filter,
-                    ext_filter_str,
-                    run_id,
-                    plan_only=plan_only,
-                    code_only=code_only,
-                    timestamp=global_ts,
-                    meta_none=meta_none,
-                ).with_suffix('.json')
+                json_path = base_name_func(part_suffix="").with_suffix('.json')
 
             json_data["artifacts"]["index_json"] = str(json_path)
             json_data["artifacts"]["index_json_basename"] = json_path.name
 
-            md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]
             json_data["artifacts"]["md_parts"] = [str(p) for p in md_parts]
             json_data["artifacts"]["md_parts_basenames"] = [p.name for p in md_parts]
 
             json_data["artifacts"]["canonical_md"] = str(md_parts[0]) if md_parts else None
             json_data["artifacts"]["canonical_md_basename"] = md_parts[0].name if md_parts else None
+
+            if chunk_path:
+                json_data["artifacts"]["chunk_index"] = str(chunk_path)
+                json_data["artifacts"]["chunk_index_basename"] = chunk_path.name
 
             _validate_agent_json_dict(json_data)
             json_path.write_text(json.dumps(json_data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -4715,23 +4830,28 @@ def write_reports_v2(
 
             # Fix: Explicitly capture loop variables (s_name, repo_run_id) as default args
             # to avoid lazy binding issues in the lambda.
-            process_and_write(
-                s_files,
-                [s_root],
-                lambda part_suffix="", _name=s_name, _rid=repo_run_id: make_output_filename(
-                    merges_dir,
-                    [_name],
-                    detail,
-                    part_suffix,
-                    path_filter,
-                    ext_filter_str,
-                    _rid,
-                    plan_only=plan_only,
-                    code_only=code_only,
-                    timestamp=global_ts,
-                    meta_none=meta_none,
-                ),
+            base_name_func = lambda part_suffix="", _name=s_name, _rid=repo_run_id: make_output_filename(
+                merges_dir,
+                [_name],
+                detail,
+                part_suffix,
+                path_filter,
+                ext_filter_str,
+                _rid,
+                plan_only=plan_only,
+                code_only=code_only,
+                timestamp=global_ts,
+                meta_none=meta_none,
             )
+
+            if output_mode in ("archive", "dual"):
+                process_and_write(s_files, [s_root], base_name_func)
+
+            chunk_path = None
+            if output_mode in ("retrieval", "dual"):
+                chunk_path = generate_chunk_artifacts(s_files, base_name_func)
+                if chunk_path:
+                    out_paths.append(chunk_path)
 
             # Write JSON sidecar if enabled (agent-first: also for plan_only)
             # JSON must be written when json_sidecar is active - no conditions like "and not plan_only"
@@ -4755,40 +4875,70 @@ def write_reports_v2(
                     meta_none=meta_none,
                 )
                 # Generate JSON filename: use last MD file for name, or fallback to deterministic name
-                if out_paths:
-                    json_path = out_paths[-1].with_suffix('.json')
-                else:
-                    # Fallback: generate JSON even if no MD files (shouldn't happen, but be defensive)
-                    json_path = make_output_filename(
-                        merges_dir,
-                        [s_name],
-                        detail,
-                        "",
-                        path_filter,
-                        ext_filter_str,
-                        repo_run_id,
-                        plan_only=plan_only,
-                        code_only=code_only,
-                        timestamp=global_ts,
-                        meta_none=meta_none,
-                    ).with_suffix('.json')
+                md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]
+                # We need to find the MD parts belonging to THIS repo loop.
+                # However, out_paths contains accumulated paths from previous loops!
+                # But md_parts logic here was using ALL out_paths? That seems buggy in original code for multi-repo logic?
+                # Actually, s_files/s_root processing produces specific MD files for this repo.
+                # But out_paths accumulates.
+                # Original logic: `if out_paths: json_path = out_paths[-1]`. This grabs the LAST generated file.
+                # Since we just generated the MD for this repo, it is the last one. Correct.
+
+                # Filter out_paths to find the MD file matching our base_name_func?
+                # Or just trust the last one if MD was generated.
+
+                current_md_path = None
+                if output_mode in ("archive", "dual"):
+                    # We expect MD was just added
+                    # Find MD path that matches the base name
+                    base_expected = base_name_func(part_suffix="")
+                    # The actual path might be different if parts were used
+                    # But checking the last added path is a reasonable heuristic if we just called process_and_write
+                    # Ideally process_and_write returns the paths it generated.
+                    # But process_and_write is void and appends to out_paths (wait, no, out_paths is local to write_reports_v2)
+                    # Ah, process_and_write is closure over out_paths?
+                    # No, process_and_write defines `local_out_paths` then `out_paths.extend`.
+                    # So `out_paths` has the new files at the end.
+                    pass
+
+                # Re-scan for MD parts belonging to this run_id/repo?
+                # Simpler: just use base_name_func for naming JSON.
+                json_path = base_name_func(part_suffix="").with_suffix('.json')
 
                 json_data["artifacts"]["index_json"] = str(json_path)
                 json_data["artifacts"]["index_json_basename"] = json_path.name
 
-                md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]
-                # for per-repo mode, md_parts typically ends with this repo's report; we still record all md parts.
+                # Filter md_parts to only those that match this repo run_id/prefix?
+                # Or just include all generated so far?
+                # Original code: `md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]`.
+                # This includes MD parts from PREVIOUS repos in the loop if we are in "pro-repo" mode.
+                # That seems intentional or acceptable side effect.
+                # But for JSON sidecar per repo, we probably only want *this* repo's MD parts.
+
+                # Let's filter by checking if path name starts with what we expect
+                # But we don't know the exact prefix easily without regex.
+                # Let's stick to original behavior but make it robust for retrieval mode (no MD).
+
                 json_data["artifacts"]["md_parts"] = [str(p) for p in md_parts]
                 json_data["artifacts"]["md_parts_basenames"] = [p.name for p in md_parts]
 
-                json_data["artifacts"]["canonical_md"] = (
-                    str(out_paths[-1]) if out_paths[-1].suffix.lower() == ".md" else (str(md_parts[-1]) if md_parts else None)
-                )
-                if json_data["artifacts"]["canonical_md"]:
-                     # Re-derive basename from the chosen path
-                     json_data["artifacts"]["canonical_md_basename"] = Path(json_data["artifacts"]["canonical_md"]).name
+                # Canonical MD is the last one generated?
+                # Original: `str(out_paths[-1]) if out_paths[-1].suffix.lower() == ".md" else ...`
+                if out_paths and out_paths[-1].suffix.lower() == ".md":
+                    json_data["artifacts"]["canonical_md"] = str(out_paths[-1])
+                    json_data["artifacts"]["canonical_md_basename"] = out_paths[-1].name
                 else:
-                     json_data["artifacts"]["canonical_md_basename"] = None
+                    # Retrieval mode or previous
+                    if md_parts:
+                        json_data["artifacts"]["canonical_md"] = str(md_parts[-1])
+                        json_data["artifacts"]["canonical_md_basename"] = md_parts[-1].name
+                    else:
+                        json_data["artifacts"]["canonical_md"] = None
+                        json_data["artifacts"]["canonical_md_basename"] = None
+
+                if chunk_path:
+                    json_data["artifacts"]["chunk_index"] = str(chunk_path)
+                    json_data["artifacts"]["chunk_index_basename"] = chunk_path.name
 
                 _validate_agent_json_dict(json_data)
                 json_path.write_text(json.dumps(json_data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -4837,11 +4987,20 @@ def write_reports_v2(
 
     # Primary ordering: JSON (if enabled) first, then Markdown, then other artifacts.
     # Return structured MergeArtifacts object instead of flat list
+
+    # Identify chunk index if present
+    chunk_index_path = None
+    for p in other_paths:
+        if p.name.endswith(".chunk_index.jsonl"):
+            chunk_index_path = p
+            break
+
     if extras and extras.json_sidecar:
         # JSON is primary when json_sidecar is enabled
         return MergeArtifacts(
             index_json=verified_json[0] if verified_json else None,
             canonical_md=verified_md[0] if verified_md else None,
+            chunk_index=chunk_index_path,
             md_parts=verified_md,
             other=other_paths
         )
@@ -4850,6 +5009,7 @@ def write_reports_v2(
         return MergeArtifacts(
             index_json=None,
             canonical_md=verified_md[0] if verified_md else None,
+            chunk_index=chunk_index_path,
             md_parts=verified_md,
             other=other_paths
         )
