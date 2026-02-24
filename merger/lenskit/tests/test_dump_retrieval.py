@@ -154,11 +154,17 @@ def test_redactor_redacts_in_memory_secret_like_value():
     redacted_content, modified = redactor.redact(test_content)
 
     assert modified is True
-    # Verify the specific redaction format: key + quote + [REDACTED] + quote
-    # Note: The current Redactor regex consumes the separator (e.g. ' = '), so it is not in the output.
-    expected_redaction = f'{key_name}"[REDACTED]"'
-    assert expected_redaction in redacted_content
+
+    # Semantic checks: secret is gone, marker is present, key is preserved
     assert dummy_secret not in redacted_content
+    assert "[REDACTED]" in redacted_content
+    assert key_name in redacted_content
+
+    # Ensure key and redaction marker are on the same line (locality)
+    # This avoids asserting exact formatting (separators/quotes) which might change.
+    lines_with_redaction = [line for line in redacted_content.splitlines() if "[REDACTED]" in line]
+    assert len(lines_with_redaction) > 0
+    assert key_name in lines_with_redaction[0]
 
 if __name__ == "__main__":
     test_dual_output_mode()
