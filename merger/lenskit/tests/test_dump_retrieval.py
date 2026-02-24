@@ -1,18 +1,14 @@
 import json
-import shutil
 from pathlib import Path
 import tempfile
 import sys
-import os
 import re
 import hashlib
-import uuid
-import base64
 
 # Add root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
 
-from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig, _stable_file_id
+from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.core.redactor import Redactor
 
 def test_dual_output_mode():
@@ -139,7 +135,7 @@ def test_dual_output_mode():
 
         print("Dual Output Test passed!")
 
-def test_redaction_mode():
+def test_redactor_redacts_in_memory_secret_like_value():
     # Avoid hardcoding "secret-looking" strings to satisfy CodeQL.
     # Use a fixed dummy that triggers the pattern (>=20 chars) but looks like a test value.
     dummy_secret = "DUMMY_SECRET_VALUE_FOR_TESTING_PURPOSES"
@@ -166,4 +162,4 @@ def test_redaction_mode():
 
 if __name__ == "__main__":
     test_dual_output_mode()
-    test_redaction_mode()
+    test_redactor_redacts_in_memory_secret_like_value()
