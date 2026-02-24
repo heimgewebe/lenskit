@@ -154,11 +154,11 @@ def test_redactor_redacts_in_memory_secret_like_value():
     redacted_content, modified = redactor.redact(test_content)
 
     assert modified is True
-    assert "[REDACTED]" in redacted_content
-    assert key_name in redacted_content
+    # Verify the specific redaction format: key + quote + [REDACTED] + quote
+    # Note: The current Redactor regex consumes the separator (e.g. ' = '), so it is not in the output.
+    expected_redaction = f'{key_name}"[REDACTED]"'
+    assert expected_redaction in redacted_content
     assert dummy_secret not in redacted_content
-
-    print("Redaction Test passed (in-memory)!")
 
 if __name__ == "__main__":
     test_dual_output_mode()
