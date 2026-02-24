@@ -29,7 +29,6 @@ class Chunker:
         """
         chunks = []
         lines = content.splitlines(keepends=True)
-        total_lines = len(lines)
 
         current_chunk_lines = []
         current_chunk_size = 0
@@ -67,7 +66,7 @@ class Chunker:
 
         # Finalize last chunk
         if current_chunk_lines:
-             self._finalize_chunk(chunks, file_id, current_chunk_lines, chunk_start_line, chunk_start_byte)
+            self._finalize_chunk(chunks, file_id, current_chunk_lines, chunk_start_line, chunk_start_byte)
 
         return chunks
 
