@@ -135,7 +135,12 @@ def test_dual_output_mode():
 
         print("Dual Output Test passed!")
 
-def test_redactor_redacts_in_memory_secret_like_value():
+def test_redactor_redacts_secret_like_value_in_memory_no_disk_sink():
+    """
+    In-memory test to verify secret redaction without writing secret-like values to disk.
+    This prevents CodeQL 'clear-text storage of sensitive information' alerts.
+    Guarantees: secret value is removed, [REDACTED] marker is present, and key is preserved in the same context.
+    """
     # Avoid hardcoding "secret-looking" strings to satisfy CodeQL.
     # Use a fixed dummy that triggers the pattern (>=20 chars) but looks like a test value.
     dummy_secret = "DUMMY_SECRET_VALUE_FOR_TESTING_PURPOSES"
@@ -168,4 +173,4 @@ def test_redactor_redacts_in_memory_secret_like_value():
 
 if __name__ == "__main__":
     test_dual_output_mode()
-    test_redactor_redacts_in_memory_secret_like_value()
+    test_redactor_redacts_secret_like_value_in_memory_no_disk_sink()
