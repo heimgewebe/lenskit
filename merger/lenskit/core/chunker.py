@@ -1,6 +1,6 @@
 import hashlib
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
+from typing import List, Optional
+from dataclasses import dataclass
 
 @dataclass
 class Chunk:

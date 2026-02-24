@@ -4458,7 +4458,7 @@ def write_reports_v2(
     )
 
     # Define consistent limit for both report and chunks
-    report_file_limit = max_bytes
+    max_file_bytes = max_bytes
 
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func):
@@ -4475,12 +4475,12 @@ def write_reports_v2(
 
         for fi in target_files:
             # Only process included text files
-            status = determine_inclusion_status(fi, detail, max_bytes)
+            status = determine_inclusion_status(fi, detail, max_file_bytes)
             if not fi.is_text or status not in ("full", "truncated"):
                 continue
 
             # Read content for chunking using the same limit as report to ensure coherence
-            content, truncated, trunc_msg = read_smart_content(fi, report_file_limit)
+            content, truncated, trunc_msg = read_smart_content(fi, max_file_bytes)
 
             if redactor:
                 content, _ = redactor.redact(content)
@@ -4580,7 +4580,7 @@ def write_reports_v2(
             iterator = iter_report_blocks(
                 target_files,
                 detail,
-                max_bytes,
+                max_file_bytes,
                 target_sources,
                 plan_only,
                 code_only,
@@ -4704,7 +4704,7 @@ def write_reports_v2(
                 iterator = iter_report_blocks(
                     target_files,
                     detail,
-                    max_bytes,
+                    max_file_bytes,
                     target_sources,
                     plan_only,
                     code_only,

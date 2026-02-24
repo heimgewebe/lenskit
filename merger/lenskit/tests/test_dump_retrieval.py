@@ -152,8 +152,8 @@ def test_redaction_mode():
         secret_file = repo_root / "config.txt"
 
         # Avoid hardcoding "secret-looking" strings to satisfy CodeQL.
-        # Read from environment variable. If not set, use a simple placeholder that won't trigger scanners.
-        dummy_secret = os.environ.get("TEST_SECRET_VALUE", "simple-test-val-12345")
+        # Use a fixed dummy that triggers the pattern (>=20 chars) but looks like a test value.
+        dummy_secret = "DUMMY_SECRET_VALUE_FOR_TESTING_PURPOSES"
 
         # Obfuscate key construction to avoid CodeQL "clear-text storage of sensitive information" alert
         # We construct "api_key" dynamically so static analysis doesn't see the assignment.
