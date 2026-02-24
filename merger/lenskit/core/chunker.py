@@ -17,6 +17,10 @@ class Chunk:
 
 class Chunker:
     def __init__(self, min_size: int = 2048, max_size: int = 8192, min_lines: int = 200, max_lines: int = 400):
+        """
+        Initialize Chunker.
+        Note: min_size and min_lines are currently unused and reserved for future heuristics.
+        """
         self.min_size = min_size
         self.max_size = max_size
         self.min_lines = min_lines
