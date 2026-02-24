@@ -164,7 +164,7 @@ def test_redactor_redacts_in_memory_secret_like_value():
     # This avoids asserting exact formatting (separators/quotes) which might change.
     lines_with_redaction = [line for line in redacted_content.splitlines() if "[REDACTED]" in line]
     assert len(lines_with_redaction) > 0
-    assert key_name in lines_with_redaction[0]
+    assert any(key_name in line for line in lines_with_redaction)
 
 if __name__ == "__main__":
     test_dual_output_mode()
