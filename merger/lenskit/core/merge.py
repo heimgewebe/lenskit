@@ -2528,6 +2528,7 @@ def make_output_filename(
     code_only: bool = False,
     timestamp: Optional[str] = None,
     meta_none: bool = False,
+    suffix: str = "_merge.md",
 ) -> Path:
     """
     Erzeugt den endgültigen Dateinamen für den Merge-Report.
@@ -2623,7 +2624,7 @@ def make_output_filename(
 
     parts.append(ts)
 
-    filename = "-".join(parts) + "_merge.md"
+    filename = "-".join(parts) + suffix
     return merges_dir / filename
 
 def read_smart_content(fi: FileInfo, max_bytes: int, encoding="utf-8") -> Tuple[str, bool, str]:
@@ -4175,6 +4176,124 @@ def extract_retrieval_metadata(content: str, lang: str) -> Dict[str, Any]:
 
     return meta
 
+
+def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
+    """
+    Derives deterministic semantic metadata from file structure and content.
+    """
+    p = Path(file_path)
+    parts = p.parts
+
+    # 1. Section (Filename without extension)
+    section = p.stem
+
+    # 2. Layer (Path based)
+    layer = "unknown"
+    # Prioritize specific folders
+    if "core" in parts:
+        layer = "core"
+    elif "tests" in parts or "test" in parts:
+        layer = "test"
+    elif "cli" in parts:
+        layer = "cli"
+    elif "docs" in parts:
+        layer = "docs"
+    elif "scripts" in parts:
+        layer = "infra"
+
+    # 3. Artifact Type (Extension based)
+    ext = p.suffix.lower()
+    artifact_type = "other"
+    if ext == ".py":
+        artifact_type = "code"
+    elif ext == ".json":
+        artifact_type = "data"
+    elif ext in (".md", ".txt", ".rst"):
+        artifact_type = "documentation"
+    elif ext in (".sh", ".bash", ".zsh"):
+        artifact_type = "script"
+
+    # 4. Concepts (Keyword based, lightweight)
+    concepts = []
+    content_lower = content.lower()
+
+    mapping = {
+        "sha256": "hashing",
+        "error": "error_policy",
+        "bundle": "bundling",
+        "merge": "merge_logic",
+        "extract": "extraction",
+        "policy": "policy",
+    }
+
+    for keyword, concept in mapping.items():
+        if keyword in content_lower:
+            concepts.append(concept)
+            if len(concepts) >= 6:
+                break
+
+    return {
+        "section": section,
+        "layer": layer,
+        "artifact_type": artifact_type,
+        "concepts": concepts
+    }
+
+
+def generate_architecture_summary(files: List[FileInfo]) -> str:
+    """
+    Generates a high-level architecture snapshot based on file metadata.
+    """
+    layer_counts = {}
+    core_modules = set()
+    test_files = []
+
+    for fi in files:
+        meta = get_semantic_metadata(fi.rel_path.as_posix(), "") # Content not needed for layer/section
+        layer = meta["layer"]
+        section = meta["section"]
+
+        layer_counts[layer] = layer_counts.get(layer, 0) + 1
+
+        if layer == "core":
+            core_modules.add(section)
+        elif layer == "test":
+            test_files.append(fi.rel_path.as_posix())
+
+    lines = []
+    lines.append("# Lenskit Architecture Snapshot")
+    lines.append("")
+
+    lines.append("## Layer Distribution")
+    for layer, count in sorted(layer_counts.items(), key=lambda x: x[1], reverse=True):
+        lines.append(f"- {layer}: {count} files")
+    lines.append("")
+
+    lines.append("## Core Modules")
+    if core_modules:
+        for mod in sorted(core_modules):
+            lines.append(f"- {mod}")
+    else:
+        lines.append("_No core modules detected._")
+    lines.append("")
+
+    lines.append("## Test Coverage Map")
+    lines.append(f"Total test files: {len(test_files)}")
+    # Simplify output to avoid huge lists if many tests
+    # Just show count per folder? Or maybe list top level test folders?
+    # Prompt implies "Map". Listing all might be too much if there are thousands.
+    # But usually reasonable. Let's list directories with count.
+    test_dirs = {}
+    for tf in test_files:
+        p = Path(tf).parent.as_posix()
+        test_dirs[p] = test_dirs.get(p, 0) + 1
+
+    for d, c in sorted(test_dirs.items()):
+        lines.append(f"- `{d}/`: {c} tests")
+
+    lines.append("")
+    return "\n".join(lines)
+
 def generate_json_sidecar(
     files: List[FileInfo],
     level: str,
@@ -4486,8 +4605,12 @@ def write_reports_v2(
             if redactor:
                 content, _ = redactor.redact(content)
 
+            # Get Semantic Metadata
+            sem_meta = get_semantic_metadata(fi.rel_path.as_posix(), content)
+
             fid = _stable_file_id(fi)
-            chunks = chunker.chunk_file(fid, content)
+            # Pass file_path for deterministic chunk ID
+            chunks = chunker.chunk_file(fid, content, file_path=fi.rel_path.as_posix())
 
             lang = lang_for(fi.ext)
 
@@ -4498,6 +4621,12 @@ def write_reports_v2(
                 d["language"] = lang
                 d["source_status"] = status
                 d["truncated"] = truncated
+                # Semantic Extension
+                d["section"] = sem_meta["section"]
+                d["layer"] = sem_meta["layer"]
+                d["artifact_type"] = sem_meta["artifact_type"]
+                d["concepts"] = sem_meta["concepts"]
+
                 if trunc_msg:
                     d["truncation_msg"] = trunc_msg
                 all_chunks.append(d)
@@ -4773,6 +4902,24 @@ def write_reports_v2(
         if output_mode in ("archive", "dual"):
             generated_paths = process_and_write(all_files, sources, base_name_func)
 
+            # Architecture Summary (New in v2.4)
+            arch_path = make_output_filename(
+                merges_dir,
+                repo_names,
+                detail,
+                "",
+                path_filter,
+                ext_filter_str,
+                run_id,
+                plan_only=plan_only,
+                code_only=code_only,
+                timestamp=global_ts,
+                meta_none=meta_none,
+                suffix="_architecture.md"
+            )
+            arch_path.write_text(generate_architecture_summary(all_files), encoding="utf-8")
+            out_paths.append(arch_path)
+
         chunk_path = None
         if output_mode in ("retrieval", "dual"):
             chunk_path = generate_chunk_artifacts(all_files, base_name_func)
@@ -4854,6 +5001,24 @@ def write_reports_v2(
             generated_paths = []
             if output_mode in ("archive", "dual"):
                 generated_paths = process_and_write(s_files, [s_root], base_name_func)
+
+                # Architecture Summary (New in v2.4)
+                arch_path = make_output_filename(
+                    merges_dir,
+                    [s_name],
+                    detail,
+                    part_suffix="",
+                    path_filter=path_filter,
+                    ext_filter=ext_filter_str,
+                    run_id=repo_run_id,
+                    plan_only=plan_only,
+                    code_only=code_only,
+                    timestamp=global_ts,
+                    meta_none=meta_none,
+                    suffix="_architecture.md"
+                )
+                arch_path.write_text(generate_architecture_summary(s_files), encoding="utf-8")
+                out_paths.append(arch_path)
 
             chunk_path = None
             if output_mode in ("retrieval", "dual"):
