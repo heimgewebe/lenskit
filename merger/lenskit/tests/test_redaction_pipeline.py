@@ -51,7 +51,8 @@ def test_redaction_pipeline_applies_to_generated_markdown(monkeypatch):
         summary = scan_repo(repo_root, calculate_md5=True)
 
         # Ensure we have at least one file
-        assert len(summary['files']) > 0
+        files = summary.get("files", [])
+        assert len(files) > 0
 
         merges_dir = tmp_dir / "merges"
         merges_dir.mkdir()
