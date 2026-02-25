@@ -136,6 +136,3 @@ def test_chunk_jsonl_fields():
     assert d["layer"] == "core"
     assert d["artifact_type"] == "code"
     assert "bundling" in d["concepts"]
-
-if __name__ == "__main__":
-    pytest.main([__file__])

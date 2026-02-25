@@ -4177,6 +4177,10 @@ def extract_retrieval_metadata(content: str, lang: str) -> Dict[str, Any]:
     return meta
 
 
+# Concepts are heuristic keyword hints; may include false positives.
+MAX_CONCEPTS_PER_FILE = 6
+
+
 def get_semantic_metadata_path_only(file_path: str) -> Dict[str, Any]:
     """
     Derives deterministic semantic metadata from file structure only (no content reading).
@@ -4249,9 +4253,6 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
 
     base_meta["concepts"] = concepts
     return base_meta
-
-# Concepts are heuristic keyword hints; may include false positives.
-MAX_CONCEPTS_PER_FILE = 6
 
 
 def generate_architecture_summary(files: List[FileInfo]) -> str:
