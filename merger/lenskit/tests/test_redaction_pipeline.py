@@ -30,7 +30,7 @@ def test_redaction_pipeline_applies_to_generated_markdown(monkeypatch):
     # def read_smart_content(fi: FileInfo, max_bytes: int, encoding="utf-8") -> Tuple[str, bool, str]:
     def fake_read_smart_content(fi, max_file_bytes, encoding="utf-8"):
         call_count["n"] += 1
-        return injected_content, False, None
+        return injected_content, False, ""
 
     monkeypatch.setattr(merge_module, "read_smart_content", fake_read_smart_content)
 
@@ -91,3 +91,7 @@ def test_redaction_pipeline_applies_to_generated_markdown(monkeypatch):
 
         # 3. Context (key name) should be present
         assert key_name in md_content, "Key name missing from output!"
+
+        # 4. Locality check: Redaction marker should be in the same line as the key name
+        lines_with_redaction = [line for line in md_content.splitlines() if "[REDACTED]" in line]
+        assert any(key_name in line for line in lines_with_redaction), "Redaction marker present but not in key context"
