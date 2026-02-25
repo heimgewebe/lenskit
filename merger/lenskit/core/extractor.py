@@ -26,6 +26,7 @@ import datetime
 import json
 import hashlib
 import fnmatch
+import os
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List, Any
 
@@ -333,47 +334,28 @@ def _construct_logical_payload(header_lines: List[str], content_chunks: List[str
     return "\n".join(header_lines + content_chunks)
 
 
-def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, str]:
+def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, Optional[str]]:
     """
-    Computes SHA256 and size for a file. Returns (sha, size, sha256_status).
-
-    Allowed sha256_status values:
-    - 'ok': Success.
-    - 'missing': File not found.
-    - 'permission': Access denied (PermissionError).
-    - 'io_error': Generic I/O error (OSError) during reading/opening.
-    - 'error': Unexpected failure.
+    Computes SHA256 and size for a file.
+    Returns (sha, size, error_code).
+    error_code is None if successful, or one of "missing", "permission", "io_error".
     """
     try:
-        # Best-effort size before potential open failure
-        st = path.stat()
-        size = st.st_size
+        with path.open("rb") as f:
+            size = os.fstat(f.fileno()).st_size
+            h = hashlib.sha256()
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                h.update(chunk)
+        return h.hexdigest(), size, None
     except FileNotFoundError:
         return None, 0, "missing"
     except PermissionError:
         return None, 0, "permission"
     except OSError:
         return None, 0, "io_error"
-    except Exception:
-        return None, 0, "error"
-
-    try:
-        h = hashlib.sha256()
-        with path.open("rb") as f:
-            while True:
-                chunk = f.read(65536)
-                if not chunk:
-                    break
-                h.update(chunk)
-        return h.hexdigest(), size, "ok"
-    except FileNotFoundError:
-        return None, size, "missing"
-    except PermissionError:
-        return None, size, "permission"
-    except OSError:
-        return None, size, "io_error"
-    except Exception:
-        return None, size, "error"
 
 
 def _compute_sha256(path: Path) -> Optional[str]:
@@ -530,7 +512,14 @@ def generate_review_bundle(
             }
 
         # For added/changed: use robust computation
-        sha, size, status_code = _compute_sha256_with_size(fpath)
+        sha, size, error_code = _compute_sha256_with_size(fpath)
+
+        if sha:
+            sha_status = "ok"
+        elif error_code:
+            sha_status = error_code
+        else:
+            sha_status = "error"
 
         return {
             "path": rel_path,
@@ -538,7 +527,7 @@ def generate_review_bundle(
             "category": _heuristic_category(rel_path),
             "size_bytes": size,
             "sha256": sha,
-            "sha256_status": status_code
+            "sha256_status": sha_status
         }
 
     # Populate delta_files with prioritization for review order
@@ -775,9 +764,9 @@ def generate_review_bundle(
 
     for pname in parts_created:
         ppath = bundle_dir / pname
-        sha, psize, status = _compute_sha256_with_size(ppath)
-        if status != "ok" or not sha or len(sha) != 64:
-            raise RuntimeError(f"Bundle part missing or computation failed: {ppath} (status={status})")
+        sha, psize, error = _compute_sha256_with_size(ppath)
+        if error or not sha or len(sha) != 64:
+            raise RuntimeError(f"Bundle part missing or computation failed: {ppath} (error={error})")
 
         emitted_bytes += psize
 

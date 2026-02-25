@@ -15,7 +15,7 @@ def test_compute_sha256_with_size_happy_path(tmp_path):
 
     assert sha == expected_sha
     assert size == len(content_bytes)
-    assert status == "ok"
+    assert status is None
 
 def test_compute_sha256_with_size_missing(tmp_path):
     path = tmp_path / "does_not_exist_repolens"
@@ -24,27 +24,6 @@ def test_compute_sha256_with_size_missing(tmp_path):
     assert sha is None
     assert size == 0
     assert status == "missing"
-
-def test_compute_sha256_with_size_permission(tmp_path, monkeypatch):
-    f = tmp_path / "perm.txt"
-    f.write_text("no access", encoding="utf-8")
-
-    cls = type(f)
-    original_stat = cls.stat
-
-    def mock_stat(self, *args, **kwargs):
-        # Targeted patch: only fail for our specific test file
-        if self.name == "perm.txt":
-            raise PermissionError("Access denied")
-        return original_stat(self, *args, **kwargs)
-
-    monkeypatch.setattr(cls, "stat", mock_stat)
-
-    sha, size, status = _compute_sha256_with_size(f)
-
-    assert sha is None
-    assert size == 0
-    assert status == "permission"
 
 def test_compute_sha256_with_size_open_permission_error(tmp_path, monkeypatch):
     f = tmp_path / "open_perm.txt"
@@ -66,7 +45,7 @@ def test_compute_sha256_with_size_open_permission_error(tmp_path, monkeypatch):
     sha, size, status = _compute_sha256_with_size(f)
 
     assert sha is None
-    assert size == len(content_bytes) # best-effort size from stat succeeded
+    assert size == 0 # no pre-stat anymore, so size is 0 on open failure
     assert status == "permission"
 
 def test_make_entry_logic_with_errors(tmp_path, monkeypatch):
