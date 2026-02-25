@@ -4886,11 +4886,9 @@ def write_reports_v2(
                     requested_meta_density=meta_density,
                     meta_none=meta_none,
                 )
-                # Generate JSON filename: use last MD file for name, or fallback to deterministic name
+                # Generate JSON filename using deterministic base name (via base_name_func)
                 md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
 
-                # Re-scan for MD parts belonging to this run_id/repo?
-                # Simpler: just use base_name_func for naming JSON.
                 json_path = base_name_func(part_suffix="").with_suffix('.json')
 
                 json_data["artifacts"]["index_json"] = str(json_path)

@@ -6,10 +6,10 @@ import sys
 import os
 from pathlib import Path
 
-# Add merger/ to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Add project root to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from lenskit.core.merge import write_reports_v2, ExtrasConfig, FileInfo, scan_repo
+from merger.lenskit.core.merge import write_reports_v2, ExtrasConfig, FileInfo, scan_repo
 
 class TestPerRepoCohesion(unittest.TestCase):
     def setUp(self):
