@@ -32,6 +32,7 @@ def test_redaction_pipeline_applies_to_generated_markdown(monkeypatch):
         call_count["n"] += 1
         return injected_content, False, ""
 
+    # monkeypatch auto-reverts after test
     monkeypatch.setattr(merge_module, "read_smart_content", fake_read_smart_content)
 
     with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -94,4 +95,5 @@ def test_redaction_pipeline_applies_to_generated_markdown(monkeypatch):
 
         # 4. Locality check: Redaction marker should be in the same line as the key name
         lines_with_redaction = [line for line in md_content.splitlines() if "[REDACTED]" in line]
+        assert len(lines_with_redaction) > 0, "Redaction marker missing in any line (expected at least one [REDACTED] line)"
         assert any(key_name in line for line in lines_with_redaction), "Redaction marker present but not in key context"
