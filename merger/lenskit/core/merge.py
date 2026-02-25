@@ -4518,6 +4518,8 @@ def write_reports_v2(
 
     # Helper for writing logic
     def process_and_write(target_files, target_sources, output_filename_base_func):
+        generated_paths: List[Path] = []
+
         # Pre-calculate artifacts basenames for linking in MD (Recommendation 1)
         artifact_refs = {}
         if extras and extras.json_sidecar:
@@ -4692,6 +4694,7 @@ def write_reports_v2(
 
                 final_paths.append(new_path)
 
+            generated_paths.extend(final_paths)
             out_paths.extend(final_paths)
 
         else:
@@ -4735,7 +4738,12 @@ def write_reports_v2(
                     f.write(block)
 
             validator.close()
+            generated_paths.append(out_path)
             out_paths.append(out_path)
+
+        return generated_paths
+
+    last_chunk_index_path = None
 
     if mode == "gesamt":
         all_files = []
@@ -4761,14 +4769,16 @@ def write_reports_v2(
             meta_none=meta_none,
         )
 
+        generated_paths = []
         if output_mode in ("archive", "dual"):
-            process_and_write(all_files, sources, base_name_func)
+            generated_paths = process_and_write(all_files, sources, base_name_func)
 
         chunk_path = None
         if output_mode in ("retrieval", "dual"):
             chunk_path = generate_chunk_artifacts(all_files, base_name_func)
             if chunk_path:
                 out_paths.append(chunk_path)
+                last_chunk_index_path = chunk_path
 
         # Write JSON sidecar if enabled (agent-first: also for plan_only)
         # JSON must be written when json_sidecar is active - no conditions like "and not plan_only"
@@ -4793,7 +4803,7 @@ def write_reports_v2(
             )
             # Generate JSON filename: use first MD file for name, or fallback to deterministic name
             # If MD missing (retrieval mode), use base name
-            md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]
+            md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
             if md_parts:
                 json_path = md_parts[0].with_suffix('.json')
             else:
@@ -4844,14 +4854,16 @@ def write_reports_v2(
                 meta_none=meta_none,
             )
 
+            generated_paths = []
             if output_mode in ("archive", "dual"):
-                process_and_write(s_files, [s_root], base_name_func)
+                generated_paths = process_and_write(s_files, [s_root], base_name_func)
 
             chunk_path = None
             if output_mode in ("retrieval", "dual"):
                 chunk_path = generate_chunk_artifacts(s_files, base_name_func)
                 if chunk_path:
                     out_paths.append(chunk_path)
+                    last_chunk_index_path = chunk_path
 
             # Write JSON sidecar if enabled (agent-first: also for plan_only)
             # JSON must be written when json_sidecar is active - no conditions like "and not plan_only"
@@ -4875,31 +4887,7 @@ def write_reports_v2(
                     meta_none=meta_none,
                 )
                 # Generate JSON filename: use last MD file for name, or fallback to deterministic name
-                md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]
-                # We need to find the MD parts belonging to THIS repo loop.
-                # However, out_paths contains accumulated paths from previous loops!
-                # But md_parts logic here was using ALL out_paths? That seems buggy in original code for multi-repo logic?
-                # Actually, s_files/s_root processing produces specific MD files for this repo.
-                # But out_paths accumulates.
-                # Original logic: `if out_paths: json_path = out_paths[-1]`. This grabs the LAST generated file.
-                # Since we just generated the MD for this repo, it is the last one. Correct.
-
-                # Filter out_paths to find the MD file matching our base_name_func?
-                # Or just trust the last one if MD was generated.
-
-                current_md_path = None
-                if output_mode in ("archive", "dual"):
-                    # We expect MD was just added
-                    # Find MD path that matches the base name
-                    base_expected = base_name_func(part_suffix="")
-                    # The actual path might be different if parts were used
-                    # But checking the last added path is a reasonable heuristic if we just called process_and_write
-                    # Ideally process_and_write returns the paths it generated.
-                    # But process_and_write is void and appends to out_paths (wait, no, out_paths is local to write_reports_v2)
-                    # Ah, process_and_write is closure over out_paths?
-                    # No, process_and_write defines `local_out_paths` then `out_paths.extend`.
-                    # So `out_paths` has the new files at the end.
-                    pass
+                md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
 
                 # Re-scan for MD parts belonging to this run_id/repo?
                 # Simpler: just use base_name_func for naming JSON.
@@ -4908,33 +4896,16 @@ def write_reports_v2(
                 json_data["artifacts"]["index_json"] = str(json_path)
                 json_data["artifacts"]["index_json_basename"] = json_path.name
 
-                # Filter md_parts to only those that match this repo run_id/prefix?
-                # Or just include all generated so far?
-                # Original code: `md_parts = [p for p in out_paths if p.suffix.lower() == ".md"]`.
-                # This includes MD parts from PREVIOUS repos in the loop if we are in "pro-repo" mode.
-                # That seems intentional or acceptable side effect.
-                # But for JSON sidecar per repo, we probably only want *this* repo's MD parts.
-
-                # Let's filter by checking if path name starts with what we expect
-                # But we don't know the exact prefix easily without regex.
-                # Let's stick to original behavior but make it robust for retrieval mode (no MD).
-
                 json_data["artifacts"]["md_parts"] = [str(p) for p in md_parts]
                 json_data["artifacts"]["md_parts_basenames"] = [p.name for p in md_parts]
 
                 # Canonical MD is the last one generated?
-                # Original: `str(out_paths[-1]) if out_paths[-1].suffix.lower() == ".md" else ...`
-                if out_paths and out_paths[-1].suffix.lower() == ".md":
-                    json_data["artifacts"]["canonical_md"] = str(out_paths[-1])
-                    json_data["artifacts"]["canonical_md_basename"] = out_paths[-1].name
+                if md_parts:
+                    json_data["artifacts"]["canonical_md"] = str(md_parts[-1])
+                    json_data["artifacts"]["canonical_md_basename"] = md_parts[-1].name
                 else:
-                    # Retrieval mode or previous
-                    if md_parts:
-                        json_data["artifacts"]["canonical_md"] = str(md_parts[-1])
-                        json_data["artifacts"]["canonical_md_basename"] = md_parts[-1].name
-                    else:
-                        json_data["artifacts"]["canonical_md"] = None
-                        json_data["artifacts"]["canonical_md_basename"] = None
+                    json_data["artifacts"]["canonical_md"] = None
+                    json_data["artifacts"]["canonical_md_basename"] = None
 
                 if chunk_path:
                     json_data["artifacts"]["chunk_index"] = str(chunk_path)
@@ -4988,19 +4959,12 @@ def write_reports_v2(
     # Primary ordering: JSON (if enabled) first, then Markdown, then other artifacts.
     # Return structured MergeArtifacts object instead of flat list
 
-    # Identify chunk index if present
-    chunk_index_path = None
-    for p in other_paths:
-        if p.name.endswith(".chunk_index.jsonl"):
-            chunk_index_path = p
-            break
-
     if extras and extras.json_sidecar:
         # JSON is primary when json_sidecar is enabled
         return MergeArtifacts(
             index_json=verified_json[0] if verified_json else None,
             canonical_md=verified_md[0] if verified_md else None,
-            chunk_index=chunk_index_path,
+            chunk_index=last_chunk_index_path,
             md_parts=verified_md,
             other=other_paths
         )
@@ -5009,7 +4973,7 @@ def write_reports_v2(
         return MergeArtifacts(
             index_json=None,
             canonical_md=verified_md[0] if verified_md else None,
-            chunk_index=chunk_index_path,
+            chunk_index=last_chunk_index_path,
             md_parts=verified_md,
             other=other_paths
         )
