@@ -1,13 +1,13 @@
 import sys
 from pathlib import Path
-import json
 import pytest
+import dataclasses
 
 # Add repo root to path
 sys.path.append(str(Path(__file__).parents[3]))
 
 from merger.lenskit.core.chunker import Chunker
-from merger.lenskit.core.merge import get_semantic_metadata, generate_architecture_summary, FileInfo
+from merger.lenskit.core.merge import get_semantic_metadata, generate_architecture_summary, scan_repo
 
 def test_chunk_id_determinism():
     chunker = Chunker()
@@ -70,33 +70,41 @@ def test_semantic_metadata_extraction():
     assert meta["layer"] == "unknown"
     assert meta["concepts"] == []
 
-def test_architecture_summary_generation():
-    # Use real FileInfo constructor with None for optional fields to avoid brittleness with positional args if possible
-    # But since FileInfo is a class with __slots__ and __init__, we must match the signature.
-    # The signature is:
-    # def __init__(self, root_label, abs_path, rel_path, size, is_text, md5, category, tags, ext, skipped=False, reason=None, content=None, inclusion_reason="normal"):
+def test_architecture_summary_generation(tmp_path):
+    # Setup robust FileInfo objects via scan_repo
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
 
-    files = [
-        FileInfo("root", Path("a"), Path("merger/lenskit/core/merge.py"), 100, True, "md5", "source", [], ".py"),
-        FileInfo("root", Path("b"), Path("merger/lenskit/core/chunker.py"), 100, True, "md5", "source", [], ".py"),
-        FileInfo("root", Path("c"), Path("merger/lenskit/tests/test_merge.py"), 100, True, "md5", "test", [], ".py"),
-        FileInfo("root", Path("d"), Path("docs/intro.md"), 100, True, "md5", "doc", [], ".md"),
-    ]
+    # Create file structure
+    (repo_root / "merger/lenskit/core").mkdir(parents=True)
+    (repo_root / "merger/lenskit/core/merge.py").touch()
+    (repo_root / "merger/lenskit/core/chunker.py").touch()
 
-    summary = generate_architecture_summary(files)
+    (repo_root / "merger/lenskit/tests").mkdir(parents=True)
+    (repo_root / "merger/lenskit/tests/test_merge.py").touch()
 
-    assert "# Lenskit Architecture Snapshot" in summary
-    assert "## Layer Distribution" in summary
-    assert "- core: 2 files" in summary
-    assert "- test: 1 files" in summary
-    assert "- docs: 1 files" in summary
+    (repo_root / "docs").mkdir(parents=True)
+    (repo_root / "docs/intro.md").touch()
 
-    assert "## Core Modules" in summary
-    assert "- merge" in summary
-    assert "- chunker" in summary
+    # Use scan_repo to get real FileInfo objects
+    summary = scan_repo(repo_root, calculate_md5=False)
+    files = summary["files"]
 
-    assert "## Test Coverage Map" in summary
-    assert "- `merger/lenskit/tests/`: 1 tests" in summary
+    arch_summary = generate_architecture_summary(files)
+
+    assert "# Lenskit Architecture Snapshot" in arch_summary
+    assert "## Layer Distribution" in arch_summary
+    # Note: Depending on scan_repo ordering and path handling, counts should match
+    assert "- core: 2 files" in arch_summary
+    assert "- test: 1 files" in arch_summary
+    assert "- docs: 1 files" in arch_summary
+
+    assert "## Core Modules" in arch_summary
+    assert "- merge" in arch_summary
+    assert "- chunker" in arch_summary
+
+    assert "## Test Coverage Map" in arch_summary
+    assert "- `merger/lenskit/tests/`: 1 tests" in arch_summary
 
 def test_chunk_jsonl_fields():
     # Ensure new fields are present in chunk representation
@@ -109,8 +117,11 @@ def test_chunk_jsonl_fields():
     sem_meta = get_semantic_metadata(file_path, content)
 
     # Simulate what write_reports_v2 does
-    import dataclasses
-    d = dataclasses.asdict(chunks[0])
+    if dataclasses.is_dataclass(chunks[0]):
+        d = dataclasses.asdict(chunks[0])
+    else:
+        d = chunks[0].__dict__.copy()
+
     d["section"] = sem_meta["section"]
     d["layer"] = sem_meta["layer"]
     d["artifact_type"] = sem_meta["artifact_type"]
