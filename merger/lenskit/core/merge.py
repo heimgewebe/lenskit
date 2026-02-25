@@ -4229,8 +4229,6 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
     base_meta = get_semantic_metadata_path_only(file_path)
 
     # 4. Concepts (Keyword based, lightweight)
-    # Concepts are heuristic keyword hints; may include false positives.
-    MAX_CONCEPTS_PER_FILE = 6
     concepts = []
     content_lower = content.lower()
 
@@ -4251,6 +4249,9 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
 
     base_meta["concepts"] = concepts
     return base_meta
+
+# Concepts are heuristic keyword hints; may include false positives.
+MAX_CONCEPTS_PER_FILE = 6
 
 
 def generate_architecture_summary(files: List[FileInfo]) -> str:
@@ -4589,6 +4590,41 @@ def write_reports_v2(
     # Define consistent limit for both report and chunks
     # max_bytes is a per-file read limit (historical naming).
     max_file_bytes = max_bytes
+
+    # Helper for architecture summary writing (DRY)
+    def _write_architecture_summary(
+        files,
+        merges_dir,
+        repo_names,
+        detail,
+        path_filter,
+        ext_filter_str,
+        run_id,
+        plan_only,
+        code_only,
+        timestamp,
+        meta_none,
+        out_paths
+    ):
+        """
+        Helper to generate and write the architecture summary.
+        """
+        arch_path = make_output_filename(
+            merges_dir,
+            repo_names,
+            detail,
+            "",
+            path_filter,
+            ext_filter_str,
+            run_id,
+            plan_only=plan_only,
+            code_only=code_only,
+            timestamp=timestamp,
+            meta_none=meta_none,
+            suffix="_architecture.md"
+        )
+        arch_path.write_text(generate_architecture_summary(files), encoding="utf-8")
+        out_paths.append(arch_path)
 
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func):
@@ -5102,41 +5138,6 @@ def write_reports_v2(
             "repoLens: Report was announced as written, but no non-empty .md output exists on disk. "
             "Check merges_dir / permissions / rename logic."
         )
-
-def _write_architecture_summary(
-    files,
-    merges_dir,
-    repo_names,
-    detail,
-    path_filter,
-    ext_filter_str,
-    run_id,
-    plan_only,
-    code_only,
-    timestamp,
-    meta_none,
-    out_paths
-):
-    """
-    Helper to generate and write the architecture summary.
-    """
-    arch_path = make_output_filename(
-        merges_dir,
-        repo_names,
-        detail,
-        "",
-        path_filter,
-        ext_filter_str,
-        run_id,
-        plan_only=plan_only,
-        code_only=code_only,
-        timestamp=timestamp,
-        meta_none=meta_none,
-        suffix="_architecture.md"
-    )
-    arch_path.write_text(generate_architecture_summary(files), encoding="utf-8")
-    out_paths.append(arch_path)
-
 
     # If json_sidecar is enabled, JSON is the primary artifact: verify it exists & is non-empty.
     verified_json: List[Path] = []
