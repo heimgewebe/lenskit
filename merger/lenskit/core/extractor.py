@@ -338,7 +338,7 @@ def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, Optional[
     """
     Computes SHA256 and size for a file.
     Returns (sha, size, error_code).
-    error_code is None if successful, or one of "missing", "permission", "io_error", "error".
+    error_code is None on success, or one of "missing", "permission", "io_error", "error".
     """
     try:
         with path.open("rb") as f:
@@ -516,12 +516,7 @@ def generate_review_bundle(
         # For added/changed: use robust computation
         sha, size, error_code = _compute_sha256_with_size(fpath)
 
-        if sha:
-            sha_status = "ok"
-        elif error_code:
-            sha_status = error_code
-        else:
-            sha_status = "error"
+        sha_status = "ok" if sha else (error_code or "error")
 
         return {
             "path": rel_path,
