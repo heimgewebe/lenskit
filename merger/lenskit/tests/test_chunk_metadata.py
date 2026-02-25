@@ -1,13 +1,14 @@
 import sys
+import os
 from pathlib import Path
 import pytest
 import dataclasses
 
-# Add repo root to path
-sys.path.append(str(Path(__file__).parents[3]))
+# Add merger/ to sys.path so lenskit is importable (aligned with test_merge_core.py)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from merger.lenskit.core.chunker import Chunker
-from merger.lenskit.core.merge import get_semantic_metadata, generate_architecture_summary, scan_repo
+from lenskit.core.chunker import Chunker
+from lenskit.core.merge import get_semantic_metadata, generate_architecture_summary, scan_repo
 
 def test_chunk_id_determinism():
     chunker = Chunker()

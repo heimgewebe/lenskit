@@ -4229,6 +4229,8 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
     base_meta = get_semantic_metadata_path_only(file_path)
 
     # 4. Concepts (Keyword based, lightweight)
+    # Concepts are heuristic keyword hints; may include false positives.
+    MAX_CONCEPTS_PER_FILE = 6
     concepts = []
     content_lower = content.lower()
 
@@ -4244,7 +4246,7 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
     for keyword, concept in mapping.items():
         if keyword in content_lower:
             concepts.append(concept)
-            if len(concepts) >= 6:
+            if len(concepts) >= MAX_CONCEPTS_PER_FILE:
                 break
 
     base_meta["concepts"] = concepts
@@ -4290,10 +4292,7 @@ def generate_architecture_summary(files: List[FileInfo]) -> str:
 
     lines.append("## Test Coverage Map")
     lines.append(f"Total test files: {len(test_files)}")
-    # Simplify output to avoid huge lists if many tests
-    # Just show count per folder? Or maybe list top level test folders?
-    # Prompt implies "Map". Listing all might be too much if there are thousands.
-    # But usually reasonable. Let's list directories with count.
+    # Summarize test coverage by parent directory to keep the map compact.
     test_dirs = {}
     for tf in test_files:
         p = Path(tf).parent.as_posix()
@@ -4913,23 +4912,20 @@ def write_reports_v2(
         if output_mode in ("archive", "dual"):
             generated_paths = process_and_write(all_files, sources, base_name_func)
 
-            # Architecture Summary (New in v2.4)
-            arch_path = make_output_filename(
+            _write_architecture_summary(
+                all_files,
                 merges_dir,
                 repo_names,
                 detail,
-                "",
                 path_filter,
                 ext_filter_str,
                 run_id,
-                plan_only=plan_only,
-                code_only=code_only,
-                timestamp=global_ts,
-                meta_none=meta_none,
-                suffix="_architecture.md"
+                plan_only,
+                code_only,
+                global_ts,
+                meta_none,
+                out_paths
             )
-            arch_path.write_text(generate_architecture_summary(all_files), encoding="utf-8")
-            out_paths.append(arch_path)
 
         chunk_path = None
         if output_mode in ("retrieval", "dual"):
@@ -5013,23 +5009,20 @@ def write_reports_v2(
             if output_mode in ("archive", "dual"):
                 generated_paths = process_and_write(s_files, [s_root], base_name_func)
 
-                # Architecture Summary (New in v2.4)
-                arch_path = make_output_filename(
+                _write_architecture_summary(
+                    s_files,
                     merges_dir,
                     [s_name],
                     detail,
-                    part_suffix="",
-                    path_filter=path_filter,
-                    ext_filter=ext_filter_str,
-                    run_id=repo_run_id,
-                    plan_only=plan_only,
-                    code_only=code_only,
-                    timestamp=global_ts,
-                    meta_none=meta_none,
-                    suffix="_architecture.md"
+                    path_filter,
+                    ext_filter_str,
+                    repo_run_id,
+                    plan_only,
+                    code_only,
+                    global_ts,
+                    meta_none,
+                    out_paths
                 )
-                arch_path.write_text(generate_architecture_summary(s_files), encoding="utf-8")
-                out_paths.append(arch_path)
 
             chunk_path = None
             if output_mode in ("retrieval", "dual"):
@@ -5109,6 +5102,41 @@ def write_reports_v2(
             "repoLens: Report was announced as written, but no non-empty .md output exists on disk. "
             "Check merges_dir / permissions / rename logic."
         )
+
+def _write_architecture_summary(
+    files,
+    merges_dir,
+    repo_names,
+    detail,
+    path_filter,
+    ext_filter_str,
+    run_id,
+    plan_only,
+    code_only,
+    timestamp,
+    meta_none,
+    out_paths
+):
+    """
+    Helper to generate and write the architecture summary.
+    """
+    arch_path = make_output_filename(
+        merges_dir,
+        repo_names,
+        detail,
+        "",
+        path_filter,
+        ext_filter_str,
+        run_id,
+        plan_only=plan_only,
+        code_only=code_only,
+        timestamp=timestamp,
+        meta_none=meta_none,
+        suffix="_architecture.md"
+    )
+    arch_path.write_text(generate_architecture_summary(files), encoding="utf-8")
+    out_paths.append(arch_path)
+
 
     # If json_sidecar is enabled, JSON is the primary artifact: verify it exists & is non-empty.
     verified_json: List[Path] = []
