@@ -4957,12 +4957,17 @@ def write_reports_v2(
     # Primary ordering: JSON (if enabled) first, then Markdown, then other artifacts.
     # Return structured MergeArtifacts object instead of flat list
 
+    # Fix: In pro-repo mode, we generate multiple sidecars and indices.
+    # Avoid returning an arbitrary last index in the global summary object.
+    # The authoritative references are in the per-repo JSON sidecars.
+    final_chunk_index = last_chunk_index_path if mode == "gesamt" else None
+
     if extras and extras.json_sidecar:
         # JSON is primary when json_sidecar is enabled
         return MergeArtifacts(
             index_json=verified_json[0] if verified_json else None,
             canonical_md=verified_md[0] if verified_md else None,
-            chunk_index=last_chunk_index_path,
+            chunk_index=final_chunk_index,
             md_parts=verified_md,
             other=other_paths
         )
@@ -4971,7 +4976,7 @@ def write_reports_v2(
         return MergeArtifacts(
             index_json=None,
             canonical_md=verified_md[0] if verified_md else None,
-            chunk_index=last_chunk_index_path,
+            chunk_index=final_chunk_index,
             md_parts=verified_md,
             other=other_paths
         )
