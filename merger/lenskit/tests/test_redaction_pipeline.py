@@ -64,7 +64,7 @@ def test_redaction_pipeline_applies_to_generated_markdown(monkeypatch):
             repo_summaries=[summary],
             detail="max",
             mode="gesamt",
-            max_bytes=0,
+            max_bytes=10_000_000,
             plan_only=False,
             code_only=False,
             split_size=0,
@@ -75,7 +75,7 @@ def test_redaction_pipeline_applies_to_generated_markdown(monkeypatch):
         )
 
         # Ensure our hook was actually called
-        assert call_count["n"] > 0, "Mocked read_smart_content was never called!"
+        assert call_count["n"] > 0, "Mocked read_smart_content was never called; likely refactor changed call site or inclusion gate prevented reads"
 
         # Verify the output
         md_path = artifacts.canonical_md
