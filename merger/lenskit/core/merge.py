@@ -4607,9 +4607,7 @@ def write_reports_v2(
         meta_none,
         out_paths
     ):
-        """
-        Helper to generate and write the architecture summary.
-        """
+        # Helper to generate and write the architecture summary.
         arch_path = make_output_filename(
             merges_dir,
             repo_names,
