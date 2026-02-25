@@ -4801,13 +4801,10 @@ def write_reports_v2(
                 requested_meta_density=meta_density,
                 meta_none=meta_none,
             )
-            # Generate JSON filename: use first MD file for name, or fallback to deterministic name
-            # If MD missing (retrieval mode), use base name
+            # Generate JSON filename using deterministic base name (via base_name_func)
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
-            if md_parts:
-                json_path = md_parts[0].with_suffix('.json')
-            else:
-                json_path = base_name_func(part_suffix="").with_suffix('.json')
+
+            json_path = base_name_func(part_suffix="").with_suffix('.json')
 
             json_data["artifacts"]["index_json"] = str(json_path)
             json_data["artifacts"]["index_json_basename"] = json_path.name

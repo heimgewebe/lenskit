@@ -9,7 +9,7 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from merger.lenskit.core.merge import write_reports_v2, ExtrasConfig, FileInfo, scan_repo
+from merger.lenskit.core.merge import write_reports_v2, ExtrasConfig, scan_repo
 
 class TestPerRepoCohesion(unittest.TestCase):
     def setUp(self):
@@ -87,6 +87,10 @@ class TestPerRepoCohesion(unittest.TestCase):
         self.assertIn("repoA", chunk_idx_A)
         self.assertNotIn("repoB", chunk_idx_A)
 
+        # Hardened check: Ensure no cross-contamination in the entire artifacts object
+        artifacts_dump_A = json.dumps(sidecarA["artifacts"])
+        self.assertNotIn("repoB", artifacts_dump_A)
+
         # Check Cohesion for repoB
         # Artifacts should only contain repoB stuff
         # This checks for LEAKAGE. If repoB sidecar references repoA md parts, this fails.
@@ -98,6 +102,10 @@ class TestPerRepoCohesion(unittest.TestCase):
         self.assertIsNotNone(chunk_idx_B)
         self.assertIn("repoB", chunk_idx_B)
         self.assertNotIn("repoA", chunk_idx_B)
+
+        # Hardened check: Ensure no cross-contamination in the entire artifacts object
+        artifacts_dump_B = json.dumps(sidecarB["artifacts"])
+        self.assertNotIn("repoA", artifacts_dump_B)
 
 if __name__ == '__main__':
     unittest.main()
