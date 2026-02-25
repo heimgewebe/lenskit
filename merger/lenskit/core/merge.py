@@ -4957,13 +4957,16 @@ def write_reports_v2(
     # Fix: In pro-repo mode, we generate multiple sidecars and indices.
     # Avoid returning an arbitrary last index in the global summary object.
     # The authoritative references are in the per-repo JSON sidecars.
-    final_chunk_index = last_chunk_index_path if mode == "gesamt" else None
+    is_gesamt = (mode == "gesamt")
+    final_chunk_index = last_chunk_index_path if is_gesamt else None
+    final_index_json = (verified_json[0] if verified_json else None) if is_gesamt else None
+    final_canonical_md = (verified_md[0] if verified_md else None) if is_gesamt else None
 
     if extras and extras.json_sidecar:
         # JSON is primary when json_sidecar is enabled
         return MergeArtifacts(
-            index_json=verified_json[0] if verified_json else None,
-            canonical_md=verified_md[0] if verified_md else None,
+            index_json=final_index_json,
+            canonical_md=final_canonical_md,
             chunk_index=final_chunk_index,
             md_parts=verified_md,
             other=other_paths
@@ -4972,7 +4975,7 @@ def write_reports_v2(
         # Markdown is primary when json_sidecar is disabled
         return MergeArtifacts(
             index_json=None,
-            canonical_md=verified_md[0] if verified_md else None,
+            canonical_md=final_canonical_md,
             chunk_index=final_chunk_index,
             md_parts=verified_md,
             other=other_paths
