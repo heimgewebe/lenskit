@@ -338,7 +338,7 @@ def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, Optional[
     """
     Computes SHA256 and size for a file.
     Returns (sha, size, error_code).
-    error_code is None if successful, or one of "missing", "permission", "io_error".
+    error_code is None if successful, or one of "missing", "permission", "io_error", "error".
     """
     try:
         with path.open("rb") as f:
@@ -356,6 +356,8 @@ def _compute_sha256_with_size(path: Path) -> Tuple[Optional[str], int, Optional[
         return None, 0, "permission"
     except OSError:
         return None, 0, "io_error"
+    except Exception:
+        return None, 0, "error"
 
 
 def _compute_sha256(path: Path) -> Optional[str]:

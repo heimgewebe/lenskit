@@ -1,11 +1,6 @@
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import os
-import sys
-
-# Add the project root to sys.path if needed, although usually pytest handles it.
-# We assume the test runner sets up PYTHONPATH correctly.
+from unittest.mock import patch
 
 from merger.lenskit.core.extractor import _compute_sha256_with_size
 
