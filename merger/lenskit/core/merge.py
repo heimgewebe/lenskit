@@ -4177,9 +4177,10 @@ def extract_retrieval_metadata(content: str, lang: str) -> Dict[str, Any]:
     return meta
 
 
-def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
+def get_semantic_metadata_path_only(file_path: str) -> Dict[str, Any]:
     """
-    Derives deterministic semantic metadata from file structure and content.
+    Derives deterministic semantic metadata from file structure only (no content reading).
+    Optimized for architecture summary generation.
     """
     p = Path(file_path)
     parts = p.parts
@@ -4213,6 +4214,20 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
     elif ext in (".sh", ".bash", ".zsh"):
         artifact_type = "script"
 
+    return {
+        "section": section,
+        "layer": layer,
+        "artifact_type": artifact_type,
+    }
+
+
+def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
+    """
+    Derives deterministic semantic metadata from file structure and content.
+    """
+    # Reuse path-only logic
+    base_meta = get_semantic_metadata_path_only(file_path)
+
     # 4. Concepts (Keyword based, lightweight)
     concepts = []
     content_lower = content.lower()
@@ -4232,12 +4247,8 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
             if len(concepts) >= 6:
                 break
 
-    return {
-        "section": section,
-        "layer": layer,
-        "artifact_type": artifact_type,
-        "concepts": concepts
-    }
+    base_meta["concepts"] = concepts
+    return base_meta
 
 
 def generate_architecture_summary(files: List[FileInfo]) -> str:
@@ -4249,7 +4260,7 @@ def generate_architecture_summary(files: List[FileInfo]) -> str:
     test_files = []
 
     for fi in files:
-        meta = get_semantic_metadata(fi.rel_path.as_posix(), "") # Content not needed for layer/section
+        meta = get_semantic_metadata_path_only(fi.rel_path.as_posix())
         layer = meta["layer"]
         section = meta["section"]
 

@@ -87,10 +87,11 @@ class Chunker:
         # If file_path is not provided, we fall back to file_id (which is usually FILE:f_...).
         path_key = file_path if file_path else file_id
 
-        # We construct the input string as requested
+        # We construct the input string as requested, using delimiters to avoid collisions.
         # Note: start_line is 1-based index.
-        chunk_hash_input = f"{path_key}{start_line}{sha256}".encode('utf-8')
-        chunk_id = hashlib.sha1(chunk_hash_input).hexdigest()
+        # Truncate to 20 chars to keep JSONL size manageable while maintaining collision resistance.
+        chunk_hash_input = f"{path_key}\n{start_line}\n{sha256}".encode('utf-8')
+        chunk_id = hashlib.sha1(chunk_hash_input).hexdigest()[:20]
 
         chunks.append(Chunk(
             chunk_id=chunk_id,
