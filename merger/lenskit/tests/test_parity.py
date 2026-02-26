@@ -157,10 +157,7 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
 
     # 2. Check Artifacts existence via dump_index
     # We expect at least: merge_md, sidecar_json, chunk_index (since dual mode), architecture_summary
-    required_artifacts = ["merge_md", "sidecar_json", "architecture_summary"]
-    # Check dual mode requirement
-    # We know in this fixture we use output_mode="dual", so chunk_index is required
-    required_artifacts.append("chunk_index")
+    required_artifacts = ["merge_md", "sidecar_json", "architecture_summary", "chunk_index"]
 
     def _verify_artifact(dump, key, tool_name, out_dir):
         assert key in dump["artifacts"], f"{tool_name} missing artifact {key} in dump_index"
@@ -234,8 +231,12 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     # Check first chunk as sample
     c0 = r_chunks[0]
     for k in required_chunk_fields:
-        if k not in c0:
-             pytest.fail(f"Missing standard chunk field {k}")
+        assert k in c0, f"Missing standard chunk field {k}"
+
+    # Check repolens sample too
+    c1 = p_chunks[0]
+    for k in required_chunk_fields:
+        assert k in c1, f"Missing standard chunk field {k} (repolens)"
 
     # repo is optional but must be str if present
     if "repo" in c0:
