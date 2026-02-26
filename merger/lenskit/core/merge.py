@@ -1997,6 +1997,7 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
         operations where file integrity hashes are not required.
     include_hidden:
         If False, skips files and directories starting with '.' (unless explicitly whitelisted).
+        Safe .env samples (.example/.template/.sample) are always included regardless of this flag.
     """
     repo_root = repo_root.resolve()
     root_label = repo_root.name
@@ -4333,6 +4334,7 @@ def generate_json_sidecar(
     requested_meta_density: str = "auto",
     meta_none: bool = False,
     generator_info: Optional[Dict[str, Any]] = None,
+    output_mode: str = "dual",
 ) -> Dict[str, Any]:
     """
     Generate a JSON sidecar structure for machine consumption.
@@ -4382,14 +4384,21 @@ def generate_json_sidecar(
         requested_meta_density, path_filter, ext_filter, meta_none
     )
 
+    # Determine features based on output mode and enabled logic
+    active_features = []
+    if output_mode in ("retrieval", "dual"):
+        active_features.append("semantic_chunk_fields")
+    if output_mode in ("archive", "dual"):
+        active_features.append("architecture_summary")
+
     # Build meta block (agent-first contract)
     meta = {
         "contract": AGENT_CONTRACT_NAME,
         "contract_version": AGENT_CONTRACT_VERSION,
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
-        "generator": generator_info or {},
-        "features": ["semantic_chunk_fields", "architecture_summary"],
+        "generator": generator_info or {"name": "lenskit", "platform": "unknown"},
+        "features": active_features,
         "profile": level,
         "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),
         **({"mode": "none", "warning": "interpretation_disabled"} if meta_none else {}),
@@ -4607,6 +4616,14 @@ def write_reports_v2(
     # Define consistent limit for both report and chunks
     # max_bytes is a per-file read limit (historical naming).
     max_file_bytes = max_bytes
+
+    # Ensure generator_info is safe
+    if generator_info is None:
+        generator_info = {
+            "name": "lenskit",
+            "platform": "unknown",
+            "version": os.getenv("RLENS_VERSION", "dev")
+        }
 
     # Helper for architecture summary writing (DRY)
     def _write_architecture_summary(
@@ -5006,6 +5023,7 @@ def write_reports_v2(
                 requested_meta_density=meta_density,
                 meta_none=meta_none,
                 generator_info=generator_info,
+                output_mode=output_mode,
             )
             # Generate JSON filename using deterministic base name (via base_name_func)
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
@@ -5104,6 +5122,7 @@ def write_reports_v2(
                     requested_meta_density=meta_density,
                     meta_none=meta_none,
                     generator_info=generator_info,
+                    output_mode=output_mode,
                 )
                 # Generate JSON filename using deterministic base name (via base_name_func)
                 md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]

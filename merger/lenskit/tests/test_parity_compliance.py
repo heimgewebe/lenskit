@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 # Canonical import style (relying on pytest/PYTHONPATH to find the module)
-# No sys.path.append() hacks here.
 from merger.lenskit.core.merge import scan_repo, write_reports_v2, ExtrasConfig, FileInfo
 
 def test_scan_repo_hidden_files_behavior(tmp_path):
@@ -47,28 +46,18 @@ def test_write_reports_parity_features(tmp_path):
     merges_dir.mkdir()
     hub = tmp_path
 
-    # Mock content for semantic check
-    content = "def hello(): pass\n"
-    f = tmp_path / "test.py"
-    f.write_text(content, encoding="utf-8")
+    # Setup dummy repo
+    repo_name = "repo"
+    repo_root = tmp_path / repo_name
+    repo_root.mkdir()
 
-    fi = FileInfo(
-        root_label="repo",
-        abs_path=f,
-        rel_path=Path("test.py"),
-        size=len(content),
-        is_text=True,
-        md5="dummy",
-        category="source",
-        tags=[],
-        ext=".py"
-    )
+    # Create content file
+    f = repo_root / "test.py"
+    f.write_text("def hello(): pass\n", encoding="utf-8")
 
-    summary = {
-        "name": "repo",
-        "root": tmp_path,
-        "files": [fi]
-    }
+    # Use scan_repo to generate valid summary instead of manual FileInfo construction
+    # This ensures FileInfo objects are complete and valid according to current codebase logic
+    summary = scan_repo(repo_root, calculate_md5=False, include_hidden=True)
 
     gen_info = {"name": "parity_test", "version": "1.0", "platform": "test"}
 
@@ -87,10 +76,6 @@ def test_write_reports_parity_features(tmp_path):
     )
 
     # Verify Architecture Summary
-    # Use deterministic naming check if possible, else glob
-    # Based on make_output_filename, suffix is _architecture.md.
-    # Run ID starts with path-block (none), repo-block (repo), mode (none/full), detail (max).
-    # "repo-max-timestamp_architecture.md" roughly.
     arch_files = list(merges_dir.glob("*_architecture.md"))
     assert len(arch_files) == 1, "Architecture summary not generated"
 
@@ -126,3 +111,4 @@ def test_write_reports_parity_features(tmp_path):
     assert meta["generator"]["name"] == "parity_test"
     assert "features" in meta
     assert "semantic_chunk_fields" in meta["features"]
+    assert "architecture_summary" in meta["features"]
