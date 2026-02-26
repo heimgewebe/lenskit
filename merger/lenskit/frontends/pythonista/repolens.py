@@ -38,6 +38,42 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+
+def _insert_after_script_dir(path_s: str) -> None:
+    """Helper to insert paths deterministically after SCRIPT_DIR."""
+    if path_s in sys.path:
+        return
+    try:
+        # Insert after SCRIPT_DIR if present, otherwise at start
+        idx = sys.path.index(str(SCRIPT_DIR)) + 1
+        sys.path.insert(idx, path_s)
+    except ValueError:
+        sys.path.insert(0, path_s)
+
+
+# --- FIX START ---
+# Auto-detect project root to fix ModuleNotFoundError in standalone mode
+try:
+    # Walk up until we find the 'merger' directory
+    # Structure: .../merger/lenskit/frontends/pythonista/repolens.py
+    # We want to add '.../' to sys.path so 'import merger' works.
+    _p = SCRIPT_DIR
+    while _p.name != "merger" and _p.parent != _p:
+        _p = _p.parent
+
+    if _p.name == "merger":
+        # Deterministic order: SCRIPT_DIR -> REPO_ROOT -> MERGER_DIR
+        # Note: We insert in reverse order of desired precedence because each call
+        # inserts immediately after SCRIPT_DIR, pushing previous insertions down.
+        _insert_after_script_dir(str(_p))         # Ends up at SCRIPT_DIR + 2
+        _insert_after_script_dir(str(_p.parent))  # Ends up at SCRIPT_DIR + 1
+except Exception as e:
+    try:
+        print(f"[repolens] Warning: auto path-detection failed: {e}", file=sys.stderr)
+    except Exception:
+        print(f"[repolens] Warning: auto path-detection failed: {e}")
+# --- FIX END ---
+
 from repolens_utils import normalize_path, normalize_repo_id, safe_script_path
 from repolens_helpers import deserialize_prescan_pool, resolve_pool_include_paths
 
