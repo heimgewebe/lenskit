@@ -1988,13 +1988,16 @@ def prescan_repo(repo_root: Path, max_depth: int = 10, ignore_globs: Optional[Li
         "total_bytes": total_bytes
     }
 
-def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_contains: Optional[str] = None, max_bytes: int = DEFAULT_MAX_BYTES, include_paths: Optional[List[str]] = None, calculate_md5: bool = True) -> Dict[str, Any]:
+def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_contains: Optional[str] = None, max_bytes: int = DEFAULT_MAX_BYTES, include_paths: Optional[List[str]] = None, calculate_md5: bool = True, include_hidden: bool = True) -> Dict[str, Any]:
     """
     Scans a repository and returns a summary dict with file info.
 
     calculate_md5:
         If False, skips all MD5 computation. Intended for plan-only / non-manifest
         operations where file integrity hashes are not required.
+    include_hidden:
+        If False, skips files and directories starting with '.' (unless explicitly whitelisted).
+        Safe .env samples (.example/.template/.sample) are always included regardless of this flag.
     """
     repo_root = repo_root.resolve()
     root_label = repo_root.name
@@ -2071,6 +2074,8 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
         for d in dirnames:
             if d in SKIP_DIRS:
                 continue
+            if not include_hidden and d.startswith("."):
+                continue
             keep_dirs.append(d)
         dirnames[:] = keep_dirs
 
@@ -2103,7 +2108,12 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
         for fn in filenames:
             if fn in SKIP_FILES:
                 continue
-            if fn.startswith(".env") and fn not in (".env.example", ".env.template", ".env.sample"):
+
+            # Keep safe .env samples even when include_hidden=False
+            if fn.startswith(".env"):
+                if fn not in (".env.example", ".env.template", ".env.sample"):
+                    continue
+            elif not include_hidden and fn.startswith("."):
                 continue
 
             if rel_dir:
@@ -4323,6 +4333,8 @@ def generate_json_sidecar(
     requested_flags: Optional[Dict[str, bool]] = None,
     requested_meta_density: str = "auto",
     meta_none: bool = False,
+    generator_info: Optional[Dict[str, Any]] = None,
+    output_mode: str = "dual",
 ) -> Dict[str, Any]:
     """
     Generate a JSON sidecar structure for machine consumption.
@@ -4372,12 +4384,21 @@ def generate_json_sidecar(
         requested_meta_density, path_filter, ext_filter, meta_none
     )
 
+    # Determine features based on output mode and enabled logic
+    active_features = []
+    if output_mode in ("retrieval", "dual"):
+        active_features.append("semantic_chunk_fields")
+    if output_mode in ("archive", "dual"):
+        active_features.append("architecture_summary")
+
     # Build meta block (agent-first contract)
     meta = {
         "contract": AGENT_CONTRACT_NAME,
         "contract_version": AGENT_CONTRACT_VERSION,
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
+        "generator": generator_info or {"name": "lenskit", "platform": "unknown"},
+        "features": active_features,
         "profile": level,
         "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),
         **({"mode": "none", "warning": "interpretation_disabled"} if meta_none else {}),
@@ -4574,6 +4595,7 @@ def write_reports_v2(
     meta_none: bool = False,
     output_mode: str = "dual",  # archive, retrieval, dual
     redact_secrets: bool = False,
+    generator_info: Optional[Dict[str, Any]] = None,
 ) -> MergeArtifacts:
     out_paths = []
 
@@ -4594,6 +4616,14 @@ def write_reports_v2(
     # Define consistent limit for both report and chunks
     # max_bytes is a per-file read limit (historical naming).
     max_file_bytes = max_bytes
+
+    # Ensure generator_info is safe
+    if generator_info is None:
+        generator_info = {
+            "name": "lenskit",
+            "platform": "unknown",
+            "version": os.getenv("RLENS_VERSION", "dev")
+        }
 
     # Helper for architecture summary writing (DRY)
     def _write_architecture_summary(
@@ -4992,6 +5022,8 @@ def write_reports_v2(
                 requested_flags=requested_flags,
                 requested_meta_density=meta_density,
                 meta_none=meta_none,
+                generator_info=generator_info,
+                output_mode=output_mode,
             )
             # Generate JSON filename using deterministic base name (via base_name_func)
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
@@ -5089,6 +5121,8 @@ def write_reports_v2(
                     requested_flags=requested_flags,
                     requested_meta_density=meta_density,
                     meta_none=meta_none,
+                    generator_info=generator_info,
+                    output_mode=output_mode,
                 )
                 # Generate JSON filename using deterministic base name (via base_name_func)
                 md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]

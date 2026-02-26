@@ -1,5 +1,6 @@
 import concurrent.futures
 import sys
+import os
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
@@ -221,7 +222,7 @@ class JobRunner:
                 # Optimization: Skip MD5 for plan_only jobs to reduce scan cost.
                 # plan_only is currently the proxy for "no hashes needed" (content/manifest skipped).
                 should_hash = not req.plan_only
-                summary = scan_repo(src, ext_list, path_filter, max_bytes, include_paths=current_include_paths, calculate_md5=should_hash)
+                summary = scan_repo(src, ext_list, path_filter, max_bytes, include_paths=current_include_paths, calculate_md5=should_hash, include_hidden=req.include_hidden)
                 summaries.append(summary)
 
             if warnings_dirty:
@@ -268,6 +269,12 @@ class JobRunner:
             if req.json_sidecar:
                 extras.json_sidecar = True
 
+            generator_info = {
+                "name": "rlens",
+                "version": os.getenv("RLENS_VERSION", "dev"),
+                "platform": "service"
+            }
+
             artifacts_obj = write_reports_v2(
                 merges_dir,
                 hub,
@@ -283,6 +290,9 @@ class JobRunner:
                 ext_filter=ext_list,
                 extras=extras,
                 meta_density=req.meta_density,
+                output_mode=req.output_mode,
+                redact_secrets=req.redact_secrets,
+                generator_info=generator_info,
             )
 
             # 5. Register Artifacts

@@ -50,7 +50,11 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
         "extras": extras_str,
         "json_sidecar": req.json_sidecar,
         "meta_density": req.meta_density,
-        "include_paths": inc_paths
+        "include_paths": inc_paths,
+        # New fields v2.4
+        "output_mode": req.output_mode,
+        "redact_secrets": req.redact_secrets,
+        "include_hidden": req.include_hidden,
         # Merges dir excluded from content hash:
         # Same content, different output path = same logical job.
         # Client must check returned artifact for actual path.
@@ -84,6 +88,10 @@ class JobRequest(BaseModel):
     )
     json_sidecar: bool = True  # Default true for service
     force_new: bool = False
+    # v2.4 Parity Features
+    output_mode: Literal["archive", "retrieval", "dual"] = "dual"
+    redact_secrets: bool = False
+    include_hidden: bool = Field(default=True, description="Whether to include hidden files/directories (starting with .)")
 
 class AtlasEffective(BaseModel):
     max_depth: int
