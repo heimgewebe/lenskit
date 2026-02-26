@@ -54,7 +54,14 @@ def test_sidecar_contracts_and_dump_index():
         assert dump_dual["contract"] == "dump-index"
         assert "artifacts" in dump_dual
         assert "chunk_index" in dump_dual["artifacts"]
-        assert dump_dual["artifacts"]["chunk_index"]["sha256"]  # Check hash presence
+
+        # Strict hash check
+        chunk_sha = dump_dual["artifacts"]["chunk_index"]["sha256"]
+        assert chunk_sha, "Chunk Index SHA256 missing"
+        assert chunk_sha != "ERROR", "Chunk Index SHA256 is ERROR"
+        assert len(chunk_sha) == 64, f"Chunk Index SHA256 invalid length: {len(chunk_sha)}"
+        # Optionally, check valid hex
+        int(chunk_sha, 16)
 
         # 2. Test ARCHIVE mode (Chunk Index disabled)
         artifacts_archive = write_reports_v2(
@@ -88,7 +95,11 @@ def test_sidecar_contracts_and_dump_index():
 
         # Verify architecture summary hash
         assert "architecture_summary" in dump_archive["artifacts"]
-        assert dump_archive["artifacts"]["architecture_summary"]["sha256"]
+        arch_sha = dump_archive["artifacts"]["architecture_summary"]["sha256"]
+        assert arch_sha, "Architecture Summary SHA256 missing"
+        assert arch_sha != "ERROR", "Architecture Summary SHA256 is ERROR"
+        assert len(arch_sha) == 64, f"Architecture Summary SHA256 invalid length: {len(arch_sha)}"
+        int(arch_sha, 16)
 
 if __name__ == "__main__":
     test_sidecar_contracts_and_dump_index()
