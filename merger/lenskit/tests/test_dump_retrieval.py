@@ -5,9 +5,6 @@ import sys
 import re
 import hashlib
 
-# Add root to sys.path
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
-
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.core.redactor import Redactor
 

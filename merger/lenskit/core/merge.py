@@ -1691,6 +1691,21 @@ def is_probably_text(path: Path, size: int) -> bool:
     return True
 
 
+def _compute_file_sha256(path: Path) -> str:
+    """Compute SHA256 hash of a file using chunked reading for memory efficiency."""
+    sha256 = hashlib.sha256()
+    try:
+        with path.open("rb") as f:
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                sha256.update(chunk)
+        return sha256.hexdigest()
+    except OSError:
+        return "ERROR"
+
+
 def compute_md5(path: Path, limit_bytes: Optional[int] = None) -> str:
     # MD5 is used for file integrity checking, not cryptographic security
     try:
@@ -3837,6 +3852,7 @@ def iter_report_blocks(
     # --- Index (Patch B) ---
     # Generated Categories Index - Only show non-empty categories/tags
     index_blocks = []
+    index_blocks.append("<!-- zone:begin type=index id=index -->")
     index_blocks.extend(_heading_block(2, "index", "🧭 Index", nav=nav))
 
     if effective_meta_density == "min":
@@ -3888,6 +3904,7 @@ def iter_report_blocks(
                 index_blocks.append(f"- [`{f.rel_path}`](#{f.anchor})")
             index_blocks.append("")
 
+    index_blocks.append("<!-- zone:end type=index id=index -->")
     yield "\n".join(index_blocks) + "\n"
 
     # --- 7. Manifest (Patch A) ---
@@ -4398,10 +4415,9 @@ def generate_json_sidecar(
     meta = {
         "contract": AGENT_CONTRACT_NAME,
         "contract_version": AGENT_CONTRACT_VERSION,
-        "chunk_index_contract": {
-            "name": "chunk-index",
-            "version": "v2",
-            "legacy_aliases": True
+        "dump_index_contract": {
+            "name": "dump-index",
+            "version": "v1"
         },
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
@@ -4436,6 +4452,13 @@ def generate_json_sidecar(
             "content_policy": render_mode,
         },
     }
+
+    if "semantic_chunk_fields" in active_features:
+        meta["chunk_index_contract"] = {
+            "name": "chunk-index",
+            "version": "v2",
+            "legacy_aliases": True
+        }
 
     if not meta_none:
         meta["epistemic_charter"] = {
@@ -4677,7 +4700,7 @@ def write_reports_v2(
                 artifacts_block[role] = {
                     "path": path.name,
                     "size": path.stat().st_size,
-                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest()
+                    "sha256": _compute_file_sha256(path)
                 }
 
         data = {

@@ -1,48 +1,53 @@
-import sys
-import os
 import re
+import pytest
 from pathlib import Path
+import sys
 
-# Add merger/ to sys.path so lenskit is importable
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 
-from lenskit.core.merge import iter_report_blocks, FileInfo, ExtrasConfig
-
-def test_zone_markers_symmetry():
+def test_zone_markers_symmetry_integration(tmp_path):
     """
     Verifies that every <!-- zone:begin ... --> tag has a corresponding
-    <!-- zone:end ... --> tag with identical type and id attributes.
+    <!-- zone:end ... --> tag with identical type and id attributes,
+    using a real repository scan and report generation.
     """
-    # Create dummy files
-    files = [
-        FileInfo(
-            root_label="repo",
-            abs_path=Path("dummy.py"),
-            rel_path=Path("dummy.py"),
-            size=10,
-            is_text=True,
-            md5="dummy",
-            category="source",
-            tags=[],
-            ext=".py",
-            content="print('hello')"
-        )
-    ]
+    # 1. Setup minimal repo structure
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
 
-    # Generate report content stream
-    iterator = iter_report_blocks(
-        files=files,
-        level="max",
-        max_file_bytes=1000,
-        sources=[Path("repo")],
+    (repo_root / "src").mkdir()
+    (repo_root / "src" / "main.py").write_text("print('hello')\n", encoding="utf-8")
+    (repo_root / "README.md").write_text("# Readme\n", encoding="utf-8")
+    (repo_root / "docs").mkdir()
+    (repo_root / "docs" / "info.txt").write_text("Info", encoding="utf-8")
+
+    # 2. Scan Repo
+    summary = scan_repo(repo_root, calculate_md5=False, include_hidden=True)
+
+    # 3. Generate Report
+    merges_dir = tmp_path / "merges"
+    merges_dir.mkdir()
+    hub_dir = tmp_path / "hub" # dummy hub
+
+    artifacts = write_reports_v2(
+        merges_dir=merges_dir,
+        hub=hub_dir,
+        repo_summaries=[summary],
+        detail="max",
+        mode="gesamt",
+        max_bytes=0,
         plan_only=False,
-        extras=ExtrasConfig(json_sidecar=True)
+        output_mode="archive", # No chunks needed for this test
+        extras=ExtrasConfig(json_sidecar=False) # Keep it simple
     )
 
-    report_content = "".join(iterator)
+    assert artifacts.canonical_md is not None
+    assert artifacts.canonical_md.exists()
 
-    # Regex to find zone markers
-    # Captures: 1=begin|end, 2=attributes
+    report_content = artifacts.canonical_md.read_text(encoding="utf-8")
+
+    # 4. Parse and Validate Zones
+    # Regex to find zone markers: captures 1=begin|end, 2=attributes
     zone_pattern = re.compile(r"<!-- zone:(begin|end)\s+(.+?)\s*-->")
 
     zones = []
@@ -51,13 +56,14 @@ def test_zone_markers_symmetry():
         kind = match.group(1) # begin or end
         attrs_str = match.group(2)
 
-        # Parse attributes (naive splitting by space, assuming no spaces in values for now or quotes)
-        # Better: use regex to parse key=value
-        attr_pattern = re.compile(r'([a-zA-Z0-9_]+)=(".*?"|\S+)')
+        # Parse attributes (key=value)
+        # Using a simple regex that handles quoted and unquoted values
+        attr_pattern = re.compile(r'([a-zA-Z0-9_]+)=(?:"(.*?)"|(\S+))')
         attrs = {}
         for am in attr_pattern.finditer(attrs_str):
             key = am.group(1)
-            val = am.group(2).strip('"')
+            # Value is group 2 (quoted content) or group 3 (unquoted)
+            val = am.group(2) if am.group(2) is not None else am.group(3)
             attrs[key] = val
 
         zones.append({"kind": kind, "attrs": attrs, "raw": match.group(0)})
@@ -65,9 +71,14 @@ def test_zone_markers_symmetry():
     # Stack for validating nesting and symmetry
     stack = []
 
+    # We expect at least these zones: meta, structure, index, manifest, and codes
+    expected_types = {"meta", "structure", "index", "manifest", "code"}
+    found_types = set()
+
     for z in zones:
         if z["kind"] == "begin":
             stack.append(z)
+            found_types.add(z["attrs"].get("type"))
         elif z["kind"] == "end":
             assert len(stack) > 0, f"Found zone:end without zone:begin: {z['raw']}"
             start_zone = stack.pop()
@@ -88,5 +99,11 @@ def test_zone_markers_symmetry():
 
     assert len(stack) == 0, f"Unclosed zones remaining: {[z['raw'] for z in stack]}"
 
+    # Ensure we actually tested the relevant zones
+    for t in expected_types:
+        assert t in found_types, f"Expected zone type '{t}' not found in report"
+
 if __name__ == "__main__":
-    test_zone_markers_symmetry()
+    # Manually run if executed as script
+    # pytest will handle the tmp_path fixture automatically
+    pass
