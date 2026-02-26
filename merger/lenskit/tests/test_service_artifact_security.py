@@ -32,7 +32,14 @@ def secure_env(tmp_path):
 
     # Initialize service, allowlisting ONLY hub and allowed_merges
     # forbidden is NOT included
-    init_service(hub_path=hub, merges_dir=allowed_merges)
+    # Explicitly UNSET token to avoid implicit root allowlisting on loopback
+    import os
+    old_token = os.environ.get("RLENS_TOKEN")
+    if "RLENS_TOKEN" in os.environ:
+        del os.environ["RLENS_TOKEN"]
+
+    # Now init service without token in env
+    init_service(hub_path=hub, merges_dir=allowed_merges, token=None)
 
     yield {
         "hub": hub,
@@ -46,6 +53,10 @@ def secure_env(tmp_path):
     state.job_store = None
     state.runner = None
     state.log_provider = None
+
+    # Restore token if it was set
+    if old_token is not None:
+        os.environ["RLENS_TOKEN"] = old_token
 
     # Reset Security Config allowlist
     sec = get_security_config()
