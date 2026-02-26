@@ -180,35 +180,19 @@ def force_close_files(paths: List[Path]) -> None:
 LAST_STATE_FILENAME = ".repoLens-state.json"
 
 # Import core logic
-try:
-    from lenskit.core.merge import (
-        MERGES_DIR_NAME,
-        PR_SCHAU_DIR,
-        SKIP_ROOTS,
-        detect_hub_dir,
-        get_merges_dir,
-        scan_repo,
-        write_reports_v2,
-        _normalize_ext_list,
-        ExtrasConfig,
-        parse_human_size,
-    )
-    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
-except ImportError:
-    sys.path.append(str(SCRIPT_DIR.parent.parent.parent))
-    from lenskit.core.merge import (
-        MERGES_DIR_NAME,
-        PR_SCHAU_DIR,
-        SKIP_ROOTS,
-        detect_hub_dir,
-        get_merges_dir,
-        scan_repo,
-        write_reports_v2,
-        _normalize_ext_list,
-        ExtrasConfig,
-        parse_human_size,
-    )
-    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
+from merger.lenskit.core.merge import (
+    MERGES_DIR_NAME,
+    PR_SCHAU_DIR,
+    SKIP_ROOTS,
+    detect_hub_dir,
+    get_merges_dir,
+    scan_repo,
+    write_reports_v2,
+    _normalize_ext_list,
+    ExtrasConfig,
+    parse_human_size,
+)
+from merger.lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
 
 PROFILE_DESCRIPTIONS = {
     # Kurzbeschreibung der Profile für den UI-Hint
@@ -311,15 +295,10 @@ def _pick_human_md(paths) -> Optional[Path]:
 def _load_repolens_extractor_module():
     """Load extractor module from core."""
     try:
-        from lenskit.core import extractor
-        return extractor
-    except ImportError:
-        # Fallback if path not yet set
-        sys.path.append(str(SCRIPT_DIR.parent.parent.parent))
-        from lenskit.core import extractor
+        from merger.lenskit.core import extractor
         return extractor
     except Exception as exc:
-        print(f"[repoLens] could not load lenskit.core.extractor: {exc}")
+        print(f"[repoLens] could not load merger.lenskit.core.extractor: {exc}")
         return None
 
 
@@ -2144,7 +2123,7 @@ class MergerUI(object):
 
         # We need to run prescan logic. Since we are in Pythonista (local), we call core directly.
         try:
-            from lenskit.core.merge import prescan_repo
+            from merger.lenskit.core.merge import prescan_repo
         except ImportError:
             _notify("Core merge module not found", "error")
             return

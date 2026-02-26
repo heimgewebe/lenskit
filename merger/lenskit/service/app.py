@@ -32,10 +32,7 @@ from ..adapters.metarepo import sync_from_metarepo
 from ..adapters import sources as sources_refresh
 from ..adapters import diagnostics as diagnostics_rebuild
 
-try:
-    from ..core.merge import get_merges_dir, SPEC_VERSION, prescan_repo
-except ImportError:
-    from merger.lenskit.core.merge import get_merges_dir, SPEC_VERSION, prescan_repo
+from merger.lenskit.core.merge import get_merges_dir, SPEC_VERSION, prescan_repo
 
 # Global Version Info
 SERVER_START_TIME = datetime.now(timezone.utc).isoformat()
