@@ -390,6 +390,7 @@ class MergeArtifacts:
     canonical_md: Optional[Path] = None
     chunk_index: Optional[Path] = None
     md_parts: List[Path] = None
+    dump_index: Optional[Path] = None
     other: List[Path] = None
 
     def __post_init__(self):
@@ -407,6 +408,8 @@ class MergeArtifacts:
             paths.append(self.canonical_md)
         if self.chunk_index:
             paths.append(self.chunk_index)
+        if self.dump_index:
+            paths.append(self.dump_index)
         for p in self.md_parts:
             if p not in paths:
                 paths.append(p)
@@ -1686,6 +1689,21 @@ def is_probably_text(path: Path, size: int) -> bool:
     if b"\x00" in chunk:
         return False
     return True
+
+
+def _compute_file_sha256(path: Path) -> str:
+    """Compute SHA256 hash of a file using chunked reading for memory efficiency."""
+    sha256 = hashlib.sha256()
+    try:
+        with path.open("rb") as f:
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                sha256.update(chunk)
+        return sha256.hexdigest()
+    except OSError:
+        return "ERROR"
 
 
 def compute_md5(path: Path, limit_bytes: Optional[int] = None) -> str:
@@ -3532,7 +3550,7 @@ def iter_report_blocks(
 
     meta_lines.append("```")
     meta_lines.append("<!-- @meta:end -->")
-    meta_lines.append("<!-- zone:end type=meta -->")
+    meta_lines.append("<!-- zone:end type=meta id=meta -->")
     meta_lines.append("")
     header.extend(meta_lines)
 
@@ -3828,12 +3846,13 @@ def iter_report_blocks(
         structure.append("")
         structure.append(build_tree(files))
         structure.append("")
-        structure.append("<!-- zone:end type=structure -->")
+        structure.append("<!-- zone:end type=structure id=structure -->")
         yield "\n".join(structure) + "\n"
 
     # --- Index (Patch B) ---
     # Generated Categories Index - Only show non-empty categories/tags
     index_blocks = []
+    index_blocks.append("<!-- zone:begin type=index id=index -->")
     index_blocks.extend(_heading_block(2, "index", "🧭 Index", nav=nav))
 
     if effective_meta_density == "min":
@@ -3885,6 +3904,7 @@ def iter_report_blocks(
                 index_blocks.append(f"- [`{f.rel_path}`](#{f.anchor})")
             index_blocks.append("")
 
+    index_blocks.append("<!-- zone:end type=index id=index -->")
     yield "\n".join(index_blocks) + "\n"
 
     # --- 7. Manifest (Patch A) ---
@@ -3952,7 +3972,7 @@ def iter_report_blocks(
                 )
             manifest.append("")
 
-        manifest.append("<!-- zone:end type=manifest -->")
+        manifest.append("<!-- zone:end type=manifest id=manifest -->")
         yield "\n".join(manifest) + "\n"
 
     # --- Optional: Fleet Consistency ---
@@ -4395,6 +4415,10 @@ def generate_json_sidecar(
     meta = {
         "contract": AGENT_CONTRACT_NAME,
         "contract_version": AGENT_CONTRACT_VERSION,
+        "dump_index_contract": {
+            "name": "dump-index",
+            "version": "v1"
+        },
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
         "generator": generator_info or {"name": "lenskit", "platform": "unknown"},
@@ -4428,6 +4452,13 @@ def generate_json_sidecar(
             "content_policy": render_mode,
         },
     }
+
+    if "semantic_chunk_fields" in active_features:
+        meta["chunk_index_contract"] = {
+            "name": "chunk-index",
+            "version": "v2",
+            "legacy_aliases": True
+        }
 
     if not meta_none:
         meta["epistemic_charter"] = {
@@ -4657,6 +4688,33 @@ def write_reports_v2(
         )
         arch_path.write_text(generate_architecture_summary(files), encoding="utf-8")
         out_paths.append(arch_path)
+        return arch_path
+
+    # Helper for dump index (Canonical Entrypoint)
+    def generate_dump_index(base_name_func, run_id, artifacts_map, generator_info, repo_names):
+        out_path = base_name_func(part_suffix="").with_suffix(".dump_index.json")
+
+        artifacts_block = {}
+        for role, path in artifacts_map.items():
+            if path and path.exists():
+                artifacts_block[role] = {
+                    "path": path.name,
+                    "size": path.stat().st_size,
+                    "sha256": _compute_file_sha256(path)
+                }
+
+        data = {
+            "contract": "dump-index",
+            "contract_version": "v1",
+            "run_id": run_id,
+            "generated_at": clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "generator": generator_info,
+            "repos": repo_names,
+            "artifacts": artifacts_block
+        }
+
+        out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return out_path
 
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func):
@@ -4707,6 +4765,15 @@ def write_reports_v2(
 
                 if trunc_msg:
                     d["truncation_msg"] = trunc_msg
+
+                # Legacy Aliases (Backward Compatibility for v2 transition)
+                d["byte_offset_start"] = d["start_byte"]
+                d["byte_offset_end"] = d["end_byte"]
+                d["line_start"] = d["start_line"]
+                d["line_end"] = d["end_line"]
+                d["content_sha256"] = d["sha256"]
+                d["size_bytes"] = d["size"]
+
                 all_chunks.append(d)
 
         if not all_chunks:
@@ -4951,6 +5018,7 @@ def write_reports_v2(
         return generated_paths
 
     last_chunk_index_path = None
+    last_dump_index_path = None
 
     if mode == "gesamt":
         all_files = []
@@ -4977,10 +5045,11 @@ def write_reports_v2(
         )
 
         generated_paths = []
+        arch_path = None
         if output_mode in ("archive", "dual"):
             generated_paths = process_and_write(all_files, sources, base_name_func)
 
-            _write_architecture_summary(
+            arch_path = _write_architecture_summary(
                 all_files,
                 merges_dir,
                 repo_names,
@@ -5004,6 +5073,7 @@ def write_reports_v2(
 
         # Write JSON sidecar if enabled (agent-first: also for plan_only)
         # JSON must be written when json_sidecar is active - no conditions like "and not plan_only"
+        json_path = None
         if extras and extras.json_sidecar:
             total_size = sum(
                 f.size for f in all_files if (not code_only or f.category in DEBUG_CONFIG.code_only_categories)
@@ -5047,6 +5117,18 @@ def write_reports_v2(
             json_path.write_text(json.dumps(json_data, indent=2, ensure_ascii=False), encoding="utf-8")
             out_paths.append(json_path)
 
+        # Generate Dump Index
+        md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
+        artifacts_map = {
+            "merge_md": md_parts[0] if md_parts else None,
+            "sidecar_json": json_path,
+            "chunk_index": chunk_path,
+            "architecture_summary": arch_path
+        }
+        dump_index_path = generate_dump_index(base_name_func, run_id, artifacts_map, generator_info, repo_names)
+        out_paths.append(dump_index_path)
+        last_dump_index_path = dump_index_path
+
     else:
         for s in repo_summaries:
             s_name = s["name"]
@@ -5076,10 +5158,11 @@ def write_reports_v2(
             )
 
             generated_paths = []
+            arch_path = None
             if output_mode in ("archive", "dual"):
                 generated_paths = process_and_write(s_files, [s_root], base_name_func)
 
-                _write_architecture_summary(
+                arch_path = _write_architecture_summary(
                     s_files,
                     merges_dir,
                     [s_name],
@@ -5103,6 +5186,7 @@ def write_reports_v2(
 
             # Write JSON sidecar if enabled (agent-first: also for plan_only)
             # JSON must be written when json_sidecar is active - no conditions like "and not plan_only"
+            json_path = None
             if extras and extras.json_sidecar:
                 total_size = sum(
                     f.size for f in s_files if (not code_only or f.category in DEBUG_CONFIG.code_only_categories)
@@ -5151,10 +5235,39 @@ def write_reports_v2(
                 json_path.write_text(json.dumps(json_data, indent=2, ensure_ascii=False), encoding="utf-8")
                 out_paths.append(json_path)
 
+            # Generate Dump Index
+            md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
+            artifacts_map = {
+                "merge_md": md_parts[0] if md_parts else None,
+                "sidecar_json": json_path,
+                "chunk_index": chunk_path,
+                "architecture_summary": arch_path
+            }
+            dump_index_path = generate_dump_index(base_name_func, repo_run_id, artifacts_map, generator_info, [s_name])
+            out_paths.append(dump_index_path)
+            last_dump_index_path = dump_index_path
+
     # --- Post-check & deterministic ordering (primary artifact first) ---
     md_paths = [p for p in out_paths if p.suffix.lower() == ".md"]
-    json_paths = [p for p in out_paths if p.suffix.lower() == ".json"]
-    other_paths = [p for p in out_paths if p.suffix.lower() not in (".md", ".json")]
+    # Separate sidecar json and dump index json from generic json paths
+    json_paths = [
+        p for p in out_paths
+        if p.suffix.lower() == ".json" and not p.name.endswith(".dump_index.json")
+    ]
+    dump_indices = [p for p in out_paths if p.name.endswith(".dump_index.json")]
+    other_paths = [
+        p for p in out_paths
+        if p.suffix.lower() not in (".md", ".json") or (p.suffix.lower() == ".json" and p in dump_indices)
+    ]
+    # Remove dump_indices from other_paths to handle them explicitly in MergeArtifacts if needed
+    # Actually, we put dump_index in its own field.
+    # So we should exclude it from 'other' if we want it clean, but current logic puts everything else in 'other'.
+    # Let's keep it simple: filter out from 'other_paths' what is already covered.
+
+    other_paths = [
+        p for p in out_paths
+        if p not in md_paths and p not in json_paths and p not in dump_indices
+    ]
 
     # Verify that reported .md outputs really exist and are non-empty.
     # This prevents "generated" messages when the file did not land where expected.
@@ -5203,6 +5316,7 @@ def write_reports_v2(
     final_chunk_index = last_chunk_index_path
     final_index_json = (verified_json[0] if verified_json else None)
     final_canonical_md = (verified_md[0] if verified_md else None)
+    final_dump_index = last_dump_index_path
 
     if extras and extras.json_sidecar:
         # JSON is primary when json_sidecar is enabled
@@ -5211,6 +5325,7 @@ def write_reports_v2(
             canonical_md=final_canonical_md,
             chunk_index=final_chunk_index,
             md_parts=verified_md,
+            dump_index=final_dump_index,
             other=other_paths
         )
     else:
@@ -5220,5 +5335,6 @@ def write_reports_v2(
             canonical_md=final_canonical_md,
             chunk_index=final_chunk_index,
             md_parts=verified_md,
+            dump_index=final_dump_index,
             other=other_paths
         )

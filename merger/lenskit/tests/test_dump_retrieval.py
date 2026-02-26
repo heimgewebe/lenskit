@@ -5,9 +5,6 @@ import sys
 import re
 import hashlib
 
-# Add root to sys.path
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
-
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.core.redactor import Redactor
 
@@ -62,6 +59,8 @@ def test_dual_output_mode():
         assert artifacts.index_json.exists()
         assert artifacts.chunk_index is not None
         assert artifacts.chunk_index.exists()
+        assert artifacts.dump_index is not None
+        assert artifacts.dump_index.exists()
 
         # 2. Check Chunk Index Content
         chunks = []
@@ -75,10 +74,20 @@ def test_dual_output_mode():
         first_chunk = chunks[0]
         assert "chunk_id" in first_chunk
         assert "file_id" in first_chunk
-        assert "content_sha256" in first_chunk
-        assert "line_start" in first_chunk
+        assert "sha256" in first_chunk
+        assert "start_line" in first_chunk
         assert "path" in first_chunk
         assert "language" in first_chunk # NEW check
+
+        # Verify Legacy Aliases
+        assert "byte_offset_start" in first_chunk
+        assert "line_start" in first_chunk
+        assert "content_sha256" in first_chunk
+
+        # Verify consistency
+        assert first_chunk["start_byte"] == first_chunk["byte_offset_start"]
+        assert first_chunk["start_line"] == first_chunk["line_start"]
+        assert first_chunk["sha256"] == first_chunk["content_sha256"]
 
         # 3. Verify Reassembly
         # Group by path
@@ -97,17 +106,17 @@ def test_dual_output_mode():
         original_bytes = original_content.encode("utf-8")
 
         # We need to verify that chunks cover the file correctly
-        # Sort chunks by byte_offset_start
-        f1_chunks = sorted(file_chunks[f1_path], key=lambda x: x["byte_offset_start"])
+        # Sort chunks by start_byte
+        f1_chunks = sorted(file_chunks[f1_path], key=lambda x: x["start_byte"])
 
         last_end = 0
         for c in f1_chunks:
-            start = c["byte_offset_start"]
-            end = c["byte_offset_end"]
+            start = c["start_byte"]
+            end = c["end_byte"]
             assert start == last_end
             chunk_data = original_bytes[start:end]
             sha = hashlib.sha256(chunk_data).hexdigest()
-            assert sha == c["content_sha256"]
+            assert sha == c["sha256"]
             last_end = end
 
         assert last_end == len(original_bytes)
