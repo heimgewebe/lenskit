@@ -56,14 +56,17 @@ def secure_env(tmp_path):
         state.log_provider = None
 
         # Restore token if it was set, else ensure it's unset
+        os.environ.pop("RLENS_TOKEN", None)
         if old_token is not None:
             os.environ["RLENS_TOKEN"] = old_token
-        elif "RLENS_TOKEN" in os.environ:
-            del os.environ["RLENS_TOKEN"]
 
         # Reset Security Config allowlist
         sec = get_security_config()
-        sec.allowlist_roots = []
+        roots = getattr(sec, "allowlist_roots", None)
+        if hasattr(roots, "clear"):
+            roots.clear()
+        else:
+            sec.allowlist_roots = []
         sec.token = None
 
 def test_download_custom_merges_dir_success(secure_env):
