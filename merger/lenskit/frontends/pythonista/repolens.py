@@ -63,9 +63,10 @@ try:
 
     if _p.name == "merger":
         # Deterministic order: SCRIPT_DIR -> REPO_ROOT -> MERGER_DIR
-        # Call merger first, then repo root (stack effect pushes root after script dir)
-        _insert_after_script_dir(str(_p))
-        _insert_after_script_dir(str(_p.parent))
+        # Note: We insert in reverse order of desired precedence because each call
+        # inserts immediately after SCRIPT_DIR, pushing previous insertions down.
+        _insert_after_script_dir(str(_p))         # Ends up at SCRIPT_DIR + 2
+        _insert_after_script_dir(str(_p.parent))  # Ends up at SCRIPT_DIR + 1
 except Exception as e:
     try:
         print(f"[repolens] Warning: auto path-detection failed: {e}", file=sys.stderr)
