@@ -26,10 +26,12 @@ class Chunker:
         self.min_lines = min_lines
         self.max_lines = max_lines
 
-    def chunk_file(self, file_id: str, content: str, byte_offset_base: int = 0) -> List[Chunk]:
+    def chunk_file(self, file_id: str, content: str, byte_offset_base: int = 0, file_path: Optional[str] = None) -> List[Chunk]:
         """
         Splits content into chunks based on lines and size constraints.
         This is a simple line-based chunker that tries to respect boundaries.
+
+        file_path is optional but recommended for stable ID generation.
         """
         chunks = []
         lines = content.splitlines(keepends=True)
@@ -51,7 +53,7 @@ class Chunker:
                 (len(current_chunk_lines) >= self.max_lines)
             ):
                 # Finalize current chunk
-                self._finalize_chunk(chunks, file_id, current_chunk_lines, chunk_start_line, chunk_start_byte)
+                self._finalize_chunk(chunks, file_id, current_chunk_lines, chunk_start_line, chunk_start_byte, file_path=file_path)
 
                 # Reset for next chunk
                 chunk_start_line = i + 1
@@ -70,23 +72,27 @@ class Chunker:
 
         # Finalize last chunk
         if current_chunk_lines:
-            self._finalize_chunk(chunks, file_id, current_chunk_lines, chunk_start_line, chunk_start_byte)
+            self._finalize_chunk(chunks, file_id, current_chunk_lines, chunk_start_line, chunk_start_byte, file_path=file_path)
 
         return chunks
 
-    def _finalize_chunk(self, chunks: List[Chunk], file_id: str, lines: List[str], start_line: int, start_byte: int):
+    def _finalize_chunk(self, chunks: List[Chunk], file_id: str, lines: List[str], start_line: int, start_byte: int, file_path: Optional[str] = None):
         content = "".join(lines)
         content_bytes = content.encode('utf-8')
         size = len(content_bytes)
         sha256 = hashlib.sha256(content_bytes).hexdigest()
 
-        # Deterministic chunk ID: file_id + chunk index or hash
-        # Using hash of content + start_byte for uniqueness and stability
-        # or just file_id + sequence index.
-        # Prompt says "chunk_id", "file_id".
-        # Let's use a hash derived from file_id and offset for stability.
-        chunk_hash_input = f"{file_id}:{start_byte}:{sha256}".encode('utf-8')
-        chunk_id = hashlib.sha256(chunk_hash_input).hexdigest()[:16]
+        # Deterministic Chunk ID (v2.4 Spec): sha1(file_path + start_line + content_hash)
+        # Stable at identical content and position.
+        # If file_path is not provided, we fall back to file_id (which is usually FILE:f_...).
+        path_key = file_path if file_path else file_id
+
+        # We construct the input string using delimiters to avoid collisions (e.g. "a"+"b" vs "ab")
+        # and include line number and content hash for uniqueness.
+        # Truncate to 20 hex chars (80 bits) to keep JSONL size manageable.
+        # This provides sufficient collision resistance for repo-scale retrieval.
+        chunk_hash_input = f"{path_key}\n{start_line}\n{sha256}".encode('utf-8')
+        chunk_id = hashlib.sha1(chunk_hash_input).hexdigest()[:20]
 
         chunks.append(Chunk(
             chunk_id=chunk_id,
