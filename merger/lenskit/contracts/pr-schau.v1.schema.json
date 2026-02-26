@@ -150,7 +150,8 @@
             "pattern": "^[a-f0-9]{64}$"
           },
           "mime": {
-            "type": "string"
+            "type": "string",
+            "description": "Deprecated: use content_type instead."
           }
         },
         "if": {

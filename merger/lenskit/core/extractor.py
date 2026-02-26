@@ -831,9 +831,36 @@ def generate_review_bundle(
         }
     }
 
-    (bundle_dir / "bundle.json").write_text(
+    bundle_json_path = bundle_dir / "bundle.json"
+    bundle_json_path.write_text(
         json.dumps(bundle_meta, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
     )
+
+    # 2-pass write: Update bundle.json self-artifact with correct size
+    try:
+        final_size = bundle_json_path.stat().st_size
+        # Simple string replacement to avoid full re-serialization overhead and key-order jitter
+        # We look for the exact entry we wrote.
+        # "bytes": 0  -> "bytes": 12345
+        # This is safe because we just wrote it and we know the structure.
+        # However, JSON serialization might have spaces.
+        # Let's do a load-update-dump to be safe and clean.
+
+        data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
+        updated = False
+        if "artifacts" in data:
+            for art in data["artifacts"]:
+                if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
+                    art["bytes"] = final_size
+                    updated = True
+                    break
+
+        if updated:
+            bundle_json_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+            )
+    except Exception as e:
+        sys.stderr.write(f"Warning: Failed to update bundle.json size: {e}\n")
 
 
 def import_zip(zip_path: Path, hub: Path, merges_dir: Path) -> Optional[Path]:

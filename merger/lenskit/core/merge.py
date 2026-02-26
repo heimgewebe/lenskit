@@ -4047,7 +4047,7 @@ def iter_report_blocks(
         fid = _stable_file_id(fi) # Now returns FILE:f_...
 
         # Machine-First: Explicit FILE_START marker
-        block.append(f'<!-- FILE_START path="{fi.rel_path}" sha256="{content_sha256}" bytes="{content_bytes}" -->')
+        block.append(f'<!-- FILE_START path="{fi.rel_path}" content_sha256="{content_sha256}" content_bytes="{content_bytes}" file_bytes="{fi.size}" truncated="{str(truncated).lower()}" -->')
 
         # Fix PR13: Quote attributes to handle paths with spaces
         # Fix PR13-Followup: Quote id as well for consistency
@@ -4371,6 +4371,8 @@ def generate_json_sidecar(
     meta_none: bool = False,
     generator_info: Optional[Dict[str, Any]] = None,
     output_mode: str = "dual",
+    redact_secrets: bool = False,
+    split_size_bytes: int = 0,
 ) -> Dict[str, Any]:
     """
     Generate a JSON sidecar structure for machine consumption.
@@ -4441,9 +4443,9 @@ def generate_json_sidecar(
         "features": sorted(active_features),
         "profile": level,
         "output_mode": output_mode,
-        "include_hidden": True, # scan_repo default, usually not passed here explicitly but available in logic
-        "redact_secrets": False, # Unavailable in this scope, defaults to false
-        "split_size_bytes": 0, # Unavailable in this scope
+        # "include_hidden" is intentionally omitted if unknown (truthful metadata)
+        "redact_secrets": redact_secrets,
+        "split_size_bytes": split_size_bytes,
         "max_bytes": max_file_bytes,
         "schema_ids": [AGENT_CONTRACT_NAME, "dump-index"],
         "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -5185,6 +5187,8 @@ def write_reports_v2(
                 meta_none=meta_none,
                 generator_info=generator_info,
                 output_mode=output_mode,
+            redact_secrets=redact_secrets,
+            split_size_bytes=split_size,
             )
             # Generate JSON filename using deterministic base name (via base_name_func)
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
@@ -5298,6 +5302,8 @@ def write_reports_v2(
                     meta_none=meta_none,
                     generator_info=generator_info,
                     output_mode=output_mode,
+                    redact_secrets=redact_secrets,
+                    split_size_bytes=split_size,
                 )
                 # Generate JSON filename using deterministic base name (via base_name_func)
                 md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
