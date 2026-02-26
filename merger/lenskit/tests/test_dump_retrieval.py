@@ -82,6 +82,16 @@ def test_dual_output_mode():
         assert "path" in first_chunk
         assert "language" in first_chunk # NEW check
 
+        # Verify Legacy Aliases
+        assert "byte_offset_start" in first_chunk
+        assert "line_start" in first_chunk
+        assert "content_sha256" in first_chunk
+
+        # Verify consistency
+        assert first_chunk["start_byte"] == first_chunk["byte_offset_start"]
+        assert first_chunk["start_line"] == first_chunk["line_start"]
+        assert first_chunk["sha256"] == first_chunk["content_sha256"]
+
         # 3. Verify Reassembly
         # Group by path
         file_chunks = {}

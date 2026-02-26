@@ -4398,6 +4398,11 @@ def generate_json_sidecar(
     meta = {
         "contract": AGENT_CONTRACT_NAME,
         "contract_version": AGENT_CONTRACT_VERSION,
+        "chunk_index_contract": {
+            "name": "chunk-index",
+            "version": "v2",
+            "legacy_aliases": True
+        },
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
         "generator": generator_info or {"name": "lenskit", "platform": "unknown"},
@@ -4737,6 +4742,15 @@ def write_reports_v2(
 
                 if trunc_msg:
                     d["truncation_msg"] = trunc_msg
+
+                # Legacy Aliases (Backward Compatibility for v2 transition)
+                d["byte_offset_start"] = d["start_byte"]
+                d["byte_offset_end"] = d["end_byte"]
+                d["line_start"] = d["start_line"]
+                d["line_end"] = d["end_line"]
+                d["content_sha256"] = d["sha256"]
+                d["size_bytes"] = d["size"]
+
                 all_chunks.append(d)
 
         if not all_chunks:
