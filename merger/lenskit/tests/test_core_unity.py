@@ -1,5 +1,4 @@
 import sys
-import importlib
 from pathlib import Path
 import pytest
 import os
@@ -48,7 +47,8 @@ def test_service_imports_correct_core():
     assert jobstore.get_merges_dir is core_merge.get_merges_dir
 
 def test_generator_info_version(tmp_path):
-    from merger.lenskit.core.merge import write_reports_v2, __core_version__
+    from merger.lenskit.core.merge import write_reports_v2, AGENT_CONTRACT_NAME
+    from merger.lenskit.core import __core_version__
 
     # Create dummy repo content
     repo_dir = tmp_path / "repo"
@@ -88,13 +88,19 @@ def test_generator_info_version(tmp_path):
         # In single repo mode, filename structure is deterministic
         # but let's just find *.json excluding dump_index
         json_files = [p for p in merges_dir.glob("*.json") if "dump_index" not in p.name]
-        assert len(json_files) == 1
 
-        data = json.loads(json_files[0].read_text(encoding="utf-8"))
+        found = False
+        for p in json_files:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if data.get("meta", {}).get("contract") == AGENT_CONTRACT_NAME:
+                found = True
+                # Verify version
+                gen_ver = data["meta"]["generator"]["version"]
+                assert gen_ver == __core_version__
+                break
 
-        # Verify version
-        gen_ver = data["meta"]["generator"]["version"]
-        assert gen_ver == __core_version__
+        if not found:
+            pytest.fail("No agent contract JSON found")
 
     finally:
         if old_env is not None:
