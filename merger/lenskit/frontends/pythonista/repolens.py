@@ -51,12 +51,15 @@ try:
     if _p.name == "merger":
         # Add parent of 'merger' (the repo root) to sys.path
         if str(_p.parent) not in sys.path:
-            sys.path.insert(0, str(_p.parent))
+            sys.path.insert(1, str(_p.parent))
         # Add 'merger' itself to sys.path for fallback 'import lenskit'
         if str(_p) not in sys.path:
-            sys.path.insert(0, str(_p))
-except Exception:
-    pass
+            sys.path.insert(1, str(_p))
+except Exception as e:
+    try:
+        print(f"[repolens] Warning: auto path-detection failed: {e}", file=sys.stderr)
+    except Exception:
+        print(f"[repolens] Warning: auto path-detection failed: {e}")
 # --- FIX END ---
 
 from repolens_utils import normalize_path, normalize_repo_id, safe_script_path
