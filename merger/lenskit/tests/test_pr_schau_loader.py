@@ -95,3 +95,50 @@ def test_loader_rejects_missing_parts():
 
         with pytest.raises(PRSchauBundleError):
             load_pr_schau_bundle(d, verify_level="basic")
+
+
+def test_bundle_artifact_bytes_correctness():
+    """
+    Verify that the fixpoint logic in `generate_review_bundle` correctly sets the `bytes` field
+    of the self-referencing `bundle.json` artifact entry.
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+        hub = tmp / "hub"
+        hub.mkdir()
+
+        old_repo = tmp / "old"
+        old_repo.mkdir()
+        (old_repo / "README.md").write_text("Old Content", encoding="utf-8")
+
+        new_repo = tmp / "new"
+        new_repo.mkdir()
+        (new_repo / "README.md").write_text("New Content", encoding="utf-8")
+
+        generate_review_bundle(old_repo, new_repo, "fixpoint-repo", hub)
+
+        prdir = hub / ".repolens" / "pr-schau" / "fixpoint-repo"
+        # Find the timestamp folder
+        ts_folders = list(prdir.iterdir())
+        assert len(ts_folders) == 1
+        bundle_dir = ts_folders[0]
+        bundle_json_path = bundle_dir / "bundle.json"
+
+        assert bundle_json_path.exists()
+
+        # Load bundle.json
+        data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
+        actual_size = bundle_json_path.stat().st_size
+
+        # Find self-artifact
+        self_artifact = next(
+            (a for a in data.get("artifacts", [])
+             if a.get("role") == "index_json" and a.get("basename") == "bundle.json"),
+            None
+        )
+
+        assert self_artifact is not None, "Self-artifact entry for bundle.json missing"
+        recorded_size = self_artifact.get("bytes")
+
+        assert recorded_size > 0, "Recorded bytes should be > 0"
+        assert recorded_size == actual_size, f"Recorded bytes ({recorded_size}) does not match actual file size ({actual_size})"

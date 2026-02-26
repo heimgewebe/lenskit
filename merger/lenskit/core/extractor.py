@@ -751,10 +751,7 @@ def generate_review_bundle(
         "role": "index_json",
         "basename": "bundle.json",
         "content_type": "application/json",
-        "bytes": 0, # Placeholder, updated after write? Circular dep. For index, we often skip or estimate.
-                    # Actually, bundle.json describes itself? Usually not needed for navigation to *other* things.
-                    # But the requirement asks for "content_type/bytes/role".
-                    # Let's skip bytes for self to avoid 2-pass write.
+        "bytes": 0, # Placeholder, updated via Fixpoint 2-pass write below
         "mime": "application/json" # Legacy alias
     })
 
@@ -832,35 +829,52 @@ def generate_review_bundle(
     }
 
     bundle_json_path = bundle_dir / "bundle.json"
+
+    # Fixpoint 2-pass (size depends on embedded size value)
+    # Loop max 3 times to stabilize bytes (usually stabilizes in 2)
+    current_size = 0
+
+    # Initial write (bytes=0 placeholder)
     bundle_json_path.write_text(
         json.dumps(bundle_meta, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
     )
 
-    # 2-pass write: Update bundle.json self-artifact with correct size
-    try:
-        final_size = bundle_json_path.stat().st_size
-        # Simple string replacement to avoid full re-serialization overhead and key-order jitter
-        # We look for the exact entry we wrote.
-        # "bytes": 0  -> "bytes": 12345
-        # This is safe because we just wrote it and we know the structure.
-        # However, JSON serialization might have spaces.
-        # Let's do a load-update-dump to be safe and clean.
+    for i in range(3):
+        try:
+            current_size = bundle_json_path.stat().st_size
 
-        data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
-        updated = False
-        if "artifacts" in data:
-            for art in data["artifacts"]:
-                if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
-                    art["bytes"] = final_size
-                    updated = True
-                    break
+            # Load, update, write
+            data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
+            updated = False
 
-        if updated:
+            # Update self-reference
+            if "artifacts" in data:
+                for art in data["artifacts"]:
+                    if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
+                        if art.get("bytes") != current_size:
+                            art["bytes"] = current_size
+                            updated = True
+                        break
+
+            if not updated:
+                # Stable state reached
+                break
+
             bundle_json_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
             )
-    except Exception as e:
-        sys.stderr.write(f"Warning: Failed to update bundle.json size: {e}\n")
+
+            # Check convergence immediately
+            new_size = bundle_json_path.stat().st_size
+            if new_size == current_size:
+                break
+
+        except Exception as e:
+            sys.stderr.write(f"Warning: Failed to stabilize bundle.json size: {e}\n")
+            break
+
+    # Note on SHA256: We intentionally skip adding a self-referential SHA256 to the bundle.json entry
+    # to avoid the logical impossibility of a file containing its own hash.
 
 
 def import_zip(zip_path: Path, hub: Path, merges_dir: Path) -> Optional[Path]:
