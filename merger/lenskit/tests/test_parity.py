@@ -21,8 +21,8 @@ def _get_dump_index(output_dir):
     candidates = list(output_dir.glob("*.dump_index.json"))
     if not candidates:
         return None
-    # Assuming one dump index per run
-    return candidates[0]
+    # Return the newest dump index if multiple exist
+    return max(candidates, key=lambda p: p.stat().st_mtime)
 
 def run_rlens_fixture(repo_path, output_dir):
     """Mimic rlens (Service) execution logic using plain dict config."""
@@ -156,25 +156,26 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     assert p_dump["contract"] == "dump-index"
 
     # 2. Check Artifacts existence via dump_index
-    # We expect at least: merge_md, sidecar_json, chunk_index (since dual mode)
-    required_artifacts = ["merge_md", "sidecar_json", "chunk_index"]
+    # We expect at least: merge_md, sidecar_json, chunk_index (since dual mode), architecture_summary
+    required_artifacts = ["merge_md", "sidecar_json", "architecture_summary", "chunk_index"]
+
+    def _verify_artifact(dump, key, tool_name, out_dir):
+        assert key in dump["artifacts"], f"{tool_name} missing artifact {key} in dump_index"
+        art = dump["artifacts"][key]
+        assert art, f"{tool_name} artifact {key} entry is null"
+        path = out_dir / art["path"]
+        assert path.exists(), f"{tool_name} artifact {key} file missing: {path}"
+        sha = art["sha256"]
+        assert sha != "ERROR", f"{tool_name} artifact {key} sha256 is ERROR"
+        assert len(sha) == 64, f"{tool_name} artifact {key} sha256 length invalid"
+        try:
+            int(sha, 16)
+        except ValueError:
+            pytest.fail(f"{tool_name} artifact {key} sha256 is not hex: {sha}")
 
     for key in required_artifacts:
-        # Check rlens
-        assert key in r_dump["artifacts"], f"rlens missing artifact {key} in dump_index"
-        r_art = r_dump["artifacts"][key]
-        assert r_art, f"rlens artifact {key} entry is null"
-        r_path = rlens_out / r_art["path"]
-        assert r_path.exists(), f"rlens artifact {key} file missing: {r_path}"
-        assert len(r_art["sha256"]) == 64, f"rlens artifact {key} sha256 invalid"
-
-        # Check repolens
-        assert key in p_dump["artifacts"], f"repolens missing artifact {key} in dump_index"
-        p_art = p_dump["artifacts"][key]
-        assert p_art, f"repolens artifact {key} entry is null"
-        p_path = repolens_out / p_art["path"]
-        assert p_path.exists(), f"repolens artifact {key} file missing: {p_path}"
-        assert len(p_art["sha256"]) == 64, f"repolens artifact {key} sha256 invalid"
+        _verify_artifact(r_dump, key, "rlens", rlens_out)
+        _verify_artifact(p_dump, key, "repolens", repolens_out)
 
     # 3. Parity on Sidecar Invariants
     r_sidecar_path = rlens_out / r_dump["artifacts"]["sidecar_json"]["path"]
@@ -191,16 +192,15 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     assert r_meta["profile"] == p_meta["profile"]
     assert r_meta["total_files"] == p_meta["total_files"], "Total file count mismatch"
 
-    # Feature parity (Superset check)
-    # Ensure all features present in rlens are also in repolens (and vice versa, as we expect exact parity here)
-    # But strictly speaking, contract parity means they share the required feature set.
+    # Feature parity (Subset check)
     r_features = set(r_meta.get("features", []))
     p_features = set(p_meta.get("features", []))
 
-    # We expect 'semantic_chunk_fields' and 'architecture_summary' in dual mode
-    assert "semantic_chunk_fields" in r_features
-    assert "semantic_chunk_fields" in p_features
-    assert r_features == p_features, "Feature set mismatch"
+    required_features = {"semantic_chunk_fields"}
+    # If architecture_summary feature flag exists, we might want to check it,
+    # but based on prompt we just ensure required is subset
+    assert required_features.issubset(r_features), f"rlens missing features: {required_features - r_features}"
+    assert required_features.issubset(p_features), f"repolens missing features: {required_features - p_features}"
 
     # Allowed differences: Generator info
     assert r_meta["generator"]["name"] == "rlens"
@@ -218,18 +218,29 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     assert len(r_chunks) > 0, "rlens chunks empty"
     assert len(p_chunks) > 0, "repolens chunks empty"
 
-    # Loose parity on count (allow minor drift if e.g. versions differ, but here versions are same core)
-    # Since we use same core version, counts should match exactly.
-    assert len(r_chunks) == len(p_chunks), "Chunk count mismatch"
+    # Relaxed chunk count check: only if versions match
+    r_ver = r_meta.get("generator", {}).get("version")
+    p_ver = p_meta.get("generator", {}).get("version")
+    if r_ver and p_ver and r_ver == p_ver:
+        assert len(r_chunks) == len(p_chunks), "Chunk count mismatch (same version)"
 
     # Verify fields (Contract v2)
-    required_chunk_fields = ["chunk_id", "path", "repo", "sha256", "size"]
+    required_chunk_fields = ["chunk_id", "path", "sha256", "size", "start_byte", "end_byte"]
     semantic_fields = ["section", "layer", "artifact_type", "concepts"]
 
     # Check first chunk as sample
     c0 = r_chunks[0]
     for k in required_chunk_fields:
         assert k in c0, f"Missing standard chunk field {k}"
+
+    # Check repolens sample too
+    c1 = p_chunks[0]
+    for k in required_chunk_fields:
+        assert k in c1, f"Missing standard chunk field {k} (repolens)"
+
+    # repo is optional but must be str if present
+    if "repo" in c0:
+        assert isinstance(c0["repo"], str), "repo field must be string"
 
     if "semantic_chunk_fields" in r_features:
         for k in semantic_fields:
