@@ -52,9 +52,9 @@ try:
         # Add parent of 'merger' (the repo root) to sys.path
         if str(_p.parent) not in sys.path:
             sys.path.insert(1, str(_p.parent))
-        # Add 'merger' itself to sys.path for fallback 'import lenskit'
+        # Optionally add '.../merger' for legacy top-level imports (if any remain)
         if str(_p) not in sys.path:
-            sys.path.insert(1, str(_p))
+            sys.path.insert(2, str(_p))
 except Exception as e:
     try:
         print(f"[repolens] Warning: auto path-detection failed: {e}", file=sys.stderr)
