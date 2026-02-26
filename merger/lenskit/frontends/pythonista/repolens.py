@@ -180,19 +180,35 @@ def force_close_files(paths: List[Path]) -> None:
 LAST_STATE_FILENAME = ".repoLens-state.json"
 
 # Import core logic
-from merger.lenskit.core.merge import (
-    MERGES_DIR_NAME,
-    PR_SCHAU_DIR,
-    SKIP_ROOTS,
-    detect_hub_dir,
-    get_merges_dir,
-    scan_repo,
-    write_reports_v2,
-    _normalize_ext_list,
-    ExtrasConfig,
-    parse_human_size,
-)
-from merger.lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
+try:
+    from merger.lenskit.core.merge import (
+        MERGES_DIR_NAME,
+        PR_SCHAU_DIR,
+        SKIP_ROOTS,
+        detect_hub_dir,
+        get_merges_dir,
+        scan_repo,
+        write_reports_v2,
+        _normalize_ext_list,
+        ExtrasConfig,
+        parse_human_size,
+    )
+    from merger.lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
+except ImportError:
+    # Pythonista / Flat layout fallback
+    from lenskit.core.merge import (
+        MERGES_DIR_NAME,
+        PR_SCHAU_DIR,
+        SKIP_ROOTS,
+        detect_hub_dir,
+        get_merges_dir,
+        scan_repo,
+        write_reports_v2,
+        _normalize_ext_list,
+        ExtrasConfig,
+        parse_human_size,
+    )
+    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
 
 PROFILE_DESCRIPTIONS = {
     # Kurzbeschreibung der Profile für den UI-Hint
@@ -297,6 +313,13 @@ def _load_repolens_extractor_module():
     try:
         from merger.lenskit.core import extractor
         return extractor
+    except ImportError:
+        try:
+            from lenskit.core import extractor
+            return extractor
+        except Exception as exc:
+            print(f"[repoLens] could not load lenskit.core.extractor: {exc}")
+            return None
     except Exception as exc:
         print(f"[repoLens] could not load merger.lenskit.core.extractor: {exc}")
         return None
@@ -2125,8 +2148,11 @@ class MergerUI(object):
         try:
             from merger.lenskit.core.merge import prescan_repo
         except ImportError:
-            _notify("Core merge module not found", "error")
-            return
+            try:
+                from lenskit.core.merge import prescan_repo
+            except ImportError:
+                _notify("Core merge module not found", "error")
+                return
 
         # Engage Guard
         self._prescan_active = True
