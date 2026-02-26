@@ -2041,7 +2041,7 @@ class MergerUI(object):
             # 2. Filter file list based on delta_meta (changed + added)
             # 3. Use profile 'max' to ensure full content is included for these files
 
-            summary = scan_repo(repo_root, extensions=None, path_contains=None, max_bytes=0, calculate_md5=True)
+            summary = scan_repo(repo_root, extensions=None, path_contains=None, max_bytes=0, calculate_md5=True, include_hidden=True)
 
             # Filter files to include only changed/added
             # Helper to collect paths from delta_meta
@@ -2094,6 +2094,7 @@ class MergerUI(object):
                 ext_filter=None,
                 extras=extras,
                 delta_meta=delta_meta,    # << NEW: real delta injected
+                generator_info={"name": "repolens", "platform": "ios"},
             )
 
             # Close files
@@ -3077,7 +3078,7 @@ class MergerUI(object):
                 # it uses global defaults (None). If it HAS an entry, it uses that.
                 # scan_repo handles include_paths=None as "scan all".
 
-                summary = scan_repo(root, extensions or None, path_contains, max_bytes, include_paths=use_include_paths, calculate_md5=True)
+                summary = scan_repo(root, extensions or None, path_contains, max_bytes, include_paths=use_include_paths, calculate_md5=True, include_hidden=True)
                 summaries.append(summary)
 
             if not summaries:
@@ -3126,6 +3127,7 @@ class MergerUI(object):
                 extras=self.extras_config,
                 delta_meta=delta_meta,
                 meta_density=meta_density,
+                generator_info={"name": "repolens", "platform": "ios"},
             )
 
             all_out_paths.extend(artifacts.get_all_paths())
@@ -3286,7 +3288,7 @@ def main_cli():
     summaries = []
     for src in sources:
         print(f"Scanning {src.name}...")
-        summary = scan_repo(src, ext_list, path_filter, max_bytes, calculate_md5=True)
+        summary = scan_repo(src, ext_list, path_filter, max_bytes, calculate_md5=True, include_hidden=True)
         summaries.append(summary)
 
     # Default: ab 25 MB wird gesplittet, aber kein Gesamtlimit – es werden
@@ -3341,6 +3343,7 @@ def main_cli():
         meta_density=args.meta_density,
         output_mode=args.output_mode,
         redact_secrets=args.redact_secrets,
+        generator_info={"name": "repolens", "platform": "cli"},
     )
 
     out_paths = artifacts.get_all_paths()

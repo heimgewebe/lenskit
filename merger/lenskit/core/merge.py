@@ -1988,13 +1988,15 @@ def prescan_repo(repo_root: Path, max_depth: int = 10, ignore_globs: Optional[Li
         "total_bytes": total_bytes
     }
 
-def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_contains: Optional[str] = None, max_bytes: int = DEFAULT_MAX_BYTES, include_paths: Optional[List[str]] = None, calculate_md5: bool = True) -> Dict[str, Any]:
+def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_contains: Optional[str] = None, max_bytes: int = DEFAULT_MAX_BYTES, include_paths: Optional[List[str]] = None, calculate_md5: bool = True, include_hidden: bool = True) -> Dict[str, Any]:
     """
     Scans a repository and returns a summary dict with file info.
 
     calculate_md5:
         If False, skips all MD5 computation. Intended for plan-only / non-manifest
         operations where file integrity hashes are not required.
+    include_hidden:
+        If False, skips files and directories starting with '.' (unless explicitly whitelisted).
     """
     repo_root = repo_root.resolve()
     root_label = repo_root.name
@@ -2071,6 +2073,8 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
         for d in dirnames:
             if d in SKIP_DIRS:
                 continue
+            if not include_hidden and d.startswith("."):
+                continue
             keep_dirs.append(d)
         dirnames[:] = keep_dirs
 
@@ -2103,6 +2107,10 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
         for fn in filenames:
             if fn in SKIP_FILES:
                 continue
+
+            if not include_hidden and fn.startswith("."):
+                continue
+
             if fn.startswith(".env") and fn not in (".env.example", ".env.template", ".env.sample"):
                 continue
 
@@ -4323,6 +4331,7 @@ def generate_json_sidecar(
     requested_flags: Optional[Dict[str, bool]] = None,
     requested_meta_density: str = "auto",
     meta_none: bool = False,
+    generator_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Generate a JSON sidecar structure for machine consumption.
@@ -4378,6 +4387,8 @@ def generate_json_sidecar(
         "contract_version": AGENT_CONTRACT_VERSION,
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
+        "generator": generator_info or {},
+        "features": ["semantic_chunk_fields", "architecture_summary"],
         "profile": level,
         "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),
         **({"mode": "none", "warning": "interpretation_disabled"} if meta_none else {}),
@@ -4574,6 +4585,7 @@ def write_reports_v2(
     meta_none: bool = False,
     output_mode: str = "dual",  # archive, retrieval, dual
     redact_secrets: bool = False,
+    generator_info: Optional[Dict[str, Any]] = None,
 ) -> MergeArtifacts:
     out_paths = []
 
@@ -4992,6 +5004,7 @@ def write_reports_v2(
                 requested_flags=requested_flags,
                 requested_meta_density=meta_density,
                 meta_none=meta_none,
+                generator_info=generator_info,
             )
             # Generate JSON filename using deterministic base name (via base_name_func)
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
@@ -5089,6 +5102,7 @@ def write_reports_v2(
                     requested_flags=requested_flags,
                     requested_meta_density=meta_density,
                     meta_none=meta_none,
+                    generator_info=generator_info,
                 )
                 # Generate JSON filename using deterministic base name (via base_name_func)
                 md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
