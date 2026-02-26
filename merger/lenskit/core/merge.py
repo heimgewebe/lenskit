@@ -2108,10 +2108,11 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
             if fn in SKIP_FILES:
                 continue
 
-            if not include_hidden and fn.startswith("."):
-                continue
-
-            if fn.startswith(".env") and fn not in (".env.example", ".env.template", ".env.sample"):
+            # Keep safe .env samples even when include_hidden=False
+            if fn.startswith(".env"):
+                if fn not in (".env.example", ".env.template", ".env.sample"):
+                    continue
+            elif not include_hidden and fn.startswith("."):
                 continue
 
             if rel_dir:

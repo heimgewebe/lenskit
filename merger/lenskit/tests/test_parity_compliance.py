@@ -3,9 +3,8 @@ import json
 import sys
 from pathlib import Path
 
-# Add repo root to sys.path
-sys.path.append(str(Path(__file__).parents[3]))
-
+# Canonical import style (relying on pytest/PYTHONPATH to find the module)
+# No sys.path.append() hacks here.
 from merger.lenskit.core.merge import scan_repo, write_reports_v2, ExtrasConfig, FileInfo
 
 def test_scan_repo_hidden_files_behavior(tmp_path):
@@ -17,6 +16,8 @@ def test_scan_repo_hidden_files_behavior(tmp_path):
     (repo_root / ".hidden_dir" / "hidden_file.txt").write_text("hidden", encoding="utf-8")
     (repo_root / "visible_dir").mkdir()
     (repo_root / "visible_dir" / ".dotfile").write_text("dotfile", encoding="utf-8")
+    (repo_root / ".env.example").write_text("safe_env", encoding="utf-8")
+    (repo_root / ".env.secret").write_text("secret_env", encoding="utf-8")
 
     # Case 1: include_hidden=True (default/repolens)
     summary_inc = scan_repo(repo_root, include_hidden=True)
@@ -24,6 +25,11 @@ def test_scan_repo_hidden_files_behavior(tmp_path):
     assert "visible.txt" in files_inc
     assert ".hidden_dir/hidden_file.txt" in files_inc
     assert "visible_dir/.dotfile" in files_inc
+    assert ".env.example" in files_inc
+    # .env.secret should still be skipped by standard filters (startswith .env)
+    # BUT wait, standard filters only skip .env* IF NOT in whitelist.
+    # .env.secret is NOT in whitelist, so it should be skipped regardless of include_hidden.
+    assert ".env.secret" not in files_inc
 
     # Case 2: include_hidden=False (strict)
     summary_exc = scan_repo(repo_root, include_hidden=False)
@@ -31,6 +37,9 @@ def test_scan_repo_hidden_files_behavior(tmp_path):
     assert "visible.txt" in files_exc
     assert ".hidden_dir/hidden_file.txt" not in files_exc
     assert "visible_dir/.dotfile" not in files_exc
+    # .env.example IS whitelisted, so it should be present even if include_hidden=False
+    assert ".env.example" in files_exc
+    assert ".env.secret" not in files_exc
 
 def test_write_reports_parity_features(tmp_path):
     # Setup
@@ -78,6 +87,10 @@ def test_write_reports_parity_features(tmp_path):
     )
 
     # Verify Architecture Summary
+    # Use deterministic naming check if possible, else glob
+    # Based on make_output_filename, suffix is _architecture.md.
+    # Run ID starts with path-block (none), repo-block (repo), mode (none/full), detail (max).
+    # "repo-max-timestamp_architecture.md" roughly.
     arch_files = list(merges_dir.glob("*_architecture.md"))
     assert len(arch_files) == 1, "Architecture summary not generated"
 
@@ -94,12 +107,13 @@ def test_write_reports_parity_features(tmp_path):
     assert "concepts" in chunk
 
     # Verify JSON Sidecar Metadata
+    # Restrict candidate pool to likely sidecars
     json_files = list(merges_dir.glob("*.json"))
-    # sidecar usually follows base name.
     sidecar = None
     for p in json_files:
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
+            # Strong signal check
             if data.get("meta", {}).get("contract") == "repolens-agent":
                 sidecar = data
                 break
