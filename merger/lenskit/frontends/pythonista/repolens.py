@@ -38,6 +38,19 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+
+def _insert_after_script_dir(path_s: str) -> None:
+    """Helper to insert paths deterministically after SCRIPT_DIR."""
+    if path_s in sys.path:
+        return
+    try:
+        # Insert after SCRIPT_DIR if present, otherwise at start
+        idx = sys.path.index(str(SCRIPT_DIR)) + 1
+        sys.path.insert(idx, path_s)
+    except ValueError:
+        sys.path.insert(0, path_s)
+
+
 # --- FIX START ---
 # Auto-detect project root to fix ModuleNotFoundError in standalone mode
 try:
@@ -49,21 +62,9 @@ try:
         _p = _p.parent
 
     if _p.name == "merger":
-        def _insert_after_script_dir(path_s: str):
-            if path_s in sys.path:
-                return
-            try:
-                # Insert after SCRIPT_DIR if present, otherwise at start
-                idx = sys.path.index(str(SCRIPT_DIR)) + 1
-                sys.path.insert(idx, path_s)
-            except ValueError:
-                sys.path.insert(0, path_s)
-
-        # Insert 'merger' directory first (will be pushed down by repo root)
-        # Optionally add '.../merger' for legacy top-level imports
+        # Deterministic order: SCRIPT_DIR -> REPO_ROOT -> MERGER_DIR
+        # Call merger first, then repo root (stack effect pushes root after script dir)
         _insert_after_script_dir(str(_p))
-
-        # Insert parent of 'merger' (the repo root) last so it ends up immediately after SCRIPT_DIR
         _insert_after_script_dir(str(_p.parent))
 except Exception as e:
     try:
