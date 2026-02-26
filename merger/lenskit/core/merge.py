@@ -4236,6 +4236,8 @@ def get_semantic_metadata(file_path: str, content: str) -> Dict[str, Any]:
     concepts = []
     content_lower = content.lower()
 
+    # Heuristic mapping: simple substring matching (not a tokenizer).
+    # This is a lightweight way to tag concepts without full parsing.
     mapping = {
         "sha256": "hashing",
         "error": "error_policy",
@@ -4301,7 +4303,8 @@ def generate_architecture_summary(files: List[FileInfo]) -> str:
         test_dirs[p] = test_dirs.get(p, 0) + 1
 
     for d, c in sorted(test_dirs.items()):
-        lines.append(f"- `{d}/`: {c} tests")
+        unit = "test" if c == 1 else "tests"
+        lines.append(f"- `{d}/`: {c} {unit}")
 
     lines.append("")
     return "\n".join(lines)
