@@ -7,12 +7,12 @@ from dataclasses import dataclass
 class Chunk:
     chunk_id: str
     file_id: str
-    byte_offset_start: int
-    byte_offset_end: int
-    line_start: int
-    line_end: int
-    content_sha256: str
-    size_bytes: int
+    start_byte: int
+    end_byte: int
+    start_line: int
+    end_line: int
+    sha256: str
+    size: int
     # Optional symbols/metadata can be added here
     symbols: Optional[List[str]] = None
 
@@ -105,10 +105,10 @@ class Chunker:
         chunks.append(Chunk(
             chunk_id=chunk_id,
             file_id=file_id,
-            byte_offset_start=start_byte,
-            byte_offset_end=start_byte + size,
-            line_start=start_line,
-            line_end=start_line + len(lines) - 1,
-            content_sha256=sha256,
-            size_bytes=size
+            start_byte=start_byte,
+            end_byte=start_byte + size,
+            start_line=start_line,
+            end_line=start_line + len(lines) - 1,
+            sha256=sha256,
+            size=size
         ))
