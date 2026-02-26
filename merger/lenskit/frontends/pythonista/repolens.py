@@ -49,12 +49,22 @@ try:
         _p = _p.parent
 
     if _p.name == "merger":
-        # Add parent of 'merger' (the repo root) to sys.path
-        if str(_p.parent) not in sys.path:
-            sys.path.insert(1, str(_p.parent))
-        # Optionally add '.../merger' for legacy top-level imports (if any remain)
-        if str(_p) not in sys.path:
-            sys.path.insert(2, str(_p))
+        def _insert_after_script_dir(path_s: str):
+            if path_s in sys.path:
+                return
+            try:
+                # Insert after SCRIPT_DIR if present, otherwise at start
+                idx = sys.path.index(str(SCRIPT_DIR)) + 1
+                sys.path.insert(idx, path_s)
+            except ValueError:
+                sys.path.insert(0, path_s)
+
+        # Insert 'merger' directory first (will be pushed down by repo root)
+        # Optionally add '.../merger' for legacy top-level imports
+        _insert_after_script_dir(str(_p))
+
+        # Insert parent of 'merger' (the repo root) last so it ends up immediately after SCRIPT_DIR
+        _insert_after_script_dir(str(_p.parent))
 except Exception as e:
     try:
         print(f"[repolens] Warning: auto path-detection failed: {e}", file=sys.stderr)
