@@ -38,6 +38,27 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+# --- FIX START ---
+# Auto-detect project root to fix ModuleNotFoundError in standalone mode
+try:
+    # Walk up until we find the 'merger' directory
+    # Structure: .../merger/lenskit/frontends/pythonista/repolens.py
+    # We want to add '.../' to sys.path so 'import merger' works.
+    _p = SCRIPT_DIR
+    while _p.name != "merger" and _p.parent != _p:
+        _p = _p.parent
+
+    if _p.name == "merger":
+        # Add parent of 'merger' (the repo root) to sys.path
+        if str(_p.parent) not in sys.path:
+            sys.path.insert(0, str(_p.parent))
+        # Add 'merger' itself to sys.path for fallback 'import lenskit'
+        if str(_p) not in sys.path:
+            sys.path.insert(0, str(_p))
+except Exception:
+    pass
+# --- FIX END ---
+
 from repolens_utils import normalize_path, normalize_repo_id, safe_script_path
 from repolens_helpers import deserialize_prescan_pool, resolve_pool_include_paths
 
