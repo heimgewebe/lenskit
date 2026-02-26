@@ -133,11 +133,17 @@
         "properties": {
           "role": {
             "type": "string",
-            "enum": ["canonical_md", "index_json", "diff_stat", "part_md", "asset"]
+            "enum": ["canonical_md", "index_json", "diff_stat", "part_md", "asset", "delta_json"]
           },
           "basename": {
             "type": "string",
             "description": "Filename relative to the bundle directory."
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer"
           },
           "sha256": {
             "type": "string",

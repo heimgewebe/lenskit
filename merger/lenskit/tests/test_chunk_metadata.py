@@ -92,21 +92,19 @@ def test_architecture_summary_generation(tmp_path):
     arch_summary = generate_architecture_summary(files)
 
     assert "# Lenskit Architecture Snapshot" in arch_summary
-    assert "## Layer Distribution" in arch_summary
+    assert "## LAYER_DISTRIBUTION" in arch_summary
 
     # Robust assertions (tolerant to wording changes)
-    assert "- core:" in arch_summary
-    assert "2 files" in arch_summary
-    assert "- test:" in arch_summary
-    assert "- docs:" in arch_summary
+    assert "core: 2" in arch_summary
+    assert "test: 1" in arch_summary
+    assert "docs: 1" in arch_summary
 
-    assert "## Core Modules" in arch_summary
+    assert "## KEY_MODULES" in arch_summary
     assert "- merge" in arch_summary
     assert "- chunker" in arch_summary
 
-    assert "## Test Coverage Map" in arch_summary
-    assert "merger/lenskit/tests/" in arch_summary
-    assert "1 test" in arch_summary
+    assert "## TEST_COVERAGE_MAP" in arch_summary
+    assert "merger/lenskit/tests/: 1 test" in arch_summary
 
 def test_chunk_jsonl_fields():
     # Ensure new fields are present in chunk representation

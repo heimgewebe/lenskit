@@ -750,8 +750,26 @@ def generate_review_bundle(
     artifacts_list.append({
         "role": "index_json",
         "basename": "bundle.json",
-        "mime": "application/json"
+        "content_type": "application/json",
+        "bytes": 0, # Placeholder, updated after write? Circular dep. For index, we often skip or estimate.
+                    # Actually, bundle.json describes itself? Usually not needed for navigation to *other* things.
+                    # But the requirement asks for "content_type/bytes/role".
+                    # Let's skip bytes for self to avoid 2-pass write.
+        "mime": "application/json" # Legacy alias
     })
+
+    # Delta JSON
+    delta_json_path = bundle_dir / "delta.json"
+    if delta_json_path.exists():
+        sha_delta, size_delta, _ = _compute_sha256_with_size(delta_json_path)
+        artifacts_list.append({
+            "role": "delta_json",
+            "basename": "delta.json",
+            "content_type": "application/json",
+            "bytes": size_delta,
+            "sha256": sha_delta,
+            "mime": "application/json"
+        })
 
     # Collect parts artifacts
     emitted_bytes = 0
@@ -771,9 +789,14 @@ def generate_review_bundle(
         artifacts_list.append({
             "role": role,
             "basename": pname,
-            "mime": "text/markdown",
-            "sha256": sha
+            "content_type": "text/markdown",
+            "bytes": psize,
+            "sha256": sha,
+            "mime": "text/markdown"
         })
+
+    # Sort artifacts by role/basename for determinism
+    artifacts_list.sort(key=lambda x: (x["role"], x["basename"]))
 
     bundle_meta = {
         "kind": "repolens.pr_schau.bundle",
@@ -809,7 +832,7 @@ def generate_review_bundle(
     }
 
     (bundle_dir / "bundle.json").write_text(
-        json.dumps(bundle_meta, indent=2, ensure_ascii=False), encoding="utf-8"
+        json.dumps(bundle_meta, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
     )
 
 
