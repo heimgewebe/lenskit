@@ -37,7 +37,7 @@ class Chunker:
         file_path is optional but recommended for stable ID generation.
         If file_path is provided, IDs are path-based. Otherwise, they fallback to file_id.
         """
-        if file_path is None and not self._warned_missing_path:
+        if file_path is None and not Chunker._warned_missing_path:
             sys.stderr.write("WARNING: chunk_file called without file_path. Chunk IDs will not be path-stable.\n")
             Chunker._warned_missing_path = True
 

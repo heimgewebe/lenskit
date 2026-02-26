@@ -38,30 +38,33 @@ def secure_env(tmp_path):
     if "RLENS_TOKEN" in os.environ:
         del os.environ["RLENS_TOKEN"]
 
-    # Now init service without token in env
-    init_service(hub_path=hub, merges_dir=allowed_merges, token=None)
+    try:
+        # Now init service without token in env
+        init_service(hub_path=hub, merges_dir=allowed_merges, token=None)
 
-    yield {
-        "hub": hub,
-        "allowed": allowed_merges,
-        "forbidden": forbidden
-    }
+        yield {
+            "hub": hub,
+            "allowed": allowed_merges,
+            "forbidden": forbidden
+        }
+    finally:
+        # Teardown: Reset global state
+        state.hub = None
+        state.merges_dir = None
+        state.job_store = None
+        state.runner = None
+        state.log_provider = None
 
-    # Teardown: Reset global state
-    state.hub = None
-    state.merges_dir = None
-    state.job_store = None
-    state.runner = None
-    state.log_provider = None
+        # Restore token if it was set, else ensure it's unset
+        if old_token is not None:
+            os.environ["RLENS_TOKEN"] = old_token
+        elif "RLENS_TOKEN" in os.environ:
+            del os.environ["RLENS_TOKEN"]
 
-    # Restore token if it was set
-    if old_token is not None:
-        os.environ["RLENS_TOKEN"] = old_token
-
-    # Reset Security Config allowlist
-    sec = get_security_config()
-    sec.allowlist_roots = []
-    sec.token = None
+        # Reset Security Config allowlist
+        sec = get_security_config()
+        sec.allowlist_roots = []
+        sec.token = None
 
 def test_download_custom_merges_dir_success(secure_env):
     """
