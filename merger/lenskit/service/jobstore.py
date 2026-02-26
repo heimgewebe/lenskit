@@ -9,10 +9,7 @@ import os
 from typing import List, Optional, Dict, Tuple
 from .models import Job, Artifact
 
-try:
-    from ..core.merge import MERGES_DIR_NAME, get_merges_dir
-except ImportError:
-    from merger.lenskit.core.merge import MERGES_DIR_NAME, get_merges_dir
+from merger.lenskit.core.merge import MERGES_DIR_NAME, get_merges_dir
 
 logger = logging.getLogger(__name__)
 

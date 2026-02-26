@@ -22,6 +22,7 @@ from . import lenses
 from . import clock
 from .chunker import Chunker
 from .redactor import Redactor
+from . import __core_version__
 
 try:
     import yaml  # PyYAML
@@ -4653,7 +4654,7 @@ def write_reports_v2(
         generator_info = {
             "name": "lenskit",
             "platform": "unknown",
-            "version": os.getenv("RLENS_VERSION", "dev")
+            "version": os.getenv("RLENS_VERSION", __core_version__)
         }
 
     # Helper for architecture summary writing (DRY)

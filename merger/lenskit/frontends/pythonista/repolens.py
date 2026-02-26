@@ -181,7 +181,7 @@ LAST_STATE_FILENAME = ".repoLens-state.json"
 
 # Import core logic
 try:
-    from lenskit.core.merge import (
+    from merger.lenskit.core.merge import (
         MERGES_DIR_NAME,
         PR_SCHAU_DIR,
         SKIP_ROOTS,
@@ -193,9 +193,9 @@ try:
         ExtrasConfig,
         parse_human_size,
     )
-    from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
+    from merger.lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
 except ImportError:
-    sys.path.append(str(SCRIPT_DIR.parent.parent.parent))
+    # Pythonista / Flat layout fallback
     from lenskit.core.merge import (
         MERGES_DIR_NAME,
         PR_SCHAU_DIR,
@@ -311,15 +311,17 @@ def _pick_human_md(paths) -> Optional[Path]:
 def _load_repolens_extractor_module():
     """Load extractor module from core."""
     try:
-        from lenskit.core import extractor
+        from merger.lenskit.core import extractor
         return extractor
     except ImportError:
-        # Fallback if path not yet set
-        sys.path.append(str(SCRIPT_DIR.parent.parent.parent))
-        from lenskit.core import extractor
-        return extractor
+        try:
+            from lenskit.core import extractor
+            return extractor
+        except Exception as exc:
+            print(f"[repoLens] could not load lenskit.core.extractor: {exc}")
+            return None
     except Exception as exc:
-        print(f"[repoLens] could not load lenskit.core.extractor: {exc}")
+        print(f"[repoLens] could not load merger.lenskit.core.extractor: {exc}")
         return None
 
 
@@ -2144,10 +2146,13 @@ class MergerUI(object):
 
         # We need to run prescan logic. Since we are in Pythonista (local), we call core directly.
         try:
-            from lenskit.core.merge import prescan_repo
+            from merger.lenskit.core.merge import prescan_repo
         except ImportError:
-            _notify("Core merge module not found", "error")
-            return
+            try:
+                from lenskit.core.merge import prescan_repo
+            except ImportError:
+                _notify("Core merge module not found", "error")
+                return
 
         # Engage Guard
         self._prescan_active = True

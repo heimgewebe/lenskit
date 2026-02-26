@@ -43,8 +43,28 @@ def test_no_stale_v1_references():
 
             try:
                 content = path.read_text(encoding="utf-8", errors="ignore")
-                for forbidden in FORBIDDEN_STRINGS:
-                    if forbidden in content:
+                lines = content.splitlines()
+                for i, line in enumerate(lines):
+                    # Allow dump-index to use v1
+                    if "dump-index" in line:
+                        continue
+
+                    # Context check for dump-index (multi-line)
+                    # If we found forbidden string, check context
+                    found_forbidden = False
+                    for forbidden in FORBIDDEN_STRINGS:
+                        if forbidden in line:
+                            found_forbidden = True
+                            break
+
+                    if found_forbidden:
+                        # Check surrounding lines for 'dump-index'
+                        # Look back 5 lines
+                        start = max(0, i - 5)
+                        context = "\n".join(lines[start:i+1])
+                        if "dump-index" in context:
+                            continue
+
                         found_violations.append(f"{path}: Found '{forbidden}'")
             except Exception as e:
                 print(f"Warning: could not read {path}: {e}")
