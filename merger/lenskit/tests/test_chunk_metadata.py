@@ -106,7 +106,7 @@ def test_architecture_summary_generation(tmp_path):
 
     assert "## Test Coverage Map" in arch_summary
     assert "merger/lenskit/tests/" in arch_summary
-    assert "1 tests" in arch_summary
+    assert "1 test" in arch_summary
 
 def test_chunk_jsonl_fields():
     # Ensure new fields are present in chunk representation

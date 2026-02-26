@@ -1,4 +1,5 @@
 import hashlib
+import sys
 from typing import List, Optional
 from dataclasses import dataclass
 
@@ -16,6 +17,8 @@ class Chunk:
     symbols: Optional[List[str]] = None
 
 class Chunker:
+    _warned_missing_path = False
+
     def __init__(self, min_size: int = 2048, max_size: int = 8192, min_lines: int = 200, max_lines: int = 400):
         """
         Initialize Chunker.
@@ -32,7 +35,12 @@ class Chunker:
         This is a simple line-based chunker that tries to respect boundaries.
 
         file_path is optional but recommended for stable ID generation.
+        If file_path is provided, IDs are path-based. Otherwise, they fallback to file_id.
         """
+        if file_path is None and not Chunker._warned_missing_path:
+            sys.stderr.write("WARNING: chunk_file called without file_path. Chunk IDs will not be path-stable.\n")
+            Chunker._warned_missing_path = True
+
         chunks = []
         lines = content.splitlines(keepends=True)
 

@@ -22,7 +22,7 @@ def run_benchmark():
     file_id = "bench_file"
 
     start_time = time.time()
-    chunks = chunker.chunk_file(file_id, content)
+    chunks = chunker.chunk_file(file_id, content, file_path="bench_file.txt")
     end_time = time.time()
 
     duration = end_time - start_time

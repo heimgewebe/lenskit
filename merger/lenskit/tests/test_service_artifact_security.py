@@ -32,25 +32,42 @@ def secure_env(tmp_path):
 
     # Initialize service, allowlisting ONLY hub and allowed_merges
     # forbidden is NOT included
-    init_service(hub_path=hub, merges_dir=allowed_merges)
+    # Explicitly UNSET token to avoid implicit root allowlisting on loopback
+    import os
+    old_token = os.environ.get("RLENS_TOKEN")
+    if "RLENS_TOKEN" in os.environ:
+        del os.environ["RLENS_TOKEN"]
 
-    yield {
-        "hub": hub,
-        "allowed": allowed_merges,
-        "forbidden": forbidden
-    }
+    try:
+        # Now init service without token in env
+        init_service(hub_path=hub, merges_dir=allowed_merges, token=None)
 
-    # Teardown: Reset global state
-    state.hub = None
-    state.merges_dir = None
-    state.job_store = None
-    state.runner = None
-    state.log_provider = None
+        yield {
+            "hub": hub,
+            "allowed": allowed_merges,
+            "forbidden": forbidden
+        }
+    finally:
+        # Teardown: Reset global state
+        state.hub = None
+        state.merges_dir = None
+        state.job_store = None
+        state.runner = None
+        state.log_provider = None
 
-    # Reset Security Config allowlist
-    sec = get_security_config()
-    sec.allowlist_roots = []
-    sec.token = None
+        # Restore token if it was set, else ensure it's unset
+        os.environ.pop("RLENS_TOKEN", None)
+        if old_token is not None:
+            os.environ["RLENS_TOKEN"] = old_token
+
+        # Reset Security Config allowlist
+        sec = get_security_config()
+        roots = getattr(sec, "allowlist_roots", None)
+        if hasattr(roots, "clear"):
+            roots.clear()
+        else:
+            sec.allowlist_roots = []
+        sec.token = None
 
 def test_download_custom_merges_dir_success(secure_env):
     """
