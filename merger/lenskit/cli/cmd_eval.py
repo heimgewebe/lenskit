@@ -1,6 +1,7 @@
 import argparse
 import sys
 import re
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from . import cmd_query
@@ -50,7 +51,6 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         # Normalized check: remove non-alphanumeric prefix
         clean_line = re.sub(r"^[\s*+\-]+", "", line).strip()
         # Should now be "Expected: ..." or "Intent: ..." or "Filter: ..."
-        # Note: "Expected" might be "*Expected*" in markdown, so "Expected" is fine.
 
         # 3. Match Expected: *Expected:* `file.py`, `dir/`
         if re.match(r"^\*?Expected:?\*?", clean_line, re.IGNORECASE):
@@ -67,7 +67,13 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
             if len(parts) > 1:
                 rest = parts[1]
                 # Find all `key=value` or key=value
-                matches = re.findall(r"(?:`|)?(\w+)=(\w+)(?:`|)?", rest)
+                # Regex logic:
+                # (?:`|)? : optional backtick start
+                # ([\w.-]+) : key (alphanumeric + dot + dash)
+                # = : literal equal
+                # ([\w/.-]+) : value (alphanumeric + slash + dot + dash)
+                # (?:`|)? : optional backtick end
+                matches = re.findall(r"(?:`|)?([\w.-]+)=([\w/.-]+)(?:`|)?", rest)
                 for k, v in matches:
                     current_query["filters"][k] = v
 
@@ -94,10 +100,13 @@ def run_eval(args: argparse.Namespace) -> int:
         print("No queries found in input file.", file=sys.stderr)
         return 1
 
-    print(f"Running Eval on {len(gold_queries)} queries against {index_path.name}...")
-    print("-" * 60)
-    print(f"{'Query':<40} | {'Found':<5} | {'Rel?':<4} | {'Top-1 Match':<30}")
-    print("-" * 60)
+    is_json_mode = (args.emit == "json")
+
+    if not is_json_mode:
+        print(f"Running Eval on {len(gold_queries)} queries against {index_path.name}...")
+        print("-" * 60)
+        print(f"{'Query':<40} | {'Found':<5} | {'Rel?':<4} | {'Top-1 Match':<30}")
+        print("-" * 60)
 
     hits_at_k = 0
     total_queries = len(gold_queries)
@@ -117,6 +126,8 @@ def run_eval(args: argparse.Namespace) -> int:
                 filters=filters
             )
         except Exception as e:
+            # In JSON mode, we probably still want error details in the JSON or stderr
+            # For now, print to stderr
             print(f"Error executing query '{q_text}': {e}", file=sys.stderr)
             continue
 
@@ -142,13 +153,14 @@ def run_eval(args: argparse.Namespace) -> int:
         if is_relevant:
             hits_at_k += 1
 
-        # Console Output Row
-        rel_mark = "✅" if is_relevant else "❌"
-        # Truncate query for display
-        disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
-        disp_match = (top_match[:27] + "..") if len(top_match) > 27 else top_match
+        if not is_json_mode:
+            # Console Output Row
+            rel_mark = "✅" if is_relevant else "❌"
+            # Truncate query for display
+            disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
+            disp_match = (top_match[:27] + "..") if len(top_match) > 27 else top_match
 
-        print(f"{disp_q:<40} | {res['count']:<5} | {rel_mark:<4} | {disp_match:<30}")
+            print(f"{disp_q:<40} | {res['count']:<5} | {rel_mark:<4} | {disp_match:<30}")
 
         results_detail.append({
             "query": q_text,
@@ -163,12 +175,12 @@ def run_eval(args: argparse.Namespace) -> int:
     # Metrics
     recall_at_k = (hits_at_k / total_queries) * 100.0 if total_queries > 0 else 0.0
 
-    print("-" * 60)
-    print(f"Recall@{args.k}: {recall_at_k:.1f}% ({hits_at_k}/{total_queries})")
-    print("-" * 60)
+    if not is_json_mode:
+        print("-" * 60)
+        print(f"Recall@{args.k}: {recall_at_k:.1f}% ({hits_at_k}/{total_queries})")
+        print("-" * 60)
 
-    if args.emit == "json":
-        import json
+    if is_json_mode:
         out = {
             "metrics": {
                 f"recall@{args.k}": recall_at_k,

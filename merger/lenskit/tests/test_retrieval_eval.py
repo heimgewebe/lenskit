@@ -22,6 +22,11 @@ def test_queries_file(tmp_path):
 3. **"nothing"**
    * *Intent:* Non-existent
    * *Expected:* `missing.py`
+
+4. **"complex filter"**
+   * *Intent:* Filter with special chars
+   * *Expected:* `foo.py`
+   * *Filter:* `repo=my-repo`, `ext=.py`, `path=src/core`
     """, encoding="utf-8")
     return f
 
@@ -58,18 +63,15 @@ class MockArgs:
         self.k = k
         self.emit = emit
 
-def test_parse_gold_queries(test_queries_file):
+def test_parse_gold_queries_complex(test_queries_file):
     queries = cmd_eval.parse_gold_queries(test_queries_file)
-    assert len(queries) == 3
+    assert len(queries) == 4
 
-    q1 = queries[0]
-    assert q1["query"] == "login"
-    assert "src/auth.py" in q1["expected_paths"]
-    assert q1["filters"]["layer"] == "core"
-
-    q2 = queries[1]
-    assert q2["query"] == "docs"
-    assert "docs/" in q2["expected_paths"]
+    q4 = queries[3]
+    assert q4["query"] == "complex filter"
+    assert q4["filters"]["repo"] == "my-repo"
+    assert q4["filters"]["ext"] == ".py"
+    assert q4["filters"]["path"] == "src/core"
 
 def test_run_eval_flow(test_index_path, test_queries_file, capsys):
     args = MockArgs(index=test_index_path, queries=test_queries_file)
@@ -89,24 +91,28 @@ def test_run_eval_flow(test_index_path, test_queries_file, capsys):
     assert "nothing" in captured.out
     assert "❌" in captured.out
 
-    # Recall: 2 out of 3 = 66.7%
-    assert "Recall@10: 66.7%" in captured.out
+    # Metrics printed in text mode
+    # 2 out of 4 = 50.0%
+    assert "Recall@10: 50.0%" in captured.out
     assert ret == 0
 
-def test_run_eval_json(test_index_path, test_queries_file, capsys):
+def test_run_eval_json_purity(test_index_path, test_queries_file, capsys):
     args = MockArgs(index=test_index_path, queries=test_queries_file, emit="json")
     ret = cmd_eval.run_eval(args)
 
     captured = capsys.readouterr()
-    # The JSON is printed at the end. Find the JSON block.
-    # It might be mixed with progress prints if not suppressed, but run_eval prints table first then JSON.
-    # The last part of output should be JSON.
 
-    # Simple check for structure
-    # With FTS missing, count is 0, hits 0. We mock index but no FTS?
-    # Actually build_index enables FTS.
+    # stdout should be PURE JSON
+    try:
+        output = json.loads(captured.out)
+    except json.JSONDecodeError:
+        pytest.fail("Output is not valid JSON: " + captured.out)
 
-    # Ensure our captured output contains JSON.
-    assert '"recall@10": 66.6' in captured.out or '"recall@10": 66.7' in captured.out
-    assert '"total_queries": 3' in captured.out
-    assert '"hits": 2' in captured.out
+    assert output["metrics"]["total_queries"] == 4
+    assert output["metrics"]["hits"] == 2
+    # Check details presence
+    assert len(output["details"]) == 4
+
+    # Ensure no table artifacts in stdout
+    assert "|" not in captured.out
+    assert "Recall@" not in captured.out  # Metric label shouldn't be in text
