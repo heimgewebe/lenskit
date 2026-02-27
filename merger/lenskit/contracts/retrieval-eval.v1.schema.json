@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lenskit.merger/schemas/retrieval-eval.v1.json",
+  "title": "Lenskit Retrieval Evaluation Report",
+  "description": "Output schema for 'lenskit eval --emit json', containing metrics and query details.",
+  "type": "object",
+  "properties": {
+    "metrics": {
+      "type": "object",
+      "description": "Aggregate metrics for the evaluation run.",
+      "properties": {
+        "total_queries": {
+          "type": "integer",
+          "description": "Total number of queries in the evaluation set."
+        },
+        "hits": {
+          "type": "integer",
+          "description": "Number of queries where at least one expected path was found in the top-k results."
+        }
+      },
+      "patternProperties": {
+        "^recall@\\d+$": {
+          "type": "number",
+          "description": "Recall at K (percentage 0-100)."
+        }
+      },
+      "required": ["total_queries", "hits"],
+      "additionalProperties": true
+    },
+    "details": {
+      "type": "array",
+      "description": "Detailed results for each query.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query text."
+          },
+          "filters": {
+            "type": "object",
+            "description": "Filters applied to the query.",
+            "additionalProperties": {
+              "type": ["string", "null"]
+            }
+          },
+          "expected": {
+            "type": "array",
+            "description": "List of expected path substrings.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "is_relevant": {
+            "type": "boolean",
+            "description": "True if an expected path was found in the top results."
+          },
+          "hit_path": {
+            "type": ["string", "null"],
+            "description": "The first matching path found, if any."
+          },
+          "found_count": {
+            "type": "integer",
+            "description": "Total number of results returned by the index for this query."
+          },
+          "top_results": {
+            "type": "array",
+            "description": "List of paths returned in the top-k results.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the query failed."
+          }
+        },
+        "required": ["query", "is_relevant", "found_count", "expected"]
+      }
+    }
+  },
+  "required": ["metrics", "details"]
+}

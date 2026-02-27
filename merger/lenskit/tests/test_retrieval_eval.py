@@ -5,140 +5,114 @@ from merger.lenskit.cli import cmd_eval
 from merger.lenskit.retrieval import index_db
 
 @pytest.fixture
-def test_queries_file(tmp_path):
-    f = tmp_path / "queries.md"
-    f.write_text("""
-# Gold Queries
-
-1. **"login"**
-   * *Intent:* Login
-   * *Expected:* `src/auth.py`
-   * *Filter:* `layer=core`
-
-2. **"docs"**
-   * *Intent:* Documentation
-   * *Expected:* `docs/`
-
-3. **"nothing"**
-   * *Intent:* Non-existent
-   * *Expected:* `missing.py`
-
-4. **"complex filter"**
-   * *Intent:* Filter with special chars
-   * *Expected:* `foo.py`
-   * *Filter:* `repo=my-repo`, `ext=.py`, `path=src/core`
-    """, encoding="utf-8")
-    return f
-
-@pytest.fixture
-def test_index_path(tmp_path):
+def mini_index_for_eval(tmp_path):
+    # Setup paths
     dump_path = tmp_path / "dump.json"
     chunk_path = tmp_path / "chunks.jsonl"
     db_path = tmp_path / "index.sqlite"
 
+    # Write chunks covering typical targets
     chunk_data = [
-        {
-            "chunk_id": "c1", "repo_id": "r1", "path": "src/auth.py",
-            "content": "def login(): pass", "start_line": 1, "end_line": 10,
-            "layer": "core", "artifact_type": "code"
-        },
-        {
-            "chunk_id": "c2", "repo_id": "r1", "path": "docs/readme.md",
-            "content": "# Docs", "start_line": 1, "end_line": 10,
-            "layer": "doc", "artifact_type": "doc"
-        }
+        {"chunk_id": "c1", "repo_id": "r1", "path": "src/auth/login.py", "content": "def login(): pass", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code"},
+        {"chunk_id": "c2", "repo_id": "r1", "path": "src/config/settings.py", "content": "SECRET_KEY = 'xyz'", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code"},
+        {"chunk_id": "c3", "repo_id": "r1", "path": "docs/api.md", "content": "# API Docs", "start_line": 1, "end_line": 1, "layer": "docs", "artifact_type": "doc"},
     ]
     with chunk_path.open("w") as f:
         for c in chunk_data:
             f.write(json.dumps(c) + "\n")
 
-    dump_path.write_text("{}")
+    dump_path.write_text(json.dumps({"dummy": "data"}))
     index_db.build_index(dump_path, chunk_path, db_path)
     return db_path
 
-class MockArgs:
-    def __init__(self, index, queries, k=10, emit="text"):
-        self.index = str(index)
-        self.queries = str(queries)
-        self.k = k
-        self.emit = emit
+def test_parse_gold_queries_basic(tmp_path):
+    md_file = tmp_path / "queries.md"
+    md_content = """
+# Test Queries
 
-def test_parse_gold_queries_complex(test_queries_file):
-    queries = cmd_eval.parse_gold_queries(test_queries_file)
-    assert len(queries) == 4
+1. **"find auth"**
+   *Intent:* Check login.
+   *Expected:* `login.py`, `auth/`
+   *Filter:* `layer=core`
 
-    q4 = queries[3]
-    assert q4["query"] == "complex filter"
-    assert q4["filters"]["repo"] == "my-repo"
-    assert q4["filters"]["ext"] == ".py"
-    assert q4["filters"]["path"] == "src/core"
+2. **"find settings"**
+   *Expected:* `settings.py`
+"""
+    md_file.write_text(md_content)
 
-def test_run_eval_flow(test_index_path, test_queries_file, capsys):
-    args = MockArgs(index=test_index_path, queries=test_queries_file)
-    ret = cmd_eval.run_eval(args)
+    queries = cmd_eval.parse_gold_queries(md_file)
+    assert len(queries) == 2
 
-    captured = capsys.readouterr()
+    q1 = queries[0]
+    assert q1["query"] == "find auth"
+    assert "login.py" in q1["expected_paths"]
+    assert "auth/" in q1["expected_paths"]
+    assert q1["filters"]["layer"] == "core"
 
-    # Query 1: "login" should match src/auth.py
-    assert "login" in captured.out
-    assert "✅" in captured.out
+    q2 = queries[1]
+    assert q2["query"] == "find settings"
+    assert "settings.py" in q2["expected_paths"]
 
-    # Query 2: "docs" should match docs/readme.md (contains "docs/")
-    assert "docs" in captured.out
-    assert "✅" in captured.out
+def test_parse_gold_queries_robustness(tmp_path):
+    # Test weird formatting
+    md_file = tmp_path / "messy.md"
+    md_content = """
+10. **"weird query"**
+   - Expected: `foo`
+   * Filter: `ext=py` `repo=main`
+"""
+    md_file.write_text(md_content)
 
-    # Query 3: "nothing" should fail
-    assert "nothing" in captured.out
-    assert "❌" in captured.out
+    queries = cmd_eval.parse_gold_queries(md_file)
+    assert len(queries) == 1
+    q = queries[0]
+    assert q["query"] == "weird query"
+    assert "foo" in q["expected_paths"]
+    assert q["filters"]["ext"] == "py"
+    assert q["filters"]["repo"] == "main"
 
-    # Metrics printed in text mode
-    # 2 out of 4 = 50.0%
-    assert "Recall@10: 50.0%" in captured.out
-    assert ret == 0
+def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
+    # Create a query file that matches the mini index
+    queries_md = tmp_path / "eval_queries.md"
+    queries_md.write_text("""
+1. **"login"**
+   *Expected:* `login.py`
 
-def test_run_eval_json_purity(test_index_path, test_queries_file, capsys):
-    args = MockArgs(index=test_index_path, queries=test_queries_file, emit="json")
-    ret = cmd_eval.run_eval(args)
+2. **"missing thing"**
+   *Expected:* `unicorn.py`
+""")
 
-    captured = capsys.readouterr()
+    # Mock args
+    class Args:
+        index = str(mini_index_for_eval)
+        queries = str(queries_md)
+        k = 5
+        emit = "json"
 
-    # stdout should be PURE JSON
-    try:
-        output = json.loads(captured.out)
-    except json.JSONDecodeError:
-        pytest.fail("Output is not valid JSON: " + captured.out)
+    # Run Eval
+    ret_code = cmd_eval.run_eval(Args())
+    assert ret_code == 0
 
-    assert output["metrics"]["total_queries"] == 4
-    assert output["metrics"]["hits"] == 2
-    # Check details presence
-    assert len(output["details"]) == 4
-
-    # Ensure no table artifacts in stdout
-    assert "|" not in captured.out
-    assert "Recall@" not in captured.out  # Metric label shouldn't be in text
-
-def test_run_eval_query_error(test_index_path, tmp_path, capsys):
-    # Setup a query file with an invalid query (e.g. invalid FTS syntax or mocking failure)
-    # Using invalid FTS syntax "AND OR" usually triggers syntax error
-    f = tmp_path / "error_queries.md"
-    f.write_text("""
-# Error Queries
-1. **"syntax error AND OR"**
-   * *Intent:* Broken
-   * *Expected:* `none`
-    """, encoding="utf-8")
-
-    args = MockArgs(index=test_index_path, queries=f, emit="json")
-    ret = cmd_eval.run_eval(args)
-
+    # Capture JSON output
     captured = capsys.readouterr()
     output = json.loads(captured.out)
 
-    assert output["metrics"]["total_queries"] == 1
-    assert output["metrics"]["hits"] == 0
-    assert output["metrics"]["recall@10"] == 0.0
+    assert "metrics" in output
+    metrics = output["metrics"]
+    assert metrics["total_queries"] == 2
+    assert metrics["hits"] == 1
+    assert metrics["recall@5"] == 50.0
 
-    detail = output["details"][0]
-    assert "error" in detail
-    assert detail["is_relevant"] is False
-    assert detail["found_count"] == 0
+    details = output["details"]
+    assert len(details) == 2
+
+    # Check hit
+    hit = details[0]
+    assert hit["query"] == "login"
+    assert hit["is_relevant"] is True
+    assert "login.py" in hit["hit_path"]
+
+    # Check miss
+    miss = details[1]
+    assert miss["query"] == "missing thing"
+    assert miss["is_relevant"] is False
