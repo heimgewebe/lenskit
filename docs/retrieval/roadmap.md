@@ -50,4 +50,5 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
 
 ## Current Milestones
 - **Status:** Phase 2 Complete (FTS + Query + Eval Schema).
-- **Next Up:** Run Eval Benchmark (measure Recall@10 on Gold Queries) -> Decision on Phase 3 implementation.
+- **Evaluation:** First benchmark run completed against `merger` self-scan. Recall@10 is 20.0% (3/15 hits) with relevant hits for `index`, `merge`, and `cli`. Low recall is expected as the Gold Queries set includes generic targets (auth, db, docker) not present in the current repository scope.
+- **Next Up:** Proceed to Phase 3 (Semantics) to improve ranking for non-exact keyword matches.
