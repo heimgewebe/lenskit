@@ -5,6 +5,7 @@ Core implementation of SQLite schema and index builder.
 import sqlite3
 import json
 import hashlib
+import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -56,24 +57,7 @@ def create_schema(conn: sqlite3.Connection):
     """)
 
     # 3. FTS Table (Full Text Search)
-    c.execute("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-            content,
-            path_tokens,
-            content='chunks',
-            content_rowid='rowid'
-        )
-    """)
-
-    # 4. Triggers to keep FTS in sync
-    # We trigger on INSERT into chunks to populate FTS
-    # Note: 'content' column in FTS is mapped to 'chunks' table, but 'chunks' table has no 'content' column.
-    # This external content pattern usually requires the source table to have the content column.
-    # If we want to save space and NOT store content in DB twice, we need a content column in chunks (TEXT).
-    # But for now, we will use a separate FTS table and manual population for simplicity and control.
-
-    c.execute("DROP TABLE IF EXISTS chunks_fts")
-
+    # Using separate content table pattern (manual sync)
     c.execute("""
         CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             chunk_id UNINDEXED,
@@ -107,11 +91,14 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
     dump_sha = _compute_file_sha256(dump_path)
     chunk_sha = _compute_file_sha256(chunk_path)
 
+    # Use real UTC timestamp
+    now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
     meta_items = [
         ("schema_version", INDEX_SCHEMA_VERSION),
         ("dump_sha256", dump_sha),
         ("chunk_index_sha256", chunk_sha),
-        ("created_at", "now"), # simple timestamp, can be refined
+        ("created_at", now_utc),
         ("config_json", json.dumps(config_payload or {}))
     ]
 
@@ -150,8 +137,6 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
             lang = chunk.get("language", "")
 
             # FTS Content
-            # Assuming chunk_index.jsonl MIGHT contain "content" key if generated with it
-            # If not, we fallback to path tokens or nothing.
             content_text = chunk.get("content", "")
 
             # Path tokens: split by common delimiters
