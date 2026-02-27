@@ -3,74 +3,75 @@
 Die folgenden 15 "Gold Queries" definieren die Zielwerte (Benchmarks) für das lenskit Retrieval-System.
 Ein Retrieval-System gilt als erfolgreich, wenn es für diese Queries relevante Ergebnisse (Chunks) in den Top-10 liefert.
 
-## Benchmark-Zielwerte (Eval Runner pending)
+## Benchmark-Zielwerte
 - **TTR (Time-to-Relevant):** < 2 Sekunden für CLI-Output.
 - **Recall@10:** Mindestens 1 relevantes Ergebnis in den Top-10.
 - **Explainability:** Mindestens Engine + Filter + Query-Mode (Token-Matches optional).
 
 ## Query Liste
 
-1.  **"find auth logic"**
-    *   *Intent:* Suche nach Authentifizierungs-Code oder Konfiguration.
-    *   *Expected:* `auth.py`, `middleware`, `login` handlers, `security` config.
-    *   *Filter:* `layer=core` (optional)
+### Generic / Self-Hosting (Priority)
 
-2.  **"find rate limiting"**
-    *   *Intent:* Suche nach Drosselungs-Logik.
-    *   *Expected:* `ratelimit`, `throttling`, decorators, middleware.
+1.  **"index"**
+    *   *Intent:* (Self-Reflexive) Suche nach dem Code, der den Index baut.
+    *   *Expected:* `index_db.py`, `build_index`
 
-3.  **"find database schema"**
-    *   *Intent:* Suche nach Tabellendefinitionen oder Migrations.
-    *   *Expected:* `models.py`, `schema.sql`, `migrations/`.
-    *   *Filter:* `ext=sql` oder `ext=py`
+2.  **"merge"**
+    *   *Intent:* Suche nach der Hauptlogik für das Mergen von Reports.
+    *   *Expected:* `merge.py`, `iter_report_blocks`
 
-4.  **"find error handling"**
-    *   *Intent:* Suche nach Exception-Klassen oder globalen Error-Handlern.
-    *   *Expected:* `exceptions.py`, `error_handler`, `try/except` blocks in main loops.
+3.  **"chunk"**
+    *   *Intent:* Suche nach dem Chunker-Algorithmus.
+    *   *Expected:* `chunker.py`, `Chunker`
 
-5.  **"find api routes"**
-    *   *Intent:* Suche nach REST-Endpunkten.
-    *   *Expected:* `routes.py`, `urls.py`, `@app.get`, `@app.post`.
-
-6.  **"find docker configuration"**
-    *   *Intent:* Suche nach Container-Setup.
-    *   *Expected:* `Dockerfile`, `docker-compose.yml`.
-    *   *Filter:* `path=docker`
-
-7.  **"find logging setup"**
-    *   *Intent:* Suche nach Logger-Initialisierung.
-    *   *Expected:* `logging.config`, `logger =`, `structlog`.
-
-8.  **"find cli entrypoints"**
+4.  **"cli"**
     *   *Intent:* Suche nach CLI-Commands.
-    *   *Expected:* `argparse`, `click`, `if __name__ == "__main__"`.
-    *   *Filter:* `layer=cli`
+    *   *Expected:* `argparse`, `main.py`, `cli/`
+    *   *Filter:* `layer=cli` (optional)
 
-9.  **"find secrets handling"**
-    *   *Intent:* Suche nach Code, der Secrets lädt oder maskiert.
-    *   *Expected:* `os.environ`, `.env` loading, `redact`, `mask`.
-
-10. **"find test fixtures"**
+5.  **"test"**
     *   *Intent:* Suche nach Test-Daten oder Setup-Code.
-    *   *Expected:* `conftest.py`, `fixtures/`, `@pytest.fixture`.
-    *   *Filter:* `layer=test`
+    *   *Expected:* `conftest.py`, `fixtures/`
+    *   *Filter:* `layer=test` (optional)
+
+### Web-App / Standard (Future Targets)
+
+6.  **"find auth logic"**
+    *   *Intent:* Suche nach Authentifizierungs-Code.
+    *   *Expected:* `auth.py`, `login`
+
+7.  **"find database schema"**
+    *   *Intent:* Suche nach Tabellendefinitionen.
+    *   *Expected:* `models.py`, `schema.sql`
+
+8.  **"find api routes"**
+    *   *Intent:* Suche nach REST-Endpunkten.
+    *   *Expected:* `routes.py`, `urls.py`, `@app.get`
+
+9.  **"find error handling"**
+    *   *Intent:* Suche nach Exception-Klassen.
+    *   *Expected:* `exceptions.py`, `error_handler`
+
+10. **"find logging setup"**
+    *   *Intent:* Suche nach Logger-Initialisierung.
+    *   *Expected:* `logging.config`, `structlog`
 
 11. **"find user model"**
     *   *Intent:* Suche nach der Definition des Users.
-    *   *Expected:* `class User`, `type User`.
+    *   *Expected:* `class User`
 
 12. **"find config parsing"**
     *   *Intent:* Suche nach Logik, die Konfigurationen liest.
-    *   *Expected:* `config.py`, `settings.py`, `yaml.safe_load`.
+    *   *Expected:* `config.py`, `settings.py`
 
-13. **"find dependency definition"**
+13. **"find rate limiting"**
+    *   *Intent:* Suche nach Drosselungs-Logik.
+    *   *Expected:* `ratelimit`
+
+14. **"find dependency definition"**
     *   *Intent:* Suche nach externen Abhängigkeiten.
-    *   *Expected:* `requirements.txt`, `pyproject.toml`, `package.json`.
+    *   *Expected:* `requirements.txt`, `pyproject.toml`
 
-14. **"find middleware"**
-    *   *Intent:* Suche nach HTTP-Middleware.
-    *   *Expected:* `middleware/`, `process_request`, `process_response`.
-
-15. **"find index generation"**
-    *   *Intent:* (Self-Reflexive) Suche nach dem Code, der den Index baut.
-    *   *Expected:* `index_db.py`, `build_index`.
+15. **"find docker configuration"**
+    *   *Intent:* Suche nach Container-Setup.
+    *   *Expected:* `Dockerfile`
