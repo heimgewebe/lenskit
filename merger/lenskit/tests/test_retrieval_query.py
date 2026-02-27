@@ -104,7 +104,8 @@ def test_query_no_fts_module_handling(mini_index, monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(sqlite3, "connect", lambda x: MockConn())
+    # Patch the sqlite3 module AS IMPORTED by cmd_query
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: MockConn())
 
     with pytest.raises(RuntimeError) as excinfo:
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
