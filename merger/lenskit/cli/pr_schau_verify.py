@@ -47,7 +47,7 @@ def _compute_sha256(path: Path) -> str:
     return h.hexdigest()
 
 def _fail(msg: str):
-    print(f"❌ FAIL: {msg}")
+    print(f"❌ FAIL: {msg}", file=sys.stderr)
     sys.exit(1)
 
 def _pass(msg: str):
@@ -81,8 +81,7 @@ def verify_basic(bundle_path: Path, data: Dict[str, Any], schema: Dict[str, Any]
 
     # Check if parts is None or empty list
     if not parts:
-        print("ℹ️  No parts listed (completeness.parts is empty).")
-        return
+        _fail("No parts listed (completeness.parts is empty or missing).")
 
     for part in parts:
         part_path = bundle_dir / part
@@ -209,9 +208,7 @@ def verify_full(bundle_path: Path, data: Dict[str, Any]) -> None:
         allowed_overhead = max(MAX_OVERHEAD_BYTES, int(expected * MAX_OVERHEAD_RATIO))
 
         if overhead > allowed_overhead:
-            print(f"⚠️  WARNING: Byte overhead excessive! Expected: {expected}, Emitted: {actual_emitted}, Overhead: {overhead} (Allowed: {allowed_overhead})")
-            # We warn but do not fail for now as overhead calculation might be strict.
-            # _fail(f"Byte overhead excessive! ...")
+            _fail(f"Byte overhead excessive! Expected: {expected}, Emitted: {actual_emitted}, Overhead: {overhead} (Allowed: {allowed_overhead})")
 
         _pass(f"Byte consistency check passed (Overhead: {overhead} bytes)")
 

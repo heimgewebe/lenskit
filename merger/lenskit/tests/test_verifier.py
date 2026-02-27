@@ -64,7 +64,7 @@ def test_pr_schau_verify_tool():
         cmd_tamper = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "full"]
         result_tamper = subprocess.run(cmd_tamper, capture_output=True, text=True)
         assert result_tamper.returncode != 0, "Verifier should fail on tampered content"
-        assert "SHA256 mismatch" in result_tamper.stdout or "SHA256 mismatch" in result_tamper.stderr
+        assert "SHA256 mismatch" in result_tamper.stderr
 
         # 5. Tamper with truncation (add forbidden text)
         # Restore content first to fix hash mismatch (though hash check runs before guard, so order matters)
@@ -108,24 +108,10 @@ def test_pr_schau_verify_tool():
         result_guard = subprocess.run(cmd_guard, capture_output=True, text=True)
 
         print("Guard Output:", result_guard.stdout)
-
-        # Note: The verifier logic:
-        # verify_full calls checks sequentially.
-        # It checks hashes first.
-        # Then "No-Truncate" guard.
-        # "content truncated at" (lowercase) matches "content truncated at" in my text.
+        print("Guard Error:", result_guard.stderr)
 
         assert result_guard.returncode != 0, "Verifier should fail on forbidden truncation text"
-        # The verifier script prints FAIL messages to stdout usually with _fail which prints to stdout?
-        # Wait, _fail in cli/pr_schau_verify.py prints to stdout with ❌ FAIL prefix and calls sys.exit(1)
-        # Let's check where it prints.
-        # Ah, looking at read_file output for pr_schau_verify.py:
-        # def _fail(msg: str):
-        #     print(f"❌ FAIL: {msg}")
-        #     sys.exit(1)
-        # It prints to stdout.
-
-        assert "Found truncation marker" in result_guard.stdout
+        assert "Found truncation marker" in result_guard.stderr
 
         # 6. Test missing zones
         # Fix the guard violation first
@@ -152,9 +138,10 @@ def test_pr_schau_verify_tool():
         result_zones = subprocess.run(cmd_zones, capture_output=True, text=True)
 
         print("Zones Output:", result_zones.stdout)
+        print("Zones Error:", result_zones.stderr)
 
         assert result_zones.returncode != 0, "Verifier should fail on missing zones"
-        assert ("missing mandatory 'summary' zone" in result_zones.stdout) or ("missing mandatory" in result_zones.stdout)
+        assert ("missing mandatory 'summary' zone" in result_zones.stderr) or ("missing mandatory" in result_zones.stderr)
 
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -4731,10 +4731,21 @@ def write_reports_v2(
                 return obj
             if isinstance(obj, (list, tuple)):
                 return [_json_safe(x) for x in obj]
+            if isinstance(obj, set):
+                return sorted([_json_safe(x) for x in obj])
             if isinstance(obj, dict):
-                return {k: _json_safe(v) for k, v in obj.items()}
-            # Fallback for Path, Enum, etc.
-            return str(obj)
+                return {str(k): _json_safe(v) for k, v in sorted(obj.items(), key=lambda i: str(i[0]))}
+            if isinstance(obj, Path):
+                return str(obj)
+            if hasattr(obj, "name") and hasattr(obj, "value"): # Enum-like
+                return obj.name
+
+            # Fallback: Deterministic Type Tagging
+            # Avoids unstable repr/str (memory addresses)
+            t = type(obj)
+            module = getattr(t, "__module__", "__builtin__")
+            qualname = getattr(t, "__qualname__", t.__name__)
+            return f"__type__:{module}.{qualname}"
 
         # Calculate config_sha256 for parity checks
         extras_dict = None
@@ -4743,7 +4754,9 @@ def write_reports_v2(
                 extras_dict = asdict(extras)
             except (TypeError, ValueError):
                 # Fallback if extras is not a dataclass instance (e.g. mocked object or type)
-                extras_dict = getattr(extras, "__dict__", str(extras))
+                extras_dict = getattr(extras, "__dict__", None)
+                if extras_dict is None:
+                     extras_dict = str(extras)
 
         # Ensure extras_dict is JSON safe
         extras_dict = _json_safe(extras_dict)
@@ -4764,7 +4777,7 @@ def write_reports_v2(
             "redact_secrets": redact_secrets,
             "include_hidden": include_hidden,
         }
-        config_str = json.dumps(config_payload, sort_keys=True)
+        config_str = json.dumps(config_payload, sort_keys=True, separators=(",", ":"))
         config_sha256 = hashlib.sha256(config_str.encode("utf-8")).hexdigest()
 
         gen_info_enriched = dict(generator_info)
