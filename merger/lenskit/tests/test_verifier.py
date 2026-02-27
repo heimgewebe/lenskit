@@ -45,15 +45,14 @@ def test_pr_schau_verify_tool():
         # 2. Run Verifier (Basic)
         cmd_basic = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "basic"]
         result_basic = subprocess.run(cmd_basic, capture_output=True, text=True)
-        print("Basic Output:", result_basic.stdout)
-        print("Basic Error:", result_basic.stderr)
+        # 2. Run Verifier (Basic)
+        cmd_basic = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "basic"]
+        result_basic = subprocess.run(cmd_basic, capture_output=True, text=True)
         assert result_basic.returncode == 0, "Basic verification failed"
 
         # 3. Run Verifier (Full)
         cmd_full = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "full"]
         result_full = subprocess.run(cmd_full, capture_output=True, text=True)
-        print("Full Output:", result_full.stdout)
-        print("Full Error:", result_full.stderr)
         assert result_full.returncode == 0, "Full verification failed"
 
         # 4. Tamper with the bundle (invalidate hash)
@@ -107,9 +106,6 @@ def test_pr_schau_verify_tool():
         cmd_guard = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "full"]
         result_guard = subprocess.run(cmd_guard, capture_output=True, text=True)
 
-        print("Guard Output:", result_guard.stdout)
-        print("Guard Error:", result_guard.stderr)
-
         assert result_guard.returncode != 0, "Verifier should fail on forbidden truncation text"
         assert "Found truncation marker" in result_guard.stderr
 
@@ -136,9 +132,6 @@ def test_pr_schau_verify_tool():
         # The content lacks zone markers now (generator added them, but we overwrote with "Clean content...")
         cmd_zones = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "full"]
         result_zones = subprocess.run(cmd_zones, capture_output=True, text=True)
-
-        print("Zones Output:", result_zones.stdout)
-        print("Zones Error:", result_zones.stderr)
 
         assert result_zones.returncode != 0, "Verifier should fail on missing zones"
         assert ("missing mandatory 'summary' zone" in result_zones.stderr) or ("missing mandatory" in result_zones.stderr)

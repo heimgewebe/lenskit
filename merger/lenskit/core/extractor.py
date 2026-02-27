@@ -752,9 +752,7 @@ def generate_review_bundle(
         "basename": "bundle.json",
         "content_type": "application/json",
         "bytes": 0, # Placeholder, updated via Fixpoint 2-pass write below
-        "mime": "application/json", # Legacy alias
-        "contract": "bundle-index",
-        "contract_version": "v1"
+        "mime": "application/json" # Legacy alias
     })
 
     # Delta JSON
@@ -767,9 +765,7 @@ def generate_review_bundle(
             "content_type": "application/json",
             "bytes": size_delta,
             "sha256": sha_delta,
-            "mime": "application/json",
-            "contract": "repolens-delta",
-            "contract_version": "v1"
+            "mime": "application/json"
         })
 
     # Collect parts artifacts
@@ -793,9 +789,7 @@ def generate_review_bundle(
             "content_type": "text/markdown",
             "bytes": psize,
             "sha256": sha,
-            "mime": "text/markdown",
-            "contract": "repolens-review-md",
-            "contract_version": "v1"
+            "mime": "text/markdown"
         })
 
     # Sort artifacts by role/basename for determinism
@@ -804,8 +798,6 @@ def generate_review_bundle(
     bundle_meta = {
         "kind": "repolens.pr_schau.bundle",
         "version": "1.0",
-        "contract": "bundle-index",
-        "contract_version": "v1",
         "meta": {
             "repo": repo_name,
             "generated_at": now_utc.isoformat(),

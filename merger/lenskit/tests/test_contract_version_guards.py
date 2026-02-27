@@ -49,18 +49,6 @@ def test_no_stale_v1_references():
                     if "dump-index" in line:
                         continue
 
-                    # Allow bundle-index to use v1
-                    if "bundle-index" in line:
-                        continue
-
-                    # Allow repolens-delta to use v1
-                    if "repolens-delta" in line:
-                        continue
-
-                    # Allow repolens-review-md to use v1
-                    if "repolens-review-md" in line:
-                        continue
-
                     # Context check for dump-index (multi-line)
                     # If we found forbidden string, check context
                     found_forbidden = False
@@ -70,11 +58,11 @@ def test_no_stale_v1_references():
                             break
 
                     if found_forbidden:
-                        # Check surrounding lines for 'dump-index' or other allowed contracts
+                        # Check surrounding lines for 'dump-index'
                         # Look back 5 lines
                         start = max(0, i - 5)
                         context = "\n".join(lines[start:i+1])
-                        if "dump-index" in context or "bundle-index" in context or "repolens-delta" in context or "repolens-review-md" in context:
+                        if "dump-index" in context:
                             continue
 
                         found_violations.append(f"{path}: Found '{forbidden}'")

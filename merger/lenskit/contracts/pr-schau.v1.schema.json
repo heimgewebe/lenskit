@@ -21,14 +21,6 @@
       "type": "string",
       "const": "1.0"
     },
-    "contract": {
-      "type": "string",
-      "const": "bundle-index"
-    },
-    "contract_version": {
-      "type": "string",
-      "const": "v1"
-    },
     "meta": {
       "type": "object",
       "required": [
@@ -136,9 +128,7 @@
         "required": [
           "role",
           "basename",
-          "mime",
-          "content_type",
-          "bytes"
+          "mime"
         ],
         "properties": {
           "role": {
@@ -149,30 +139,16 @@
             "type": "string",
             "description": "Filename relative to the bundle directory."
           },
-          "content_type": {
-            "type": "string"
-          },
-          "bytes": {
-            "type": "integer"
-          },
           "sha256": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "SHA256 checksum. Explicitly optional/omitted for 'bundle.json' (self-reference) to avoid circular hash dependency."
+            "pattern": "^[a-f0-9]{64}$"
           },
           "mime": {
-            "type": "string",
-            "description": "Deprecated: use content_type instead."
-          },
-          "contract": {
-            "type": "string"
-          },
-          "contract_version": {
             "type": "string"
           }
         },
         "if": {
-          "properties": { "role": { "enum": ["canonical_md", "part_md", "diff_stat", "asset", "delta_json"] } }
+          "properties": { "role": { "enum": ["canonical_md", "part_md", "delta_json"] } }
         },
         "then": {
           "required": ["sha256"]
