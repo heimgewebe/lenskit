@@ -149,7 +149,8 @@
           },
           "sha256": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA256 checksum. Explicitly optional/omitted for 'index_json' role (bundle.json self-reference) to avoid circular hash dependency."
           },
           "mime": {
             "type": "string",
