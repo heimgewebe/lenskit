@@ -1,0 +1,37 @@
+{
+  "metrics": {
+    "total_queries": 15,
+    "hits": 12
+  },
+  "details": [
+    {
+      "query": "index",
+      "filters": {},
+      "expected": [
+        "index_db.py",
+        "build_index"
+      ],
+      "is_relevant": true,
+      "hit_path": "merger/lenskit/retrieval/index_db.py",
+      "found_count": 1,
+      "top_results": [
+        "merger/lenskit/retrieval/index_db.py"
+      ]
+    },
+    {
+      "query": "merge",
+      "filters": {},
+      "expected": [
+        "merge.py",
+        "iter_report_blocks"
+      ],
+      "is_relevant": true,
+      "hit_path": "merger/lenskit/core/merge.py",
+      "found_count": 2,
+      "top_results": [
+        "merger/lenskit/core/merge.py",
+        "merger/lenskit/frontends/pythonista/repolens.py"
+      ]
+    }
+  ]
+}

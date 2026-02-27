@@ -34,20 +34,64 @@ def execute_query(
             engine_type = "fts5"
             query_mode = "fts"
 
-            # FTS Query
-            # Simple query cleaning: escape double quotes
+            # FTS Query Cleaning:
+            # - Escape double quotes by doubling them
+            # - Remove leading/trailing quotes if they are single quotes to avoid confusion
+            # - If the query is a simple term, let it be.
+            # - If it has spaces, quoting it helps in some FTS contexts, BUT:
+            #   FTS5 bare words match case-insensitively. Quoted strings match exact phrases but are still case-insensitive in standard ASCII tokenizer.
+
             cleaned_q = query_text.replace('"', '""')
 
-            # Use bm25 for scoring (standard FTS5 function)
-            base_sql = """
+            # Use raw query string if it contains no special characters,
+            # otherwise wrap in quotes to treat as literal phrase to avoid syntax errors?
+            # NO: wrapping in quotes forces phrase matching. "Hello Index" is a phrase search.
+            # "Hello" AND "Index" is "Hello Index" (implicit AND).
+            # If the user provides "Hello", we want to match "Hello".
+            # The test failure with 0 results suggests the FTS index content is NOT matching "Hello".
+            # This happens if the tokenizer splits differently or content is missing.
+            # We verified content is "readme md" and "src main py" via debug log earlier...
+            # WAIT. THE DEBUG LOG SAID:
+            # ('8dd8beafbbd6d2509d58', '', 'readme md')
+            # ('fc3f72e6a7cebb448d4a', '', 'src main py')
+            # Column 1 is 'content' (empty string!), Column 2 is 'path_tokens'.
+            #
+            # ROOT CAUSE: In `index_db.py`, we are inserting:
+            # VALUES (?, ?, ?) with (cid, content_text, path_tokens).
+            # But earlier in `index_db.py`, we extract `content_text = chunk.get("content", "")`.
+            #
+            # In `merge.py` -> `generate_chunk_artifacts` -> `Chunker`:
+            # We add `content` to the chunk dict?
+            # Let's check `merger/lenskit/core/merge.py`.
+            # Yes: `chunks = chunker.chunk_file(...)`.
+            # Then loop `for c in chunks: ... all_chunks.append(d)`.
+            # `asdict(c)` returns the chunk fields.
+            # Does `Chunk` dataclass have `content`?
+            # Let's check `chunker.py`.
+            #
+            # FIX IS IN index_db.py or chunker.py or merge.py?
+            # If `Chunk` doesn't have `content`, we need to add it or pass it.
+            #
+            # BACK TO THIS FILE: Just restore clean query handling.
+
+            # Check if BM25 is supported
+            try:
+                # Test BM25 existence
+                conn.execute("SELECT bm25(chunks_fts) FROM chunks_fts LIMIT 0")
+                scoring_expr = "bm25(chunks_fts)"
+            except sqlite3.OperationalError:
+                scoring_expr = "rank"
+
+            base_sql = f"""
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.content_sha256,
                     c.layer, c.artifact_type,
-                    bm25(chunks_fts) as score
+                    {scoring_expr} as score
                 FROM chunks_fts
                 JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
                 WHERE chunks_fts MATCH ?
             """
+
             params.append(cleaned_q)
             fts_query_str = cleaned_q
             where_clauses.append("1=1") # Placeholder for appending ANDs easily

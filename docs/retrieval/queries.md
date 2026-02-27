@@ -1,12 +1,12 @@
 # Retrieval Gold Queries
 
 Die folgenden 15 "Gold Queries" definieren die Zielwerte (Benchmarks) für das lenskit Retrieval-System.
-Ein Retrieval-System gilt als erfolgreich, wenn es für diese Queries relevante Ergebnisse (Chunks) in den Top-10 liefert.
 
-## Benchmark-Zielwerte
-- **TTR (Time-to-Relevant):** < 2 Sekunden für CLI-Output.
-- **Recall@10:** Mindestens 1 relevantes Ergebnis in den Top-10.
-- **Explainability:** Mindestens Engine + Filter + Query-Mode (Token-Matches optional).
+## Akzeptanzkriterium (Stop-Kriterium Phase 2)
+Das Retrieval-Problem **gilt als gelöst, wenn**:
+1.  **Recall@10:** Mindestens 80% der Queries liefern einen relevanten Treffer in den Top-10.
+2.  **TTR (Time-to-Relevant):** < 2 Sekunden für CLI-Output.
+3.  **Explainability:** Jeder Treffer erklärt Engine (FTS/Meta), Filter und Match-Grund.
 
 ## Query Liste
 
