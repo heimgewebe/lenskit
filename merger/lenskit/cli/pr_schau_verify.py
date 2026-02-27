@@ -55,10 +55,7 @@ def _pass(msg: str):
 
 def load_schema() -> Dict[str, Any]:
     # Candidates for schema location: relative to script or standard location
-    candidates = [
-        Path(__file__).resolve().parent.parent / "contracts" / "pr-schau.v1.schema.json",
-        Path(__file__).parents[1] / "contracts" / "pr-schau.v1.schema.json",
-    ]
+    candidates = [SCHEMA_PATH]
 
     schema_file = None
     for c in candidates:
@@ -198,8 +195,7 @@ def verify_full(bundle_path: Path, data: Dict[str, Any]) -> None:
         # expected must be meaningful for complete bundles
         if expected <= 0 and len(parts) > 0:
             # Note: expected_bytes might be 0 if the content is empty.
-            # But usually review content has at least headers.
-            # We relax this check slightly to allow empty diffs if valid.
+            # We allow 0, but negative values are invalid.
             if expected < 0:
                  _fail(f"Invalid expected_bytes for complete bundle: expected_bytes={expected}")
 
