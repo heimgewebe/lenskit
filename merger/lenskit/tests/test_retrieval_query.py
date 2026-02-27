@@ -1,7 +1,6 @@
 import json
 import sqlite3
 import pytest
-import os
 from pathlib import Path
 from merger.lenskit.retrieval import index_db
 from merger.lenskit.cli import cmd_query

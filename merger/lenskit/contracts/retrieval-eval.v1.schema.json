@@ -4,34 +4,40 @@
   "title": "Lenskit Retrieval Evaluation Report",
   "description": "Output schema for 'lenskit eval --emit json', containing metrics and query details.",
   "type": "object",
+  "additionalProperties": false,
   "properties": {
     "metrics": {
       "type": "object",
       "description": "Aggregate metrics for the evaluation run.",
+      "additionalProperties": false,
       "properties": {
         "total_queries": {
           "type": "integer",
-          "description": "Total number of queries in the evaluation set."
+          "description": "Total number of queries in the evaluation set.",
+          "minimum": 0
         },
         "hits": {
           "type": "integer",
-          "description": "Number of queries where at least one expected path was found in the top-k results."
+          "description": "Number of queries where at least one expected path was found in the top-k results.",
+          "minimum": 0
         }
       },
       "patternProperties": {
         "^recall@\\d+$": {
           "type": "number",
-          "description": "Recall at K (percentage 0-100)."
+          "description": "Recall at K (percentage 0-100).",
+          "minimum": 0,
+          "maximum": 100
         }
       },
-      "required": ["total_queries", "hits"],
-      "additionalProperties": true
+      "required": ["total_queries", "hits"]
     },
     "details": {
       "type": "array",
       "description": "Detailed results for each query.",
       "items": {
         "type": "object",
+        "additionalProperties": true,
         "properties": {
           "query": {
             "type": "string",
@@ -71,7 +77,7 @@
             }
           },
           "error": {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "Error message if the query failed."
           }
         },
