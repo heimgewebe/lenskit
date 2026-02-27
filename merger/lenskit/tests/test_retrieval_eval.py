@@ -117,14 +117,21 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     assert miss["query"] == "missing thing"
     assert miss["is_relevant"] is False
 
-def test_schema_smoke(mini_index_for_eval, tmp_path):
+def test_schema_smoke():
     """
     Minimal contract check: Ensure output structure matches key expectations
     without full JSON schema validation lib.
     """
-    # Simply check if the schema file exists first
-    schema_path = Path("merger/lenskit/contracts/retrieval-eval.v1.schema.json")
-    if schema_path.exists():
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        assert "metrics" in schema["properties"]
-        assert "details" in schema["properties"]
+    # Resolve schema path relative to this test file for robustness
+    # structure: merger/lenskit/tests/test_retrieval_eval.py
+    # target: merger/lenskit/contracts/retrieval-eval.v1.schema.json
+    # ../../contracts/
+
+    base_dir = Path(__file__).resolve().parent.parent
+    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
+
+    assert schema_path.exists(), f"Schema file missing at expected path: {schema_path}"
+
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    assert "metrics" in schema["properties"]
+    assert "details" in schema["properties"]

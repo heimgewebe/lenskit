@@ -67,7 +67,8 @@
           },
           "found_count": {
             "type": "integer",
-            "description": "Total number of results returned by the index for this query."
+            "description": "Total number of results returned by the index for this query.",
+            "minimum": 0
           },
           "top_results": {
             "type": "array",
