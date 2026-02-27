@@ -156,27 +156,12 @@
             "description": "Deprecated: use content_type instead."
           }
         },
-        "allOf": [
-          {
-            "if": {
-              "properties": { "role": { "enum": ["canonical_md", "part_md", "diff_stat", "asset", "delta_json"] } }
-            },
-            "then": {
-              "required": ["sha256"]
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "role": { "const": "index_json" },
-                "basename": { "const": "bundle.json" }
-               }
-            },
-            "then": {
-              "not": { "required": ["sha256"] }
-            }
-          }
-        ]
+        "if": {
+          "properties": { "role": { "enum": ["canonical_md", "part_md", "diff_stat", "asset", "delta_json"] } }
+        },
+        "then": {
+          "required": ["sha256"]
+        }
       }
     },
     "verification": {
