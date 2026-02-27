@@ -1,6 +1,5 @@
 import argparse
 import sys
-import shutil
 from pathlib import Path
 from merger.lenskit.retrieval import index_db
 
