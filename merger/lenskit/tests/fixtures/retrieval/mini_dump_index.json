@@ -1,0 +1,16 @@
+{
+    "contract": "dump-index",
+    "contract_version": "v1",
+    "run_id": "test-run-123",
+    "created_at": "2023-01-01T00:00:00Z",
+    "generator": {
+        "name": "lenskit-test",
+        "config_sha256": "dummy_config_hash"
+    },
+    "artifacts": {
+        "chunk_index": {
+            "path": "mini_chunk_index.jsonl",
+            "sha256": "dummy_chunk_sha"
+        }
+    }
+}
