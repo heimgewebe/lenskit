@@ -48,8 +48,7 @@ def execute_query(
                 if "no such function: bm25" in msg or "no such module: fts5" in msg:
                     scoring_expr = "rank"
                 else:
-                    # Let later execution catch other errors or raise here
-                    scoring_expr = "rank" # Safe fallback
+                    raise
 
             base_sql = f"""
                 SELECT

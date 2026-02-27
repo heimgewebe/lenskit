@@ -4,17 +4,17 @@ import shutil
 import tempfile
 from pathlib import Path
 
-# Setup context for testing the service app
 @pytest.fixture
 def service_client():
-    # Attempt import inside fixture to handle missing dependencies gracefully
-    # or let it fail if environment is expected to have it.
+    # Split imports to handle missing fastapi dependency gracefully (skip)
+    # but allow broken service code to fail tests (no try/except)
     try:
         from fastapi.testclient import TestClient
-        # Canonical imports only - strict environment check
-        from merger.lenskit.service.app import app, init_service, state
-    except ImportError as e:
-        pytest.skip(f"Service dependencies missing: {e}")
+    except ImportError:
+        pytest.skip("FastAPI not installed (required for service tests)")
+
+    # Canonical imports - if this fails, the test should fail (broken code)
+    from merger.lenskit.service.app import app, init_service, state
 
     # Setup
     temp_dir = tempfile.mkdtemp()

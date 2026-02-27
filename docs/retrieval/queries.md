@@ -4,8 +4,10 @@ Die folgenden 15 "Gold Queries" definieren die Zielwerte (Benchmarks) für das l
 
 ## Benchmark-Zielwerte
 - **TTR (Time-to-Relevant):** < 2 Sekunden für CLI-Output.
-- **Recall@10:** Ziel ist eine hohe Abdeckung der erwarteten Dateien in den Top-10 Ergebnissen.
+- **Recall@10:** Anteil der Queries mit mindestens einem relevanten Treffer in den Top-10 (0–100%).
 - **Explainability:** Mindestens Engine + Filter + Query-Mode (Token-Matches optional).
+
+> Zielwert wird separat festgelegt; diese Datei definiert Metrik + Queryset.
 
 ## Query Liste
 
