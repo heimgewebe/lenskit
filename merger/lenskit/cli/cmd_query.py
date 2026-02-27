@@ -3,7 +3,6 @@ import sys
 import json
 import sqlite3
 from pathlib import Path
-from typing import List, Dict, Any
 
 def run_query(args: argparse.Namespace) -> int:
     index_path = Path(args.index)

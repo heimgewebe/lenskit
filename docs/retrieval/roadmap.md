@@ -3,7 +3,7 @@
 Tracking the evolution of lenskit retrieval from basic artifacts to an intelligent "Retrieval OS".
 
 ## Vision
-**Maximale "Agenten-Geilheit":** Ein maschinelles Retrieval- und Navigationssystem mit klaren Contracts, deterministischen Offsets, erklärbarer Suche und optionalem Semantik-Re-Ranking.
+**Maximale "Agent-Readiness":** Ein maschinelles Retrieval- und Navigationssystem mit klaren Contracts, deterministischen Offsets, erklärbarer Suche und optionalem Semantik-Re-Ranking.
 
 ## Blueprint Status
 
