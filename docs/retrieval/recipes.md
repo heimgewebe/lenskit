@@ -1,5 +1,7 @@
 # Retrieval Recipes
 
+> Requires SQLite compiled with FTS5; bm25 availability depends on build.
+
 ## 1. Index Erstellen
 
 Indexieren eines "dump_index.json" und "chunk_index.jsonl" Paares.
