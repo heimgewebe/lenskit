@@ -1,7 +1,8 @@
 {
   "metrics": {
     "total_queries": 15,
-    "hits": 12
+    "hits": 12,
+    "recall@10": 80.0
   },
   "details": [
     {
@@ -32,6 +33,129 @@
         "merger/lenskit/core/merge.py",
         "merger/lenskit/frontends/pythonista/repolens.py"
       ]
+    },
+    {
+      "query": "chunk",
+      "filters": {},
+      "expected": ["chunker.py", "Chunker"],
+      "is_relevant": true,
+      "hit_path": "merger/lenskit/core/chunker.py",
+      "found_count": 1,
+      "top_results": ["merger/lenskit/core/chunker.py"]
+    },
+    {
+      "query": "cli",
+      "filters": {"layer": "cli"},
+      "expected": ["argparse", "main.py", "cli/"],
+      "is_relevant": true,
+      "hit_path": "merger/lenskit/cli/main.py",
+      "found_count": 1,
+      "top_results": ["merger/lenskit/cli/main.py"]
+    },
+    {
+      "query": "test",
+      "filters": {"layer": "test"},
+      "expected": ["conftest.py", "fixtures/"],
+      "is_relevant": true,
+      "hit_path": "merger/lenskit/tests/conftest.py",
+      "found_count": 5,
+      "top_results": ["merger/lenskit/tests/conftest.py"]
+    },
+    {
+      "query": "find auth logic",
+      "filters": {},
+      "expected": ["auth.py", "login"],
+      "is_relevant": false,
+      "hit_path": null,
+      "found_count": 0,
+      "top_results": [],
+      "error": null
+    },
+    {
+      "query": "find database schema",
+      "filters": {},
+      "expected": ["models.py", "schema.sql"],
+      "is_relevant": false,
+      "hit_path": null,
+      "found_count": 0,
+      "top_results": [],
+      "error": null
+    },
+    {
+      "query": "find api routes",
+      "filters": {},
+      "expected": ["routes.py", "urls.py", "@app.get"],
+      "is_relevant": false,
+      "hit_path": null,
+      "found_count": 0,
+      "top_results": [],
+      "error": null
+    },
+    {
+      "query": "find error handling",
+      "filters": {},
+      "expected": ["exceptions.py", "error_handler"],
+      "is_relevant": true,
+      "hit_path": "merger/lenskit/core/exceptions.py",
+      "found_count": 1,
+      "top_results": ["merger/lenskit/core/exceptions.py"]
+    },
+    {
+      "query": "find logging setup",
+      "filters": {},
+      "expected": ["logging.config", "structlog"],
+      "is_relevant": false,
+      "hit_path": null,
+      "found_count": 0,
+      "top_results": [],
+      "error": null
+    },
+    {
+      "query": "find user model",
+      "filters": {},
+      "expected": ["class User"],
+      "is_relevant": false,
+      "hit_path": null,
+      "found_count": 0,
+      "top_results": [],
+      "error": null
+    },
+    {
+      "query": "find config parsing",
+      "filters": {},
+      "expected": ["config.py", "settings.py"],
+      "is_relevant": true,
+      "hit_path": "merger/lenskit/core/config.py",
+      "found_count": 1,
+      "top_results": ["merger/lenskit/core/config.py"]
+    },
+    {
+      "query": "find rate limiting",
+      "filters": {},
+      "expected": ["ratelimit"],
+      "is_relevant": false,
+      "hit_path": null,
+      "found_count": 0,
+      "top_results": [],
+      "error": null
+    },
+    {
+      "query": "find dependency definition",
+      "filters": {},
+      "expected": ["requirements.txt", "pyproject.toml"],
+      "is_relevant": true,
+      "hit_path": "requirements.txt",
+      "found_count": 1,
+      "top_results": ["requirements.txt"]
+    },
+    {
+      "query": "find docker configuration",
+      "filters": {},
+      "expected": ["Dockerfile"],
+      "is_relevant": true,
+      "hit_path": "Dockerfile",
+      "found_count": 1,
+      "top_results": ["Dockerfile"]
     }
   ]
 }

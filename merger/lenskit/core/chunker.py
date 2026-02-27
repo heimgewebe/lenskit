@@ -13,7 +13,6 @@ class Chunk:
     end_line: int
     sha256: str
     size: int
-    content: str # Added content field for FTS indexing
     # Optional symbols/metadata can be added here
     symbols: Optional[List[str]] = None
 
@@ -111,6 +110,5 @@ class Chunker:
             start_line=start_line,
             end_line=start_line + len(lines) - 1,
             sha256=sha256,
-            size=size,
-            content=content # Store content for FTS
+            size=size
         ))

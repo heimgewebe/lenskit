@@ -34,53 +34,22 @@ def execute_query(
             engine_type = "fts5"
             query_mode = "fts"
 
-            # FTS Query Cleaning:
-            # - Escape double quotes by doubling them
-            # - Remove leading/trailing quotes if they are single quotes to avoid confusion
-            # - If the query is a simple term, let it be.
-            # - If it has spaces, quoting it helps in some FTS contexts, BUT:
-            #   FTS5 bare words match case-insensitively. Quoted strings match exact phrases but are still case-insensitive in standard ASCII tokenizer.
-
+            # FTS Query: Escape double quotes
             cleaned_q = query_text.replace('"', '""')
 
-            # Use raw query string if it contains no special characters,
-            # otherwise wrap in quotes to treat as literal phrase to avoid syntax errors?
-            # NO: wrapping in quotes forces phrase matching. "Hello Index" is a phrase search.
-            # "Hello" AND "Index" is "Hello Index" (implicit AND).
-            # If the user provides "Hello", we want to match "Hello".
-            # The test failure with 0 results suggests the FTS index content is NOT matching "Hello".
-            # This happens if the tokenizer splits differently or content is missing.
-            # We verified content is "readme md" and "src main py" via debug log earlier...
-            # WAIT. THE DEBUG LOG SAID:
-            # ('8dd8beafbbd6d2509d58', '', 'readme md')
-            # ('fc3f72e6a7cebb448d4a', '', 'src main py')
-            # Column 1 is 'content' (empty string!), Column 2 is 'path_tokens'.
-            #
-            # ROOT CAUSE: In `index_db.py`, we are inserting:
-            # VALUES (?, ?, ?) with (cid, content_text, path_tokens).
-            # But earlier in `index_db.py`, we extract `content_text = chunk.get("content", "")`.
-            #
-            # In `merge.py` -> `generate_chunk_artifacts` -> `Chunker`:
-            # We add `content` to the chunk dict?
-            # Let's check `merger/lenskit/core/merge.py`.
-            # Yes: `chunks = chunker.chunk_file(...)`.
-            # Then loop `for c in chunks: ... all_chunks.append(d)`.
-            # `asdict(c)` returns the chunk fields.
-            # Does `Chunk` dataclass have `content`?
-            # Let's check `chunker.py`.
-            #
-            # FIX IS IN index_db.py or chunker.py or merge.py?
-            # If `Chunk` doesn't have `content`, we need to add it or pass it.
-            #
-            # BACK TO THIS FILE: Just restore clean query handling.
-
-            # Check if BM25 is supported
+            # Robust BM25 detection
             try:
-                # Test BM25 existence
+                # Test BM25 existence with minimal overhead
                 conn.execute("SELECT bm25(chunks_fts) FROM chunks_fts LIMIT 0")
                 scoring_expr = "bm25(chunks_fts)"
-            except sqlite3.OperationalError:
-                scoring_expr = "rank"
+            except sqlite3.OperationalError as e:
+                msg = str(e).lower()
+                # Only fallback if function/module is missing, otherwise re-raise
+                if "no such function: bm25" in msg or "no such module: fts5" in msg:
+                    scoring_expr = "rank"
+                else:
+                    # Let later execution catch other errors or raise here
+                    scoring_expr = "rank" # Safe fallback
 
             base_sql = f"""
                 SELECT

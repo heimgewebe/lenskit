@@ -67,23 +67,10 @@ def create_schema(conn: sqlite3.Connection):
         )
     """)
 
-    # 4. Files Table (File Metadata)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS files (
-            file_id TEXT PRIMARY KEY,
-            repo_id TEXT,
-            path TEXT,
-            file_sha256 TEXT,
-            size_bytes INTEGER,
-            language TEXT
-        )
-    """)
-
     # Indices
     c.execute("CREATE INDEX IF NOT EXISTS idx_chunks_repo ON chunks(repo_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path_norm)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_chunks_layer ON chunks(layer)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_files_repo ON files(repo_id)")
 
     conn.commit()
 
@@ -107,8 +94,7 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
         "empty_lines": 0,
         "invalid_json_lines": 0,
         "missing_chunk_id_lines": 0,
-        "ingested_chunks_count": 0,
-        "ingested_files_count": 0
+        "ingested_chunks_count": 0
     }
 
     # 2. Ingest Chunks
@@ -194,54 +180,6 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
             VALUES (?, ?, ?)
         """, batch_fts)
 
-    # 3. Ingest Files (from sidecar via dump_index)
-    # Load dump_index.json to find sidecar
-    sidecar_path = None
-    run_id = "unknown"
-    try:
-        dump_data = json.loads(dump_path.read_text(encoding="utf-8"))
-        run_id = dump_data.get("run_id", "unknown")
-        sidecar_entry = dump_data.get("artifacts", {}).get("sidecar_json")
-        if sidecar_entry and sidecar_entry.get("path"):
-            sidecar_path = dump_path.parent / sidecar_entry["path"]
-    except Exception as e:
-        print(f"Warning: Failed to parse dump_index for file ingestion: {e}", file=sys.stderr)
-
-    if sidecar_path and sidecar_path.exists():
-        try:
-            sidecar_data = json.loads(sidecar_path.read_text(encoding="utf-8"))
-            files_list = sidecar_data.get("files", [])
-            batch_files = []
-
-            for f in files_list:
-                fid = f.get("id")
-                if not fid: continue
-
-                f_repo = f.get("repo", "unknown")
-                f_path = f.get("path", "")
-                f_sha = f.get("sha256", "")
-                f_size = f.get("size_bytes", 0)
-                f_lang = f.get("language", "")
-
-                batch_files.append((fid, f_repo, f_path, f_sha, f_size, f_lang))
-                stats["ingested_files_count"] += 1
-
-                if len(batch_files) >= batch_size:
-                    c.executemany("""
-                        INSERT INTO files (file_id, repo_id, path, file_sha256, size_bytes, language)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, batch_files)
-                    batch_files = []
-
-            if batch_files:
-                c.executemany("""
-                    INSERT INTO files (file_id, repo_id, path, file_sha256, size_bytes, language)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, batch_files)
-
-        except Exception as e:
-            print(f"Warning: Failed to ingest files from sidecar: {e}", file=sys.stderr)
-
     # 1. Metadata (written last to include stats)
     dump_sha = _compute_file_sha256(dump_path)
     chunk_sha = _compute_file_sha256(chunk_path)
@@ -254,7 +192,6 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
         ("dump_sha256", dump_sha),
         ("chunk_index_sha256", chunk_sha),
         ("created_at", now_utc),
-        ("run_id", run_id),
         ("config_json", json.dumps(config_payload or {}))
     ]
 
