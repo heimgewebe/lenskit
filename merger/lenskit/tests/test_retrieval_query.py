@@ -19,11 +19,11 @@ def mini_index(tmp_path):
         {"chunk_id": "c2", "repo_id": "r1", "path": "tests/test_main.py", "content": "def test_main(): assert True", "start_line": 1, "end_line": 1, "layer": "test", "artifact_type": "code", "content_sha256": "h2"},
         {"chunk_id": "c3", "repo_id": "r1", "path": "docs/readme.md", "content": "# Readme\nThis is a doc.", "start_line": 1, "end_line": 2, "layer": "docs", "artifact_type": "doc", "content_sha256": "h3"},
     ]
-    with chunk_path.open("w") as f:
+    with chunk_path.open("w", encoding="utf-8") as f:
         for c in chunk_data:
             f.write(json.dumps(c) + "\n")
 
-    dump_path.write_text(json.dumps({"dummy": "data"}))
+    dump_path.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
 
     index_db.build_index(dump_path, chunk_path, db_path)
     return db_path
@@ -93,7 +93,16 @@ def test_query_no_fts_module_handling(mini_index, monkeypatch):
     class MockConn:
         row_factory = None
         def execute(self, sql, params=()):
-            return MockCursor().execute(sql, params)
+            # The code calls conn.execute(), which returns a cursor.
+            # We return a cursor, but the cursor's methods will fail if called?
+            # Or does execute() itself fail?
+            # In sqlite3, conn.execute() is a shortcut that creates a cursor and calls execute.
+            # So let's make it raise immediately for the shortcut case,
+            # OR return a cursor that raises.
+            # The actual code: `cursor = conn.execute(base_sql, params)`
+            # So we can raise here directly.
+            raise sqlite3.Error("no such module: fts5")
+
         def close(self):
             pass
 

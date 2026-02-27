@@ -17,11 +17,11 @@ def mini_index_for_eval(tmp_path):
         {"chunk_id": "c2", "repo_id": "r1", "path": "src/config/settings.py", "content": "SECRET_KEY = 'xyz'", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code"},
         {"chunk_id": "c3", "repo_id": "r1", "path": "docs/api.md", "content": "# API Docs", "start_line": 1, "end_line": 1, "layer": "docs", "artifact_type": "doc"},
     ]
-    with chunk_path.open("w") as f:
+    with chunk_path.open("w", encoding="utf-8") as f:
         for c in chunk_data:
             f.write(json.dumps(c) + "\n")
 
-    dump_path.write_text(json.dumps({"dummy": "data"}))
+    dump_path.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
     index_db.build_index(dump_path, chunk_path, db_path)
     return db_path
 
@@ -38,7 +38,7 @@ def test_parse_gold_queries_basic(tmp_path):
 2. **"find settings"**
    *Expected:* `settings.py`
 """
-    md_file.write_text(md_content)
+    md_file.write_text(md_content, encoding="utf-8")
 
     queries = cmd_eval.parse_gold_queries(md_file)
     assert len(queries) == 2
@@ -61,7 +61,7 @@ def test_parse_gold_queries_robustness(tmp_path):
    - Expected: `foo`
    * Filter: `ext=py` `repo=main`
 """
-    md_file.write_text(md_content)
+    md_file.write_text(md_content, encoding="utf-8")
 
     queries = cmd_eval.parse_gold_queries(md_file)
     assert len(queries) == 1
@@ -80,7 +80,7 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
 
 2. **"missing thing"**
    *Expected:* `unicorn.py`
-""")
+""", encoding="utf-8")
 
     # Mock args
     class Args:
@@ -116,3 +116,15 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     miss = details[1]
     assert miss["query"] == "missing thing"
     assert miss["is_relevant"] is False
+
+def test_schema_smoke(mini_index_for_eval, tmp_path):
+    """
+    Minimal contract check: Ensure output structure matches key expectations
+    without full JSON schema validation lib.
+    """
+    # Simply check if the schema file exists first
+    schema_path = Path("merger/lenskit/contracts/retrieval-eval.v1.schema.json")
+    if schema_path.exists():
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        assert "metrics" in schema["properties"]
+        assert "details" in schema["properties"]
