@@ -21,6 +21,14 @@
       "type": "string",
       "const": "1.0"
     },
+    "contract": {
+      "type": "string",
+      "const": "bundle-index"
+    },
+    "contract_version": {
+      "type": "string",
+      "const": "v1"
+    },
     "meta": {
       "type": "object",
       "required": [
@@ -155,6 +163,12 @@
           "mime": {
             "type": "string",
             "description": "Deprecated: use content_type instead."
+          },
+          "contract": {
+            "type": "string"
+          },
+          "contract_version": {
+            "type": "string"
           }
         },
         "if": {

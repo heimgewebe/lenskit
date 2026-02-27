@@ -4373,6 +4373,7 @@ def generate_json_sidecar(
     output_mode: str = "dual",
     redact_secrets: bool = False,
     split_size_bytes: int = 0,
+    include_hidden: bool = True,
 ) -> Dict[str, Any]:
     """
     Generate a JSON sidecar structure for machine consumption.
@@ -4443,7 +4444,7 @@ def generate_json_sidecar(
         "features": sorted(active_features),
         "profile": level,
         "output_mode": output_mode,
-        # "include_hidden" is intentionally omitted if unknown (truthful metadata)
+        "include_hidden": include_hidden,
         "redact_secrets": redact_secrets,
         "split_size_bytes": split_size_bytes,
         "max_bytes": max_file_bytes,
@@ -4656,6 +4657,7 @@ def write_reports_v2(
     meta_none: bool = False,
     output_mode: str = "dual",  # archive, retrieval, dual
     redact_secrets: bool = False,
+    include_hidden: bool = True,
     generator_info: Optional[Dict[str, Any]] = None,
 ) -> MergeArtifacts:
     out_paths = []
@@ -4724,6 +4726,16 @@ def write_reports_v2(
     def generate_dump_index(base_name_func, run_id, artifacts_map, generator_info, repo_names):
         out_path = base_name_func(part_suffix="").with_suffix(".dump_index.json")
 
+        def _json_safe(obj):
+            if isinstance(obj, (str, int, float, bool, type(None))):
+                return obj
+            if isinstance(obj, (list, tuple)):
+                return [_json_safe(x) for x in obj]
+            if isinstance(obj, dict):
+                return {k: _json_safe(v) for k, v in obj.items()}
+            # Fallback for Path, Enum, etc.
+            return str(obj)
+
         # Calculate config_sha256 for parity checks
         extras_dict = None
         if extras:
@@ -4732,6 +4744,9 @@ def write_reports_v2(
             except (TypeError, ValueError):
                 # Fallback if extras is not a dataclass instance (e.g. mocked object or type)
                 extras_dict = getattr(extras, "__dict__", str(extras))
+
+        # Ensure extras_dict is JSON safe
+        extras_dict = _json_safe(extras_dict)
 
         config_payload = {
             "detail": detail,
@@ -4746,7 +4761,8 @@ def write_reports_v2(
             "meta_density": meta_density,
             "meta_none": meta_none,
             "output_mode": output_mode,
-            "redact_secrets": redact_secrets
+            "redact_secrets": redact_secrets,
+            "include_hidden": include_hidden,
         }
         config_str = json.dumps(config_payload, sort_keys=True)
         config_sha256 = hashlib.sha256(config_str.encode("utf-8")).hexdigest()
@@ -4795,12 +4811,13 @@ def write_reports_v2(
         # Sort artifacts by key for determinism
         artifacts_sorted = dict(sorted(artifacts_block.items()))
 
+        now_str = clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ')
         data = {
             "contract": "dump-index",
             "contract_version": "v1",
             "run_id": run_id,
-            "created_at": clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ'),
-            "generated_at": clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "created_at": now_str,
+            "generated_at": now_str,
             "generator": gen_info_enriched,
             "repos": repo_names,
             "artifacts": artifacts_sorted
@@ -4866,6 +4883,22 @@ def write_reports_v2(
                 d["line_end"] = d["end_line"]
                 d["content_sha256"] = d["sha256"]
                 d["size_bytes"] = d["size"]
+
+                # Extended machine-readable fields (v2.4)
+                d["content_artifact"] = "merge_md"
+                d["content_range"] = {
+                    "start_byte": d["start_byte"],
+                    "end_byte": d["end_byte"],
+                    "start_line": d["start_line"],
+                    "end_line": d["end_line"]
+                }
+                d["search_keys"] = {
+                    "repo_id": fi.root_label,
+                    "path_norm": fi.rel_path.as_posix().lower(),
+                    "ext": fi.ext.lower().lstrip("."),
+                    "layer": sem_meta["layer"],
+                    "artifact_type": sem_meta["artifact_type"]
+                }
 
                 all_chunks.append(d)
 
@@ -5187,9 +5220,10 @@ def write_reports_v2(
                 meta_none=meta_none,
                 generator_info=generator_info,
                 output_mode=output_mode,
-            redact_secrets=redact_secrets,
-            split_size_bytes=split_size,
-            )
+                    redact_secrets=redact_secrets,
+                    split_size_bytes=split_size,
+                    include_hidden=include_hidden,
+                )
             # Generate JSON filename using deterministic base name (via base_name_func)
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
 
@@ -5304,6 +5338,7 @@ def write_reports_v2(
                     output_mode=output_mode,
                     redact_secrets=redact_secrets,
                     split_size_bytes=split_size,
+                    include_hidden=include_hidden,
                 )
                 # Generate JSON filename using deterministic base name (via base_name_func)
                 md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
