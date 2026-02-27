@@ -145,6 +145,13 @@
           },
           "mime": {
             "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "if": {

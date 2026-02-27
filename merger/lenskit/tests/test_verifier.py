@@ -45,9 +45,6 @@ def test_pr_schau_verify_tool():
         # 2. Run Verifier (Basic)
         cmd_basic = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "basic"]
         result_basic = subprocess.run(cmd_basic, capture_output=True, text=True)
-        # 2. Run Verifier (Basic)
-        cmd_basic = [sys.executable, str(VERIFIER_SCRIPT), str(bundle_json), "--level", "basic"]
-        result_basic = subprocess.run(cmd_basic, capture_output=True, text=True)
         assert result_basic.returncode == 0, "Basic verification failed"
 
         # 3. Run Verifier (Full)

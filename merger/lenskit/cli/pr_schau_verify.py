@@ -54,11 +54,23 @@ def _pass(msg: str):
     print(f"✅ PASS: {msg}")
 
 def load_schema() -> Dict[str, Any]:
-    if not SCHEMA_PATH.exists():
-        # Fallback to standard location if running as module
-        _fail(f"Schema not found at {SCHEMA_PATH}")
+    # Candidates for schema location: relative to script or standard location
+    candidates = [
+        Path(__file__).resolve().parent.parent / "contracts" / "pr-schau.v1.schema.json",
+        Path(__file__).parents[1] / "contracts" / "pr-schau.v1.schema.json",
+    ]
+
+    schema_file = None
+    for c in candidates:
+        if c.exists():
+            schema_file = c
+            break
+
+    if not schema_file:
+        _fail(f"Schema not found. Checked: {[str(c) for c in candidates]}")
+
     try:
-        return json.loads(SCHEMA_PATH.read_text("utf-8"))
+        return json.loads(schema_file.read_text("utf-8"))
     except Exception as e:
         _fail(f"Failed to load schema: {e}")
         return {}
