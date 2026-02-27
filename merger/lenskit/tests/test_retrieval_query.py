@@ -41,7 +41,7 @@ def test_index_path(tmp_path):
     return db_path
 
 class MockArgs:
-    def __init__(self, index, q="", k=10, repo=None, path=None, ext=None, layer=None, emit="text"):
+    def __init__(self, index, q="", k=10, repo=None, path=None, ext=None, layer=None, artifact_type=None, emit="text"):
         self.index = str(index)
         self.q = q
         self.k = k
@@ -49,6 +49,7 @@ class MockArgs:
         self.path = path
         self.ext = ext
         self.layer = layer
+        self.artifact_type = artifact_type
         self.emit = emit
 
 def test_query_fts_match(test_index_path, capsys):
@@ -77,6 +78,23 @@ def test_query_filter_layer(test_index_path, capsys):
     assert "src/auth.py" in captured.out
     assert "src/utils.py" in captured.out
     assert "docs/api.md" not in captured.out
+    assert ret == 0
+
+def test_query_filter_artifact_type(test_index_path, capsys):
+    args = MockArgs(index=test_index_path, artifact_type="code")
+    ret = cmd_query.run_query(args)
+
+    captured = capsys.readouterr()
+    assert "src/auth.py" in captured.out
+    assert "src/utils.py" in captured.out
+    assert "docs/api.md" not in captured.out
+    assert ret == 0
+
+    args = MockArgs(index=test_index_path, artifact_type="doc")
+    ret = cmd_query.run_query(args)
+    captured = capsys.readouterr()
+    assert "src/auth.py" not in captured.out
+    assert "docs/api.md" in captured.out
     assert ret == 0
 
 def test_query_json_output(test_index_path, capsys):

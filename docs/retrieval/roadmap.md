@@ -30,7 +30,7 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
     - **Scoring:** `bm25` (standard, explainable).
     - **Docs:** `docs/retrieval/recipes.md`.
     - **Safety:** Stale index detection via hash linkage.
-- [ ] **Pending:** Eval Runner (TTR/Recall measurement).
+- [x] **Implemented:** Eval Runner (TTR/Recall measurement) via `lenskit eval`.
 
 ### Phase 3: Semantik als Re-Ranker (Future)
 - [ ] **Goal:** Meaning over Keywords.
