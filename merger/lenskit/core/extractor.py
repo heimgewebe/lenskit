@@ -845,24 +845,26 @@ def generate_review_bundle(
 
             # Load, update, write
             data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
-            updated = False
+            found_self = False
+            changed = False
 
             # Update self-reference
             if "artifacts" in data:
                 for art in data["artifacts"]:
                     if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
+                        found_self = True
                         if art.get("bytes") != current_size:
                             art["bytes"] = current_size
-                            updated = True
+                            changed = True
                         break
 
-            if not updated:
-                # Stable state reached
+            if not found_self:
+                sys.stderr.write("Warning: bundle.json self-artifact entry not found during stabilization.\n")
                 break
 
-            # Warning if self-artifact not found (should have been updated)
-            if updated is False:
-                 sys.stderr.write("Warning: bundle.json self-artifact entry not found during stabilization.\n")
+            if not changed:
+                # Stable state reached
+                break
 
             bundle_json_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
@@ -880,11 +882,15 @@ def generate_review_bundle(
     # Post-stabilization check
     try:
         data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
+        found_self = False
         for art in data.get("artifacts", []):
              if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
+                 found_self = True
                  if art.get("bytes", 0) == 0:
                      sys.stderr.write("Warning: bundle.json bytes is still 0 after stabilization.\n")
                  break
+        if not found_self:
+            sys.stderr.write("Warning: bundle.json self-artifact entry missing after stabilization.\n")
     except Exception:
         pass
 
