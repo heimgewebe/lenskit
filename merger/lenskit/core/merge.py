@@ -3298,6 +3298,8 @@ def iter_report_blocks(
 
     # --- 1. Header ---
     header = []
+    # Machine-readable reading policy sentinel
+    header.append('<!-- READING_POLICY canonical="merge_md" navigation="dump_index,chunk_index,sidecar_json" -->')
     header.append(READING_POLICY_BANNER)
     header.append(f"# repoLens Report (v{SPEC_VERSION.split('.')[0]}.x)")
     header.append("")
@@ -4030,10 +4032,23 @@ def iter_report_blocks(
             yield "\n".join(_heading_block(3, f"repo-{repo_slug}", fi.root_label, nav=nav)) + "\n"
             current_root = fi.root_label
 
+        # Read content early to get byte count for marker
+        content, truncated, trunc_msg = read_smart_content(fi, max_file_bytes)
+        if redactor:
+            content, _ = redactor.redact(content)
+
+        # Calculate SHA256 of content for marker
+        content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        content_bytes = len(content.encode("utf-8"))
+
         block = ["---"]
 
-        # 1. Stable File Marker (with path) - PR1
+        # 1. Stable File Marker (with path) - PR1 + Machine-Readable Extensions
         fid = _stable_file_id(fi) # Now returns FILE:f_...
+
+        # Machine-First: Explicit FILE_START marker
+        block.append(f'<!-- FILE_START path="{fi.rel_path}" content_sha256="{content_sha256}" content_bytes="{content_bytes}" file_bytes="{fi.size}" truncated="{str(truncated).lower()}" -->')
+
         # Fix PR13: Quote attributes to handle paths with spaces
         # Fix PR13-Followup: Quote id as well for consistency
         block.append(f'<!-- file:id="{fid}" path="{fi.rel_path}" -->')
@@ -4075,11 +4090,6 @@ def iter_report_blocks(
             # MD5 nur bei full oder standard (wenn gewünscht, hier full only)
             if effective_meta_density == "full":
                 block.append(f"- MD5: {fi.md5}")
-
-        content, truncated, trunc_msg = read_smart_content(fi, max_file_bytes)
-
-        if redactor:
-            content, _ = redactor.redact(content)
 
         # File Meta Block (Spec Patch)
         # Gate: min -> aus, standard -> nur wenn partial/truncated, full -> immer
@@ -4126,6 +4136,9 @@ def iter_report_blocks(
         block.append("")
         # PR-Optimierung: deterministic markers
         block.append(f"<!-- zone:end type=code id={fid} -->")
+
+        # Machine-First: Explicit FILE_END marker
+        block.append(f'<!-- FILE_END path="{fi.rel_path}" -->')
 
         # Backlinks: keep them simple
         block.append("[↑ Manifest](#manifest) · [↑ Index](#index)")
@@ -4309,15 +4322,17 @@ def generate_architecture_summary(files: List[FileInfo]) -> str:
             test_files.append(fi.rel_path.as_posix())
 
     lines = []
+    # Sentinel Header for Machine Readability
+    lines.append("<!-- ARTIFACT:architecture_summary CONTRACT:architecture-summary VERSION:v1 -->")
     lines.append("# Lenskit Architecture Snapshot")
     lines.append("")
 
-    lines.append("## Layer Distribution")
+    lines.append("## LAYER_DISTRIBUTION")
     for layer, count in sorted(layer_counts.items(), key=lambda x: x[1], reverse=True):
-        lines.append(f"- {layer}: {count} files")
+        lines.append(f"{layer}: {count}")
     lines.append("")
 
-    lines.append("## Core Modules")
+    lines.append("## KEY_MODULES")
     if core_modules:
         for mod in sorted(core_modules):
             lines.append(f"- {mod}")
@@ -4325,8 +4340,8 @@ def generate_architecture_summary(files: List[FileInfo]) -> str:
         lines.append("_No core modules detected._")
     lines.append("")
 
-    lines.append("## Test Coverage Map")
-    lines.append(f"Total test files: {len(test_files)}")
+    lines.append("## TEST_COVERAGE_MAP")
+    lines.append(f"total_test_files: {len(test_files)}")
     # Summarize test coverage by parent directory to keep the map compact.
     test_dirs = {}
     for tf in test_files:
@@ -4335,7 +4350,7 @@ def generate_architecture_summary(files: List[FileInfo]) -> str:
 
     for d, c in sorted(test_dirs.items()):
         unit = "test" if c == 1 else "tests"
-        lines.append(f"- `{d}/`: {c} {unit}")
+        lines.append(f"{d}/: {c} {unit}")
 
     lines.append("")
     return "\n".join(lines)
@@ -4356,6 +4371,9 @@ def generate_json_sidecar(
     meta_none: bool = False,
     generator_info: Optional[Dict[str, Any]] = None,
     output_mode: str = "dual",
+    redact_secrets: bool = False,
+    split_size_bytes: int = 0,
+    include_hidden: bool = True,
 ) -> Dict[str, Any]:
     """
     Generate a JSON sidecar structure for machine consumption.
@@ -4423,8 +4441,14 @@ def generate_json_sidecar(
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
         "generator": generator_info or {"name": "lenskit", "platform": "unknown"},
-        "features": active_features,
+        "features": sorted(active_features),
         "profile": level,
+        "output_mode": output_mode,
+        "include_hidden": include_hidden,
+        "redact_secrets": redact_secrets,
+        "split_size_bytes": split_size_bytes,
+        "max_bytes": max_file_bytes,
+        "schema_ids": [AGENT_CONTRACT_NAME, "dump-index"],
         "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),
         **({"mode": "none", "warning": "interpretation_disabled"} if meta_none else {}),
         "plan_only": plan_only,
@@ -4460,6 +4484,7 @@ def generate_json_sidecar(
             "version": "v2",
             "legacy_aliases": True
         }
+        meta["schema_ids"].append("chunk-index")
 
     if not meta_none:
         meta["epistemic_charter"] = {
@@ -4566,6 +4591,11 @@ def generate_json_sidecar(
     out = {
         "meta": meta,
         "reading_policy": {
+            "canonical_content_artifact": "merge_md",
+            "navigation_artifacts": ["dump_index", "chunk_index", "sidecar_json"],
+            "do_not_assume_json_contains_full_content": True,
+            "preferred_retrieval": ["chunk_index(byte_ranges)", "merge_md(byte_ranges)"],
+            # Legacy fields for backward compatibility
             "canonical_source": "md",
             "md_required": True,
             "json_role": "index_and_metadata_only",
@@ -4627,6 +4657,7 @@ def write_reports_v2(
     meta_none: bool = False,
     output_mode: str = "dual",  # archive, retrieval, dual
     redact_secrets: bool = False,
+    include_hidden: bool = True,
     generator_info: Optional[Dict[str, Any]] = None,
 ) -> MergeArtifacts:
     out_paths = []
@@ -4695,26 +4726,117 @@ def write_reports_v2(
     def generate_dump_index(base_name_func, run_id, artifacts_map, generator_info, repo_names):
         out_path = base_name_func(part_suffix="").with_suffix(".dump_index.json")
 
+        def _json_safe(obj):
+            if isinstance(obj, (str, int, float, bool, type(None))):
+                return obj
+            if isinstance(obj, (list, tuple)):
+                return [_json_safe(x) for x in obj]
+            if isinstance(obj, set):
+                return sorted([_json_safe(x) for x in obj])
+            if isinstance(obj, dict):
+                return {str(k): _json_safe(v) for k, v in sorted(obj.items(), key=lambda i: str(i[0]))}
+            if isinstance(obj, Path):
+                return str(obj)
+            if hasattr(obj, "name") and hasattr(obj, "value"): # Enum-like
+                return obj.name
+
+            # Fallback: Deterministic Type Tagging
+            # Avoids unstable repr/str (memory addresses)
+            t = type(obj)
+            module = getattr(t, "__module__", "__builtin__")
+            qualname = getattr(t, "__qualname__", t.__name__)
+            return f"__type__:{module}.{qualname}"
+
+        # Calculate config_sha256 for parity checks
+        extras_dict = None
+        if extras:
+            try:
+                extras_dict = asdict(extras)
+            except (TypeError, ValueError):
+                # Fallback if extras is not a dataclass instance (e.g. mocked object or type)
+                extras_dict = getattr(extras, "__dict__", None)
+                if extras_dict is None:
+                     extras_dict = str(extras)
+
+        # Ensure extras_dict is JSON safe
+        extras_dict = _json_safe(extras_dict)
+
+        config_payload = {
+            "detail": detail,
+            "mode": mode,
+            "max_bytes": max_bytes,
+            "plan_only": plan_only,
+            "code_only": code_only,
+            "split_size": split_size,
+            "path_filter": path_filter,
+            "ext_filter": sorted(ext_filter) if ext_filter else None,
+            "extras": extras_dict,
+            "meta_density": meta_density,
+            "meta_none": meta_none,
+            "output_mode": output_mode,
+            "redact_secrets": redact_secrets,
+            "include_hidden": include_hidden,
+        }
+        config_str = json.dumps(config_payload, sort_keys=True, separators=(",", ":"))
+        config_sha256 = hashlib.sha256(config_str.encode("utf-8")).hexdigest()
+
+        gen_info_enriched = dict(generator_info)
+        gen_info_enriched["config_sha256"] = config_sha256
+
         artifacts_block = {}
         for role, path in artifacts_map.items():
             if path and path.exists():
-                artifacts_block[role] = {
-                    "path": path.name,
-                    "size": path.stat().st_size,
+                # Infer content_type
+                name = path.name
+                if name.endswith(".json"):
+                    ctype = "application/json"
+                elif name.endswith(".jsonl"):
+                    ctype = "application/x-ndjson"
+                elif name.endswith(".md"):
+                    ctype = "text/markdown"
+                else:
+                    ctype = "application/octet-stream"
+
+                entry = {
+                    "path": name,
+                    "role": role,
+                    "content_type": ctype,
+                    "bytes": path.stat().st_size,
                     "sha256": _compute_file_sha256(path)
                 }
 
+                # Contract annotations
+                if role == "sidecar_json":
+                    entry["contract"] = AGENT_CONTRACT_NAME
+                    entry["contract_version"] = AGENT_CONTRACT_VERSION
+                elif role == "merge_md":
+                    entry["contract"] = MERGE_CONTRACT_NAME
+                    entry["contract_version"] = MERGE_CONTRACT_VERSION
+                elif role == "chunk_index":
+                    entry["contract"] = "chunk-index"
+                    entry["contract_version"] = "v2"
+                elif role == "architecture_summary":
+                    entry["contract"] = "architecture-summary"
+                    entry["contract_version"] = "v1"
+
+                artifacts_block[role] = entry
+
+        # Sort artifacts by key for determinism
+        artifacts_sorted = dict(sorted(artifacts_block.items()))
+
+        now_str = clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ')
         data = {
             "contract": "dump-index",
             "contract_version": "v1",
             "run_id": run_id,
-            "generated_at": clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ'),
-            "generator": generator_info,
+            "created_at": now_str,
+            "generated_at": now_str,
+            "generator": gen_info_enriched,
             "repos": repo_names,
-            "artifacts": artifacts_block
+            "artifacts": artifacts_sorted
         }
 
-        out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         return out_path
 
     # Helper for chunking (PR-Optimierung)
@@ -4774,6 +4896,22 @@ def write_reports_v2(
                 d["line_end"] = d["end_line"]
                 d["content_sha256"] = d["sha256"]
                 d["size_bytes"] = d["size"]
+
+                # Extended machine-readable fields (v2.4)
+                d["content_artifact"] = "merge_md"
+                d["content_range"] = {
+                    "start_byte": d["start_byte"],
+                    "end_byte": d["end_byte"],
+                    "start_line": d["start_line"],
+                    "end_line": d["end_line"]
+                }
+                d["search_keys"] = {
+                    "repo_id": fi.root_label,
+                    "path_norm": fi.rel_path.as_posix().lower(),
+                    "ext": fi.ext.lower().lstrip("."),
+                    "layer": sem_meta["layer"],
+                    "artifact_type": sem_meta["artifact_type"]
+                }
 
                 all_chunks.append(d)
 
@@ -5095,7 +5233,10 @@ def write_reports_v2(
                 meta_none=meta_none,
                 generator_info=generator_info,
                 output_mode=output_mode,
-            )
+                    redact_secrets=redact_secrets,
+                    split_size_bytes=split_size,
+                    include_hidden=include_hidden,
+                )
             # Generate JSON filename using deterministic base name (via base_name_func)
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
 
@@ -5208,6 +5349,9 @@ def write_reports_v2(
                     meta_none=meta_none,
                     generator_info=generator_info,
                     output_mode=output_mode,
+                    redact_secrets=redact_secrets,
+                    split_size_bytes=split_size,
+                    include_hidden=include_hidden,
                 )
                 # Generate JSON filename using deterministic base name (via base_name_func)
                 md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]

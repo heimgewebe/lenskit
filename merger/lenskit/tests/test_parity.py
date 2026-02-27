@@ -254,20 +254,9 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     p_arch_content = p_arch_path.read_text(encoding="utf-8")
 
     # Robust markers
-    assert "Layer Distribution" in r_arch_content
-    assert "Layer Distribution" in p_arch_content
-    # "Core Modules" might be empty or present depending on file structure of fixture
-    # In golden_fixture: src/test.py -> likely layer=test or source?
-    # Check `get_semantic_metadata_path_only` logic in core/merge.py:
-    # "src" -> not explicitly mapped to layer? Actually:
-    #   if "core" in parts -> core
-    #   elif "tests" or "test" -> test
-    #   elif "cli" -> cli ...
-    #   else -> unknown?
-    # Wait, `get_semantic_metadata_path_only` in merge.py:
-    #   if "core" in parts: layer = "core"
-    #   elif "tests" in parts or "test" in parts: layer = "test"
-    # src/test.py -> "test" in parts? "test.py" is the file name. "parts" includes filename.
-    # So it might be layer=test.
-    # Let's check for generic header presence.
+    assert "LAYER_DISTRIBUTION" in r_arch_content
+    assert "LAYER_DISTRIBUTION" in p_arch_content
+    assert "KEY_MODULES" in r_arch_content
+    assert "TEST_COVERAGE_MAP" in r_arch_content
+
     assert "# Lenskit Architecture Snapshot" in r_arch_content

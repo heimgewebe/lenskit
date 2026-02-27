@@ -133,7 +133,7 @@
         "properties": {
           "role": {
             "type": "string",
-            "enum": ["canonical_md", "index_json", "diff_stat", "part_md", "asset"]
+            "enum": ["canonical_md", "index_json", "diff_stat", "part_md", "asset", "delta_json"]
           },
           "basename": {
             "type": "string",
@@ -145,10 +145,17 @@
           },
           "mime": {
             "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "if": {
-          "properties": { "role": { "enum": ["canonical_md", "part_md"] } }
+          "properties": { "role": { "enum": ["canonical_md", "part_md", "delta_json"] } }
         },
         "then": {
           "required": ["sha256"]

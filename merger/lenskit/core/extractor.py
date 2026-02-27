@@ -750,8 +750,23 @@ def generate_review_bundle(
     artifacts_list.append({
         "role": "index_json",
         "basename": "bundle.json",
-        "mime": "application/json"
+        "content_type": "application/json",
+        "bytes": 0, # Placeholder, updated via Fixpoint 2-pass write below
+        "mime": "application/json" # Legacy alias
     })
+
+    # Delta JSON
+    delta_json_path = bundle_dir / "delta.json"
+    if delta_json_path.exists():
+        sha_delta, size_delta, _ = _compute_sha256_with_size(delta_json_path)
+        artifacts_list.append({
+            "role": "delta_json",
+            "basename": "delta.json",
+            "content_type": "application/json",
+            "bytes": size_delta,
+            "sha256": sha_delta,
+            "mime": "application/json"
+        })
 
     # Collect parts artifacts
     emitted_bytes = 0
@@ -771,9 +786,14 @@ def generate_review_bundle(
         artifacts_list.append({
             "role": role,
             "basename": pname,
-            "mime": "text/markdown",
-            "sha256": sha
+            "content_type": "text/markdown",
+            "bytes": psize,
+            "sha256": sha,
+            "mime": "text/markdown"
         })
+
+    # Sort artifacts by role/basename for determinism
+    artifacts_list.sort(key=lambda x: (x["role"], x["basename"]))
 
     bundle_meta = {
         "kind": "repolens.pr_schau.bundle",
@@ -808,9 +828,74 @@ def generate_review_bundle(
         }
     }
 
-    (bundle_dir / "bundle.json").write_text(
-        json.dumps(bundle_meta, indent=2, ensure_ascii=False), encoding="utf-8"
+    bundle_json_path = bundle_dir / "bundle.json"
+
+    # Fixpoint 2-pass (size depends on embedded size value)
+    # Loop max 3 times to stabilize bytes (usually stabilizes in 2)
+    current_size = 0
+
+    # Initial write (bytes=0 placeholder)
+    bundle_json_path.write_text(
+        json.dumps(bundle_meta, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
     )
+
+    for i in range(3):
+        try:
+            current_size = bundle_json_path.stat().st_size
+
+            # Load, update, write
+            data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
+            found_self = False
+            changed = False
+
+            # Update self-reference
+            if "artifacts" in data:
+                for art in data["artifacts"]:
+                    if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
+                        found_self = True
+                        if art.get("bytes") != current_size:
+                            art["bytes"] = current_size
+                            changed = True
+                        break
+
+            if not found_self:
+                sys.stderr.write("Warning: bundle.json self-artifact entry not found during stabilization.\n")
+                break
+
+            if not changed:
+                # Stable state reached
+                break
+
+            bundle_json_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+            )
+
+            # Check convergence immediately
+            new_size = bundle_json_path.stat().st_size
+            if new_size == current_size:
+                break
+
+        except Exception as e:
+            sys.stderr.write(f"Warning: Failed to stabilize bundle.json size: {e}\n")
+            break
+
+    # Post-stabilization check
+    try:
+        data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
+        found_self = False
+        for art in data.get("artifacts", []):
+             if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
+                 found_self = True
+                 if art.get("bytes", 0) == 0:
+                     sys.stderr.write("Warning: bundle.json bytes is still 0 after stabilization.\n")
+                 break
+        if not found_self:
+            sys.stderr.write("Warning: bundle.json self-artifact entry missing after stabilization.\n")
+    except Exception:
+        pass
+
+    # Note on SHA256: We intentionally skip adding a self-referential SHA256 to the bundle.json entry
+    # to avoid the logical impossibility of a file containing its own hash.
 
 
 def import_zip(zip_path: Path, hub: Path, merges_dir: Path) -> Optional[Path]:

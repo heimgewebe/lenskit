@@ -9,6 +9,10 @@
       "type": "object",
       "description": "Declares the canonical source of truth and reading requirements.",
       "properties": {
+        "canonical_content_artifact": { "type": "string" },
+        "navigation_artifacts": { "type": "array", "items": { "type": "string" } },
+        "do_not_assume_json_contains_full_content": { "type": "boolean" },
+        "preferred_retrieval": { "type": "array", "items": { "type": "string" } },
         "canonical_source": { "type": "string", "enum": ["md"] },
         "md_required": { "type": "boolean" },
         "json_role": { "type": "string" },
@@ -25,6 +29,12 @@
         "contract_version": { "const": "v2" },
         "generated_at": { "type": "string" },
         "profile": { "type": "string" },
+        "output_mode": { "type": "string" },
+        "include_hidden": { "type": "boolean" },
+        "redact_secrets": { "type": "boolean" },
+        "split_size_bytes": { "type": "integer" },
+        "max_bytes": { "type": "integer" },
+        "schema_ids": { "type": "array", "items": { "type": "string" } },
         "mode": {
           "type": "string",
           "enum": ["full", "plan-only", "code-only", "none"],
