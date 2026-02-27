@@ -37,7 +37,6 @@ def run_query(args: argparse.Namespace) -> int:
                 JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
                 WHERE chunks_fts MATCH ?
             """
-            # Pass query directly. Simple syntax is robust across versions.
             params.append(cleaned_q)
             where_clauses.append("1=1") # Placeholder for appending ANDs easily
 
@@ -74,19 +73,13 @@ def run_query(args: argparse.Namespace) -> int:
             params.append(args.layer)
 
         # Combine clauses
-        # If FTS query is active, base_sql already has WHERE chunks_fts MATCH ?
-        # We append additional AND clauses.
         if query_text:
             # Skip the first placeholder "1=1" if we are appending to existing WHERE
-            # Actually, `WHERE chunks_fts MATCH ?` is already there.
-            # We need to append `AND ...`
-            # Let's filter out the placeholder "1=1" if it's the only thing
             extras = [c for c in where_clauses if c != "1=1"]
             if extras:
                 base_sql += " AND " + " AND ".join(extras)
         else:
             # For metadata query, we have `FROM chunks c`. We need to start WHERE clause.
-            # `where_clauses` contains "1=1" plus others.
             base_sql += " WHERE " + " AND ".join(where_clauses)
 
         base_sql += f" {order_clause} LIMIT ?"
@@ -125,7 +118,15 @@ def run_query(args: argparse.Namespace) -> int:
         return 0
 
     except sqlite3.Error as e:
-        print(f"Error executing query: {e}", file=sys.stderr)
+        msg = str(e)
+        if "no such module: fts5" in msg:
+            print("❌ Error: SQLite FTS5 extension missing in this environment.", file=sys.stderr)
+        elif "no such function: bm25" in msg:
+            print("❌ Error: SQLite FTS5 auxiliary function 'bm25' missing.", file=sys.stderr)
+        elif "syntax error" in msg:
+            print(f"❌ Error: FTS syntax error in query: '{query_text}'. Try simpler terms or quoting.", file=sys.stderr)
+        else:
+            print(f"❌ Database error executing query: {e}", file=sys.stderr)
         return 1
     finally:
         if conn:
