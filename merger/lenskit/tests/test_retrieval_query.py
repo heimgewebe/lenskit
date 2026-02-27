@@ -88,5 +88,8 @@ def test_query_json_output(test_index_path, capsys):
 
     assert output["query"] == "login"
     assert output["count"] == 1
+    assert output["engine"] == "fts5"
+    assert output["query_mode"] == "fts"
+    assert output["applied_filters"]["repo"] is None
     assert output["results"][0]["path"] == "src/auth.py"
     assert ret == 0

@@ -30,6 +30,7 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
     - **Scoring:** `bm25` (standard, explainable).
     - **Docs:** `docs/retrieval/recipes.md`.
     - **Safety:** Stale index detection via hash linkage.
+- [ ] **Pending:** Eval Runner (TTR/Recall measurement).
 
 ### Phase 3: Semantik als Re-Ranker (Future)
 - [ ] **Goal:** Meaning over Keywords.
@@ -46,5 +47,5 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
     - [ ] Graph navigation ("Find usages of changed symbol").
 
 ## Current Milestones
-- **Status:** Phase 2 Complete (v1 Retrieval Stack).
+- **Status:** Phase 2 Implemented (v1), Eval pending.
 - **Next Up:** Eval run (measure Recall@10 on Gold Queries) -> Decision on Phase 3.

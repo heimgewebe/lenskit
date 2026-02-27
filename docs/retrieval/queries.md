@@ -1,12 +1,12 @@
 # Retrieval Gold Queries
 
-Die folgenden 15 "Gold Queries" definieren die Akzeptanzkriterien für das lenskit Retrieval-System.
+Die folgenden 15 "Gold Queries" definieren die Zielwerte (Benchmarks) für das lenskit Retrieval-System.
 Ein Retrieval-System gilt als erfolgreich, wenn es für diese Queries relevante Ergebnisse (Chunks) in den Top-10 liefert.
 
-## Akzeptanzkriterien
+## Benchmark-Zielwerte (Eval Runner pending)
 - **TTR (Time-to-Relevant):** < 2 Sekunden für CLI-Output.
 - **Recall@10:** Mindestens 1 relevantes Ergebnis in den Top-10.
-- **Explainability:** Jeder Treffer muss erklärbar sein (matched tokens + filters).
+- **Explainability:** Mindestens Engine + Filter + Query-Mode (Token-Matches optional).
 
 ## Query Liste
 

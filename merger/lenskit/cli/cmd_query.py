@@ -3,6 +3,7 @@ import sys
 import json
 import sqlite3
 from pathlib import Path
+from typing import List, Dict, Any
 
 def run_query(args: argparse.Namespace) -> int:
     index_path = Path(args.index)
@@ -21,7 +22,21 @@ def run_query(args: argparse.Namespace) -> int:
         where_clauses = []
         params = []
 
+        # Diagnostics for JSON
+        engine_type = "metadata"
+        query_mode = "metadata"
+        applied_filters = {
+            "repo": args.repo,
+            "path": args.path,
+            "ext": args.ext,
+            "layer": args.layer
+        }
+        fts_query_str = None
+
         if query_text:
+            engine_type = "fts5"
+            query_mode = "fts"
+
             # FTS Query
             # Simple query cleaning: escape double quotes
             cleaned_q = query_text.replace('"', '""')
@@ -37,6 +52,7 @@ def run_query(args: argparse.Namespace) -> int:
                 WHERE chunks_fts MATCH ?
             """
             params.append(cleaned_q)
+            fts_query_str = cleaned_q
             where_clauses.append("1=1") # Placeholder for appending ANDs easily
 
             # BM25: lower is better
@@ -104,8 +120,14 @@ def run_query(args: argparse.Namespace) -> int:
             out = {
                 "query": query_text,
                 "count": len(results),
+                "engine": engine_type,
+                "query_mode": query_mode,
+                "applied_filters": applied_filters,
                 "results": results
             }
+            if fts_query_str is not None:
+                out["fts_query"] = fts_query_str
+
             print(json.dumps(out, indent=2))
         else:
             print(f"Found {len(results)} chunks for '{query_text}'")
