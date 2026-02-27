@@ -6,6 +6,7 @@ import sqlite3
 import json
 import hashlib
 import datetime
+import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -87,22 +88,14 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
     create_schema(conn)
     c = conn.cursor()
 
-    # 1. Metadata
-    dump_sha = _compute_file_sha256(dump_path)
-    chunk_sha = _compute_file_sha256(chunk_path)
-
-    # Use real UTC timestamp
-    now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-    meta_items = [
-        ("schema_version", INDEX_SCHEMA_VERSION),
-        ("dump_sha256", dump_sha),
-        ("chunk_index_sha256", chunk_sha),
-        ("created_at", now_utc),
-        ("config_json", json.dumps(config_payload or {}))
-    ]
-
-    c.executemany("INSERT OR REPLACE INTO index_meta (key, value) VALUES (?, ?)", meta_items)
+    # Diagnostics counters
+    stats = {
+        "total_lines": 0,
+        "empty_lines": 0,
+        "invalid_json_lines": 0,
+        "missing_chunk_id_lines": 0,
+        "ingested_chunks_count": 0
+    }
 
     # 2. Ingest Chunks
     batch_size = 500
@@ -111,14 +104,20 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
 
     with chunk_path.open("r", encoding="utf-8") as f:
         for line in f:
-            if not line.strip(): continue
+            stats["total_lines"] += 1
+            if not line.strip():
+                stats["empty_lines"] += 1
+                continue
             try:
                 chunk = json.loads(line)
             except json.JSONDecodeError:
+                stats["invalid_json_lines"] += 1
                 continue
 
             cid = chunk.get("chunk_id")
-            if not cid: continue
+            if not cid:
+                stats["missing_chunk_id_lines"] += 1
+                continue
 
             repo = chunk.get("repo") or chunk.get("repo_id") or "unknown"
             path = chunk.get("path", "")
@@ -151,6 +150,8 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
                 cid, content_text, path_tokens
             ))
 
+            stats["ingested_chunks_count"] += 1
+
             if len(batch_chunks) >= batch_size:
                 c.executemany("""
                     INSERT INTO chunks (chunk_id, repo_id, path, path_norm, layer, artifact_type,
@@ -179,8 +180,35 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
             VALUES (?, ?, ?)
         """, batch_fts)
 
+    # 1. Metadata (written last to include stats)
+    dump_sha = _compute_file_sha256(dump_path)
+    chunk_sha = _compute_file_sha256(chunk_path)
+
+    # Use real UTC timestamp
+    now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    meta_items = [
+        ("schema_version", INDEX_SCHEMA_VERSION),
+        ("dump_sha256", dump_sha),
+        ("chunk_index_sha256", chunk_sha),
+        ("created_at", now_utc),
+        ("config_json", json.dumps(config_payload or {}))
+    ]
+
+    # Add stats to meta
+    for k, v in stats.items():
+        meta_items.append((f"ingest.{k}", str(v)))
+
+    c.executemany("INSERT OR REPLACE INTO index_meta (key, value) VALUES (?, ?)", meta_items)
+
     conn.commit()
     conn.close()
+
+    # Emit warning if issues found
+    if stats["invalid_json_lines"] > 0 or stats["missing_chunk_id_lines"] > 0:
+        msg = (f"Warning: Index ingest had issues (invalid_json={stats['invalid_json_lines']}, "
+               f"missing_id={stats['missing_chunk_id_lines']}). Total lines: {stats['total_lines']}")
+        print(msg, file=sys.stderr)
 
 def verify_index(db_path: Path, dump_path: Path, chunk_path: Path) -> bool:
     """

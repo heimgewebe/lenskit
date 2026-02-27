@@ -73,3 +73,37 @@ def test_stale_index_detection(mini_artifacts, tmp_path):
 
     # Check stale
     assert index_db.verify_index(db_path, dump_path, chunk_path) is False
+
+def test_index_ingest_diagnostics(tmp_path, capsys):
+    dump_path = tmp_path / "dump.json"
+    chunk_path = tmp_path / "chunks.jsonl"
+    db_path = tmp_path / "index.sqlite"
+
+    dump_path.write_text("{}")
+
+    # Create messy JSONL: 1 good, 1 invalid JSON, 1 missing chunk_id, 1 empty
+    with chunk_path.open("w") as f:
+        f.write('{"chunk_id": "ok1"}\n')
+        f.write('BROKEN_JSON\n')
+        f.write('{"repo": "missing_id"}\n')
+        f.write('\n')
+
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    captured = capsys.readouterr()
+    assert "Warning: Index ingest had issues" in captured.err
+    assert "invalid_json=1" in captured.err
+    assert "missing_id=1" in captured.err
+
+    conn = sqlite3.connect(str(db_path))
+    c = conn.cursor()
+
+    # Verify metadata stats
+    meta = dict(c.execute("SELECT key, value FROM index_meta").fetchall())
+    assert meta["ingest.total_lines"] == "4"
+    assert meta["ingest.invalid_json_lines"] == "1"
+    assert meta["ingest.missing_chunk_id_lines"] == "1"
+    assert meta["ingest.empty_lines"] == "1"
+    assert meta["ingest.ingested_chunks_count"] == "1"
+
+    conn.close()
