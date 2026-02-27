@@ -30,7 +30,9 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
     - **Scoring:** `bm25` (standard, explainable).
     - **Docs:** `docs/retrieval/recipes.md`.
     - **Safety:** Stale index detection via hash linkage.
-- [x] **Implemented (v0):** eval runner (regex-based parser, substring relevance) via `lenskit eval`.
+- [x] **Implemented (v1):** eval runner via `lenskit eval` with JSON output.
+    - **Schema:** `merger/lenskit/contracts/retrieval-eval.v1.schema.json`
+    - **Tests:** `test_retrieval_eval.py`
 
 ### Phase 3: Semantik als Re-Ranker (Future)
 - [ ] **Goal:** Meaning over Keywords.
@@ -47,5 +49,5 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
     - [ ] Graph navigation ("Find usages of changed symbol").
 
 ## Current Milestones
-- **Status:** Phase 2 Implemented (v1), Eval pending.
-- **Next Up:** Eval run (measure Recall@10 on Gold Queries) -> Decision on Phase 3.
+- **Status:** Phase 2 Complete (FTS + Query + Eval Schema).
+- **Next Up:** Run Eval Benchmark (measure Recall@10 on Gold Queries) -> Decision on Phase 3 implementation.
