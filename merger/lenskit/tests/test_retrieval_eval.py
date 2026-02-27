@@ -116,3 +116,29 @@ def test_run_eval_json_purity(test_index_path, test_queries_file, capsys):
     # Ensure no table artifacts in stdout
     assert "|" not in captured.out
     assert "Recall@" not in captured.out  # Metric label shouldn't be in text
+
+def test_run_eval_query_error(test_index_path, tmp_path, capsys):
+    # Setup a query file with an invalid query (e.g. invalid FTS syntax or mocking failure)
+    # Using invalid FTS syntax "AND OR" usually triggers syntax error
+    f = tmp_path / "error_queries.md"
+    f.write_text("""
+# Error Queries
+1. **"syntax error AND OR"**
+   * *Intent:* Broken
+   * *Expected:* `none`
+    """, encoding="utf-8")
+
+    args = MockArgs(index=test_index_path, queries=f, emit="json")
+    ret = cmd_eval.run_eval(args)
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert output["metrics"]["total_queries"] == 1
+    assert output["metrics"]["hits"] == 0
+    assert output["metrics"]["recall@10"] == 0.0
+
+    detail = output["details"][0]
+    assert "error" in detail
+    assert detail["is_relevant"] is False
+    assert detail["found_count"] == 0
