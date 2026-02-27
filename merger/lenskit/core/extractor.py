@@ -860,6 +860,10 @@ def generate_review_bundle(
                 # Stable state reached
                 break
 
+            # Warning if self-artifact not found (should have been updated)
+            if updated is False:
+                 sys.stderr.write("Warning: bundle.json self-artifact entry not found during stabilization.\n")
+
             bundle_json_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8"
             )
@@ -872,6 +876,17 @@ def generate_review_bundle(
         except Exception as e:
             sys.stderr.write(f"Warning: Failed to stabilize bundle.json size: {e}\n")
             break
+
+    # Post-stabilization check
+    try:
+        data = json.loads(bundle_json_path.read_text(encoding="utf-8"))
+        for art in data.get("artifacts", []):
+             if art.get("role") == "index_json" and art.get("basename") == "bundle.json":
+                 if art.get("bytes", 0) == 0:
+                     sys.stderr.write("Warning: bundle.json bytes is still 0 after stabilization.\n")
+                 break
+    except Exception:
+        pass
 
     # Note on SHA256: We intentionally skip adding a self-referential SHA256 to the bundle.json entry
     # to avoid the logical impossibility of a file containing its own hash.
