@@ -3,6 +3,7 @@ import sys
 from typing import List, Optional
 from . import cmd_index
 from . import cmd_query
+from . import cmd_eval
 
 def main(args: Optional[List[str]] = None) -> int:
     if args is None:
@@ -31,7 +32,15 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--path", help="Filter by path substring")
     query_parser.add_argument("--ext", help="Filter by file extension")
     query_parser.add_argument("--layer", help="Filter by layer")
+    query_parser.add_argument("--artifact-type", help="Filter by artifact_type")
     query_parser.add_argument("--emit", choices=["text", "json"], default="text", help="Output format")
+
+    # Eval command
+    eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")
+    eval_parser.add_argument("--index", required=True, help="Path to SQLite index")
+    eval_parser.add_argument("--queries", default="docs/retrieval/queries.md", help="Path to queries markdown file")
+    eval_parser.add_argument("--k", type=int, default=10, help="Max results for recall calculation")
+    eval_parser.add_argument("--emit", choices=["text", "json"], default="text", help="Output format")
 
     # Verify command (placeholder)
     verify_parser = subparsers.add_parser("verify", help="Verify artifacts or bundles")
@@ -46,6 +55,8 @@ def main(args: Optional[List[str]] = None) -> int:
         return cmd_index.run_index(parsed_args)
     elif parsed_args.command == "query":
         return cmd_query.run_query(parsed_args)
+    elif parsed_args.command == "eval":
+        return cmd_eval.run_eval(parsed_args)
     elif parsed_args.command == "verify":
         print("Verify command placeholder. Use pr-schau-verify for now.")
         return 1

@@ -3,34 +3,31 @@ import sys
 import json
 import sqlite3
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-def run_query(args: argparse.Namespace) -> int:
-    index_path = Path(args.index)
-    if not index_path.exists():
-        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
-        return 1
+def execute_query(
+    index_path: Path,
+    query_text: str,
+    k: int = 10,
+    filters: Optional[Dict[str, Optional[str]]] = None
+) -> Dict[str, Any]:
+    """
+    Executes a query against the SQLite index.
+    Returns a dictionary containing query metadata and results.
+    """
+    if not filters:
+        filters = {}
 
     conn = None
     try:
         conn = sqlite3.connect(str(index_path))
         conn.row_factory = sqlite3.Row
 
-        query_text = args.q
-        limit = args.k
-
         where_clauses = []
         params = []
 
-        # Diagnostics for JSON
         engine_type = "metadata"
         query_mode = "metadata"
-        applied_filters = {
-            "repo": args.repo,
-            "path": args.path,
-            "ext": args.ext,
-            "layer": args.layer
-        }
         fts_query_str = None
 
         if query_text:
@@ -70,22 +67,28 @@ def run_query(args: argparse.Namespace) -> int:
             order_clause = "ORDER BY c.repo_id, c.path, c.start_line"
 
         # Add metadata filters
-        if args.repo:
+        if filters.get("repo"):
             where_clauses.append("c.repo_id = ?")
-            params.append(args.repo)
+            params.append(filters["repo"])
 
-        if args.path:
+        if filters.get("path"):
             where_clauses.append("c.path_norm LIKE ?")
-            params.append(f"%{args.path.lower()}%")
+            params.append(f"%{filters['path'].lower()}%")
 
-        if args.ext:
+        if filters.get("ext"):
             where_clauses.append("c.path_norm LIKE ?")
-            ext = args.ext if args.ext.startswith(".") else f".{args.ext}"
+            ext = filters["ext"]
+            if not ext.startswith("."):
+                ext = f".{ext}"
             params.append(f"%{ext.lower()}")
 
-        if args.layer:
+        if filters.get("layer"):
             where_clauses.append("c.layer = ?")
-            params.append(args.layer)
+            params.append(filters["layer"])
+
+        if filters.get("artifact_type"):
+            where_clauses.append("c.artifact_type = ?")
+            params.append(filters["artifact_type"])
 
         # Combine clauses
         if query_text:
@@ -98,7 +101,7 @@ def run_query(args: argparse.Namespace) -> int:
             base_sql += " WHERE " + " AND ".join(where_clauses)
 
         base_sql += f" {order_clause} LIMIT ?"
-        params.append(limit)
+        params.append(k)
 
         cursor = conn.execute(base_sql, params)
         rows = cursor.fetchall()
@@ -116,39 +119,66 @@ def run_query(args: argparse.Namespace) -> int:
                 "sha256": r["content_sha256"]
             })
 
-        if args.emit == "json":
-            out = {
-                "query": query_text,
-                "count": len(results),
-                "engine": engine_type,
-                "query_mode": query_mode,
-                "applied_filters": applied_filters,
-                "results": results
-            }
-            if fts_query_str is not None:
-                out["fts_query"] = fts_query_str
+        out = {
+            "query": query_text,
+            "count": len(results),
+            "engine": engine_type,
+            "query_mode": query_mode,
+            "applied_filters": filters,
+            "results": results
+        }
+        if fts_query_str is not None:
+            out["fts_query"] = fts_query_str
 
-            print(json.dumps(out, indent=2))
-        else:
-            print(f"Found {len(results)} chunks for '{query_text}'")
-            print("-" * 60)
-            for res in results:
-                print(f"[{res['repo_id']}] {res['path']}:{res['range']}")
-                print(f"    Type: {res['type']} | Layer: {res['layer']} | Score: {res['score']:.4f}")
-
-        return 0
+        return out
 
     except sqlite3.Error as e:
         msg = str(e)
         if "no such module: fts5" in msg:
-            print("❌ Error: SQLite FTS5 extension missing in this environment.", file=sys.stderr)
+            raise RuntimeError("SQLite FTS5 extension missing in this environment.") from e
         elif "no such function: bm25" in msg:
-            print("❌ Error: SQLite FTS5 auxiliary function 'bm25' missing.", file=sys.stderr)
+            raise RuntimeError("SQLite FTS5 auxiliary function 'bm25' missing.") from e
         elif "syntax error" in msg:
-            print(f"❌ Error: FTS syntax error in query: '{query_text}'. Try simpler terms or quoting.", file=sys.stderr)
+            raise RuntimeError(f"FTS syntax error in query: '{query_text}'. Try simpler terms or quoting.") from e
         else:
-            print(f"❌ Database error executing query: {e}", file=sys.stderr)
-        return 1
+            raise RuntimeError(f"Database error executing query: {e}") from e
     finally:
         if conn:
             conn.close()
+
+
+def run_query(args: argparse.Namespace) -> int:
+    index_path = Path(args.index)
+    if not index_path.exists():
+        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
+        return 1
+
+    applied_filters = {
+        "repo": args.repo,
+        "path": args.path,
+        "ext": args.ext,
+        "layer": args.layer,
+        "artifact_type": getattr(args, "artifact_type", None)
+    }
+
+    try:
+        result = execute_query(
+            index_path=index_path,
+            query_text=args.q,
+            k=args.k,
+            filters=applied_filters
+        )
+    except RuntimeError as e:
+        print(f"❌ Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.emit == "json":
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"Found {result['count']} chunks for '{result['query']}'")
+        print("-" * 60)
+        for res in result["results"]:
+            print(f"[{res['repo_id']}] {res['path']}:{res['range']}")
+            print(f"    Type: {res['type']} | Layer: {res['layer']} | Score: {res['score']:.4f}")
+
+    return 0
