@@ -9,10 +9,13 @@ Um zirkuläre Hashes zu vermeiden, teilt Lenskit die Artefakte strikt in zwei Ma
 
 ## 1. Index Erstellen
 
-Indexieren eines "dump_index.json" und "chunk_index.jsonl" Paares.
+Indexieren eines "<base>.dump_index.json" und "<base>.chunk_index.jsonl" Paares.
 
 ```bash
-python -m merger.lenskit.cli index --dump output/my_dump.json --chunk-index output/my_chunks.jsonl --out output/my_index.sqlite
+python -m merger.lenskit.cli index \
+  --dump output/<base>.dump_index.json \
+  --chunk-index output/<base>.chunk_index.jsonl \
+  --out output/<base>.chunk_index.index.sqlite
 ```
 
 ## 2. Index Prüfen
