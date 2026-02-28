@@ -2,9 +2,7 @@ import json
 import pytest
 from pathlib import Path
 
-# Note: Using pytest.importorskip allows the tests to gracefully degrade if jsonschema isn't installed.
-# But for validation logic, we need it.
-jsonschema = pytest.importorskip("jsonschema")
+import jsonschema
 
 
 @pytest.fixture

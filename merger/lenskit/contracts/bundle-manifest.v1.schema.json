@@ -36,6 +36,7 @@
     "generator": {
       "type": "object",
       "required": ["name", "version", "config_sha256"],
+      "additionalProperties": false,
       "properties": {
         "name": { "type": "string" },
         "version": { "type": "string" },
@@ -102,6 +103,7 @@
     },
     "links": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "canonical_dump_sha256": {
           "type": "string",
