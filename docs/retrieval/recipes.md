@@ -2,6 +2,11 @@
 
 > FTS5 + bm25 sind Voraussetzung für den FTS-Modus. Meta-only Queries (ohne Suchtext `--q`) funktionieren weiterhin ohne FTS.
 
+## Manifest Policy
+Um zirkuläre Hashes zu vermeiden, teilt Lenskit die Artefakte strikt in zwei Manifest-Schichten auf:
+- `dump_index.json`: Kanonische Wahrheit (Markdown, JSON Sidecar, Chunk Index). Stabil und forensisch prüfbar.
+- `derived_index.json`: Beschleunigungsschicht (SQLite Index, Retrieval Eval). Enthält `canonical_dump_sha256` als Rückreferenz auf das Hauptmanifest. Der FTS-Index verlässt sich auf diese Invariante zur Erkennung veralteter (`stale`) Indizes.
+
 ## 1. Index Erstellen
 
 Indexieren eines "dump_index.json" und "chunk_index.jsonl" Paares.

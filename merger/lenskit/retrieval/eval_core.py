@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from ..cli.cmd_query import execute_query
+from .query_core import execute_query
 
 def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
     if not md_path.exists():

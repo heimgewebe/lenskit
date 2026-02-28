@@ -2,7 +2,7 @@ import json
 import sqlite3
 import pytest
 from merger.lenskit.retrieval import index_db
-from merger.lenskit.cli import cmd_query
+from merger.lenskit.retrieval import query_core as cmd_query
 
 @pytest.fixture
 def mini_index(tmp_path):
