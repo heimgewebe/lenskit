@@ -1,6 +1,6 @@
 # Retrieval Recipes
 
-> FTS5 + bm25 sind Voraussetzung für den FTS-Modus; ansonsten bricht die CLI mit einem klaren RuntimeError ab.
+> FTS5 + bm25 sind Voraussetzung für den FTS-Modus. Meta-only Queries funktionieren weiterhin ohne FTS.
 
 ## 1. Index Erstellen
 
