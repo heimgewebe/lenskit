@@ -89,7 +89,7 @@ def test_dual_output_mode():
             assert artifacts.retrieval_eval in all_paths
             assert artifacts.derived_manifest in all_paths
 
-            # Ensure they aren't incorrectly mixed in sidecar json lists (they are extracted to their own fields)
+            # Ensure they are not confused with the primary JSON sidecar artifact
             assert artifacts.retrieval_eval != artifacts.index_json
             assert artifacts.derived_manifest != artifacts.index_json
 

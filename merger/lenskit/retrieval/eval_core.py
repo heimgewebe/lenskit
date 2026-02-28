@@ -1,9 +1,9 @@
 import re
 import sys
-import sqlite3
-import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+from ..cli.cmd_query import execute_query
 
 def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
     if not md_path.exists():
@@ -51,8 +51,6 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         queries.append(current_query)
 
     return queries
-
-from merger.lenskit.cli.cmd_query import execute_query
 
 def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = False) -> Optional[Dict[str, Any]]:
     try:
