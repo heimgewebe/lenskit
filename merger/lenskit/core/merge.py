@@ -24,9 +24,6 @@ from .chunker import Chunker
 from .redactor import Redactor
 from . import __core_version__ as CORE_VERSION
 
-from ..retrieval.index_db import build_index
-from ..retrieval.eval_core import do_eval
-
 try:
     import yaml  # PyYAML
 except Exception:  # pragma: no cover
@@ -4907,6 +4904,14 @@ def write_reports_v2(
         return out_path
 
     def build_retrieval_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
+        try:
+            from ..retrieval.index_db import build_index
+            from ..retrieval.eval_core import do_eval
+        except ImportError as e:
+            if debug:
+                print(f"Skipping derived artifacts: retrieval modules not available ({e})", file=sys.stderr)
+            return []
+
         derived_paths = []
         sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
         eval_json_path = None
