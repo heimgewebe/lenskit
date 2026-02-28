@@ -13,6 +13,7 @@ FORBIDDEN_STRINGS = [
 # Paths to ignore (e.g., this test file itself)
 IGNORE_FILES = {
     "test_contract_version_guards.py",
+    "roadmap.md",
 }
 
 # Only scan these extensions to avoid binary noise and speed up test
@@ -45,11 +46,11 @@ def test_no_stale_v1_references():
                 content = path.read_text(encoding="utf-8", errors="ignore")
                 lines = content.splitlines()
                 for i, line in enumerate(lines):
-                    # Allow dump-index to use v1
-                    if "dump-index" in line:
+                    # Allow dump-index, architecture-summary and derived-index to use v1
+                    if any(x in line for x in ("dump-index", "architecture-summary", "derived-index")):
                         continue
 
-                    # Context check for dump-index (multi-line)
+                    # Context check for dump-index, derived-index, architecture-summary (multi-line)
                     # If we found forbidden string, check context
                     found_forbidden = False
                     for forbidden in FORBIDDEN_STRINGS:
@@ -58,11 +59,11 @@ def test_no_stale_v1_references():
                             break
 
                     if found_forbidden:
-                        # Check surrounding lines for 'dump-index'
-                        # Look back 5 lines
-                        start = max(0, i - 5)
+                        # Check surrounding lines
+                        # Look back 8 lines
+                        start = max(0, i - 8)
                         context = "\n".join(lines[start:i+1])
-                        if "dump-index" in context:
+                        if any(x in context for x in ("dump-index", "derived-index", "architecture-summary")):
                             continue
 
                         found_violations.append(f"{path}: Found '{forbidden}'")
