@@ -15,7 +15,6 @@ def test_stale_check_warns_on_mismatch(tmp_path, capsys):
 
     # Dump has content that will generate hash A
     dump_path.write_text("dummy dump version 2", encoding="utf-8")
-    actual_hash = _compute_file_sha256(dump_path)
 
     # Derived manifest records an OLD hash (simulating staleness)
     derived_data = {"canonical_dump_sha256": "old_hash_xyz"}

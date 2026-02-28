@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 from typing import Optional
 
-def _compute_file_sha256(path: Path) -> str:
+def _compute_file_sha256(path: Path) -> Optional[str]:
     h = hashlib.sha256()
     try:
         with path.open("rb") as f:
@@ -15,7 +15,7 @@ def _compute_file_sha256(path: Path) -> str:
                 h.update(chunk)
         return h.hexdigest()
     except OSError:
-        return "ERROR"
+        return None
 
 def check_stale_index(index_path: Path) -> None:
     """
@@ -54,7 +54,7 @@ def check_stale_index(index_path: Path) -> None:
 
         actual_sha = _compute_file_sha256(dump_path)
 
-        if recorded_sha != actual_sha:
+        if actual_sha is not None and recorded_sha != actual_sha:
             print(
                 f"Warning: The index '{index_path.name}' appears to be stale. "
                 f"The canonical dump manifest has changed.",
