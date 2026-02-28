@@ -34,20 +34,32 @@ def execute_query(
             engine_type = "fts5"
             query_mode = "fts"
 
-            # FTS Query
-            # Simple query cleaning: escape double quotes
+            # FTS Query: Escape double quotes
             cleaned_q = query_text.replace('"', '""')
 
-            # Use bm25 for scoring (standard FTS5 function)
-            base_sql = """
+            # Robust BM25 detection
+            try:
+                # Test BM25 existence with minimal overhead
+                conn.execute("SELECT bm25(chunks_fts) FROM chunks_fts LIMIT 0")
+                scoring_expr = "bm25(chunks_fts)"
+            except sqlite3.OperationalError as e:
+                msg = str(e).lower()
+                # Only fallback if function/module is missing, otherwise re-raise
+                if "no such function: bm25" in msg or "no such module: fts5" in msg:
+                    scoring_expr = "rank"
+                else:
+                    raise
+
+            base_sql = f"""
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.content_sha256,
                     c.layer, c.artifact_type,
-                    bm25(chunks_fts) as score
+                    {scoring_expr} as score
                 FROM chunks_fts
                 JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
                 WHERE chunks_fts MATCH ?
             """
+
             params.append(cleaned_q)
             fts_query_str = cleaned_q
             where_clauses.append("1=1") # Placeholder for appending ANDs easily
