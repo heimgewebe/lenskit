@@ -5,7 +5,6 @@ import sys
 import re
 import hashlib
 import sqlite3
-import pytest
 
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.core.redactor import Redactor
