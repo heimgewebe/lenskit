@@ -1,11 +1,8 @@
 import json
 from pathlib import Path
 import tempfile
-import sys
-import os
 import contextlib
 from io import StringIO
-import sqlite3
 
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.cli import cmd_index, cmd_query
