@@ -116,3 +116,18 @@ def test_query_no_bm25_function_handling(mini_index, monkeypatch):
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
 
     assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)
+
+def test_query_unable_to_use_bm25_handling(mini_index, monkeypatch):
+    class MockConn:
+        row_factory = None
+        def execute(self, sql, params=()):
+            raise sqlite3.Error("unable to use function bm25")
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: MockConn())
+
+    with pytest.raises(RuntimeError) as excinfo:
+        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+
+    assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)
