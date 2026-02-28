@@ -1,29 +1,16 @@
-import argparse
-import sys
 import re
+import sys
+import sqlite3
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
-from . import cmd_query
+from typing import List, Dict, Any, Optional
 
 def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
-    """
-    Parses the Gold Queries markdown file.
-    Extracts query text, expected paths (from expected block), and filters.
-    """
     if not md_path.exists():
         raise FileNotFoundError(f"Queries file not found: {md_path}")
 
     content = md_path.read_text(encoding="utf-8")
     queries = []
-
-    # Regex to find query blocks:
-    # 1. **"query text"**
-    # 2. *Intent:* ...
-    # 3. *Expected:* ... (extracts `backticked` terms as path substrings)
-    # 4. *Filter:* ... (optional, key=value)
-
-    # We iterate line by line for robustness
     current_query = None
 
     lines = content.splitlines()
@@ -32,7 +19,6 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         if not line:
             continue
 
-        # 1. Match Query Title: 1. **"query text"**
         m_title = re.match(r"^\d+\.\s+\*\*\"(.+?)\"\*\*", line)
         if m_title:
             if current_query:
@@ -47,32 +33,16 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         if not current_query:
             continue
 
-        # Check for keywords. We remove markdown bullets (*, -) and formatting (*) from start
-        # Normalized check: remove non-alphanumeric prefix
         clean_line = re.sub(r"^[\s*+\-]+", "", line).strip()
-        # Should now be "Expected: ..." or "Intent: ..." or "Filter: ..."
 
-        # 3. Match Expected: *Expected:* `file.py`, `dir/`
         if re.match(r"^\*?Expected:?\*?", clean_line, re.IGNORECASE):
-            # Extract all backticked terms
             expected_terms = re.findall(r"`([^`]+)`", line)
             current_query["expected_paths"].extend(expected_terms)
 
-        # 4. Match Filter: *Filter:* `layer=core`
         if re.match(r"^\*?Filter:?\*?", clean_line, re.IGNORECASE):
-            # Extract key=value pairs, often in backticks or plain text
-            # Strategy: look for k=v patterns
-            # Find the colon
             parts = clean_line.split(":", 1)
             if len(parts) > 1:
                 rest = parts[1]
-                # Find all `key=value` or key=value
-                # Regex logic:
-                # (?:`|)? : optional backtick start
-                # ([\w.-]+) : key (alphanumeric + dot + dash)
-                # = : literal equal
-                # ([\w/.-]+) : value (alphanumeric + slash + dot + dash)
-                # (?:`|)? : optional backtick end
                 matches = re.findall(r"(?:`|)?([\w.-]+)=([\w/.-]+)(?:`|)?", rest)
                 for k, v in matches:
                     current_query["filters"][k] = v
@@ -81,6 +51,137 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         queries.append(current_query)
 
     return queries
+
+def execute_query(
+    index_path: Path,
+    query_text: str,
+    k: int = 10,
+    filters: Optional[Dict[str, Optional[str]]] = None
+) -> Dict[str, Any]:
+    if not filters:
+        filters = {}
+
+    conn = None
+    try:
+        conn = sqlite3.connect(str(index_path))
+        conn.row_factory = sqlite3.Row
+
+        where_clauses = []
+        params = []
+
+        engine_type = "metadata"
+        query_mode = "metadata"
+        fts_query_str = None
+
+        if query_text:
+            engine_type = "fts5"
+            query_mode = "fts"
+
+            cleaned_q = query_text.replace('"', '""')
+            scoring_expr = "bm25(chunks_fts)"
+
+            base_sql = f"""
+                SELECT
+                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.content_sha256,
+                    c.layer, c.artifact_type,
+                    {scoring_expr} as score
+                FROM chunks_fts
+                JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
+                WHERE chunks_fts MATCH ?
+            """
+
+            params.append(cleaned_q)
+            fts_query_str = cleaned_q
+            where_clauses.append("1=1")
+            order_clause = "ORDER BY score ASC, c.repo_id ASC, c.path ASC, c.start_line ASC"
+        else:
+            base_sql = """
+                SELECT
+                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.content_sha256,
+                    c.layer, c.artifact_type,
+                    0 as score
+                FROM chunks c
+            """
+            where_clauses.append("1=1")
+            order_clause = "ORDER BY c.repo_id, c.path, c.start_line"
+
+        if filters.get("repo"):
+            where_clauses.append("c.repo_id = ?")
+            params.append(filters["repo"])
+
+        if filters.get("path"):
+            where_clauses.append("c.path_norm LIKE ?")
+            params.append(f"%{filters['path'].lower()}%")
+
+        if filters.get("ext"):
+            where_clauses.append("c.path_norm LIKE ?")
+            ext = filters["ext"]
+            if not ext.startswith("."):
+                ext = f".{ext}"
+            params.append(f"%{ext.lower()}")
+
+        if filters.get("layer"):
+            where_clauses.append("c.layer = ?")
+            params.append(filters["layer"])
+
+        if filters.get("artifact_type"):
+            where_clauses.append("c.artifact_type = ?")
+            params.append(filters["artifact_type"])
+
+        if query_text:
+            extras = [c for c in where_clauses if c != "1=1"]
+            if extras:
+                base_sql += " AND " + " AND ".join(extras)
+        else:
+            base_sql += " WHERE " + " AND ".join(where_clauses)
+
+        base_sql += f" {order_clause} LIMIT ?"
+        params.append(k)
+
+        cursor = conn.execute(base_sql, params)
+        rows = cursor.fetchall()
+
+        results = []
+        for r in rows:
+            results.append({
+                "chunk_id": r["chunk_id"],
+                "repo_id": r["repo_id"],
+                "path": r["path"],
+                "range": f"{r['start_line']}-{r['end_line']}",
+                "score": r["score"],
+                "layer": r["layer"],
+                "type": r["artifact_type"],
+                "sha256": r["content_sha256"]
+            })
+
+        out = {
+            "query": query_text,
+            "count": len(results),
+            "engine": engine_type,
+            "query_mode": query_mode,
+            "applied_filters": filters,
+            "results": results
+        }
+        if fts_query_str is not None:
+            out["fts_query"] = fts_query_str
+
+        return out
+
+    except sqlite3.Error as e:
+        msg = str(e).lower()
+        if "no such module: fts5" in msg:
+            raise RuntimeError("SQLite FTS5 extension missing in this environment.") from e
+        elif "no such table: chunks_fts" in msg:
+            raise RuntimeError("FTS table missing; likely old or corrupt index. Reindex required.") from e
+        elif "no such function: bm25" in msg or "unable to use function bm25" in msg:
+            raise RuntimeError("SQLite FTS5 auxiliary function 'bm25' missing.") from e
+        elif "syntax error" in msg:
+            raise RuntimeError(f"FTS syntax error in query: '{query_text}'. Try simpler terms or quoting.") from e
+        else:
+            raise RuntimeError(f"Database error executing query: {e}") from e
+    finally:
+        if conn:
+            conn.close()
 
 def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = False) -> Optional[Dict[str, Any]]:
     try:
@@ -108,27 +209,20 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
         filters = q["filters"]
         expected = q["expected_paths"]
 
-        # Execute Query
         try:
-            res = cmd_query.execute_query(
+            res = execute_query(
                 index_path=index_path,
                 query_text=q_text,
-                k=k, # Use CLI k (default 10) for Recall@K
+                k=k,
                 filters=filters
             )
 
-            # Check Relevance
-            # Definition: At least one result in Top-K contains one of the expected substrings in its path.
             is_relevant = False
             top_match = "-"
-
             found_paths = [r["path"] for r in res["results"]]
 
             for hit_path in found_paths:
-                # Check against all expected terms
                 for exp in expected:
-                    # remove trailing slash for directory matching if needed,
-                    # but simple substring usually works enough for "dir/" in "path/to/dir/file.py"
                     if exp in hit_path:
                         is_relevant = True
                         top_match = hit_path
@@ -140,12 +234,9 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
                 hits_at_k += 1
 
             if not is_json_mode:
-                # Console Output Row
                 rel_mark = "✅" if is_relevant else "❌"
-                # Truncate query for display
                 disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
                 disp_match = (top_match[:27] + "..") if len(top_match) > 27 else top_match
-
                 print(f"{disp_q:<40} | {res['count']:<5} | {rel_mark:<4} | {disp_match:<30}")
 
             results_detail.append({
@@ -159,7 +250,6 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
             })
 
         except Exception as e:
-            # Explicitly handle failure: counts as irrelevant + error
             if not is_json_mode:
                 disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
                 print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
@@ -174,9 +264,7 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
                 "top_results": [],
                 "error": str(e)
             })
-            # Continue to next query, failure is recorded
 
-    # Metrics
     recall_at_k = (hits_at_k / total_queries) * 100.0 if total_queries > 0 else 0.0
 
     if not is_json_mode:
@@ -193,21 +281,3 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
         "details": results_detail
     }
     return out
-
-def run_eval(args: argparse.Namespace) -> int:
-    index_path = Path(args.index)
-    if not index_path.exists():
-        print(f"Error: Index file not found: {index_path}", file=sys.stderr)
-        return 1
-
-    queries_path = Path(args.queries) if args.queries else Path("docs/retrieval/queries.md")
-    is_json_mode = (args.emit == "json")
-
-    out = do_eval(index_path, queries_path, args.k, is_json_mode)
-    if out is None:
-        return 1
-
-    if is_json_mode:
-        print(json.dumps(out, indent=2))
-
-    return 0
