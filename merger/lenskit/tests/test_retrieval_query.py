@@ -110,4 +110,4 @@ def test_query_no_fts_module_handling(mini_index, monkeypatch):
     with pytest.raises(RuntimeError) as excinfo:
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
 
-    assert "SQLite FTS5 extension missing" in str(excinfo.value)
+    assert "SQLite FTS5 extension or table missing" in str(excinfo.value)

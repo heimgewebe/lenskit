@@ -134,9 +134,9 @@ def execute_query(
         return out
 
     except sqlite3.Error as e:
-        msg = str(e)
-        if "no such module: fts5" in msg:
-            raise RuntimeError("SQLite FTS5 extension missing in this environment.") from e
+        msg = str(e).lower()
+        if "no such module: fts5" in msg or "no such table: chunks_fts" in msg:
+            raise RuntimeError("SQLite FTS5 extension or table missing in this environment.") from e
         elif "no such function: bm25" in msg:
             raise RuntimeError("SQLite FTS5 auxiliary function 'bm25' missing.") from e
         elif "syntax error" in msg:
