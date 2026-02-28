@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 
 def execute_query(
     index_path: Path,

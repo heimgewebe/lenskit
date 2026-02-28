@@ -5,7 +5,7 @@
 ## Manifest Policy
 Um zirkuläre Hashes zu vermeiden, teilt Lenskit die Artefakte strikt in zwei Manifest-Schichten auf:
 - `dump_index.json`: Kanonische Wahrheit (Markdown, JSON Sidecar, Chunk Index). Stabil und forensisch prüfbar.
-- `derived_index.json`: Beschleunigungsschicht (SQLite Index, Retrieval Eval). Enthält `canonical_dump_sha256` als Rückreferenz auf das Hauptmanifest. Der FTS-Index verlässt sich auf diese Invariante zur Erkennung veralteter (`stale`) Indizes.
+- `derived_index.json`: Beschleunigungsschicht (SQLite Index, Retrieval Eval). Enthält `canonical_dump_sha256` als Rückreferenz auf das Hauptmanifest. `canonical_dump_sha256` dient als Bindeglied, um veraltete (`stale`) Indizes zuverlässig erkennen zu können (Vergleich gegen aktuelles dump manifest).
 
 ## 1. Index Erstellen
 
