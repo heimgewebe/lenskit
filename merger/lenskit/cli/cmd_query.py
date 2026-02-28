@@ -5,12 +5,16 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ..retrieval.query_core import execute_query
+from .stale_check import check_stale_index
 
 def run_query(args: argparse.Namespace) -> int:
     index_path = Path(args.index)
     if not index_path.exists():
         print(f"Error: Index file not found: {index_path}", file=sys.stderr)
         return 1
+
+    # Perform non-fatal stale index check
+    check_stale_index(index_path)
 
     applied_filters = {
         "repo": args.repo,
