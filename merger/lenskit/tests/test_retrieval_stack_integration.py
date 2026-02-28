@@ -82,7 +82,12 @@ def test_retrieval_stack_integration():
             ret = cmd_query.run_query(QueryArgs())
 
         assert ret == 0
-        output = json.loads(capture.getvalue())
+
+        # Robust JSON parsing: find the first '{' and parse from there
+        raw_output = capture.getvalue()
+        json_start = raw_output.find('{')
+        assert json_start != -1, "No JSON object found in output"
+        output = json.loads(raw_output[json_start:])
 
         assert output["count"] >= 1
         assert output["results"][0]["path"].endswith("main.py")
