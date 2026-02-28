@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/bundle-manifest.v1.schema.json",
+  "title": "Bundle Manifest (bundle-manifest v1.0)",
+  "description": "Root of Navigation for all artifacts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "run_id",
+    "created_at",
+    "generator",
+    "artifacts",
+    "links",
+    "capabilities"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "repolens.bundle.manifest"
+    },
+    "version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique identifier for this specific generator run."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of creation."
+    },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version", "config_sha256"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "config_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "description": "List of artifacts in the bundle.",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "path",
+          "content_type",
+          "bytes",
+          "sha256"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "canonical_md",
+              "index_sidecar_json",
+              "chunk_index_jsonl",
+              "dump_index_json",
+              "sqlite_index",
+              "retrieval_eval_json",
+              "derived_manifest_json",
+              "pr_delta_json"
+            ],
+            "description": "Machine-readable enum role for this artifact."
+          },
+          "path": {
+            "type": "string",
+            "description": "Relative path to the artifact."
+          },
+          "content_type": {
+            "type": "string",
+            "description": "MIME or general content type."
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "contract_id": {
+            "type": "string",
+            "description": "Contract identifier (optional)."
+          },
+          "contract_version": {
+            "type": "string",
+            "description": "Contract version string (optional)."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "canonical_dump_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA256 of the canonical dump artifact, linking derived artifacts back to source."
+        },
+        "derived_from": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Graph edges back to origin sources."
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "fts5_bm25": { "type": "boolean" },
+        "redaction": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
