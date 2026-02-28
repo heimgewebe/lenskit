@@ -39,14 +39,15 @@ def execute_query(
 
             # Robust BM25 detection
             try:
-                # Test BM25 existence with minimal overhead
-                conn.execute("SELECT bm25(chunks_fts) FROM chunks_fts LIMIT 0")
+                # Test BM25 existence with minimal overhead, forcing parse/bind
+                conn.execute("SELECT bm25(chunks_fts) FROM chunks_fts WHERE 0")
                 scoring_expr = "bm25(chunks_fts)"
             except sqlite3.OperationalError as e:
                 msg = str(e).lower()
-                # Only fallback if function/module is missing, otherwise re-raise
-                if "no such function: bm25" in msg or "no such module: fts5" in msg:
-                    scoring_expr = "rank"
+                if "no such module: fts5" in msg or "no such table: chunks_fts" in msg:
+                    raise RuntimeError("SQLite FTS5 extension or table missing in this environment.") from e
+                elif "no such function: bm25" in msg:
+                    scoring_expr = "CAST(0.0 AS REAL)"
                 else:
                     raise
 
@@ -65,7 +66,7 @@ def execute_query(
             where_clauses.append("1=1") # Placeholder for appending ANDs easily
 
             # BM25: lower is better
-            order_clause = "ORDER BY score ASC"
+            order_clause = "ORDER BY score ASC, c.repo_id ASC, c.path ASC, c.start_line ASC"
         else:
             # Metadata only query
             base_sql = """

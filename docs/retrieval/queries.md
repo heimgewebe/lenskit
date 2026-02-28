@@ -8,6 +8,7 @@ Die folgenden 15 "Gold Queries" definieren die Zielwerte (Benchmarks) für das l
 - **Explainability:** Mindestens Engine + Filter + Query-Mode (Token-Matches optional).
 
 > Zielwert wird separat festgelegt; diese Datei definiert Metrik + Queryset.
+> Ein Beispiel-Report liegt unter `docs/retrieval/retrieval_eval.example.json` (nicht kanonisch).
 
 ## Query Liste
 

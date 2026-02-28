@@ -82,7 +82,10 @@ def test_retrieval_stack_integration():
             ret = cmd_query.run_query(QueryArgs())
 
         assert ret == 0
-        output = json.loads(capture.getvalue())
+
+        raw_output = capture.getvalue()
+        assert raw_output.lstrip().startswith("{"), f"Expected JSON output, got: {raw_output[:50]}"
+        output = json.loads(raw_output)
 
         assert output["count"] >= 1
         assert output["results"][0]["path"].endswith("main.py")
