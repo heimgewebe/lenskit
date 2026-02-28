@@ -83,21 +83,9 @@ def test_retrieval_stack_integration():
 
         assert ret == 0
 
-        # Robust JSON parsing: try parsing from each '{' until successful
         raw_output = capture.getvalue()
-        output = None
-        start_idx = 0
-        while True:
-            idx = raw_output.find('{', start_idx)
-            if idx == -1:
-                break
-            try:
-                output = json.loads(raw_output[idx:])
-                break
-            except json.JSONDecodeError:
-                start_idx = idx + 1
-
-        assert output is not None, "No valid JSON object found in output"
+        assert raw_output.lstrip().startswith("{"), f"Expected JSON output, got: {raw_output[:50]}"
+        output = json.loads(raw_output)
 
         assert output["count"] >= 1
         assert output["results"][0]["path"].endswith("main.py")
