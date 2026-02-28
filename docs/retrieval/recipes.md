@@ -1,6 +1,6 @@
 # Retrieval Recipes
 
-> Requires SQLite compiled with FTS5; bm25 availability depends on build.
+> FTS5 + bm25 sind Voraussetzung für den FTS-Modus; ansonsten bricht die CLI mit einem klaren RuntimeError ab.
 
 ## 1. Index Erstellen
 

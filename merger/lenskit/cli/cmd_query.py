@@ -137,7 +137,7 @@ def execute_query(
         msg = str(e).lower()
         if "no such module: fts5" in msg or "no such table: chunks_fts" in msg:
             raise RuntimeError("SQLite FTS5 extension or table missing in this environment.") from e
-        elif "no such function: bm25" in msg:
+        elif "no such function: bm25" in msg or "unable to use function bm25" in msg:
             raise RuntimeError("SQLite FTS5 auxiliary function 'bm25' missing.") from e
         elif "syntax error" in msg:
             raise RuntimeError(f"FTS syntax error in query: '{query_text}'. Try simpler terms or quoting.") from e
