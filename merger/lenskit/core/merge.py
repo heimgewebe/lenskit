@@ -5526,9 +5526,9 @@ def write_reports_v2(
     dump_indices = [p for p in out_paths if p.name.endswith(".dump_index.json")]
 
     # Extract specific derived artifacts
-    sqlite_indices = [p for p in out_paths if p.name.endswith(".index.sqlite")]
-    retrieval_evals = [p for p in out_paths if p.name.endswith(".retrieval_eval.json")]
-    derived_manifests = [p for p in out_paths if p.name.endswith(".derived_index.json")]
+    sqlite_indices = sorted([p for p in out_paths if p.name.endswith(".index.sqlite")], key=lambda p: p.name)
+    retrieval_evals = sorted([p for p in out_paths if p.name.endswith(".retrieval_eval.json")], key=lambda p: p.name)
+    derived_manifests = sorted([p for p in out_paths if p.name.endswith(".derived_index.json")], key=lambda p: p.name)
 
     # Everything else goes to other_paths (but exclude the ones explicitly extracted)
     other_paths = [

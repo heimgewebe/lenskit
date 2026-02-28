@@ -12,12 +12,11 @@ from merger.lenskit.core.redactor import Redactor
 
 def has_fts5_bm25():
     try:
-        conn = sqlite3.connect(":memory:")
-        c = conn.cursor()
-        c.execute("CREATE VIRTUAL TABLE t USING fts5(content)")
-        c.execute("INSERT INTO t(content) VALUES ('test')")
-        c.execute("SELECT bm25(t) FROM t WHERE t MATCH 'test'")
-        conn.close()
+        with sqlite3.connect(":memory:") as conn:
+            c = conn.cursor()
+            c.execute("CREATE VIRTUAL TABLE t USING fts5(content)")
+            c.execute("INSERT INTO t(content) VALUES ('test')")
+            c.execute("SELECT bm25(t) FROM t WHERE t MATCH 'test'")
         return True
     except Exception:
         return False
@@ -90,9 +89,14 @@ def test_dual_output_mode():
             assert artifacts.retrieval_eval in all_paths
             assert artifacts.derived_manifest in all_paths
 
-            # Ensure they aren't incorrectly mixed in sidecar json lists
+            # Ensure they aren't incorrectly mixed in sidecar json lists (they are extracted to their own fields)
+            assert artifacts.retrieval_eval != artifacts.index_json
+            assert artifacts.derived_manifest != artifacts.index_json
+
+            # Ensure they are not dumped into the fallback list either
             assert artifacts.sqlite_index not in artifacts.other
             assert artifacts.retrieval_eval not in artifacts.other
+            assert artifacts.derived_manifest not in artifacts.other
 
         # 2. Check Chunk Index Content
         chunks = []
