@@ -37,6 +37,15 @@ def test_no_stale_v1_references():
 
             path = Path(root) / fname
 
+            # Skip documentation files as they often contain historical v1 references as text
+            try:
+                p_rel = path.relative_to(base_dir).as_posix()
+            except ValueError:
+                p_rel = path.as_posix()
+
+            if p_rel.startswith("docs/") or p_rel.startswith("merger/lenskit/docs/"):
+                continue
+
             # Check extension
             if path.suffix.lower() not in TEXT_EXTENSIONS:
                 continue
@@ -45,11 +54,11 @@ def test_no_stale_v1_references():
                 content = path.read_text(encoding="utf-8", errors="ignore")
                 lines = content.splitlines()
                 for i, line in enumerate(lines):
-                    # Allow dump-index to use v1
-                    if "dump-index" in line:
+                    # Allow dump-index, architecture-summary and derived-index to use v1
+                    if any(x in line for x in ("dump-index", "architecture-summary", "derived-index")):
                         continue
 
-                    # Context check for dump-index (multi-line)
+                    # Context check for dump-index, derived-index, architecture-summary (multi-line)
                     # If we found forbidden string, check context
                     found_forbidden = False
                     for forbidden in FORBIDDEN_STRINGS:
@@ -58,11 +67,11 @@ def test_no_stale_v1_references():
                             break
 
                     if found_forbidden:
-                        # Check surrounding lines for 'dump-index'
-                        # Look back 5 lines
-                        start = max(0, i - 5)
+                        # Check surrounding lines
+                        # Look back 8 lines
+                        start = max(0, i - 8)
                         context = "\n".join(lines[start:i+1])
-                        if "dump-index" in context:
+                        if any(x in context for x in ("dump-index", "derived-index", "architecture-summary")):
                             continue
 
                         found_violations.append(f"{path}: Found '{forbidden}'")

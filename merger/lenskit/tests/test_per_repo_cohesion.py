@@ -55,8 +55,11 @@ class TestPerRepoCohesion(unittest.TestCase):
             extras=extras
         )
 
-        # Identify generated sidecars (filter out dump_index)
-        json_files = [p for p in self.merges_dir.glob("*.json") if "dump_index" not in p.name]
+        # Identify generated sidecars (filter out dump_index, derived_index, retrieval_eval)
+        json_files = [p for p in self.merges_dir.glob("*.json")
+                      if not p.name.endswith(".dump_index.json")
+                      and not p.name.endswith(".derived_index.json")
+                      and not p.name.endswith(".retrieval_eval.json")]
         # We expect 2 sidecars (one per repo).
 
         self.assertEqual(len(json_files), 2, f"Should have 2 JSON sidecars, found: {[p.name for p in json_files]}")
