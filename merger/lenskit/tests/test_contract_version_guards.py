@@ -38,7 +38,12 @@ def test_no_stale_v1_references():
             path = Path(root) / fname
 
             # Skip documentation files as they often contain historical v1 references as text
-            if "docs" in path.parts:
+            try:
+                p_rel = path.relative_to(base_dir).as_posix()
+            except ValueError:
+                p_rel = path.as_posix()
+
+            if p_rel.startswith("docs/") or p_rel.startswith("merger/lenskit/docs/"):
                 continue
 
             # Check extension
