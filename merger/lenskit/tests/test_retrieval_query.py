@@ -2,7 +2,7 @@ import json
 import sqlite3
 import pytest
 from merger.lenskit.retrieval import index_db
-from merger.lenskit.cli import cmd_query
+from merger.lenskit.retrieval import query_core
 
 @pytest.fixture
 def mini_index(tmp_path):
@@ -28,39 +28,39 @@ def mini_index(tmp_path):
 
 def test_query_metadata_filter(mini_index):
     # Filter by layer
-    res = cmd_query.execute_query(mini_index, query_text="", k=10, filters={"layer": "core"})
+    res = query_core.execute_query(mini_index, query_text="", k=10, filters={"layer": "core"})
     assert res["count"] == 1
     assert res["results"][0]["chunk_id"] == "c1"
 
     # Filter by path substring
-    res = cmd_query.execute_query(mini_index, query_text="", k=10, filters={"path": "test"})
+    res = query_core.execute_query(mini_index, query_text="", k=10, filters={"path": "test"})
     assert res["count"] == 1
     assert res["results"][0]["chunk_id"] == "c2"
 
     # Filter by extension
-    res = cmd_query.execute_query(mini_index, query_text="", k=10, filters={"ext": "md"})
+    res = query_core.execute_query(mini_index, query_text="", k=10, filters={"ext": "md"})
     assert res["count"] == 1
     assert res["results"][0]["chunk_id"] == "c3"
 
 def test_query_fts_simple(mini_index):
     # FTS Search
-    res = cmd_query.execute_query(mini_index, query_text="hello", k=10)
+    res = query_core.execute_query(mini_index, query_text="hello", k=10)
     assert res["count"] == 1
     assert res["results"][0]["chunk_id"] == "c1"
 
     # FTS Search no match
-    res = cmd_query.execute_query(mini_index, query_text="zebra", k=10)
+    res = query_core.execute_query(mini_index, query_text="zebra", k=10)
     assert res["count"] == 0
 
 def test_query_fts_combined_filter(mini_index):
     # Match text but filter out by layer
-    res = cmd_query.execute_query(mini_index, query_text="def", k=10, filters={"layer": "test"})
+    res = query_core.execute_query(mini_index, query_text="def", k=10, filters={"layer": "test"})
     # "def" is in both c1 (core) and c2 (test), should only find c2
     assert res["count"] == 1
     assert res["results"][0]["chunk_id"] == "c2"
 
 def test_query_json_structure(mini_index):
-    res = cmd_query.execute_query(mini_index, query_text="main", k=5, filters={"layer": "core"})
+    res = query_core.execute_query(mini_index, query_text="main", k=5, filters={"layer": "core"})
     assert "query" in res
     assert "results" in res
     assert "engine" in res
@@ -82,33 +82,33 @@ def _make_mock_conn(err_msg: str):
     return MockConn()
 
 def test_query_no_fts_module_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such module: fts5"))
+    monkeypatch.setattr(query_core.sqlite3, "connect", lambda x: _make_mock_conn("no such module: fts5"))
 
     with pytest.raises(RuntimeError) as excinfo:
-        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+        query_core.execute_query(mini_index, query_text="foo", k=10)
 
     assert "SQLite FTS5 extension missing" in str(excinfo.value)
 
 def test_query_no_fts_table_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such table: chunks_fts"))
+    monkeypatch.setattr(query_core.sqlite3, "connect", lambda x: _make_mock_conn("no such table: chunks_fts"))
 
     with pytest.raises(RuntimeError) as excinfo:
-        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+        query_core.execute_query(mini_index, query_text="foo", k=10)
 
     assert "FTS table missing; likely old or corrupt index" in str(excinfo.value)
 
 def test_query_no_bm25_function_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such function: bm25"))
+    monkeypatch.setattr(query_core.sqlite3, "connect", lambda x: _make_mock_conn("no such function: bm25"))
 
     with pytest.raises(RuntimeError) as excinfo:
-        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+        query_core.execute_query(mini_index, query_text="foo", k=10)
 
     assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)
 
 def test_query_unable_to_use_bm25_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("unable to use function bm25"))
+    monkeypatch.setattr(query_core.sqlite3, "connect", lambda x: _make_mock_conn("unable to use function bm25"))
 
     with pytest.raises(RuntimeError) as excinfo:
-        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+        query_core.execute_query(mini_index, query_text="foo", k=10)
 
     assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)

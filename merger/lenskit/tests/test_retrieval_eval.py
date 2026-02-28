@@ -2,7 +2,7 @@ import json
 import pytest
 from pathlib import Path
 from merger.lenskit.cli import cmd_eval
-from merger.lenskit.retrieval import index_db
+from merger.lenskit.retrieval import index_db, eval_core
 
 @pytest.fixture
 def mini_index_for_eval(tmp_path):
@@ -40,7 +40,7 @@ def test_parse_gold_queries_basic(tmp_path):
 """
     md_file.write_text(md_content, encoding="utf-8")
 
-    queries = cmd_eval.parse_gold_queries(md_file)
+    queries = eval_core.parse_gold_queries(md_file)
     assert len(queries) == 2
 
     q1 = queries[0]
@@ -63,7 +63,7 @@ def test_parse_gold_queries_robustness(tmp_path):
 """
     md_file.write_text(md_content, encoding="utf-8")
 
-    queries = cmd_eval.parse_gold_queries(md_file)
+    queries = eval_core.parse_gold_queries(md_file)
     assert len(queries) == 1
     q = queries[0]
     assert q["query"] == "weird query"
