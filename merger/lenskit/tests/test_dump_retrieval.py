@@ -4,9 +4,23 @@ import tempfile
 import sys
 import re
 import hashlib
+import sqlite3
+import pytest
 
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.core.redactor import Redactor
+
+def has_fts5_bm25():
+    try:
+        conn = sqlite3.connect(":memory:")
+        c = conn.cursor()
+        c.execute("CREATE VIRTUAL TABLE t USING fts5(content)")
+        c.execute("INSERT INTO t(content) VALUES ('test')")
+        c.execute("SELECT bm25(t) FROM t WHERE t MATCH 'test'")
+        conn.close()
+        return True
+    except Exception:
+        return False
 
 def test_dual_output_mode():
     with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -61,6 +75,24 @@ def test_dual_output_mode():
         assert artifacts.chunk_index.exists()
         assert artifacts.dump_index is not None
         assert artifacts.dump_index.exists()
+
+        # Verify Derived Artifacts Discoverability
+        if has_fts5_bm25():
+            assert artifacts.sqlite_index is not None
+            assert artifacts.sqlite_index.exists()
+            assert artifacts.retrieval_eval is not None
+            assert artifacts.retrieval_eval.exists()
+            assert artifacts.derived_manifest is not None
+            assert artifacts.derived_manifest.exists()
+
+            all_paths = artifacts.get_all_paths()
+            assert artifacts.sqlite_index in all_paths
+            assert artifacts.retrieval_eval in all_paths
+            assert artifacts.derived_manifest in all_paths
+
+            # Ensure they aren't incorrectly mixed in sidecar json lists
+            assert artifacts.sqlite_index not in artifacts.other
+            assert artifacts.retrieval_eval not in artifacts.other
 
         # 2. Check Chunk Index Content
         chunks = []

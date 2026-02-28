@@ -395,15 +395,10 @@ class MergeArtifacts:
     chunk_index: Optional[Path] = None
     md_parts: List[Path] = None
     dump_index: Optional[Path] = None
+    sqlite_index: Optional[Path] = None
+    retrieval_eval: Optional[Path] = None
+    derived_manifest: Optional[Path] = None
     other: List[Path] = None
-
-    @property
-    def sqlite_index(self) -> Optional[Path]:
-        return next((p for p in self.other if p.name.endswith(".index.sqlite")), None)
-
-    @property
-    def retrieval_eval(self) -> Optional[Path]:
-        return next((p for p in self.other if p.name.endswith(".retrieval_eval.json")), None)
 
     def __post_init__(self):
         if self.md_parts is None:
@@ -414,6 +409,8 @@ class MergeArtifacts:
     def get_all_paths(self) -> List[Path]:
         """Return all paths in deterministic order: primary first, then others."""
         paths = []
+
+        # Primary / Navigation
         if self.index_json:
             paths.append(self.index_json)
         if self.canonical_md and self.canonical_md not in paths:
@@ -422,6 +419,15 @@ class MergeArtifacts:
             paths.append(self.chunk_index)
         if self.dump_index:
             paths.append(self.dump_index)
+
+        # Derived
+        if self.derived_manifest:
+            paths.append(self.derived_manifest)
+        if self.sqlite_index:
+            paths.append(self.sqlite_index)
+        if self.retrieval_eval:
+            paths.append(self.retrieval_eval)
+
         for p in self.md_parts:
             if p not in paths:
                 paths.append(p)
@@ -429,6 +435,24 @@ class MergeArtifacts:
             if p not in paths:
                 paths.append(p)
         return paths
+
+    def get_sqlite_index(self) -> Optional[Path]:
+        if self.sqlite_index:
+            return self.sqlite_index
+        # Fallback
+        return next((p for p in self.get_all_paths() if p.name.endswith(".index.sqlite")), None)
+
+    def get_retrieval_eval(self) -> Optional[Path]:
+        if self.retrieval_eval:
+            return self.retrieval_eval
+        # Fallback
+        return next((p for p in self.get_all_paths() if p.name.endswith(".retrieval_eval.json")), None)
+
+    def get_derived_manifest(self) -> Optional[Path]:
+        if self.derived_manifest:
+            return self.derived_manifest
+        # Fallback
+        return next((p for p in self.get_all_paths() if p.name.endswith(".derived_index.json")), None)
 
     def get_primary_path(self) -> Optional[Path]:
         """Return the primary artifact path (JSON if exists, otherwise Markdown)."""
@@ -4882,6 +4906,44 @@ def write_reports_v2(
         out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         return out_path
 
+    def build_retrieval_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
+        derived_paths = []
+        sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
+        eval_json_path = None
+        try:
+            build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=None)
+            derived_paths.append(sqlite_index_path)
+
+            # Evaluate
+            eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
+            queries_path = hub_path / "docs" / "retrieval" / "queries.md"
+            if not queries_path.exists():
+                queries_path = Path("docs/retrieval/queries.md")
+
+            if queries_path.exists():
+                eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
+                if eval_res:
+                    eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
+                    derived_paths.append(eval_json_path)
+        except Exception as e:
+            if debug:
+                print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
+
+        # Write Derived Manifest
+        derived_map = {}
+        if sqlite_index_path and sqlite_index_path.exists():
+            derived_map["sqlite_index"] = sqlite_index_path
+        if eval_json_path and eval_json_path.exists():
+            derived_map["retrieval_eval"] = eval_json_path
+
+        if derived_map:
+            derived_manifest_path = generate_derived_manifest(
+                base_name_func, run_id, _compute_file_sha256(dump_index_path),
+                derived_map, generator_info, repo_names
+            )
+            derived_paths.append(derived_manifest_path)
+        return derived_paths
+
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func):
         if output_mode not in ("retrieval", "dual"):
@@ -5316,41 +5378,10 @@ def write_reports_v2(
 
         if output_mode in ("retrieval", "dual") and chunk_path:
             # Build derived/transient retrieval artifacts AFTER dump_index is finalized
-            # so the DB can securely record the canonical dump_sha256 without circular hashing.
-            sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
-            eval_json_path = None
-            try:
-                build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=None)
-                out_paths.append(sqlite_index_path)
-
-                # Evaluate
-                eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
-                queries_path = hub / "docs" / "retrieval" / "queries.md"
-                if not queries_path.exists():
-                    queries_path = Path("docs/retrieval/queries.md")
-
-                if queries_path.exists():
-                    eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
-                    if eval_res:
-                        eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
-                        out_paths.append(eval_json_path)
-            except Exception as e:
-                if debug:
-                    print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
-
-            # Write Derived Manifest
-            derived_map = {}
-            if sqlite_index_path and sqlite_index_path.exists():
-                derived_map["sqlite_index"] = sqlite_index_path
-            if eval_json_path and eval_json_path.exists():
-                derived_map["retrieval_eval"] = eval_json_path
-
-            if derived_map:
-                derived_manifest_path = generate_derived_manifest(
-                    base_name_func, run_id, _compute_file_sha256(dump_index_path),
-                    derived_map, generator_info, repo_names
-                )
-                out_paths.append(derived_manifest_path)
+            derived_paths = build_retrieval_derived_artifacts(
+                dump_index_path, chunk_path, base_name_func, run_id, hub, generator_info, repo_names, debug
+            )
+            out_paths.extend(derived_paths)
 
     else:
         for s in repo_summaries:
@@ -5475,61 +5506,39 @@ def write_reports_v2(
 
             if output_mode in ("retrieval", "dual") and chunk_path:
                 # Build derived/transient retrieval artifacts AFTER dump_index is finalized
-                sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
-                eval_json_path = None
-                try:
-                    build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=None)
-                    out_paths.append(sqlite_index_path)
-
-                    # Evaluate
-                    eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
-                    queries_path = hub / "docs" / "retrieval" / "queries.md"
-                    if not queries_path.exists():
-                        queries_path = Path("docs/retrieval/queries.md")
-
-                    if queries_path.exists():
-                        eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
-                        if eval_res:
-                            eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
-                            out_paths.append(eval_json_path)
-                except Exception as e:
-                    if debug:
-                        print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
-
-                # Write Derived Manifest
-                derived_map = {}
-                if sqlite_index_path and sqlite_index_path.exists():
-                    derived_map["sqlite_index"] = sqlite_index_path
-                if eval_json_path and eval_json_path.exists():
-                    derived_map["retrieval_eval"] = eval_json_path
-
-                if derived_map:
-                    derived_manifest_path = generate_derived_manifest(
-                        base_name_func, repo_run_id, _compute_file_sha256(dump_index_path),
-                        derived_map, generator_info, [s_name]
-                    )
-                    out_paths.append(derived_manifest_path)
+                derived_paths = build_retrieval_derived_artifacts(
+                    dump_index_path, chunk_path, base_name_func, repo_run_id, hub, generator_info, [s_name], debug
+                )
+                out_paths.extend(derived_paths)
 
     # --- Post-check & deterministic ordering (primary artifact first) ---
     md_paths = [p for p in out_paths if p.suffix.lower() == ".md"]
-    # Separate sidecar json and dump index json from generic json paths
+
+    # Sidecar json / Canonical JSONs (exclude derived manifests and evals)
     json_paths = [
         p for p in out_paths
-        if p.suffix.lower() == ".json" and not p.name.endswith(".dump_index.json")
+        if p.suffix.lower() == ".json"
+        and not p.name.endswith(".dump_index.json")
+        and not p.name.endswith(".derived_index.json")
+        and not p.name.endswith(".retrieval_eval.json")
     ]
-    dump_indices = [p for p in out_paths if p.name.endswith(".dump_index.json")]
-    other_paths = [
-        p for p in out_paths
-        if p.suffix.lower() not in (".md", ".json") or (p.suffix.lower() == ".json" and p in dump_indices)
-    ]
-    # Remove dump_indices from other_paths to handle them explicitly in MergeArtifacts if needed
-    # Actually, we put dump_index in its own field.
-    # So we should exclude it from 'other' if we want it clean, but current logic puts everything else in 'other'.
-    # Let's keep it simple: filter out from 'other_paths' what is already covered.
 
+    dump_indices = [p for p in out_paths if p.name.endswith(".dump_index.json")]
+
+    # Extract specific derived artifacts
+    sqlite_indices = [p for p in out_paths if p.name.endswith(".index.sqlite")]
+    retrieval_evals = [p for p in out_paths if p.name.endswith(".retrieval_eval.json")]
+    derived_manifests = [p for p in out_paths if p.name.endswith(".derived_index.json")]
+
+    # Everything else goes to other_paths (but exclude the ones explicitly extracted)
     other_paths = [
         p for p in out_paths
-        if p not in md_paths and p not in json_paths and p not in dump_indices
+        if p not in md_paths
+        and p not in json_paths
+        and p not in dump_indices
+        and p not in sqlite_indices
+        and p not in retrieval_evals
+        and p not in derived_manifests
     ]
 
     # Verify that reported .md outputs really exist and are non-empty.
@@ -5589,6 +5598,9 @@ def write_reports_v2(
             chunk_index=final_chunk_index,
             md_parts=verified_md,
             dump_index=final_dump_index,
+            sqlite_index=sqlite_indices[-1] if sqlite_indices else None,
+            retrieval_eval=retrieval_evals[-1] if retrieval_evals else None,
+            derived_manifest=derived_manifests[-1] if derived_manifests else None,
             other=other_paths
         )
     else:
@@ -5599,5 +5611,8 @@ def write_reports_v2(
             chunk_index=final_chunk_index,
             md_parts=verified_md,
             dump_index=final_dump_index,
+            sqlite_index=sqlite_indices[-1] if sqlite_indices else None,
+            retrieval_eval=retrieval_evals[-1] if retrieval_evals else None,
+            derived_manifest=derived_manifests[-1] if derived_manifests else None,
             other=other_paths
         )
