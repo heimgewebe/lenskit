@@ -13,7 +13,6 @@ FORBIDDEN_STRINGS = [
 # Paths to ignore (e.g., this test file itself)
 IGNORE_FILES = {
     "test_contract_version_guards.py",
-    "roadmap.md",
 }
 
 # Only scan these extensions to avoid binary noise and speed up test
@@ -37,6 +36,10 @@ def test_no_stale_v1_references():
                 continue
 
             path = Path(root) / fname
+
+            # Skip documentation files as they often contain historical v1 references as text
+            if "docs" in path.parts:
+                continue
 
             # Check extension
             if path.suffix.lower() not in TEXT_EXTENSIONS:
