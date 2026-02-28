@@ -79,10 +79,10 @@ def _make_mock_conn(err_msg: str):
             raise sqlite3.Error(err_msg)
         def close(self):
             pass
-    return MockConn
+    return MockConn()
 
 def test_query_no_fts_module_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such module: fts5")())
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such module: fts5"))
 
     with pytest.raises(RuntimeError) as excinfo:
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
@@ -90,7 +90,7 @@ def test_query_no_fts_module_handling(mini_index, monkeypatch):
     assert "SQLite FTS5 extension missing" in str(excinfo.value)
 
 def test_query_no_fts_table_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such table: chunks_fts")())
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such table: chunks_fts"))
 
     with pytest.raises(RuntimeError) as excinfo:
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
@@ -98,7 +98,7 @@ def test_query_no_fts_table_handling(mini_index, monkeypatch):
     assert "FTS table missing; likely old or corrupt index" in str(excinfo.value)
 
 def test_query_no_bm25_function_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such function: bm25")())
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such function: bm25"))
 
     with pytest.raises(RuntimeError) as excinfo:
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
@@ -106,7 +106,7 @@ def test_query_no_bm25_function_handling(mini_index, monkeypatch):
     assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)
 
 def test_query_unable_to_use_bm25_handling(mini_index, monkeypatch):
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("unable to use function bm25")())
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("unable to use function bm25"))
 
     with pytest.raises(RuntimeError) as excinfo:
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
