@@ -72,42 +72,43 @@ def test_query_json_structure(mini_index):
     assert "range" in hit
     assert "score" in hit
 
-def test_query_no_fts_module_handling(mini_index, monkeypatch):
-    """
-    Integration test-like check to ensure that if sqlite3 raises an error about missing FTS5,
-    it is correctly wrapped as a RuntimeError.
-    We mock sqlite3.connect to return a cursor that raises specific OperationalError.
-    """
-
-    # Mock connection and cursor
-    class MockCursor:
-        def execute(self, sql, params=()):
-            raise sqlite3.Error("no such module: fts5")
-        def fetchall(self):
-            return []
-        def close(self):
-            pass
-
+def _make_mock_conn(err_msg: str):
     class MockConn:
         row_factory = None
         def execute(self, sql, params=()):
-            # The code calls conn.execute(), which returns a cursor.
-            # We return a cursor, but the cursor's methods will fail if called?
-            # Or does execute() itself fail?
-            # In sqlite3, conn.execute() is a shortcut that creates a cursor and calls execute.
-            # So let's make it raise immediately for the shortcut case,
-            # OR return a cursor that raises.
-            # The actual code: `cursor = conn.execute(base_sql, params)`
-            # So we can raise here directly.
-            raise sqlite3.Error("no such module: fts5")
-
+            raise sqlite3.Error(err_msg)
         def close(self):
             pass
+    return MockConn()
 
-    # Patch the sqlite3 module AS IMPORTED by cmd_query
-    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: MockConn())
+def test_query_no_fts_module_handling(mini_index, monkeypatch):
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such module: fts5"))
 
     with pytest.raises(RuntimeError) as excinfo:
         cmd_query.execute_query(mini_index, query_text="foo", k=10)
 
     assert "SQLite FTS5 extension missing" in str(excinfo.value)
+
+def test_query_no_fts_table_handling(mini_index, monkeypatch):
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such table: chunks_fts"))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+
+    assert "FTS table missing; likely old or corrupt index" in str(excinfo.value)
+
+def test_query_no_bm25_function_handling(mini_index, monkeypatch):
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("no such function: bm25"))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+
+    assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)
+
+def test_query_unable_to_use_bm25_handling(mini_index, monkeypatch):
+    monkeypatch.setattr(cmd_query.sqlite3, "connect", lambda x: _make_mock_conn("unable to use function bm25"))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        cmd_query.execute_query(mini_index, query_text="foo", k=10)
+
+    assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)

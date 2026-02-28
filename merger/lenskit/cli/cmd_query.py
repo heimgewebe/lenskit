@@ -37,19 +37,7 @@ def execute_query(
             # FTS Query: Escape double quotes
             cleaned_q = query_text.replace('"', '""')
 
-            # Robust BM25 detection
-            try:
-                # Test BM25 existence with minimal overhead, forcing parse/bind
-                conn.execute("SELECT bm25(chunks_fts) FROM chunks_fts WHERE 0")
-                scoring_expr = "bm25(chunks_fts)"
-            except sqlite3.OperationalError as e:
-                msg = str(e).lower()
-                if "no such module: fts5" in msg or "no such table: chunks_fts" in msg:
-                    raise RuntimeError("SQLite FTS5 extension or table missing in this environment.") from e
-                elif "no such function: bm25" in msg:
-                    scoring_expr = "CAST(0.0 AS REAL)"
-                else:
-                    raise
+            scoring_expr = "bm25(chunks_fts)"
 
             base_sql = f"""
                 SELECT
@@ -146,10 +134,12 @@ def execute_query(
         return out
 
     except sqlite3.Error as e:
-        msg = str(e)
+        msg = str(e).lower()
         if "no such module: fts5" in msg:
             raise RuntimeError("SQLite FTS5 extension missing in this environment.") from e
-        elif "no such function: bm25" in msg:
+        elif "no such table: chunks_fts" in msg:
+            raise RuntimeError("FTS table missing; likely old or corrupt index. Reindex required.") from e
+        elif "no such function: bm25" in msg or "unable to use function bm25" in msg:
             raise RuntimeError("SQLite FTS5 auxiliary function 'bm25' missing.") from e
         elif "syntax error" in msg:
             raise RuntimeError(f"FTS syntax error in query: '{query_text}'. Try simpler terms or quoting.") from e
