@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 
 import jsonschema
-
+from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256
 
 @pytest.fixture
 def schema():
@@ -21,7 +21,7 @@ def test_valid_bundle_manifest(schema):
         "generator": {
             "name": "lenskit-test",
             "version": "v1.2.3",
-            "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "config_sha256": TEST_CONFIG_SHA256
         },
         "artifacts": [
             {
@@ -29,11 +29,11 @@ def test_valid_bundle_manifest(schema):
                 "path": "output.md",
                 "content_type": "text/markdown",
                 "bytes": 1024,
-                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                "sha256": TEST_CONFIG_SHA256
             }
         ],
         "links": {
-            "canonical_dump_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "canonical_dump_sha256": TEST_CONFIG_SHA256
         },
         "capabilities": {
             "fts5_bm25": True
@@ -61,7 +61,7 @@ def test_invalid_bundle_manifest_bad_role(schema):
         "generator": {
             "name": "lenskit-test",
             "version": "v1.2.3",
-            "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "config_sha256": TEST_CONFIG_SHA256
         },
         "artifacts": [
             {
@@ -69,7 +69,7 @@ def test_invalid_bundle_manifest_bad_role(schema):
                 "path": "output.md",
                 "content_type": "text/markdown",
                 "bytes": 1024,
-                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                "sha256": TEST_CONFIG_SHA256
             }
         ],
         "links": {},

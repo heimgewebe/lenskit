@@ -4,6 +4,7 @@ import tempfile
 import contextlib
 from io import StringIO
 
+from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.cli import cmd_index, cmd_query
 
@@ -43,7 +44,7 @@ def test_retrieval_stack_integration():
             plan_only=False,
             output_mode="dual",
             extras=extras,
-            generator_info={"name": "test-stack", "platform": "test", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+            generator_info={"name": "test-stack", "platform": "test", "config_sha256": TEST_CONFIG_SHA256}
         )
 
         dump_path = artifacts.dump_index

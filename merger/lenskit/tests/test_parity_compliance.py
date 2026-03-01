@@ -1,10 +1,8 @@
-import pytest
+from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256
 import json
-import sys
-from pathlib import Path
 
 # Canonical import style (relying on pytest/PYTHONPATH to find the module)
-from merger.lenskit.core.merge import scan_repo, write_reports_v2, ExtrasConfig, FileInfo
+from merger.lenskit.core.merge import scan_repo, write_reports_v2, ExtrasConfig
 
 def test_scan_repo_hidden_files_behavior(tmp_path):
     # Setup
@@ -62,7 +60,7 @@ def test_write_reports_parity_features(tmp_path):
     gen_info = {"name": "parity_test", "version": "1.0", "platform": "test"}
 
     # Run with dual mode
-    gen_info["config_sha256"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    gen_info["config_sha256"] = TEST_CONFIG_SHA256
     write_reports_v2(
         merges_dir,
         hub,

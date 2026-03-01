@@ -1,3 +1,4 @@
+from merger.lenskit.tests._test_constants import make_generator_info
 
 import re
 import sys
@@ -175,7 +176,7 @@ def test_generated_report_is_parsable(tmp_path):
     extras = ExtrasConfig(json_sidecar=True, augment_sidecar=True) # augment won't be found but logic runs
 
     # Generate
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": files, "root": root}],
@@ -272,7 +273,7 @@ def test_quoting_paths_with_spaces(tmp_path):
     merges_dir.mkdir()
 
     # Generate
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],
@@ -317,7 +318,7 @@ def test_no_roles_semantics(tmp_path):
     merges_dir.mkdir()
     extras = ExtrasConfig.none()
 
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],
@@ -370,7 +371,7 @@ def test_json_marker_matches_markdown_marker(tmp_path):
     extras = ExtrasConfig(json_sidecar=True)
 
     # Generate
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],

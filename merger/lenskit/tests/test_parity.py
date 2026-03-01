@@ -1,6 +1,6 @@
+from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256
 import pytest
 import json
-from pathlib import Path
 from merger.lenskit.core.merge import scan_repo, write_reports_v2, ExtrasConfig, parse_human_size
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def run_rlens_fixture(repo_path, output_dir):
         "platform": "service"
     }
 
-    generator_info["config_sha256"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    generator_info["config_sha256"] = TEST_CONFIG_SHA256
     write_reports_v2(
         output_dir,
         repo_path.parent, # Hub
@@ -113,7 +113,7 @@ def run_repolens_fixture(repo_path, output_dir):
         "platform": "cli"
     }
 
-    generator_info["config_sha256"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    generator_info["config_sha256"] = TEST_CONFIG_SHA256
     write_reports_v2(
         output_dir,
         repo_path.parent, # Hub

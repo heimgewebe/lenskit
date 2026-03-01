@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 

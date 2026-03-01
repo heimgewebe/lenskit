@@ -1,6 +1,4 @@
 import json
-import pytest
-from pathlib import Path
 from merger.lenskit.cli.stale_check import check_stale_index, _compute_file_sha256
 
 def test_stale_check_warns_on_mismatch(tmp_path, capsys):

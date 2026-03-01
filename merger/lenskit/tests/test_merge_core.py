@@ -17,8 +17,7 @@ from lenskit.core.merge import (
     make_output_filename,
     determine_inclusion_status,
     iter_report_blocks,
-    FileInfo,
-    _stable_file_id
+    FileInfo
 )
 
 class TestMergeCore(unittest.TestCase):
@@ -301,7 +300,7 @@ class TestMergeCore(unittest.TestCase):
         self.assertIn(f'<a id="{full_anchor}"></a>', full_report)
 
         # Check for visible heading (Option A style)
-        self.assertIn(f"#### src/My File.txt", full_report)
+        self.assertIn("#### src/My File.txt", full_report)
 
         # Check for alias anchor (legacy/backward compatibility)
         self.assertIn(f'<a id="{base_anchor}"></a>', full_report)

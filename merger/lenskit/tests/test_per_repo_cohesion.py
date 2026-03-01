@@ -9,6 +9,7 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
+from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, ExtrasConfig, scan_repo
 
 class TestPerRepoCohesion(unittest.TestCase):
@@ -43,7 +44,7 @@ class TestPerRepoCohesion(unittest.TestCase):
         extras = ExtrasConfig(json_sidecar=True)
 
         # Run write_reports_v2 in per-repo mode
-        write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+        write_reports_v2(generator_info=make_generator_info(),
             merges_dir=self.merges_dir,
             hub=self.hub,
             repo_summaries=repo_summaries,

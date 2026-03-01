@@ -1,8 +1,8 @@
 import json
 import pytest
 from pathlib import Path
-from typing import Dict, Any
 
+from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, FileInfo
 from merger.lenskit.core.constants import ArtifactRole
 
@@ -67,7 +67,7 @@ def test_generate_bundle_manifest_integration(tmp_path):
         code_only=False,
         extras=MockExtras(),
         output_mode="dual",
-        generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+        generator_info=make_generator_info()
     )
 
     # bundle_manifest should exist

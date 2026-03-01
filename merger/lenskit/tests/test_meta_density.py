@@ -1,7 +1,7 @@
-import pytest
+from merger.lenskit.tests._test_constants import make_generator_info
 from pathlib import Path
 from merger.lenskit.core import merge
-from merger.lenskit.core.merge import FileInfo, ExtrasConfig
+from merger.lenskit.core.merge import FileInfo
 
 def test_meta_density_min_counts(tmp_path):
     """
@@ -30,7 +30,7 @@ def test_meta_density_min_counts(tmp_path):
     merges_dir = tmp_path / "merges"
     merges_dir.mkdir()
 
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],
@@ -79,7 +79,7 @@ def test_meta_density_full_counts(tmp_path):
     merges_dir = tmp_path / "merges"
     merges_dir.mkdir()
 
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],
@@ -126,7 +126,7 @@ def test_meta_density_standard_counts(tmp_path):
     merges_dir = tmp_path / "merges"
     merges_dir.mkdir()
 
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],
@@ -173,7 +173,7 @@ def test_auto_throttling_trigger(tmp_path):
     merges_dir.mkdir()
 
     # Case 1: Auto with filters -> Standard behavior (no MD5, no file_meta for full)
-    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],
@@ -191,7 +191,7 @@ def test_auto_throttling_trigger(tmp_path):
     assert "MD5: abc" not in content # Standard behavior
 
     # Case 2: Auto without filters -> Full behavior
-    artifacts_full = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    artifacts_full = merge.write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=tmp_path,
         repo_summaries=[{"name": "repo", "files": [fi], "root": root}],
