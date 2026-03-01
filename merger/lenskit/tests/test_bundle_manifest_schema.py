@@ -144,8 +144,8 @@ def test_invalid_bundle_manifest_interpretation_contract_without_contract(schema
         jsonschema.validate(instance=invalid_data, schema=schema)
 
 
-def test_invalid_bundle_manifest_missing_interpretation(schema):
-    invalid_data = {
+def test_valid_bundle_manifest_missing_interpretation_for_role_only_artifact(schema):
+    valid_data = {
         "kind": "repolens.bundle.manifest",
         "version": "1.0",
         "run_id": "test-run-1234",
@@ -162,15 +162,14 @@ def test_invalid_bundle_manifest_missing_interpretation(schema):
                 "content_type": "text/markdown",
                 "bytes": 1024,
                 "sha256": TEST_ARTIFACT_SHA256
-                # missing interpretation
+                # interpretation omitted for backward compatibility
             }
         ],
         "links": {},
         "capabilities": {}
     }
 
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=invalid_data, schema=schema)
+    jsonschema.validate(instance=valid_data, schema=schema)
 
 
 def test_invalid_bundle_manifest_missing_required(schema):
