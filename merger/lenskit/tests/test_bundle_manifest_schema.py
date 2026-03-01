@@ -77,4 +77,5 @@ def test_invalid_bundle_manifest_bad_role(schema):
     }
     with pytest.raises(jsonschema.ValidationError) as exc:
         jsonschema.validate(instance=invalid_data, schema=schema)
-    assert "invalid_role_not_in_enum" in str(exc.value)
+    assert exc.value.validator == "enum"
+    assert exc.value.instance == "invalid_role_not_in_enum"

@@ -69,7 +69,7 @@
               "sqlite_index",
               "retrieval_eval_json",
               "derived_manifest_json",
-              "pr_delta_json"
+              "delta_json"
             ],
             "description": "Machine-readable enum role for this artifact."
           },

@@ -13,4 +13,4 @@ class ArtifactRole(str, Enum):
     SQLITE_INDEX = "sqlite_index"
     RETRIEVAL_EVAL_JSON = "retrieval_eval_json"
     DERIVED_MANIFEST_JSON = "derived_manifest_json"
-    PR_DELTA_JSON = "pr_delta_json"
+    PR_DELTA_JSON = "delta_json"
