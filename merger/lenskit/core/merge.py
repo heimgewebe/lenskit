@@ -4470,10 +4470,6 @@ def generate_json_sidecar(
     meta = {
         "contract": AGENT_CONTRACT_NAME,
         "contract_version": AGENT_CONTRACT_VERSION,
-        "dump_index_contract": {
-            "name": "dump-index",
-            "version": "v1"
-        },
         # keep existing useful fields for compatibility/traceability
         "spec_version": SPEC_VERSION,
         "generator": generator_info or {"name": "lenskit", "platform": "unknown"},
@@ -4484,7 +4480,7 @@ def generate_json_sidecar(
         "redact_secrets": redact_secrets,
         "split_size_bytes": split_size_bytes,
         "max_bytes": max_file_bytes,
-        "schema_ids": [AGENT_CONTRACT_NAME, "dump-index"],
+        "schema_ids": [AGENT_CONTRACT_NAME],
         "generated_at": now.strftime('%Y-%m-%dT%H:%M:%SZ'),
         **({"mode": "none", "warning": "interpretation_disabled"} if meta_none else {}),
         "plan_only": plan_only,
@@ -4513,14 +4509,6 @@ def generate_json_sidecar(
             "content_policy": render_mode,
         },
     }
-
-    if "semantic_chunk_fields" in active_features:
-        meta["chunk_index_contract"] = {
-            "name": "chunk-index",
-            "version": "v2",
-            "legacy_aliases": True
-        }
-        meta["schema_ids"].append("chunk-index")
 
     if not meta_none:
         meta["epistemic_charter"] = {
@@ -4848,9 +4836,6 @@ def write_reports_v2(
                 elif role == "merge_md":
                     entry["contract"] = MERGE_CONTRACT_NAME
                     entry["contract_version"] = MERGE_CONTRACT_VERSION
-                elif role == "chunk_index":
-                    entry["contract"] = "chunk-index"
-                    entry["contract_version"] = "v2"
                 elif role == "architecture_summary":
                     entry["contract"] = "architecture-summary"
                     entry["contract_version"] = "v1"
@@ -4862,8 +4847,6 @@ def write_reports_v2(
 
         now_str = clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ')
         data = {
-            "contract": "dump-index",
-            "contract_version": "v1",
             "run_id": run_id,
             "created_at": now_str,
             "generated_at": now_str,
@@ -4894,8 +4877,6 @@ def write_reports_v2(
 
         now_str = clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ')
         data = {
-            "contract": "derived-index",
-            "contract_version": "v1",
             "run_id": run_id,
             "created_at": now_str,
             "generated_at": now_str,
@@ -5625,9 +5606,6 @@ def write_reports_v2(
     # Contract mappings for structured roles to support deterministic downstream interpretation.
     CONTRACT_REGISTRY = {
         ArtifactRole.INDEX_SIDECAR_JSON: {"id": AGENT_CONTRACT_NAME, "version": AGENT_CONTRACT_VERSION},
-        ArtifactRole.DUMP_INDEX_JSON: {"id": "dump-index", "version": "v1"},
-        ArtifactRole.DERIVED_MANIFEST_JSON: {"id": "derived-index", "version": "v1"},
-        ArtifactRole.CHUNK_INDEX_JSONL: {"id": "chunk-index", "version": "v1"},
         ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
         ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
     }

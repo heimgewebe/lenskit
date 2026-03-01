@@ -92,12 +92,10 @@ def test_generate_bundle_manifest_integration(tmp_path):
     assert sidecar_entry["contract"]["id"] == "repolens-agent"
 
     dump_entry = roles_map.get(ArtifactRole.DUMP_INDEX_JSON.value)
-    assert dump_entry and "contract" in dump_entry
-    assert dump_entry["contract"]["id"] == "dump-index"
+    assert dump_entry and "contract" not in dump_entry
 
     chunk_entry = roles_map.get(ArtifactRole.CHUNK_INDEX_JSONL.value)
-    assert chunk_entry and "contract" in chunk_entry
-    assert chunk_entry["contract"]["id"] == "chunk-index"
+    assert chunk_entry and "contract" not in chunk_entry
 
     # Since it's 'dual' output mode, sqlite_index should exist if fts5_bm25 is true
     if data["capabilities"].get("fts5_bm25"):

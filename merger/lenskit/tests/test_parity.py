@@ -153,10 +153,6 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     with open(r_dump_path) as f: r_dump = json.load(f)
     with open(p_dump_path) as f: p_dump = json.load(f)
 
-    # Verify dump contract
-    assert r_dump["contract"] == "dump-index"
-    assert p_dump["contract"] == "dump-index"
-
     # 2. Check Artifacts existence via dump_index
     # We expect at least: merge_md, sidecar_json, chunk_index (since dual mode), architecture_summary
     required_artifacts = ["merge_md", "sidecar_json", "architecture_summary", "chunk_index"]

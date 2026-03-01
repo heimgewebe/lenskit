@@ -31,7 +31,7 @@ Suchqualität kommt dann fast automatisch.
 - [x] **A1) „Bundle Manifest“ als Root of Navigation**
     - Neuer Contract: `bundle-manifest.v1`
     - Enthält: `run_id`, `created_at`, `generator` (inkl. `config_sha256`, `version`)
-    - `artifacts[]`: required: `role`, `path`, `content_type`, `bytes`, `sha256`, und conditional `contract` objekt (`id`, `version`)
+    - `artifacts[]`: required: `role`, `path`, `content_type`, `bytes`, `sha256`, und conditional `contract` objekt (`id`, `version`). Contract-Referenzen sind optional für Artefakt-Rollen, für die noch kein explizites Schema existiert.
     - `links`: `canonical_dump_index_sha256`, `derived_from` (Graphkanten)
     - `capabilities`: z.B. `fts5_bm25=true/false`, `redaction=true/false`
     - Prinzip: Ein Einstiegspunkt, der alles beschreibt. Keine Directory-Heuristiken.

@@ -41,15 +41,13 @@ def test_sidecar_contracts_and_dump_index():
 
         # Verify Contracts
         meta_dual = sidecar_dual["meta"]
-        assert "chunk_index_contract" in meta_dual, "chunk_index_contract should be present in dual mode"
-        assert meta_dual["chunk_index_contract"]["version"] == "v2"
-        assert "dump_index_contract" in meta_dual, "dump_index_contract should be present"
-        assert meta_dual["dump_index_contract"]["version"] == "v1"
+        assert "chunk_index_contract" not in meta_dual, "chunk_index_contract should not be present in dual mode"
+        assert "dump_index_contract" not in meta_dual, "dump_index_contract should not be present"
 
         # Verify Dump Index
         assert artifacts_dual.dump_index.exists()
         dump_dual = json.loads(artifacts_dual.dump_index.read_text(encoding="utf-8"))
-        assert dump_dual["contract"] == "dump-index"
+        assert "contract" not in dump_dual
         assert "artifacts" in dump_dual
         assert "chunk_index" in dump_dual["artifacts"]
 
@@ -80,7 +78,7 @@ def test_sidecar_contracts_and_dump_index():
         # Verify Contracts
         meta_archive = sidecar_archive["meta"]
         assert "chunk_index_contract" not in meta_archive, "chunk_index_contract should NOT be present in archive mode"
-        assert "dump_index_contract" in meta_archive, "dump_index_contract should be present"
+        assert "dump_index_contract" not in meta_archive, "dump_index_contract should not be present"
 
         # Verify Dump Index
         assert artifacts_archive.dump_index.exists()

@@ -108,10 +108,7 @@
                 "role": {
                   "enum": [
                     "index_sidecar_json",
-                    "chunk_index_jsonl",
-                    "dump_index_json",
                     "retrieval_eval_json",
-                    "derived_manifest_json",
                     "delta_json"
                   ]
                 }
