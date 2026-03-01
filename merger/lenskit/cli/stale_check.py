@@ -21,7 +21,7 @@ def check_stale_index(index_path: Path) -> None:
     """
     Non-fatally checks if the given SQLite index is stale by comparing the
     'canonical_dump_index_sha256' in the adjacent derived manifest with the actual
-    hash of the adjacent dump manifest. Warns via sys.stderr on mismatch.
+    hash of the adjacent dump_index.json (canonical index). Warns via sys.stderr on mismatch.
     """
     try:
         # Expected naming: <base>.chunk_index.index.sqlite
@@ -57,7 +57,7 @@ def check_stale_index(index_path: Path) -> None:
         if actual_sha is not None and recorded_sha != actual_sha:
             print(
                 f"Warning: The index '{index_path.name}' appears to be stale. "
-                f"The canonical dump manifest has changed.",
+                f"The canonical dump_index.json has changed.",
                 file=sys.stderr
             )
     except (OSError, json.JSONDecodeError, ValueError, TypeError):

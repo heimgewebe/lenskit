@@ -90,7 +90,7 @@ def test_loader_rejects_missing_parts():
             "version": "1.0",
             "meta": {"repo": "x", "generated_at": "2023-01-01T00:00:00Z", "generator": {"name": "x"}},
             "completeness": {"is_complete": True, "policy": "split", "parts": ["review.md"], "primary_part": "review.md"},
-                "artifacts": [{"role": "canonical_md", "basename": "review.md", "sha256": TEST_ARTIFACT_SHA256, "mime": "text/markdown"}],
+            "artifacts": [{"role": "canonical_md", "basename": "review.md", "sha256": TEST_ARTIFACT_SHA256, "mime": "text/markdown"}],
         }
         (d / "bundle.json").write_text(json.dumps(bad), encoding="utf-8")
 
