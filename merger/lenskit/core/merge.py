@@ -4724,6 +4724,65 @@ def write_reports_v2(
             "version": os.getenv("RLENS_VERSION", CORE_VERSION)
         }
 
+    def _json_safe(obj):
+        if isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        if isinstance(obj, (list, tuple)):
+            return [_json_safe(x) for x in obj]
+        if isinstance(obj, set):
+            return sorted([_json_safe(x) for x in obj])
+        if isinstance(obj, dict):
+            return {str(k): _json_safe(v) for k, v in sorted(obj.items(), key=lambda i: str(i[0]))}
+        if isinstance(obj, Path):
+            return str(obj)
+        if hasattr(obj, "name") and hasattr(obj, "value"): # Enum-like
+            return obj.name
+
+        # Fallback: Deterministic Type Tagging
+        # Avoids unstable repr/str (memory addresses)
+        t = type(obj)
+        module = getattr(t, "__module__", "__builtin__")
+        qualname = getattr(t, "__qualname__", t.__name__)
+        return f"__type__:{module}.{qualname}"
+
+    # Calculate config_sha256 for parity checks and bundle manifest provenance
+    extras_dict = None
+    if extras:
+        try:
+            extras_dict = asdict(extras)
+        except (TypeError, ValueError):
+            # Fallback if extras is not a dataclass instance (e.g. mocked object or type)
+            extras_dict = getattr(extras, "__dict__", None)
+            if extras_dict is None:
+                 extras_dict = str(extras)
+
+    # Ensure extras_dict is JSON safe
+    extras_dict = _json_safe(extras_dict)
+
+    config_payload = {
+        "detail": detail,
+        "mode": mode,
+        "max_bytes": max_bytes,
+        "plan_only": plan_only,
+        "code_only": code_only,
+        "split_size": split_size,
+        "path_filter": path_filter,
+        "ext_filter": sorted(ext_filter) if ext_filter else None,
+        "extras": extras_dict,
+        "meta_density": meta_density,
+        "meta_none": meta_none,
+        "output_mode": output_mode,
+        "redact_secrets": redact_secrets,
+        "include_hidden": include_hidden,
+    }
+    config_str = json.dumps(config_payload, sort_keys=True, separators=(",", ":"))
+    config_sha256 = hashlib.sha256(config_str.encode("utf-8")).hexdigest()
+
+    # Inject the computed config_sha256 into generator_info
+    generator_info = dict(generator_info)
+    if "config_sha256" not in generator_info:
+        generator_info["config_sha256"] = config_sha256
+
     # Helper for architecture summary writing (DRY)
     def _write_architecture_summary(
         files,
@@ -4761,63 +4820,6 @@ def write_reports_v2(
     # Helper for dump index (Canonical Entrypoint)
     def generate_dump_index(base_name_func, run_id, artifacts_map, generator_info, repo_names):
         out_path = base_name_func(part_suffix="").with_suffix(".dump_index.json")
-
-        def _json_safe(obj):
-            if isinstance(obj, (str, int, float, bool, type(None))):
-                return obj
-            if isinstance(obj, (list, tuple)):
-                return [_json_safe(x) for x in obj]
-            if isinstance(obj, set):
-                return sorted([_json_safe(x) for x in obj])
-            if isinstance(obj, dict):
-                return {str(k): _json_safe(v) for k, v in sorted(obj.items(), key=lambda i: str(i[0]))}
-            if isinstance(obj, Path):
-                return str(obj)
-            if hasattr(obj, "name") and hasattr(obj, "value"): # Enum-like
-                return obj.name
-
-            # Fallback: Deterministic Type Tagging
-            # Avoids unstable repr/str (memory addresses)
-            t = type(obj)
-            module = getattr(t, "__module__", "__builtin__")
-            qualname = getattr(t, "__qualname__", t.__name__)
-            return f"__type__:{module}.{qualname}"
-
-        # Calculate config_sha256 for parity checks
-        extras_dict = None
-        if extras:
-            try:
-                extras_dict = asdict(extras)
-            except (TypeError, ValueError):
-                # Fallback if extras is not a dataclass instance (e.g. mocked object or type)
-                extras_dict = getattr(extras, "__dict__", None)
-                if extras_dict is None:
-                     extras_dict = str(extras)
-
-        # Ensure extras_dict is JSON safe
-        extras_dict = _json_safe(extras_dict)
-
-        config_payload = {
-            "detail": detail,
-            "mode": mode,
-            "max_bytes": max_bytes,
-            "plan_only": plan_only,
-            "code_only": code_only,
-            "split_size": split_size,
-            "path_filter": path_filter,
-            "ext_filter": sorted(ext_filter) if ext_filter else None,
-            "extras": extras_dict,
-            "meta_density": meta_density,
-            "meta_none": meta_none,
-            "output_mode": output_mode,
-            "redact_secrets": redact_secrets,
-            "include_hidden": include_hidden,
-        }
-        config_str = json.dumps(config_payload, sort_keys=True, separators=(",", ":"))
-        config_sha256 = hashlib.sha256(config_str.encode("utf-8")).hexdigest()
-
-        gen_info_enriched = dict(generator_info)
-        gen_info_enriched["config_sha256"] = config_sha256
 
         artifacts_block = {}
         for role, path in artifacts_map.items():
@@ -4867,7 +4869,7 @@ def write_reports_v2(
             "run_id": run_id,
             "created_at": now_str,
             "generated_at": now_str,
-            "generator": gen_info_enriched,
+            "generator": generator_info,
             "repos": repo_names,
             "artifacts": artifacts_sorted
         }

@@ -103,7 +103,7 @@ def test_generate_bundle_manifest_integration(tmp_path):
     if data["capabilities"].get("fts5_bm25"):
         assert ArtifactRole.SQLITE_INDEX.value in roles_map
 
-def test_missing_config_sha256_raises_error(tmp_path):
+def test_invalid_config_sha256_raises_error(tmp_path):
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     f1 = src_dir / "file1.txt"
@@ -162,5 +162,5 @@ def test_missing_config_sha256_raises_error(tmp_path):
             code_only=False,
             extras=MockExtras(),
             output_mode="dual",
-            generator_info={"name": "test", "version": "1.0"}
+            generator_info={"name": "test", "version": "1.0", "config_sha256": "invalid_hash"}
         )
