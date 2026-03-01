@@ -30,7 +30,7 @@ def test_zone_markers_symmetry_integration(tmp_path):
     hub_dir = tmp_path / "hub"
     hub_dir.mkdir()
 
-    artifacts = write_reports_v2(
+    artifacts = write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
         merges_dir=merges_dir,
         hub=hub_dir,
         repo_summaries=[summary],

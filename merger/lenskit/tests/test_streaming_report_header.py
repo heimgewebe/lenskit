@@ -88,7 +88,7 @@ def test_write_reports_v2_single_file_enforces_part_1_1_header(tmp_path):
     }
 
     # We use plan_only=True to focus on header generation logic in the writer
-    artifacts = merge.write_reports_v2(
+    artifacts = merge.write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
         merges_dir=merges_dir,
         hub=hub,
         repo_summaries=[repo_summary],

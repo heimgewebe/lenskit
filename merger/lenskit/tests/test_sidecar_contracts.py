@@ -24,7 +24,7 @@ def test_sidecar_contracts_and_dump_index():
         extras = ExtrasConfig(json_sidecar=True)
 
         # 1. Test DUAL mode (Chunk Index enabled)
-        artifacts_dual = write_reports_v2(
+        artifacts_dual = write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
             merges_dir=merges_dir,
             hub=hub,
             repo_summaries=summaries,
@@ -62,7 +62,7 @@ def test_sidecar_contracts_and_dump_index():
         int(chunk_sha, 16)
 
         # 2. Test ARCHIVE mode (Chunk Index disabled)
-        artifacts_archive = write_reports_v2(
+        artifacts_archive = write_reports_v2(generator_info={"name": "test", "version": "1.0", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
             merges_dir=merges_dir,
             hub=hub,
             repo_summaries=summaries,

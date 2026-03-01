@@ -4724,10 +4724,6 @@ def write_reports_v2(
             "version": os.getenv("RLENS_VERSION", CORE_VERSION)
         }
 
-    # Ensure config_sha256 is present for strict provenance
-    if "config_sha256" not in generator_info:
-        generator_info["config_sha256"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-
     # Helper for architecture summary writing (DRY)
     def _write_architecture_summary(
         files,
@@ -5660,8 +5656,8 @@ def write_reports_v2(
         links["canonical_dump_sha256"] = canonical_dump_sha256
 
     config_sha256 = generator_info.get("config_sha256")
-    if not config_sha256:
-        raise ValueError("generator_info.config_sha256 is required for bundle manifest provenance")
+    if not config_sha256 or not re.fullmatch(r"[a-f0-9]{64}", config_sha256):
+        raise ValueError("generator_info.config_sha256 (64 hex lowercase) is required for bundle manifest provenance")
 
     bundle_manifest = {
         "kind": "repolens.bundle.manifest",

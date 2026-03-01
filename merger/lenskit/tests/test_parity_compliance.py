@@ -62,6 +62,7 @@ def test_write_reports_parity_features(tmp_path):
     gen_info = {"name": "parity_test", "version": "1.0", "platform": "test"}
 
     # Run with dual mode
+    gen_info["config_sha256"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     write_reports_v2(
         merges_dir,
         hub,

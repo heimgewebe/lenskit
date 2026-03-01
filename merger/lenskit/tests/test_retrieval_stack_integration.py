@@ -43,7 +43,7 @@ def test_retrieval_stack_integration():
             plan_only=False,
             output_mode="dual",
             extras=extras,
-            generator_info={"name": "test-stack", "platform": "test"}
+            generator_info={"name": "test-stack", "platform": "test", "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
         )
 
         dump_path = artifacts.dump_index

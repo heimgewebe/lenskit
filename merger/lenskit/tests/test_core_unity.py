@@ -81,7 +81,8 @@ def test_generator_info_version(tmp_path):
             max_bytes=1000,
             plan_only=False,
             output_mode="dual", # generates json sidecar
-            extras=extras
+            extras=extras,
+            generator_info={"name": "test", "version": __core_version__, "config_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
         )
 
         # Find sidecar
