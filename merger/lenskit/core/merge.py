@@ -4899,7 +4899,7 @@ def write_reports_v2(
             "run_id": run_id,
             "created_at": now_str,
             "generated_at": now_str,
-            "canonical_dump_sha256": dump_sha256,
+            "canonical_dump_index_sha256": dump_sha256,
             "generator": generator_info,
             "repos": repo_names,
             "artifacts": dict(sorted(artifacts_block.items()))
@@ -5600,9 +5600,9 @@ def write_reports_v2(
     final_dump_index = last_dump_index_path
 
     # Determine the dump index sha for links
-    canonical_dump_sha256 = None
+    canonical_dump_index_sha256 = None
     if final_dump_index and final_dump_index.exists():
-        canonical_dump_sha256 = _compute_file_sha256(final_dump_index)
+        canonical_dump_index_sha256 = _compute_file_sha256(final_dump_index)
 
     # Build the bundle manifest
     bundle_manifest_path = None
@@ -5652,8 +5652,8 @@ def write_reports_v2(
         _add_artifact(derived_manifests[-1], ArtifactRole.DERIVED_MANIFEST_JSON, "application/json")
 
     links = {}
-    if canonical_dump_sha256:
-        links["canonical_dump_sha256"] = canonical_dump_sha256
+    if canonical_dump_index_sha256:
+        links["canonical_dump_index_sha256"] = canonical_dump_index_sha256
 
     config_sha256 = generator_info.get("config_sha256")
     if not config_sha256 or not re.fullmatch(r"[a-f0-9]{64}", config_sha256):

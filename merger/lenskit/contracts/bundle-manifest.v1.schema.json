@@ -105,10 +105,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "canonical_dump_sha256": {
+        "canonical_dump_index_sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "SHA256 of the canonical dump artifact, linking derived artifacts back to source."
+          "description": "SHA256 of the canonical dump_index.json artifact, linking derived artifacts back to their source index."
         },
         "derived_from": {
           "type": "array",

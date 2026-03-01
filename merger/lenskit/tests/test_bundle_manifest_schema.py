@@ -33,7 +33,7 @@ def test_valid_bundle_manifest(schema):
             }
         ],
         "links": {
-            "canonical_dump_sha256": TEST_ARTIFACT_SHA256
+            "canonical_dump_index_sha256": TEST_ARTIFACT_SHA256
         },
         "capabilities": {
             "fts5_bm25": True

@@ -32,7 +32,7 @@ Suchqualität kommt dann fast automatisch.
     - Neuer Contract: `bundle-manifest.v1`
     - Enthält: `run_id`, `created_at`, `generator` (inkl. `config_sha256`, `version`)
     - `artifacts[]`: je Artefakt `role`, `path`, `content_type`, `bytes`, `sha256`, `contract_id`, `contract_version`
-    - `links`: `canonical_dump_sha256`, `derived_from` (Graphkanten)
+    - `links`: `canonical_dump_index_sha256`, `derived_from` (Graphkanten)
     - `capabilities`: z.B. `fts5_bm25=true/false`, `redaction=true/false`
     - Prinzip: Ein Einstiegspunkt, der alles beschreibt. Keine Directory-Heuristiken.
     - **Stop-Kriterium:** Agent findet aus einer Datei alle relevanten Artefakte und deren Bedeutung.
@@ -72,8 +72,8 @@ Suchqualität kommt dann fast automatisch.
 **Ziel:** Maschinen sollen nicht „aus Versehen“ stale Indizes nutzen.
 
 - [ ] **D1) Index Meta Table + Manifest Validity**
-    - In SQLite `index_meta`: `canonical_dump_sha256`, `config_sha256`, `created_at`, `lenskit_version`.
-    - In derived manifest: `canonical_dump_sha256`, zusätzlich `config_sha256`.
+    - In SQLite `index_meta`: `canonical_dump_index_sha256`, `config_sha256`, `created_at`, `lenskit_version`.
+    - In derived manifest: `canonical_dump_index_sha256`, zusätzlich `config_sha256`.
 
 - [ ] **D2) Stale-Policy (konfigurierbar)**
     - `--stale-policy warn|fail|ignore`
