@@ -5622,6 +5622,16 @@ def write_reports_v2(
         meta_none=meta_none,
         ).with_suffix(".bundle.manifest.json")
 
+    # Contract mappings for structured roles to support deterministic downstream interpretation.
+    CONTRACT_REGISTRY = {
+        ArtifactRole.INDEX_SIDECAR_JSON: {"id": AGENT_CONTRACT_NAME, "version": AGENT_CONTRACT_VERSION},
+        ArtifactRole.DUMP_INDEX_JSON: {"id": "dump-index", "version": "v1"},
+        ArtifactRole.DERIVED_MANIFEST_JSON: {"id": "derived-index", "version": "v1"},
+        ArtifactRole.CHUNK_INDEX_JSONL: {"id": "chunk-index", "version": "v1"},
+        ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
+        ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
+    }
+
     artifacts_list = []
     def _add_artifact(p: Optional[Path], role: ArtifactRole, content_type: str):
         if p and p.exists():
@@ -5631,13 +5641,19 @@ def write_reports_v2(
                     rel_path = p.relative_to(merges_dir).as_posix()
                 except ValueError:
                     rel_path = p.name
-                artifacts_list.append({
+
+                entry = {
                     "role": role.value,
                     "path": rel_path,
                     "content_type": content_type,
                     "bytes": p.stat().st_size,
                     "sha256": sha
-                })
+                }
+
+                if role in CONTRACT_REGISTRY:
+                    entry["contract"] = CONTRACT_REGISTRY[role]
+
+                artifacts_list.append(entry)
 
     _add_artifact(final_canonical_md, ArtifactRole.CANONICAL_MD, "text/markdown")
     if extras and extras.json_sidecar:

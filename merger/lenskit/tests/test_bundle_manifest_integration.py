@@ -83,16 +83,25 @@ def test_generate_bundle_manifest_integration(tmp_path):
     # Validate schema
     jsonschema.validate(instance=data, schema=schema)
 
-    # Verify key roles are present
-    roles_present = [item["role"] for item in data["artifacts"]]
-    assert ArtifactRole.CANONICAL_MD.value in roles_present
-    assert ArtifactRole.INDEX_SIDECAR_JSON.value in roles_present
-    assert ArtifactRole.DUMP_INDEX_JSON.value in roles_present
-    assert ArtifactRole.CHUNK_INDEX_JSONL.value in roles_present
+    # Verify key roles are present and contracts are assigned for structured artifacts
+    roles_map = {item["role"]: item for item in data["artifacts"]}
+    assert ArtifactRole.CANONICAL_MD.value in roles_map
+
+    sidecar_entry = roles_map.get(ArtifactRole.INDEX_SIDECAR_JSON.value)
+    assert sidecar_entry and "contract" in sidecar_entry
+    assert sidecar_entry["contract"]["id"] == "repolens-agent"
+
+    dump_entry = roles_map.get(ArtifactRole.DUMP_INDEX_JSON.value)
+    assert dump_entry and "contract" in dump_entry
+    assert dump_entry["contract"]["id"] == "dump-index"
+
+    chunk_entry = roles_map.get(ArtifactRole.CHUNK_INDEX_JSONL.value)
+    assert chunk_entry and "contract" in chunk_entry
+    assert chunk_entry["contract"]["id"] == "chunk-index"
 
     # Since it's 'dual' output mode, sqlite_index should exist if fts5_bm25 is true
     if data["capabilities"].get("fts5_bm25"):
-        assert ArtifactRole.SQLITE_INDEX.value in roles_present
+        assert ArtifactRole.SQLITE_INDEX.value in roles_map
 
 def test_missing_config_sha256_raises_error(tmp_path):
     src_dir = tmp_path / "src"

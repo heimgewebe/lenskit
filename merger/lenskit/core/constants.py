@@ -3,7 +3,7 @@ from enum import Enum
 
 class ArtifactRole(str, Enum):
     """
-    Eindeutige Rollenliste (Taxonomie) fuer Artefakte.
+    Eindeutige Rollenliste (Taxonomie) für Artefakte.
     Verhindert Drift ("role"-Strings sind sonst Spaghetti).
     """
     CANONICAL_MD = "canonical_md"

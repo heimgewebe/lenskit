@@ -30,6 +30,17 @@ def test_valid_bundle_manifest(schema):
                 "content_type": "text/markdown",
                 "bytes": 1024,
                 "sha256": TEST_ARTIFACT_SHA256
+            },
+            {
+                "role": "index_sidecar_json",
+                "path": "sidecar.json",
+                "content_type": "application/json",
+                "bytes": 2048,
+                "sha256": TEST_ARTIFACT_SHA256,
+                "contract": {
+                    "id": "repolens-agent",
+                    "version": "v2"
+                }
             }
         ],
         "links": {
