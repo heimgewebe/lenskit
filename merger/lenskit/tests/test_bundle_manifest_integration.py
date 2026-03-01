@@ -1,3 +1,4 @@
+import jsonschema
 import json
 import pytest
 from pathlib import Path
@@ -6,7 +7,22 @@ from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, FileInfo
 from merger.lenskit.core.constants import ArtifactRole
 
-import jsonschema
+import re
+
+class MockExtras:
+    json_sidecar = True
+    skip_md = False
+    format = "markdown"
+    augment_sidecar = False
+    health = False
+    organism_index = False
+    fleet_panorama = False
+    delta_reports = False
+    heatmap = False
+
+    @classmethod
+    def none(cls):
+        return cls()
 
 def test_generate_bundle_manifest_integration(tmp_path):
     # Setup dummy source file
@@ -40,21 +56,6 @@ def test_generate_bundle_manifest_integration(tmp_path):
         "files": [fi1],
         "source_files": [fi1]
     }
-
-    class MockExtras:
-        json_sidecar = True
-        skip_md = False
-        format = "markdown"
-        augment_sidecar = False
-        health = False
-        organism_index = False
-        fleet_panorama = False
-        delta_reports = False
-        heatmap = False
-
-        @classmethod
-        def none(cls):
-            return cls()
 
     artifacts = write_reports_v2(
         merges_dir=out_dir,
@@ -135,21 +136,6 @@ def test_invalid_config_sha256_raises_error(tmp_path):
         "source_files": [fi1]
     }
 
-    class MockExtras:
-        json_sidecar = True
-        skip_md = False
-        format = "markdown"
-        augment_sidecar = False
-        health = False
-        organism_index = False
-        fleet_panorama = False
-        delta_reports = False
-        heatmap = False
-
-        @classmethod
-        def none(cls):
-            return cls()
-
     with pytest.raises(ValueError, match="generator_info.config_sha256 \\(64 hex lowercase\\) is required"):
         write_reports_v2(
             merges_dir=out_dir,
@@ -166,7 +152,6 @@ def test_invalid_config_sha256_raises_error(tmp_path):
         )
 
 def test_missing_config_sha256_is_computed_and_manifest_contains_valid_hash(tmp_path):
-    import re
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     f1 = src_dir / "file1.txt"
@@ -198,21 +183,6 @@ def test_missing_config_sha256_is_computed_and_manifest_contains_valid_hash(tmp_
         "source_files": [fi1]
     }
 
-    class MockExtras:
-        json_sidecar = True
-        skip_md = False
-        format = "markdown"
-        augment_sidecar = False
-        health = False
-        organism_index = False
-        fleet_panorama = False
-        delta_reports = False
-        heatmap = False
-
-        @classmethod
-        def none(cls):
-            return cls()
-
     artifacts = write_reports_v2(
         merges_dir=out_dir,
         hub=hub_dir,
@@ -237,10 +207,6 @@ def test_missing_config_sha256_is_computed_and_manifest_contains_valid_hash(tmp_
     assert re.fullmatch(r"[a-f0-9]{64}", data["generator"]["config_sha256"])
 
 def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
-    import re
-    import json
-    from merger.lenskit.core.merge import write_reports_v2, FileInfo
-    from pathlib import Path
 
     src_dir = tmp_path / "src"
     src_dir.mkdir(exist_ok=True)
@@ -272,21 +238,6 @@ def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
         "files": [fi1],
         "source_files": [fi1]
     }
-
-    class MockExtras:
-        json_sidecar = True
-        skip_md = False
-        format = "markdown"
-        augment_sidecar = False
-        health = False
-        organism_index = False
-        fleet_panorama = False
-        delta_reports = False
-        heatmap = False
-
-        @classmethod
-        def none(cls):
-            return cls()
 
     artifacts = write_reports_v2(
         merges_dir=out_dir,
