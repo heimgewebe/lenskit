@@ -235,3 +235,78 @@ def test_missing_config_sha256_is_computed_and_manifest_contains_valid_hash(tmp_
     assert "generator" in data
     assert "config_sha256" in data["generator"]
     assert re.fullmatch(r"[a-f0-9]{64}", data["generator"]["config_sha256"])
+
+def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
+    import re
+    import json
+    from merger.lenskit.core.merge import write_reports_v2, FileInfo
+    from pathlib import Path
+
+    src_dir = tmp_path / "src"
+    src_dir.mkdir(exist_ok=True)
+    f1 = src_dir / "file1.txt"
+    f1.write_text("Hello", encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir(exist_ok=True)
+    hub_dir = tmp_path / "hub"
+    hub_dir.mkdir(exist_ok=True)
+
+    fi1 = FileInfo(
+        root_label="test-repo",
+        abs_path=f1,
+        rel_path=Path("file1.txt"),
+        size=5,
+        is_text=True,
+        md5="test",
+        category="docs",
+        tags=[],
+        ext=".txt",
+        skipped=False,
+    )
+
+    repo_summary = {
+        "name": "test-repo",
+        "path": str(src_dir),
+        "root": src_dir,
+        "files": [fi1],
+        "source_files": [fi1]
+    }
+
+    class MockExtras:
+        json_sidecar = True
+        skip_md = False
+        format = "markdown"
+        augment_sidecar = False
+        health = False
+        organism_index = False
+        fleet_panorama = False
+        delta_reports = False
+        heatmap = False
+
+        @classmethod
+        def none(cls):
+            return cls()
+
+    artifacts = write_reports_v2(
+        merges_dir=out_dir,
+        hub=hub_dir,
+        repo_summaries=[repo_summary],
+        detail="test",
+        mode="gesamt",
+        max_bytes=1000,
+        plan_only=False,
+        code_only=False,
+        extras=MockExtras(),
+        output_mode="dual",
+        generator_info=None
+    )
+
+    assert artifacts.bundle_manifest is not None
+    assert artifacts.bundle_manifest.exists()
+
+    data = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
+
+    assert "generator" in data
+    assert "config_sha256" in data["generator"]
+    assert re.fullmatch(r"[a-f0-9]{64}", data["generator"]["config_sha256"])
