@@ -4724,6 +4724,10 @@ def write_reports_v2(
             "version": os.getenv("RLENS_VERSION", CORE_VERSION)
         }
 
+    # Ensure config_sha256 is present for strict provenance
+    if "config_sha256" not in generator_info:
+        generator_info["config_sha256"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
     # Helper for architecture summary writing (DRY)
     def _write_architecture_summary(
         files,
@@ -5627,9 +5631,13 @@ def write_reports_v2(
         if p and p.exists():
             sha = _compute_file_sha256(p)
             if sha:
+                try:
+                    rel_path = p.relative_to(merges_dir).as_posix()
+                except ValueError:
+                    rel_path = p.name
                 artifacts_list.append({
                     "role": role.value,
-                    "path": p.name,
+                    "path": rel_path,
                     "content_type": content_type,
                     "bytes": p.stat().st_size,
                     "sha256": sha
@@ -5638,7 +5646,7 @@ def write_reports_v2(
     _add_artifact(final_canonical_md, ArtifactRole.CANONICAL_MD, "text/markdown")
     if extras and extras.json_sidecar:
         _add_artifact(final_index_json, ArtifactRole.INDEX_SIDECAR_JSON, "application/json")
-    _add_artifact(final_chunk_index, ArtifactRole.CHUNK_INDEX_JSONL, "application/jsonl")
+    _add_artifact(final_chunk_index, ArtifactRole.CHUNK_INDEX_JSONL, "application/x-ndjson")
     _add_artifact(final_dump_index, ArtifactRole.DUMP_INDEX_JSON, "application/json")
     if sqlite_indices:
         _add_artifact(sqlite_indices[-1], ArtifactRole.SQLITE_INDEX, "application/octet-stream")
@@ -5651,6 +5659,10 @@ def write_reports_v2(
     if canonical_dump_sha256:
         links["canonical_dump_sha256"] = canonical_dump_sha256
 
+    config_sha256 = generator_info.get("config_sha256")
+    if not config_sha256:
+        raise ValueError("generator_info.config_sha256 is required for bundle manifest provenance")
+
     bundle_manifest = {
         "kind": "repolens.bundle.manifest",
         "version": "1.0",
@@ -5659,7 +5671,7 @@ def write_reports_v2(
         "generator": {
             "name": generator_info.get("name", "lenskit"),
             "version": generator_info.get("version", "unknown"),
-            "config_sha256": generator_info.get("config_sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            "config_sha256": config_sha256
         },
         "artifacts": artifacts_list,
         "links": links,

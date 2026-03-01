@@ -90,5 +90,6 @@ def test_generate_bundle_manifest_integration(tmp_path):
     assert ArtifactRole.DUMP_INDEX_JSON.value in roles_present
     assert ArtifactRole.CHUNK_INDEX_JSONL.value in roles_present
 
-    # Since it's 'dual' output mode, sqlite_index should also exist
-    assert ArtifactRole.SQLITE_INDEX.value in roles_present
+    # Since it's 'dual' output mode, sqlite_index should exist if fts5_bm25 is true
+    if data["capabilities"].get("fts5_bm25"):
+        assert ArtifactRole.SQLITE_INDEX.value in roles_present
