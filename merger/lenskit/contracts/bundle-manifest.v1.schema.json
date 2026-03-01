@@ -35,11 +35,19 @@
     },
     "generator": {
       "type": "object",
-      "required": ["name", "version", "config_sha256"],
+      "required": [
+        "name",
+        "version",
+        "config_sha256"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string" },
-        "version": { "type": "string" },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
         "config_sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
@@ -93,32 +101,140 @@
             "type": "object",
             "description": "Contract reference metadata.",
             "additionalProperties": false,
-            "required": ["id", "version"],
+            "required": [
+              "id",
+              "version"
+            ],
             "properties": {
-              "id": { "type": "string", "minLength": 1 },
-              "version": { "type": "string", "minLength": 1 }
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              }
             }
+          },
+          "interpretation": {
+            "type": "object",
+            "required": [
+              "mode"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "contract",
+                  "role_only"
+                ]
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
         "allOf": [
           {
             "if": {
+              "required": [
+                "contract"
+              ]
+            },
+            "then": {
+              "properties": {
+                "interpretation": {
+                  "properties": {
+                    "mode": {
+                      "const": "contract"
+                    }
+                  }
+                }
+              },
+              "required": [
+                "interpretation"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "interpretation": {
+                  "properties": {
+                    "mode": {
+                      "const": "role_only"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              },
+              "required": [
+                "interpretation"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "contract"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
               "properties": {
                 "role": {
                   "enum": [
                     "index_sidecar_json",
-                    "chunk_index_jsonl",
-                    "dump_index_json",
                     "retrieval_eval_json",
-                    "derived_manifest_json",
                     "delta_json"
                   ]
                 }
-              }
+              },
+              "required": [
+                "role"
+              ]
             },
             "then": {
-              "required": ["contract"]
+              "required": [
+                "contract",
+                "interpretation"
+              ],
+              "properties": {
+                "interpretation": {
+                  "properties": {
+                    "mode": {
+                      "const": "contract"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "interpretation": {
+                  "properties": {
+                    "mode": {
+                      "const": "contract"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              },
+              "required": [
+                "interpretation"
+              ]
+            },
+            "then": {
+              "required": [
+                "contract"
+              ]
             }
           }
         ]
@@ -135,7 +251,9 @@
         },
         "derived_from": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Graph edges back to origin sources."
         }
       }
@@ -143,8 +261,12 @@
     "capabilities": {
       "type": "object",
       "properties": {
-        "fts5_bm25": { "type": "boolean" },
-        "redaction": { "type": "boolean" }
+        "fts5_bm25": {
+          "type": "boolean"
+        },
+        "redaction": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": true
     }

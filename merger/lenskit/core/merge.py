@@ -5636,9 +5636,6 @@ def write_reports_v2(
     # Contract mappings for structured roles to support deterministic downstream interpretation.
     CONTRACT_REGISTRY = {
         ArtifactRole.INDEX_SIDECAR_JSON: {"id": AGENT_CONTRACT_NAME, "version": AGENT_CONTRACT_VERSION},
-        ArtifactRole.DUMP_INDEX_JSON: {"id": "dump-index", "version": "v1"},
-        ArtifactRole.DERIVED_MANIFEST_JSON: {"id": "derived-index", "version": "v1"},
-        ArtifactRole.CHUNK_INDEX_JSONL: {"id": "chunk-index", "version": "v1"},
         ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
         ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
     }
@@ -5663,6 +5660,9 @@ def write_reports_v2(
 
                 if role in CONTRACT_REGISTRY:
                     entry["contract"] = CONTRACT_REGISTRY[role]
+                    entry["interpretation"] = {"mode": "contract"}
+                else:
+                    entry["interpretation"] = {"mode": "role_only"}
 
                 artifacts_list.append(entry)
 

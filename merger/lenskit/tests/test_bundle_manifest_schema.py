@@ -29,8 +29,73 @@ def test_valid_bundle_manifest(schema):
                 "path": "output.md",
                 "content_type": "text/markdown",
                 "bytes": 1024,
-                "sha256": TEST_ARTIFACT_SHA256
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "role_only"}
             },
+            {
+                "role": "index_sidecar_json",
+                "path": "sidecar.json",
+                "content_type": "application/json",
+                "bytes": 2048,
+                "sha256": TEST_ARTIFACT_SHA256,
+                "contract": {
+                    "id": "repolens-agent",
+                    "version": "v2"
+                },
+                "interpretation": {"mode": "contract"}
+            }
+        ],
+        "links": {
+            "canonical_dump_index_sha256": TEST_ARTIFACT_SHA256
+        },
+        "capabilities": {
+            "fts5_bm25": True
+        }
+    }
+    jsonschema.validate(instance=valid_data, schema=schema)
+
+
+def test_invalid_bundle_manifest_role_only_with_contract(schema):
+    invalid_data = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-1234",
+        "created_at": "2023-10-12T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [
+            {
+                "role": "canonical_md",
+                "path": "output.md",
+                "content_type": "text/markdown",
+                "bytes": 1024,
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "role_only"},
+                "contract": {"id": "foo", "version": "1.0"}
+            }
+        ],
+        "links": {},
+        "capabilities": {}
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_data, schema=schema)
+
+
+def test_invalid_bundle_manifest_contract_missing_interpretation(schema):
+    invalid_data = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-1234",
+        "created_at": "2023-10-12T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [
             {
                 "role": "index_sidecar_json",
                 "path": "sidecar.json",
@@ -43,13 +108,67 @@ def test_valid_bundle_manifest(schema):
                 }
             }
         ],
-        "links": {
-            "canonical_dump_index_sha256": TEST_ARTIFACT_SHA256
-        },
-        "capabilities": {
-            "fts5_bm25": True
-        }
+        "links": {},
+        "capabilities": {}
     }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_data, schema=schema)
+
+
+def test_invalid_bundle_manifest_interpretation_contract_without_contract(schema):
+    invalid_data = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-1234",
+        "created_at": "2023-10-12T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [
+            {
+                "role": "canonical_md",
+                "path": "output.md",
+                "content_type": "text/markdown",
+                "bytes": 1024,
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "contract"}
+            }
+        ],
+        "links": {},
+        "capabilities": {}
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_data, schema=schema)
+
+
+def test_valid_bundle_manifest_missing_interpretation_for_role_only_artifact(schema):
+    valid_data = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-1234",
+        "created_at": "2023-10-12T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [
+            {
+                "role": "canonical_md",
+                "path": "output.md",
+                "content_type": "text/markdown",
+                "bytes": 1024,
+                "sha256": TEST_ARTIFACT_SHA256
+                # interpretation omitted for backward compatibility
+            }
+        ],
+        "links": {},
+        "capabilities": {}
+    }
+
     jsonschema.validate(instance=valid_data, schema=schema)
 
 
@@ -80,7 +199,8 @@ def test_invalid_bundle_manifest_bad_role(schema):
                 "path": "output.md",
                 "content_type": "text/markdown",
                 "bytes": 1024,
-                "sha256": TEST_ARTIFACT_SHA256
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "role_only"}
             }
         ],
         "links": {},
