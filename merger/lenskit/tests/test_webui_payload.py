@@ -1,5 +1,5 @@
 import pytest
-from playwright.sync_api import Page, Route, expect
+from playwright.sync_api import Page, Route
 import json
 import os
 import time

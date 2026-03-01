@@ -2,7 +2,6 @@
 import unittest
 import sys
 import os
-import json
 from pathlib import Path
 
 # Add merger/ to sys.path so lenskit is importable

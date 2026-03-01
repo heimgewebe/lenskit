@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import patch
-from pathlib import Path
 from merger.lenskit.core.merge import scan_repo
 
 def get_file_info(files, filename):

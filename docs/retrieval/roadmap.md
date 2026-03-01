@@ -28,17 +28,17 @@ Suchqualität kommt dann fast automatisch.
 ### Phase A — Maschinenvertrag schließen (Contracts + Artefaktgraph)
 **Ziel:** Ein Agent kann ohne Ratespiel alle Artefakte finden und korrekt interpretieren.
 
-- [ ] **A1) „Bundle Manifest“ als Root of Navigation**
+- [x] **A1) „Bundle Manifest“ als Root of Navigation**
     - Neuer Contract: `bundle-manifest.v1`
     - Enthält: `run_id`, `created_at`, `generator` (inkl. `config_sha256`, `version`)
-    - `artifacts[]`: je Artefakt `role`, `path`, `content_type`, `bytes`, `sha256`, `contract_id`, `contract_version`
-    - `links`: `canonical_dump_sha256`, `derived_from` (Graphkanten)
+    - `artifacts[]`: required: `role`, `path`, `content_type`, `bytes`, `sha256`, und conditional `contract` objekt (`id`, `version`)
+    - `links`: `canonical_dump_index_sha256`, `derived_from` (Graphkanten)
     - `capabilities`: z.B. `fts5_bm25=true/false`, `redaction=true/false`
     - Prinzip: Ein Einstiegspunkt, der alles beschreibt. Keine Directory-Heuristiken.
-    - **Stop-Kriterium:** Agent findet aus einer Datei alle relevanten Artefakte und deren Bedeutung.
+    - **Stop-Kriterium:** Agent findet aus einer Datei alle relevanten Artefakte. Deterministische Interpretation erfolgt über das role-Enum sowie referenzierte Contracts für strukturierte Daten.
 
-- [ ] **A2) Eindeutige Rollenliste (Taxonomie)**
-    - Definiere eine feste Rollenliste (Enum) für: `canonical_md`, `index_sidecar_json`, `chunk_index_jsonl`, `dump_index_json`, `sqlite_index`, `retrieval_eval_json`, `derived_manifest_json`, `pr_delta_json` (falls vorhanden)
+- [x] **A2) Eindeutige Rollenliste (Taxonomie)**
+    - Definiere eine feste Rollenliste (Enum) für: `canonical_md`, `index_sidecar_json`, `chunk_index_jsonl`, `dump_index_json`, `sqlite_index`, `retrieval_eval_json`, `derived_manifest_json`, `delta_json` (falls vorhanden)
     - Verhindert Drift („role“-Strings sind sonst Spaghetti).
     - **Stop-Kriterium:** Role ist nie frei-textig, sondern enum-validiert.
 
@@ -72,8 +72,8 @@ Suchqualität kommt dann fast automatisch.
 **Ziel:** Maschinen sollen nicht „aus Versehen“ stale Indizes nutzen.
 
 - [ ] **D1) Index Meta Table + Manifest Validity**
-    - In SQLite `index_meta`: `canonical_dump_sha256`, `config_sha256`, `created_at`, `lenskit_version`.
-    - In derived manifest: `canonical_dump_sha256`, zusätzlich `config_sha256`.
+    - In SQLite `index_meta`: `canonical_dump_index_sha256`, `config_sha256`, `created_at`, `lenskit_version`.
+    - In derived manifest: `canonical_dump_index_sha256`, zusätzlich `config_sha256`.
 
 - [ ] **D2) Stale-Policy (konfigurierbar)**
     - `--stale-policy warn|fail|ignore`

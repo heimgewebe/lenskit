@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
 import tempfile
-import sys
 import re
 import hashlib
 import sqlite3
 
+from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 from merger.lenskit.core.redactor import Redactor
 
@@ -48,7 +48,7 @@ def test_dual_output_mode():
         extras = ExtrasConfig(json_sidecar=True)
 
         # Run merge in dual mode
-        artifacts = write_reports_v2(
+        artifacts = write_reports_v2(generator_info=make_generator_info(),
             merges_dir=merges_dir,
             hub=hub,
             repo_summaries=summaries,

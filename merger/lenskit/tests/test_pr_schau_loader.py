@@ -6,6 +6,7 @@ import pytest
 
 from merger.lenskit.core.extractor import generate_review_bundle
 from merger.lenskit.core.pr_schau_bundle import load_pr_schau_bundle, PRSchauBundleError
+from merger.lenskit.tests._test_constants import TEST_ARTIFACT_SHA256
 
 
 def test_loader_accepts_generated_bundle_basic():
@@ -89,7 +90,7 @@ def test_loader_rejects_missing_parts():
             "version": "1.0",
             "meta": {"repo": "x", "generated_at": "2023-01-01T00:00:00Z", "generator": {"name": "x"}},
             "completeness": {"is_complete": True, "policy": "split", "parts": ["review.md"], "primary_part": "review.md"},
-            "artifacts": [{"role": "canonical_md", "basename": "review.md", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "mime": "text/markdown"}],
+            "artifacts": [{"role": "canonical_md", "basename": "review.md", "sha256": TEST_ARTIFACT_SHA256, "mime": "text/markdown"}],
         }
         (d / "bundle.json").write_text(json.dumps(bad), encoding="utf-8")
 

@@ -1,7 +1,6 @@
 import json
 import sqlite3
 import pytest
-from pathlib import Path
 from merger.lenskit.retrieval import index_db
 
 @pytest.fixture

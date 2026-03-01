@@ -19,6 +19,7 @@ from typing import List, Dict, Optional, Tuple, Any, Iterator, NamedTuple, Set
 from dataclasses import dataclass, asdict
 
 from . import lenses
+from .constants import ArtifactRole
 from . import clock
 from .chunker import Chunker
 from .redactor import Redactor
@@ -395,6 +396,7 @@ class MergeArtifacts:
     sqlite_index: Optional[Path] = None
     retrieval_eval: Optional[Path] = None
     derived_manifest: Optional[Path] = None
+    bundle_manifest: Optional[Path] = None
     other: List[Path] = None
 
     def __post_init__(self):
@@ -424,6 +426,8 @@ class MergeArtifacts:
             paths.append(self.sqlite_index)
         if self.retrieval_eval:
             paths.append(self.retrieval_eval)
+        if self.bundle_manifest:
+            paths.append(self.bundle_manifest)
 
         for p in self.md_parts:
             if p not in paths:
@@ -4895,7 +4899,7 @@ def write_reports_v2(
             "run_id": run_id,
             "created_at": now_str,
             "generated_at": now_str,
-            "canonical_dump_sha256": dump_sha256,
+            "canonical_dump_index_sha256": dump_sha256,
             "generator": generator_info,
             "repos": repo_names,
             "artifacts": dict(sorted(artifacts_block.items()))
@@ -5595,6 +5599,105 @@ def write_reports_v2(
     final_canonical_md = (verified_md[0] if verified_md else None)
     final_dump_index = last_dump_index_path
 
+    # Determine the dump index sha for links
+    canonical_dump_index_sha256 = None
+    if final_dump_index and final_dump_index.exists():
+        canonical_dump_index_sha256 = _compute_file_sha256(final_dump_index)
+
+    # Build the bundle manifest
+    bundle_manifest_path = None
+    # We generate the manifest regardless of is_gesamt, to ensure it exists
+    # as the deterministic root of navigation for every merge job.
+    bundle_manifest_path = make_output_filename(
+        merges_dir,
+        repo_names,
+        detail,
+        "",
+        path_filter,
+        ext_filter_str,
+        run_id,
+        plan_only=plan_only,
+        code_only=code_only,
+        timestamp=global_ts,
+        meta_none=meta_none,
+        ).with_suffix(".bundle.manifest.json")
+
+    # Contract mappings for structured roles to support deterministic downstream interpretation.
+    CONTRACT_REGISTRY = {
+        ArtifactRole.INDEX_SIDECAR_JSON: {"id": AGENT_CONTRACT_NAME, "version": AGENT_CONTRACT_VERSION},
+        ArtifactRole.DUMP_INDEX_JSON: {"id": "dump-index", "version": "v1"},
+        ArtifactRole.DERIVED_MANIFEST_JSON: {"id": "derived-index", "version": "v1"},
+        ArtifactRole.CHUNK_INDEX_JSONL: {"id": "chunk-index", "version": "v1"},
+        ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
+        ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
+    }
+
+    artifacts_list = []
+    def _add_artifact(p: Optional[Path], role: ArtifactRole, content_type: str):
+        if p and p.exists():
+            sha = _compute_file_sha256(p)
+            if sha:
+                try:
+                    rel_path = p.relative_to(merges_dir).as_posix()
+                except ValueError:
+                    rel_path = p.name
+
+                entry = {
+                    "role": role.value,
+                    "path": rel_path,
+                    "content_type": content_type,
+                    "bytes": p.stat().st_size,
+                    "sha256": sha
+                }
+
+                if role in CONTRACT_REGISTRY:
+                    entry["contract"] = CONTRACT_REGISTRY[role]
+
+                artifacts_list.append(entry)
+
+    _add_artifact(final_canonical_md, ArtifactRole.CANONICAL_MD, "text/markdown")
+    if extras and extras.json_sidecar:
+        _add_artifact(final_index_json, ArtifactRole.INDEX_SIDECAR_JSON, "application/json")
+    _add_artifact(final_chunk_index, ArtifactRole.CHUNK_INDEX_JSONL, "application/x-ndjson")
+    _add_artifact(final_dump_index, ArtifactRole.DUMP_INDEX_JSON, "application/json")
+    if sqlite_indices:
+        _add_artifact(sqlite_indices[-1], ArtifactRole.SQLITE_INDEX, "application/octet-stream")
+    if retrieval_evals:
+        _add_artifact(retrieval_evals[-1], ArtifactRole.RETRIEVAL_EVAL_JSON, "application/json")
+    if derived_manifests:
+        _add_artifact(derived_manifests[-1], ArtifactRole.DERIVED_MANIFEST_JSON, "application/json")
+
+    links = {}
+    if canonical_dump_index_sha256:
+        links["canonical_dump_index_sha256"] = canonical_dump_index_sha256
+
+    config_sha256 = generator_info.get("config_sha256")
+    if not config_sha256 or not re.fullmatch(r"[a-f0-9]{64}", config_sha256):
+        raise ValueError("generator_info.config_sha256 (64 hex lowercase) is required for bundle manifest provenance")
+
+    # Ensure deterministic artifact ordering for stable machine diffs
+    artifacts_list.sort(key=lambda a: (a["role"], a["path"]))
+
+    bundle_manifest = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": run_id,
+        "created_at": clock.now_utc().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generator": {
+            "name": generator_info.get("name", "lenskit"),
+            "version": generator_info.get("version", "unknown"),
+            "config_sha256": config_sha256
+        },
+        "artifacts": artifacts_list,
+        "links": links,
+        "capabilities": {
+            "fts5_bm25": bool(sqlite_indices),
+            "redaction": redact_secrets
+        }
+    }
+    bundle_manifest_path.write_text(json.dumps(bundle_manifest, indent=2), encoding="utf-8")
+    out_paths.append(bundle_manifest_path)
+
     if extras and extras.json_sidecar:
         # JSON is primary when json_sidecar is enabled
         return MergeArtifacts(
@@ -5606,6 +5709,7 @@ def write_reports_v2(
             sqlite_index=sqlite_indices[-1] if sqlite_indices else None,
             retrieval_eval=retrieval_evals[-1] if retrieval_evals else None,
             derived_manifest=derived_manifests[-1] if derived_manifests else None,
+            bundle_manifest=bundle_manifest_path,
             other=other_paths
         )
     else:
@@ -5619,5 +5723,6 @@ def write_reports_v2(
             sqlite_index=sqlite_indices[-1] if sqlite_indices else None,
             retrieval_eval=retrieval_evals[-1] if retrieval_evals else None,
             derived_manifest=derived_manifests[-1] if derived_manifests else None,
+            bundle_manifest=bundle_manifest_path,
             other=other_paths
         )

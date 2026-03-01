@@ -9,6 +9,7 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
+from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, ExtrasConfig, scan_repo
 
 class TestPerRepoCohesion(unittest.TestCase):
@@ -43,7 +44,7 @@ class TestPerRepoCohesion(unittest.TestCase):
         extras = ExtrasConfig(json_sidecar=True)
 
         # Run write_reports_v2 in per-repo mode
-        write_reports_v2(
+        write_reports_v2(generator_info=make_generator_info(),
             merges_dir=self.merges_dir,
             hub=self.hub,
             repo_summaries=repo_summaries,
@@ -59,7 +60,8 @@ class TestPerRepoCohesion(unittest.TestCase):
         json_files = [p for p in self.merges_dir.glob("*.json")
                       if not p.name.endswith(".dump_index.json")
                       and not p.name.endswith(".derived_index.json")
-                      and not p.name.endswith(".retrieval_eval.json")]
+                      and not p.name.endswith(".retrieval_eval.json")
+                      and not p.name.endswith(".bundle.manifest.json")]
         # We expect 2 sidecars (one per repo).
 
         self.assertEqual(len(json_files), 2, f"Should have 2 JSON sidecars, found: {[p.name for p in json_files]}")

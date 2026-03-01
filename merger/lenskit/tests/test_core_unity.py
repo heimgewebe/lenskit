@@ -47,6 +47,7 @@ def test_service_imports_correct_core():
     assert jobstore.get_merges_dir is core_merge.get_merges_dir
 
 def test_generator_info_version(tmp_path):
+    from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256
     from merger.lenskit.core.merge import write_reports_v2, AGENT_CONTRACT_NAME
     from merger.lenskit.core import __core_version__
 
@@ -81,7 +82,8 @@ def test_generator_info_version(tmp_path):
             max_bytes=1000,
             plan_only=False,
             output_mode="dual", # generates json sidecar
-            extras=extras
+            extras=extras,
+            generator_info={"name": "test", "version": __core_version__, "config_sha256": TEST_CONFIG_SHA256}
         )
 
         # Find sidecar

@@ -1,4 +1,3 @@
-from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
 
 def test_atlas_merge_single_folder(tmp_path):

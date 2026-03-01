@@ -1,8 +1,6 @@
 import re
-import pytest
-from pathlib import Path
-import sys
 
+from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
 
 def test_zone_markers_symmetry_integration(tmp_path):
@@ -30,7 +28,7 @@ def test_zone_markers_symmetry_integration(tmp_path):
     hub_dir = tmp_path / "hub"
     hub_dir.mkdir()
 
-    artifacts = write_reports_v2(
+    artifacts = write_reports_v2(generator_info=make_generator_info(),
         merges_dir=merges_dir,
         hub=hub_dir,
         repo_summaries=[summary],

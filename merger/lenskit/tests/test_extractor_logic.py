@@ -1,6 +1,5 @@
 import json
 import hashlib
-from pathlib import Path
 from merger.lenskit.core import extractor
 from merger.lenskit.core.extractor import _compute_sha256_with_size, generate_review_bundle
 
