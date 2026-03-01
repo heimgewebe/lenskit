@@ -144,6 +144,35 @@ def test_invalid_bundle_manifest_interpretation_contract_without_contract(schema
         jsonschema.validate(instance=invalid_data, schema=schema)
 
 
+def test_invalid_bundle_manifest_missing_interpretation(schema):
+    invalid_data = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-1234",
+        "created_at": "2023-10-12T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [
+            {
+                "role": "canonical_md",
+                "path": "output.md",
+                "content_type": "text/markdown",
+                "bytes": 1024,
+                "sha256": TEST_ARTIFACT_SHA256
+                # missing interpretation
+            }
+        ],
+        "links": {},
+        "capabilities": {}
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_data, schema=schema)
+
+
 def test_invalid_bundle_manifest_missing_required(schema):
     invalid_data = {
         "kind": "repolens.bundle.manifest",
@@ -171,7 +200,8 @@ def test_invalid_bundle_manifest_bad_role(schema):
                 "path": "output.md",
                 "content_type": "text/markdown",
                 "bytes": 1024,
-                "sha256": TEST_ARTIFACT_SHA256
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "role_only"}
             }
         ],
         "links": {},

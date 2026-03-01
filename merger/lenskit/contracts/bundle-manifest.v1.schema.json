@@ -64,7 +64,8 @@
           "path",
           "content_type",
           "bytes",
-          "sha256"
+          "sha256",
+          "interpretation"
         ],
         "properties": {
           "role": {
