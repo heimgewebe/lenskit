@@ -4723,6 +4723,15 @@ def write_reports_v2(
             "platform": "unknown",
             "version": os.getenv("RLENS_VERSION", CORE_VERSION)
         }
+    elif not isinstance(generator_info, dict):
+        try:
+            generator_info = dict(generator_info)
+        except Exception:
+            generator_info = {
+                "name": "lenskit",
+                "platform": "unknown",
+                "version": os.getenv("RLENS_VERSION", CORE_VERSION)
+            }
 
     def _json_safe(obj):
         if isinstance(obj, (str, int, float, bool, type(None))):
@@ -4762,7 +4771,8 @@ def write_reports_v2(
     config_payload = {
         "detail": detail,
         "mode": mode,
-        "max_bytes": max_bytes,
+        "max_bytes_arg": max_bytes,
+        "max_file_bytes_effective": max_file_bytes,
         "plan_only": plan_only,
         "code_only": code_only,
         "split_size": split_size,
@@ -4779,7 +4789,6 @@ def write_reports_v2(
     config_sha256 = hashlib.sha256(config_str.encode("utf-8")).hexdigest()
 
     # Inject the computed config_sha256 into generator_info
-    generator_info = dict(generator_info)
     if "config_sha256" not in generator_info:
         generator_info["config_sha256"] = config_sha256
 
