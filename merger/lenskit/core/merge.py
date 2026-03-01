@@ -4754,7 +4754,7 @@ def write_reports_v2(
             # Fallback if extras is not a dataclass instance (e.g. mocked object or type)
             extras_dict = getattr(extras, "__dict__", None)
             if extras_dict is None:
-                extras_dict = str(extras)
+                 extras_dict = str(extras)
 
     # Ensure extras_dict is JSON safe
     extras_dict = _json_safe(extras_dict)
