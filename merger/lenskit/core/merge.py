@@ -5659,6 +5659,9 @@ def write_reports_v2(
     if not config_sha256 or not re.fullmatch(r"[a-f0-9]{64}", config_sha256):
         raise ValueError("generator_info.config_sha256 (64 hex lowercase) is required for bundle manifest provenance")
 
+    # Ensure deterministic artifact ordering for stable machine diffs
+    artifacts_list.sort(key=lambda a: (a["role"], a["path"]))
+
     bundle_manifest = {
         "kind": "repolens.bundle.manifest",
         "version": "1.0",
