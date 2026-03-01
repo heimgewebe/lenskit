@@ -212,6 +212,30 @@
                 }
               }
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "interpretation": {
+                  "properties": {
+                    "mode": {
+                      "const": "contract"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              },
+              "required": [
+                "interpretation"
+              ]
+            },
+            "then": {
+              "required": [
+                "contract"
+              ]
+            }
           }
         ]
       }
