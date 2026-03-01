@@ -42,6 +42,14 @@ def main(args: Optional[List[str]] = None) -> int:
     eval_parser.add_argument("--k", type=int, default=10, help="Max results for recall calculation")
     eval_parser.add_argument("--emit", choices=["text", "json"], default="text", help="Output format")
 
+    # Range command
+    range_parser = subparsers.add_parser("range", help="Range operations")
+    range_subparsers = range_parser.add_subparsers(dest="range_cmd", help="Range commands")
+    range_get_parser = range_subparsers.add_parser("get", help="Get a deterministic byte range from an artifact")
+    range_get_parser.add_argument("--manifest", required=True, help="Path to bundle manifest or dump index")
+    range_get_parser.add_argument("--ref", required=True, help="Path to range_ref JSON file")
+    range_get_parser.add_argument("--format", choices=["raw", "json"], default="json", help="Output format")
+
     # Verify command (placeholder)
     verify_parser = subparsers.add_parser("verify", help="Verify artifacts or bundles")
 
@@ -57,11 +65,46 @@ def main(args: Optional[List[str]] = None) -> int:
         return cmd_query.run_query(parsed_args)
     elif parsed_args.command == "eval":
         return cmd_eval.run_eval(parsed_args)
+    elif parsed_args.command == "range":
+        if parsed_args.range_cmd == "get":
+            return cmd_range_get(parsed_args)
+        else:
+            parser.parse_args(["range", "--help"])
+            return 0
     elif parsed_args.command == "verify":
         print("Verify command placeholder. Use pr-schau-verify for now.")
         return 1
 
     return 0
+
+
+def cmd_range_get(args: argparse.Namespace) -> int:
+    import json
+    from pathlib import Path
+    from merger.lenskit.core.range_resolver import resolve_range_ref
+
+    manifest_path = Path(args.manifest)
+    ref_path = Path(args.ref)
+
+    try:
+        if not ref_path.exists():
+            raise FileNotFoundError(f"range_ref file not found: {ref_path}")
+
+        with ref_path.open("r", encoding="utf-8") as f:
+            ref = json.load(f)
+
+        result = resolve_range_ref(manifest_path, ref)
+
+        if args.format == "json":
+            print(json.dumps(result, indent=2))
+        else:
+            print(result["text"], end="")
+
+        return 0
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

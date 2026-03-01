@@ -38,7 +38,7 @@ def execute_query(
 
             base_sql = f"""
                 SELECT
-                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.content_sha256,
+                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
                     c.layer, c.artifact_type,
                     {scoring_expr} as score
                 FROM chunks_fts
@@ -56,7 +56,7 @@ def execute_query(
             # Metadata only query
             base_sql = """
                 SELECT
-                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.content_sha256,
+                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
                     c.layer, c.artifact_type,
                     0 as score
                 FROM chunks c
@@ -114,7 +114,18 @@ def execute_query(
                 "score": r["score"],
                 "layer": r["layer"],
                 "type": r["artifact_type"],
-                "sha256": r["content_sha256"]
+                "sha256": r["content_sha256"],
+                "range_ref": {
+                    "artifact_role": "canonical_md",
+                    "repo_id": r["repo_id"],
+                    "file_path": r["path"],
+                    "start_byte": r["start_byte"] or 0,
+                    "end_byte": r["end_byte"] or 0,
+                    "start_line": r["start_line"] or 1,
+                    "end_line": r["end_line"] or 1,
+                    "content_sha256": r["content_sha256"] or "",
+                    "chunk_id": r["chunk_id"]
+                }
             })
 
         out = {

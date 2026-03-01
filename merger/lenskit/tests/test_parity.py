@@ -158,8 +158,8 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     assert p_dump["contract"] == "dump-index"
 
     # 2. Check Artifacts existence via dump_index
-    # We expect at least: merge_md, sidecar_json, chunk_index (since dual mode), architecture_summary
-    required_artifacts = ["merge_md", "sidecar_json", "architecture_summary", "chunk_index"]
+    # We expect at least: canonical_md, index_sidecar_json, chunk_index_jsonl (since dual mode), architecture_summary
+    required_artifacts = ["canonical_md", "index_sidecar_json", "architecture_summary", "chunk_index_jsonl"]
 
     def _verify_artifact(dump, key, tool_name, out_dir):
         assert key in dump["artifacts"], f"{tool_name} missing artifact {key} in dump_index"
@@ -180,8 +180,8 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
         _verify_artifact(p_dump, key, "repolens", repolens_out)
 
     # 3. Parity on Sidecar Invariants
-    r_sidecar_path = rlens_out / r_dump["artifacts"]["sidecar_json"]["path"]
-    p_sidecar_path = repolens_out / p_dump["artifacts"]["sidecar_json"]["path"]
+    r_sidecar_path = rlens_out / r_dump["artifacts"]["index_sidecar_json"]["path"]
+    p_sidecar_path = repolens_out / p_dump["artifacts"]["index_sidecar_json"]["path"]
 
     with open(r_sidecar_path) as f: r_meta = json.load(f)["meta"]
     with open(p_sidecar_path) as f: p_meta = json.load(f)["meta"]
@@ -211,8 +211,8 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     assert p_meta["generator"]["platform"] == "cli"
 
     # 4. Chunk Index Contract
-    r_chunk_path = rlens_out / r_dump["artifacts"]["chunk_index"]["path"]
-    p_chunk_path = repolens_out / p_dump["artifacts"]["chunk_index"]["path"]
+    r_chunk_path = rlens_out / r_dump["artifacts"]["chunk_index_jsonl"]["path"]
+    p_chunk_path = repolens_out / p_dump["artifacts"]["chunk_index_jsonl"]["path"]
 
     with open(r_chunk_path) as f: r_chunks = [json.loads(line) for line in f]
     with open(p_chunk_path) as f: p_chunks = [json.loads(line) for line in f]

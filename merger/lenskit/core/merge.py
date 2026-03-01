@@ -4853,16 +4853,16 @@ def write_reports_v2(
                 }
 
                 # Contract annotations
-                if role == "sidecar_json":
+                if role == ArtifactRole.INDEX_SIDECAR_JSON.value:
                     entry["contract"] = AGENT_CONTRACT_NAME
                     entry["contract_version"] = AGENT_CONTRACT_VERSION
-                elif role == "merge_md":
+                elif role == ArtifactRole.CANONICAL_MD.value:
                     entry["contract"] = MERGE_CONTRACT_NAME
                     entry["contract_version"] = MERGE_CONTRACT_VERSION
-                elif role == "chunk_index":
+                elif role == ArtifactRole.CHUNK_INDEX_JSONL.value:
                     entry["contract"] = "chunk-index"
                     entry["contract_version"] = "v2"
-                elif role == "architecture_summary":
+                elif role == ArtifactRole.ARCHITECTURE_SUMMARY.value:
                     entry["contract"] = "architecture-summary"
                     entry["contract_version"] = "v1"
 
@@ -4952,9 +4952,9 @@ def write_reports_v2(
         # Write Derived Manifest
         derived_map = {}
         if sqlite_index_path and sqlite_index_path.exists():
-            derived_map["sqlite_index"] = sqlite_index_path
+            derived_map[ArtifactRole.SQLITE_INDEX.value] = sqlite_index_path
         if eval_json_path and eval_json_path.exists():
-            derived_map["retrieval_eval"] = eval_json_path
+            derived_map[ArtifactRole.RETRIEVAL_EVAL_JSON.value] = eval_json_path
 
         if derived_map:
             derived_manifest_path = generate_derived_manifest(
@@ -5387,10 +5387,10 @@ def write_reports_v2(
         # Generate Dump Index
         md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
         artifacts_map = {
-            "merge_md": md_parts[0] if md_parts else None,
-            "sidecar_json": json_path,
-            "chunk_index": chunk_path,
-            "architecture_summary": arch_path
+            ArtifactRole.CANONICAL_MD.value: md_parts[0] if md_parts else None,
+            ArtifactRole.INDEX_SIDECAR_JSON.value: json_path,
+            ArtifactRole.CHUNK_INDEX_JSONL.value: chunk_path,
+            ArtifactRole.ARCHITECTURE_SUMMARY.value: arch_path
         }
         dump_index_path = generate_dump_index(base_name_func, run_id, artifacts_map, generator_info, repo_names)
         out_paths.append(dump_index_path)
@@ -5515,10 +5515,10 @@ def write_reports_v2(
             # Generate Dump Index
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
             artifacts_map = {
-                "merge_md": md_parts[0] if md_parts else None,
-                "sidecar_json": json_path,
-                "chunk_index": chunk_path,
-                "architecture_summary": arch_path
+                ArtifactRole.CANONICAL_MD.value: md_parts[0] if md_parts else None,
+                ArtifactRole.INDEX_SIDECAR_JSON.value: json_path,
+                ArtifactRole.CHUNK_INDEX_JSONL.value: chunk_path,
+                ArtifactRole.ARCHITECTURE_SUMMARY.value: arch_path
             }
             dump_index_path = generate_dump_index(base_name_func, repo_run_id, artifacts_map, generator_info, [s_name])
             out_paths.append(dump_index_path)
@@ -5638,6 +5638,7 @@ def write_reports_v2(
         ArtifactRole.INDEX_SIDECAR_JSON: {"id": AGENT_CONTRACT_NAME, "version": AGENT_CONTRACT_VERSION},
         ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
         ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
+        ArtifactRole.ARCHITECTURE_SUMMARY: {"id": "architecture-summary", "version": "v1"},
     }
 
     artifacts_list = []

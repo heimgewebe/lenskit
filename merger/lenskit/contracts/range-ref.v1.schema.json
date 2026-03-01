@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/range-ref.v1.schema.json",
+  "title": "Range Reference (range-ref v1.0)",
+  "description": "Deterministic reference to a specific byte range in an artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_role",
+    "repo_id",
+    "file_path",
+    "start_byte",
+    "end_byte",
+    "start_line",
+    "end_line",
+    "content_sha256"
+  ],
+  "properties": {
+    "artifact_role": {
+      "type": "string",
+      "enum": [
+        "canonical_md",
+        "index_sidecar_json",
+        "chunk_index_jsonl",
+        "dump_index_json",
+        "sqlite_index",
+        "retrieval_eval_json",
+        "derived_manifest_json",
+        "architecture_summary",
+        "delta_json"
+      ],
+      "description": "Machine-readable enum role for this artifact."
+    },
+    "repo_id": {
+      "type": "string",
+      "description": "The repository identifier."
+    },
+    "file_path": {
+      "type": "string",
+      "description": "The path to the file within the artifact or repository context."
+    },
+    "start_byte": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The starting byte offset (inclusive)."
+    },
+    "end_byte": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The ending byte offset (exclusive)."
+    },
+    "start_line": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The starting line number (1-indexed)."
+    },
+    "end_line": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The ending line number (1-indexed)."
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of the strictly extracted byte range content."
+    },
+    "chunk_id": {
+      "type": "string",
+      "description": "Optional chunk identifier."
+    }
+  }
+}

@@ -51,10 +51,10 @@ def test_sidecar_contracts_and_dump_index():
         dump_dual = json.loads(artifacts_dual.dump_index.read_text(encoding="utf-8"))
         assert dump_dual["contract"] == "dump-index"
         assert "artifacts" in dump_dual
-        assert "chunk_index" in dump_dual["artifacts"]
+        assert "chunk_index_jsonl" in dump_dual["artifacts"]
 
         # Strict hash check
-        chunk_sha = dump_dual["artifacts"]["chunk_index"]["sha256"]
+        chunk_sha = dump_dual["artifacts"]["chunk_index_jsonl"]["sha256"]
         assert chunk_sha, "Chunk Index SHA256 missing"
         assert chunk_sha != "ERROR", "Chunk Index SHA256 is ERROR"
         assert len(chunk_sha) == 64, f"Chunk Index SHA256 invalid length: {len(chunk_sha)}"
