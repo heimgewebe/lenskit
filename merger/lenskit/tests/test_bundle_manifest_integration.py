@@ -1,13 +1,13 @@
-import jsonschema
 import json
-import pytest
+import re
 from pathlib import Path
 
-from merger.lenskit.tests._test_constants import make_generator_info
-from merger.lenskit.core.merge import write_reports_v2, FileInfo
-from merger.lenskit.core.constants import ArtifactRole
+import jsonschema
+import pytest
 
-import re
+from merger.lenskit.core.constants import ArtifactRole
+from merger.lenskit.core.merge import FileInfo, write_reports_v2
+from merger.lenskit.tests._test_constants import make_generator_info
 
 class MockExtras:
     json_sidecar = True
@@ -207,7 +207,6 @@ def test_missing_config_sha256_is_computed_and_manifest_contains_valid_hash(tmp_
     assert re.fullmatch(r"[a-f0-9]{64}", data["generator"]["config_sha256"])
 
 def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
-
     src_dir = tmp_path / "src"
     src_dir.mkdir(exist_ok=True)
     f1 = src_dir / "file1.txt"
