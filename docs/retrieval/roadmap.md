@@ -31,11 +31,11 @@ Suchqualität kommt dann fast automatisch.
 - [x] **A1) „Bundle Manifest“ als Root of Navigation**
     - Neuer Contract: `bundle-manifest.v1`
     - Enthält: `run_id`, `created_at`, `generator` (inkl. `config_sha256`, `version`)
-    - `artifacts[]`: je Artefakt `role`, `path`, `content_type`, `bytes`, `sha256`, `contract_id`, `contract_version`
+    - `artifacts[]`: required: `role`, `path`, `content_type`, `bytes`, `sha256`; optional: `contract_id`, `contract_version` (wenn Artefakt an spezifischen Contract gebunden ist)
     - `links`: `canonical_dump_index_sha256`, `derived_from` (Graphkanten)
     - `capabilities`: z.B. `fts5_bm25=true/false`, `redaction=true/false`
     - Prinzip: Ein Einstiegspunkt, der alles beschreibt. Keine Directory-Heuristiken.
-    - **Stop-Kriterium:** Agent findet aus einer Datei alle relevanten Artefakte und deren Bedeutung.
+    - **Stop-Kriterium:** Agent findet aus einer Datei alle relevanten Artefakte. Deterministische Interpretation erfolgt über das role-Enum; contract_* ist ein Präzisionsanker für spezifisch strukturierte Artefakte.
 
 - [x] **A2) Eindeutige Rollenliste (Taxonomie)**
     - Definiere eine feste Rollenliste (Enum) für: `canonical_md`, `index_sidecar_json`, `chunk_index_jsonl`, `dump_index_json`, `sqlite_index`, `retrieval_eval_json`, `derived_manifest_json`, `pr_delta_json` (falls vorhanden)
