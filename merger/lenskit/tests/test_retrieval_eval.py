@@ -135,3 +135,72 @@ def test_schema_smoke():
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     assert "metrics" in schema["properties"]
     assert "details" in schema["properties"]
+
+def test_parse_gold_queries_json(tmp_path):
+    json_file = tmp_path / "queries.json"
+    json_content = [
+        {
+            "query": "find auth",
+            "expected_patterns": ["login.py", "auth/"],
+            "filters": {"layer": "core"},
+            "accept_criteria": {"recall_at_10": 0.5}
+        }
+    ]
+    json_file.write_text(json.dumps(json_content), encoding="utf-8")
+
+    queries = eval_core.parse_gold_queries(json_file)
+    assert len(queries) == 1
+    q1 = queries[0]
+    assert q1["query"] == "find auth"
+    assert "login.py" in q1["expected_paths"]
+    assert q1["filters"]["layer"] == "core"
+    assert q1["accept_criteria"]["recall_at_10"] == 0.5
+
+def test_run_eval_integration_json(mini_index_for_eval, tmp_path, capsys):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {
+            "query": "login",
+            "expected_patterns": ["login.py"],
+            "accept_criteria": {"recall_at_5": 0.5}
+        },
+        {
+            "query": "missing thing",
+            "expected_patterns": ["unicorn.py"],
+            "accept_criteria": {"recall_at_5": 0.5}
+        }
+    ]), encoding="utf-8")
+
+    class Args:
+        index = str(mini_index_for_eval)
+        queries = str(queries_json)
+        k = 5
+        emit = "json"
+
+    # Run Eval
+    ret_code = cmd_eval.run_eval(Args())
+    assert ret_code == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["metrics"]["recall@5"] == 50.0
+
+def test_run_eval_gate_failure(mini_index_for_eval, tmp_path, capsys):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {
+            "query": "missing thing",
+            "expected_patterns": ["unicorn.py"],
+            "accept_criteria": {"recall_at_5": 0.8}
+        }
+    ]), encoding="utf-8")
+
+    class Args:
+        index = str(mini_index_for_eval)
+        queries = str(queries_json)
+        k = 5
+        emit = "json"
+
+    # Should fail due to accept criteria gate
+    ret_code = cmd_eval.run_eval(Args())
+    assert ret_code == 1

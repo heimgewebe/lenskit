@@ -57,12 +57,12 @@ Suchqualität kommt dann fast automatisch.
 ### Phase C — Query/Eval Interface perfektionieren (Explainability + Gates)
 **Ziel:** Treffer sind nicht nur da, sondern erklärbar und testbar.
 
-- [ ] **C1) `query_result.v1` (maschinenlesbares Explain)**
+- [x] **C1) `query_result.v1` (maschinenlesbares Explain)**
     - Erweitere Query-JSON um standardisierte Explainability: `query`, `filters`, `k`, `engine`, `applied_filters`
     - `results[]` mit: `range_ref` (nicht nur range-string), `score`, `why`: `matched_terms` (aus FTS), `filter_pass` (welche Filter aktiv waren), `rank_features` (z.B. bm25, tie-breaker), Optional: `diagnostics` (fts_available, stale_index, etc.)
     - **Stop-Kriterium:** „Warum ist das Ergebnis da?“ ist maschinenlesbar beantwortbar.
 
-- [ ] **C2) Gold Queries als Gate (nicht nur Doku)**
+- [x] **C2) Gold Queries als Gate (nicht nur Doku)**
     - `docs/retrieval/queries.md` bleibt human-friendly.
     - Zusätzlich: `docs/retrieval/queries.v1.json` (Query, expected_patterns, filters, accept_criteria).
     - Eval schreibt: `recall@k`, `per_query`: hit/miss + hit_path + why + stale_flag.

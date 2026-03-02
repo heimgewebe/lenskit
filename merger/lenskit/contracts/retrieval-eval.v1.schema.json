@@ -20,6 +20,10 @@
           "type": "integer",
           "description": "Number of queries where at least one expected path was found in the top-k results.",
           "minimum": 0
+        },
+        "stale_flag": {
+          "type": "boolean",
+          "description": "True if the index was stale during evaluation."
         }
       },
       "patternProperties": {
@@ -80,6 +84,42 @@
           "error": {
             "type": ["string", "null"],
             "description": "Error message if the query failed."
+          },
+          "why": {
+            "type": "object",
+            "description": "Machine-readable explainability block for the matched hit.",
+            "additionalProperties": false,
+            "required": [
+              "matched_terms",
+              "filter_pass",
+              "rank_features"
+            ],
+            "properties": {
+              "matched_terms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The input or translated terms used for execution."
+              },
+              "filter_pass": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of global filter keys applied to the query."
+              },
+              "rank_features": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Ranking features like bm25."
+              },
+              "diagnostics": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional diagnostics information."
+              }
+            }
           }
         },
         "required": ["query", "is_relevant", "found_count", "expected"]
