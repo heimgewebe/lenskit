@@ -72,6 +72,19 @@ def test_query_json_structure(mini_index):
     assert "range" in hit
     assert "score" in hit
 
+    # We explicitly disabled range_ref emission because the database currently
+    # stores repo-internal paths, which do not deterministically match the bundle
+    # artifact paths required by the range_ref schema.
+    assert "range_ref" not in hit
+
+    res2 = query_core.execute_query(mini_index, query_text="test_main", k=5)
+    assert len(res2["results"]) == 1
+    assert "range_ref" not in res2["results"][0]
+
+    res3 = query_core.execute_query(mini_index, query_text="Readme", k=5)
+    assert len(res3["results"]) == 1
+    assert "range_ref" not in res3["results"][0]
+
 def _make_mock_conn(err_msg: str):
     class MockConn:
         row_factory = None

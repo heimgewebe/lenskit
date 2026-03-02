@@ -14,3 +14,4 @@ class ArtifactRole(str, Enum):
     RETRIEVAL_EVAL_JSON = "retrieval_eval_json"
     DERIVED_MANIFEST_JSON = "derived_manifest_json"
     PR_DELTA_JSON = "delta_json"
+    ARCHITECTURE_SUMMARY = "architecture_summary"
