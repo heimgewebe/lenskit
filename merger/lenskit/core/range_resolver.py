@@ -19,13 +19,15 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
 
     # Validate ref against schema
     schema_path = Path(__file__).parent.parent / "contracts" / "range-ref.v1.schema.json"
-    if schema_path.exists():
-        with schema_path.open("r", encoding="utf-8") as f:
-            schema = json.load(f)
-        try:
-            jsonschema.validate(instance=ref, schema=schema)
-        except jsonschema.ValidationError as e:
-            raise ValueError(f"range_ref failed schema: {schema_path.name}: {e.message}")
+    if not schema_path.exists():
+        raise RuntimeError(f"Schema file not found: {schema_path}")
+
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+    try:
+        jsonschema.validate(instance=ref, schema=schema)
+    except jsonschema.ValidationError as e:
+        raise ValueError(f"range_ref failed schema: {schema_path.name}: {e.message}")
 
     role_str = ref.get("artifact_role")
 
@@ -73,6 +75,11 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
     end_byte = ref.get("end_byte")
     expected_sha256 = ref.get("content_sha256")
 
+    # Since we schema validate, expected_sha256 is guaranteed to be present,
+    # but we assert it to satisfy type checkers and prevent logic bypasses
+    if not expected_sha256:
+        raise ValueError("range_ref must include a valid 'content_sha256'")
+
     if start_byte is None or end_byte is None:
         raise ValueError("range_ref must include 'start_byte' and 'end_byte'")
 
@@ -85,7 +92,7 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
         content_bytes = f.read(end_byte - start_byte)
 
     actual_sha256 = hashlib.sha256(content_bytes).hexdigest()
-    if expected_sha256 and actual_sha256 != expected_sha256:
+    if actual_sha256 != expected_sha256:
         raise ValueError(f"Hash mismatch. Expected: {expected_sha256}, Actual: {actual_sha256}")
 
     try:

@@ -172,3 +172,9 @@ def test_schema_validation_passes(manifest_env):
     del ref_invalid["repo_id"]
     with pytest.raises(ValueError, match="range_ref failed schema"):
         resolve_range_ref(manifest_env["manifest_path"], ref_invalid)
+
+    # Empty content_sha256 is invalid schema
+    ref_invalid_sha = ref.copy()
+    ref_invalid_sha["content_sha256"] = ""
+    with pytest.raises(ValueError, match="range_ref failed schema"):
+        resolve_range_ref(manifest_env["manifest_path"], ref_invalid_sha)
