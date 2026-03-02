@@ -81,11 +81,11 @@ def test_query_json_structure(mini_index):
     assert "range" in hit
     assert "score" in hit
     assert "why" in hit
-    assert "matched_terms" in hit["why"]
-    assert "filter_pass" in hit["why"]
+    assert "query_terms" in hit["why"]
+    assert "applied_filter_keys" in hit["why"]
     assert "rank_features" in hit["why"]
-    assert hit["why"]["matched_terms"] == ["main"]
-    assert hit["why"]["filter_pass"] == ["layer"]
+    assert hit["why"]["query_terms"] == ["main"]
+    assert hit["why"]["applied_filter_keys"] == ["layer"]
     assert "bm25" in hit["why"]["rank_features"]
 
     # We explicitly disabled range_ref emission because the database currently

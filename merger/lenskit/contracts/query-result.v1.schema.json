@@ -99,24 +99,24 @@
             "description": "Machine-readable explainability block.",
             "additionalProperties": false,
             "required": [
-              "matched_terms",
-              "filter_pass",
+              "query_terms",
+              "applied_filter_keys",
               "rank_features"
             ],
             "properties": {
-              "matched_terms": {
+              "query_terms": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "description": "Terms matched in FTS or query mode if metadata."
+                "description": "The input or translated terms used for execution."
               },
-              "filter_pass": {
+              "applied_filter_keys": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "description": "List of filters that successfully matched this item."
+                "description": "List of global filter keys applied to the query."
               },
               "rank_features": {
                 "type": "object",

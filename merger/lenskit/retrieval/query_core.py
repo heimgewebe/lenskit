@@ -106,8 +106,8 @@ def execute_query(
 
         results = []
         for r in rows:
-            matched_terms = [query_text] if query_text else [query_mode]
-            filter_pass = [k for k, v in filters.items() if v]
+            query_terms = [query_text] if query_text else [query_mode]
+            applied_filter_keys = [k for k, v in filters.items() if v]
 
             rank_features = {}
             if query_text:
@@ -125,8 +125,8 @@ def execute_query(
                 "type": r["artifact_type"],
                 "sha256": r["content_sha256"],
                 "why": {
-                    "matched_terms": matched_terms,
-                    "filter_pass": filter_pass,
+                    "query_terms": query_terms,
+                    "applied_filter_keys": applied_filter_keys,
                     "rank_features": rank_features
                 }
             }
