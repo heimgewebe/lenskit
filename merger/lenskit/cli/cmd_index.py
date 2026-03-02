@@ -38,7 +38,21 @@ def run_index(args: argparse.Namespace) -> int:
 
     print(f"Building index from {chunk_path.name}...")
     try:
-        index_db.build_index(dump_path, chunk_path, out_path, config_payload={"cli_args": str(args)})
+        config_payload = {
+            "cli_args": str(args),
+        }
+        # Attempt to extract config_sha256 and lenskit_version from dump manifest if available
+        if dump_path.exists():
+            import json
+            try:
+                dump_data = json.loads(dump_path.read_text(encoding="utf-8"))
+                generator = dump_data.get("generator", {})
+                config_payload["config_sha256"] = generator.get("config_sha256", "")
+                config_payload["lenskit_version"] = generator.get("version", "unknown")
+            except Exception:
+                pass
+
+        index_db.build_index(dump_path, chunk_path, out_path, config_payload=config_payload)
         print(f"✅ Index built successfully: {out_path}")
         return 0
     except Exception as e:

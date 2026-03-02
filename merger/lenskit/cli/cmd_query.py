@@ -13,8 +13,11 @@ def run_query(args: argparse.Namespace) -> int:
         print(f"Error: Index file not found: {index_path}", file=sys.stderr)
         return 1
 
-    # Perform non-fatal stale index check
-    check_stale_index(index_path)
+    # Perform stale index check
+    stale_policy = getattr(args, "stale_policy", "fail")
+    is_stale = check_stale_index(index_path, stale_policy=stale_policy)
+    if is_stale and stale_policy == "fail":
+        return 1
 
     applied_filters = {
         "repo": args.repo,

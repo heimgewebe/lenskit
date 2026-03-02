@@ -184,15 +184,24 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
     dump_sha = _compute_file_sha256(dump_path)
     chunk_sha = _compute_file_sha256(chunk_path)
 
+    # Try to extract config_sha256 and version from config_payload if passed,
+    # or leave empty. Often config_payload is just {"cli_args": ...} right now,
+    # but we can try to find config_sha256. If not available in payload, we
+    # might default to empty string, but the caller should supply it.
+    config_sha256 = (config_payload or {}).get("config_sha256", "")
+    lenskit_version = (config_payload or {}).get("lenskit_version", "unknown")
+
     # Use real UTC timestamp
     now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     meta_items = [
         ("schema_version", INDEX_SCHEMA_VERSION),
-        ("dump_sha256", dump_sha),
+        ("canonical_dump_index_sha256", dump_sha),
         ("chunk_index_sha256", chunk_sha),
         ("created_at", now_utc),
-        ("config_json", json.dumps(config_payload or {}))
+        ("config_json", json.dumps(config_payload or {})),
+        ("config_sha256", config_sha256),
+        ("lenskit_version", lenskit_version)
     ]
 
     # Add stats to meta
@@ -222,7 +231,10 @@ def verify_index(db_path: Path, dump_path: Path, chunk_path: Path) -> bool:
         conn = sqlite3.connect(str(db_path))
         c = conn.cursor()
 
-        row_dump = c.execute("SELECT value FROM index_meta WHERE key='dump_sha256'").fetchone()
+        row_dump = c.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'").fetchone()
+        if not row_dump: # fallback for older schemas if any
+            row_dump = c.execute("SELECT value FROM index_meta WHERE key='dump_sha256'").fetchone()
+
         row_chunk = c.execute("SELECT value FROM index_meta WHERE key='chunk_index_sha256'").fetchone()
 
         conn.close()
