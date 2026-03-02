@@ -167,7 +167,7 @@ def test_run_eval_integration_json(mini_index_for_eval, tmp_path, capsys):
         {
             "query": "missing thing",
             "expected_patterns": ["unicorn.py"],
-            "accept_criteria": {"recall_at_5": 0.0}
+            "accept_criteria": {"recall_at_5": 0.5}
         }
     ]), encoding="utf-8")
 
@@ -184,6 +184,16 @@ def test_run_eval_integration_json(mini_index_for_eval, tmp_path, capsys):
     captured = capsys.readouterr()
     output = json.loads(captured.out)
     assert output["metrics"]["recall@5"] == 50.0
+
+    # Test why-Propagation for hits
+    details = output["details"]
+    login_hit = next(d for d in details if d["query"] == "login")
+    assert login_hit["is_relevant"] is True
+    assert "why" in login_hit
+    why = login_hit["why"]
+    assert "matched_terms" in why
+    assert "filter_pass" in why
+    assert "rank_features" in why
 
 def test_run_eval_gate_failure(mini_index_for_eval, tmp_path, capsys):
     queries_json = tmp_path / "eval_queries.json"

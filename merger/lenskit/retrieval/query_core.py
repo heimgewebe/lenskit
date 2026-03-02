@@ -107,7 +107,7 @@ def execute_query(
         results = []
         for r in rows:
             matched_terms = [query_text] if query_text else [query_mode]
-            filter_pass = [k for k, v in filters.items() if v]
+            filter_pass = [key for key, v in filters.items() if v]
 
             rank_features = {}
             if query_text:
