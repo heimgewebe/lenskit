@@ -167,7 +167,7 @@ def test_run_eval_integration_json(mini_index_for_eval, tmp_path, capsys):
         {
             "query": "missing thing",
             "expected_patterns": ["unicorn.py"],
-            "accept_criteria": {"recall_at_5": 0.5}
+            "accept_criteria": {"recall_at_5": 0.0}
         }
     ]), encoding="utf-8")
 

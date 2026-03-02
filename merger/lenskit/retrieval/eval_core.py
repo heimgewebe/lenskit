@@ -170,12 +170,10 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
         "metrics": {
             f"recall@{k}": recall_at_k,
             "total_queries": total_queries,
-            "hits": hits_at_k
+            "hits": hits_at_k,
+            "stale_flag": is_stale
         },
         "details": results_detail
     }
-
-    if is_stale:
-        out["metrics"]["stale_flag"] = True
 
     return out
