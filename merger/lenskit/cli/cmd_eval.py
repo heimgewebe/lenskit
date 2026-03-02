@@ -39,7 +39,13 @@ def run_eval(args: argparse.Namespace) -> int:
             for q in gold_queries:
                 ac = q.get("accept_criteria", {})
                 if f"recall_at_{args.k}" in ac:
-                    val = float(ac[f"recall_at_{args.k}"])
+                    raw_val = ac[f"recall_at_{args.k}"]
+                    try:
+                        val = float(raw_val)
+                    except (ValueError, TypeError):
+                        print(f"Error: Invalid recall_at_{args.k} threshold '{raw_val}'; must be a numeric ratio between 0.0 and 1.0.", file=sys.stderr)
+                        return 1
+
                     if val < 0.0 or val > 1.0:
                         print(f"Error: Invalid recall_at_{args.k} threshold ({val}). accept_criteria must use a ratio between 0.0 and 1.0.", file=sys.stderr)
                         return 1
