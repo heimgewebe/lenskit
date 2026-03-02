@@ -104,8 +104,6 @@ def execute_query(
         cursor = conn.execute(base_sql, params)
         rows = cursor.fetchall()
 
-        import re
-
         results = []
         for r in rows:
             hit = {
@@ -119,27 +117,11 @@ def execute_query(
                 "sha256": r["content_sha256"]
             }
 
-            # Emit range_ref only if we have strict byte boundaries and valid hash
-            start_b = r["start_byte"]
-            end_b = r["end_byte"]
-            sha = r["content_sha256"]
-
-            if (start_b is not None and end_b is not None and
-                end_b > start_b and
-                sha and re.fullmatch(r"^[a-f0-9]{64}$", sha)):
-                # We assume chunks are mapped back to canonical_md for now.
-                # If layer/artifact_type mapping is different, this can be extended.
-                hit["range_ref"] = {
-                    "artifact_role": "canonical_md",
-                    "repo_id": r["repo_id"],
-                    "file_path": r["path"],
-                    "start_byte": start_b,
-                    "end_byte": end_b,
-                    "start_line": r["start_line"] or 1,
-                    "end_line": r["end_line"] or 1,
-                    "content_sha256": sha,
-                    "chunk_id": r["chunk_id"]
-                }
+            # NOTE: We do not currently emit a `range_ref` here because `r["path"]` is a repo-internal
+            # path, whereas the `file_path` field in a `range_ref` must deterministically match the
+            # artifact path listed in the manifest. Emitting it here would create semantically
+            # invalid references. Once the indexing pipeline provides the precise bundle artifact
+            # path for each chunk, this can be re-enabled.
 
             results.append(hit)
 

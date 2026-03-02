@@ -37,7 +37,7 @@
     },
     "file_path": {
       "type": "string",
-      "description": "The path to the file within the artifact or repository context."
+      "description": "Path to the artifact file as referenced by the bundle manifest (artifacts[].path)."
     },
     "start_byte": {
       "type": "integer",

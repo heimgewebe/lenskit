@@ -44,7 +44,7 @@ def main(args: Optional[List[str]] = None) -> int:
 
     # Range command
     range_parser = subparsers.add_parser("range", help="Range operations")
-    range_subparsers = range_parser.add_subparsers(dest="range_cmd", help="Range commands")
+    range_subparsers = range_parser.add_subparsers(dest="range_cmd", required=True, help="Range commands")
     range_get_parser = range_subparsers.add_parser("get", help="Get a deterministic byte range from an artifact")
     range_get_parser.add_argument("--manifest", required=True, help="Path to bundle manifest or dump index")
     range_get_parser.add_argument("--ref", required=True, help="Path to range_ref JSON file")
@@ -79,6 +79,7 @@ def main(args: Optional[List[str]] = None) -> int:
 
 
 def cmd_range_get(args: argparse.Namespace) -> int:
+    import sys
     import json
     from pathlib import Path
     from merger.lenskit.core.range_resolver import resolve_range_ref
