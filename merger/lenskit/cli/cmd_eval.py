@@ -39,7 +39,11 @@ def run_eval(args: argparse.Namespace) -> int:
             for q in gold_queries:
                 ac = q.get("accept_criteria", {})
                 if f"recall_at_{args.k}" in ac:
-                    thresholds.add(float(ac[f"recall_at_{args.k}"]))
+                    val = float(ac[f"recall_at_{args.k}"])
+                    if val < 0.0 or val > 1.0:
+                        print(f"Error: Invalid recall_at_{args.k} threshold ({val}). accept_criteria must use a ratio between 0.0 and 1.0.", file=sys.stderr)
+                        return 1
+                    thresholds.add(val)
 
             if len(thresholds) > 1:
                 print(f"Error: Multiple conflicting recall_at_{args.k} thresholds found in queries. Gate requires exactly one global threshold.", file=sys.stderr)
@@ -49,8 +53,8 @@ def run_eval(args: argparse.Namespace) -> int:
                 required_recall = thresholds.pop()
                 actual_recall = out["metrics"].get(f"recall@{args.k}", 0.0)
 
-                # The criteria is typically a ratio (0.0 to 1.0) but metrics is a percentage (0.0 to 100.0), so normalize
-                target_percent = required_recall * 100.0 if required_recall <= 1.0 else required_recall
+                # The criteria is strictly a ratio (0.0 to 1.0) but metrics is a percentage (0.0 to 100.0), so normalize
+                target_percent = required_recall * 100.0
 
                 if actual_recall < target_percent:
                     print(f"Error: Recall@{args.k} ({actual_recall:.1f}%) did not meet the global required threshold ({target_percent:.1f}%).", file=sys.stderr)
