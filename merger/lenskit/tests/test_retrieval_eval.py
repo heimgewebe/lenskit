@@ -167,7 +167,7 @@ def test_run_eval_integration_json(mini_index_for_eval, tmp_path, capsys):
         {
             "query": "missing thing",
             "expected_patterns": ["unicorn.py"],
-            "accept_criteria": {"recall_at_5": 0.0}
+            "accept_criteria": {"recall_at_5": 0.5}
         }
     ]), encoding="utf-8")
 
@@ -184,6 +184,16 @@ def test_run_eval_integration_json(mini_index_for_eval, tmp_path, capsys):
     captured = capsys.readouterr()
     output = json.loads(captured.out)
     assert output["metrics"]["recall@5"] == 50.0
+
+    # Test why-Propagation for hits
+    details = output["details"]
+    login_hit = next(d for d in details if d["query"] == "login")
+    assert login_hit["is_relevant"] is True
+    assert "why" in login_hit
+    why = login_hit["why"]
+    assert "matched_terms" in why
+    assert "filter_pass" in why
+    assert "rank_features" in why
 
 def test_run_eval_gate_failure(mini_index_for_eval, tmp_path, capsys):
     queries_json = tmp_path / "eval_queries.json"
@@ -204,3 +214,50 @@ def test_run_eval_gate_failure(mini_index_for_eval, tmp_path, capsys):
     # Should fail due to accept criteria gate
     ret_code = cmd_eval.run_eval(Args())
     assert ret_code == 1
+
+def test_run_eval_conflicting_thresholds_fails(mini_index_for_eval, tmp_path, capsys):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {
+            "query": "login",
+            "expected_patterns": ["login.py"],
+            "accept_criteria": {"recall_at_5": 0.5}
+        },
+        {
+            "query": "missing thing",
+            "expected_patterns": ["unicorn.py"],
+            "accept_criteria": {"recall_at_5": 0.6}
+        }
+    ]), encoding="utf-8")
+
+    class Args:
+        index = str(mini_index_for_eval)
+        queries = str(queries_json)
+        k = 5
+        emit = "json"
+
+    ret_code = cmd_eval.run_eval(Args())
+    assert ret_code == 1
+    captured = capsys.readouterr()
+    assert "Error: Multiple conflicting recall_at_5 thresholds found in queries" in captured.err
+
+def test_run_eval_invalid_threshold_fails(mini_index_for_eval, tmp_path, capsys):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {
+            "query": "login",
+            "expected_patterns": ["login.py"],
+            "accept_criteria": {"recall_at_5": 80.0}
+        }
+    ]), encoding="utf-8")
+
+    class Args:
+        index = str(mini_index_for_eval)
+        queries = str(queries_json)
+        k = 5
+        emit = "json"
+
+    ret_code = cmd_eval.run_eval(Args())
+    assert ret_code == 1
+    captured = capsys.readouterr()
+    assert "Error: Invalid recall_at_5 threshold (80.0). accept_criteria must use a ratio between 0.0 and 1.0." in captured.err

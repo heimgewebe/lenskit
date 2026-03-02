@@ -8,6 +8,7 @@ Die folgenden 15 "Gold Queries" definieren die Zielwerte (Benchmarks) für das l
 - **Explainability:** Mindestens Engine + Filter + Query-Mode (Token-Matches optional).
 
 > Zielwert wird separat festgelegt; diese Datei definiert Metrik + Queryset.
+> Hinweis: `accept_criteria` in `queries.v1.json` sind Ratios (0.0–1.0). `recall@k` im Eval-Output ist in Prozent (0.0–100.0).
 > Ein Beispiel-Report liegt unter `docs/retrieval/retrieval_eval.example.json` (nicht kanonisch).
 > Hinweis: `Expected` Patterns werden strikt als Substring-Match ausgewertet (keine regulären Ausdrücke).
 

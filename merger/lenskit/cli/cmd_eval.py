@@ -28,24 +28,42 @@ def run_eval(args: argparse.Namespace) -> int:
     # Evaluate against accept_criteria if present in a JSON queries file
     if queries_path.suffix == ".json":
         try:
+            # We parse the gold queries a second time here. This avoids breaking the existing
+            # do_eval API while keeping gate threshold logic strictly in the CLI wrapper.
             gold_queries = parse_gold_queries(queries_path)
-            # Find the minimum required recall across all queries' accept_criteria
-            # Typically, accept_criteria might be defined globally, but here it's per query in the json structure
-            # We will take the max recall_at_10 required across all queries to serve as the global gate.
-            required_recall = 0.0
+
+            # Determine the global required recall across all queries' accept_criteria.
+            # We enforce exactly one threshold (global recall@k). If multiple distinct thresholds
+            # are found, we fail, as per explicit gate semantics.
+            thresholds = set()
             for q in gold_queries:
                 ac = q.get("accept_criteria", {})
                 if f"recall_at_{args.k}" in ac:
-                    required_recall = max(required_recall, float(ac[f"recall_at_{args.k}"]))
+                    raw_val = ac[f"recall_at_{args.k}"]
+                    try:
+                        val = float(raw_val)
+                    except (ValueError, TypeError):
+                        print(f"Error: Invalid recall_at_{args.k} threshold '{raw_val}'; must be a numeric ratio between 0.0 and 1.0.", file=sys.stderr)
+                        return 1
 
-            actual_recall = out["metrics"].get(f"recall@{args.k}", 0.0)
+                    if val < 0.0 or val > 1.0:
+                        print(f"Error: Invalid recall_at_{args.k} threshold ({val}). accept_criteria must use a ratio between 0.0 and 1.0.", file=sys.stderr)
+                        return 1
+                    thresholds.add(val)
 
-            # The criteria is typically 0.0 to 1.0 but metrics is 0.0 to 100.0, so normalize
+            if len(thresholds) > 1:
+                print(f"Error: Multiple conflicting recall_at_{args.k} thresholds found in queries. Gate requires exactly one global threshold.", file=sys.stderr)
+                return 1
 
-            if required_recall > 0:
-                target_percent = required_recall * 100.0 if required_recall <= 1.0 else required_recall
+            if len(thresholds) == 1:
+                required_recall = thresholds.pop()
+                actual_recall = out["metrics"].get(f"recall@{args.k}", 0.0)
+
+                # The criteria is strictly a ratio (0.0 to 1.0) but metrics is a percentage (0.0 to 100.0), so normalize
+                target_percent = required_recall * 100.0
+
                 if actual_recall < target_percent:
-                    print(f"Error: Recall@{args.k} ({actual_recall:.1f}%) did not meet the required threshold ({target_percent:.1f}%).", file=sys.stderr)
+                    print(f"Error: Recall@{args.k} ({actual_recall:.1f}%) did not meet the global required threshold ({target_percent:.1f}%).", file=sys.stderr)
                     return 1
         except Exception as e:
             print(f"Error evaluating accept criteria: {e}", file=sys.stderr)
