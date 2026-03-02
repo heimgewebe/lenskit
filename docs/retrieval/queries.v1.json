@@ -1,0 +1,170 @@
+[
+  {
+    "query": "index",
+    "expected_patterns": [
+      "index_db.py",
+      "build_index"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "merge",
+    "expected_patterns": [
+      "merge.py",
+      "iter_report_blocks"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "chunk",
+    "expected_patterns": [
+      "chunker.py",
+      "Chunker"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "cli",
+    "expected_patterns": [
+      "argparse",
+      "main.py",
+      "cli/"
+    ],
+    "filters": {
+      "layer": "cli"
+    },
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "test",
+    "expected_patterns": [
+      "conftest.py",
+      "fixtures/"
+    ],
+    "filters": {
+      "layer": "test"
+    },
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find auth logic",
+    "expected_patterns": [
+      "auth.py",
+      "login"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find database schema",
+    "expected_patterns": [
+      "models.py",
+      "schema.sql"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find api routes",
+    "expected_patterns": [
+      "routes.py",
+      "urls.py",
+      "@app.get"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find error handling",
+    "expected_patterns": [
+      "exceptions.py",
+      "error_handler"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find logging setup",
+    "expected_patterns": [
+      "logging.config",
+      "structlog"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find user model",
+    "expected_patterns": [
+      "class User"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find config parsing",
+    "expected_patterns": [
+      "config.py",
+      "settings.py"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find rate limiting",
+    "expected_patterns": [
+      "ratelimit"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find dependency definition",
+    "expected_patterns": [
+      "requirements.txt",
+      "pyproject.toml"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  },
+  {
+    "query": "find docker configuration",
+    "expected_patterns": [
+      "Dockerfile"
+    ],
+    "filters": {},
+    "accept_criteria": {
+      "recall_at_10": 0.2
+    }
+  }
+]

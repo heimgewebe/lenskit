@@ -17,18 +17,19 @@ def _compute_file_sha256(path: Path) -> Optional[str]:
     except OSError:
         return None
 
-def check_stale_index(index_path: Path) -> None:
+def check_stale_index(index_path: Path) -> bool:
     """
     Non-fatally checks if the given SQLite index is stale by comparing the
     'canonical_dump_index_sha256' in the adjacent derived manifest with the actual
     hash of the adjacent dump_index.json (canonical index). Warns via sys.stderr on mismatch.
+    Returns True if stale, False otherwise.
     """
     try:
         # Expected naming: <base>.chunk_index.index.sqlite
         # Derived manifest: <base>.derived_index.json
         # Dump manifest: <base>.dump_index.json
         if not index_path.name.endswith(".index.sqlite"):
-            return
+            return False
 
         base_name = index_path.name.replace(".chunk_index.index.sqlite", "").replace(".index.sqlite", "")
         dir_path = index_path.parent
@@ -45,12 +46,12 @@ def check_stale_index(index_path: Path) -> None:
                 derived_path = all_derived[0]
                 dump_path = all_dump[0]
             else:
-                return
+                return False
 
         derived_data = json.loads(derived_path.read_text(encoding="utf-8"))
         recorded_sha = derived_data.get("canonical_dump_index_sha256")
         if not recorded_sha:
-            return
+            return False
 
         actual_sha = _compute_file_sha256(dump_path)
 
@@ -60,6 +61,9 @@ def check_stale_index(index_path: Path) -> None:
                 f"The canonical dump_index.json has changed.",
                 file=sys.stderr
             )
+            return True
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
         # Fail silently if JSON parsing or file IO fails
-        return
+        pass
+
+    return False

@@ -20,17 +20,25 @@
           "type": "integer",
           "description": "Number of queries where at least one expected path was found in the top-k results.",
           "minimum": 0
+        },
+        "stale_flag": {
+          "type": "boolean",
+          "description": "True if the index was stale during evaluation."
         }
       },
       "patternProperties": {
         "^recall@\\d+$": {
           "type": "number",
-          "description": "Recall at K (percentage 0-100).",
+          "description": "Recall at K, strictly represented as a percentage (0.0 to 100.0). Note: accept_criteria in queries JSON uses a ratio (0.0 to 1.0).",
           "minimum": 0,
           "maximum": 100
         }
       },
-      "required": ["total_queries", "hits"]
+      "required": [
+        "total_queries",
+        "hits",
+        "stale_flag"
+      ]
     },
     "details": {
       "type": "array",
@@ -47,7 +55,10 @@
             "type": "object",
             "description": "Filters applied to the query.",
             "additionalProperties": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "expected": {
@@ -62,7 +73,10 @@
             "description": "True if an expected path was found in the top results."
           },
           "hit_path": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "The first matching path found, if any."
           },
           "found_count": {
@@ -78,13 +92,60 @@
             }
           },
           "error": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Error message if the query failed."
+          },
+          "why": {
+            "type": "object",
+            "description": "Machine-readable explainability block for the matched hit.",
+            "additionalProperties": false,
+            "required": [
+              "matched_terms",
+              "filter_pass",
+              "rank_features"
+            ],
+            "properties": {
+              "matched_terms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The input or translated terms used for execution."
+              },
+              "filter_pass": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of global filter keys applied to the query."
+              },
+              "rank_features": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Ranking features like bm25."
+              },
+              "diagnostics": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional diagnostics information."
+              }
+            }
           }
         },
-        "required": ["query", "is_relevant", "found_count", "expected"]
+        "required": [
+          "query",
+          "is_relevant",
+          "found_count",
+          "expected"
+        ]
       }
     }
   },
-  "required": ["metrics", "details"]
+  "required": [
+    "metrics",
+    "details"
+  ]
 }

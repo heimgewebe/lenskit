@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -10,6 +11,22 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         raise FileNotFoundError(f"Queries file not found: {md_path}")
 
     content = md_path.read_text(encoding="utf-8")
+
+    if md_path.suffix == ".json":
+        try:
+            data = json.loads(content)
+            queries = []
+            for item in data:
+                queries.append({
+                    "query": item.get("query", ""),
+                    "expected_paths": item.get("expected_patterns", []),
+                    "filters": item.get("filters", {}),
+                    "accept_criteria": item.get("accept_criteria", {})
+                })
+            return queries
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse JSON queries file: {e}")
+
     queries = []
     current_query = None
 
@@ -26,7 +43,8 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
             current_query = {
                 "query": m_title.group(1),
                 "expected_paths": [],
-                "filters": {}
+                "filters": {},
+                "accept_criteria": {}
             }
             continue
 
@@ -52,7 +70,7 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
 
     return queries
 
-def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = False) -> Optional[Dict[str, Any]]:
+def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = False, is_stale: bool = False) -> Optional[Dict[str, Any]]:
     try:
         gold_queries = parse_gold_queries(queries_path)
     except Exception as e:
@@ -88,13 +106,16 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
 
             is_relevant = False
             top_match = "-"
+            hit_why = None
             found_paths = [r["path"] for r in res["results"]]
 
-            for hit_path in found_paths:
+            for r in res["results"]:
+                hit_path = r["path"]
                 for exp in expected:
                     if exp in hit_path:
                         is_relevant = True
                         top_match = hit_path
+                        hit_why = r.get("why")
                         break
                 if is_relevant:
                     break
@@ -108,7 +129,7 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
                 disp_match = (top_match[:27] + "..") if len(top_match) > 27 else top_match
                 print(f"{disp_q:<40} | {res['count']:<5} | {rel_mark:<4} | {disp_match:<30}")
 
-            results_detail.append({
+            detail = {
                 "query": q_text,
                 "filters": filters,
                 "expected": expected,
@@ -116,7 +137,11 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
                 "hit_path": top_match if is_relevant else None,
                 "found_count": res["count"],
                 "top_results": found_paths
-            })
+            }
+            if hit_why is not None:
+                detail["why"] = hit_why
+
+            results_detail.append(detail)
 
         except Exception as e:
             if not is_json_mode:
@@ -145,8 +170,10 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
         "metrics": {
             f"recall@{k}": recall_at_k,
             "total_queries": total_queries,
-            "hits": hits_at_k
+            "hits": hits_at_k,
+            "stale_flag": is_stale
         },
         "details": results_detail
     }
+
     return out
