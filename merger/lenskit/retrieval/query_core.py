@@ -104,9 +104,11 @@ def execute_query(
         cursor = conn.execute(base_sql, params)
         rows = cursor.fetchall()
 
+        import re
+
         results = []
         for r in rows:
-            results.append({
+            hit = {
                 "chunk_id": r["chunk_id"],
                 "repo_id": r["repo_id"],
                 "path": r["path"],
@@ -114,19 +116,32 @@ def execute_query(
                 "score": r["score"],
                 "layer": r["layer"],
                 "type": r["artifact_type"],
-                "sha256": r["content_sha256"],
-                "range_ref": {
+                "sha256": r["content_sha256"]
+            }
+
+            # Emit range_ref only if we have strict byte boundaries and valid hash
+            start_b = r["start_byte"]
+            end_b = r["end_byte"]
+            sha = r["content_sha256"]
+
+            if (start_b is not None and end_b is not None and
+                end_b > start_b and
+                sha and re.fullmatch(r"^[a-f0-9]{64}$", sha)):
+                # We assume chunks are mapped back to canonical_md for now.
+                # If layer/artifact_type mapping is different, this can be extended.
+                hit["range_ref"] = {
                     "artifact_role": "canonical_md",
                     "repo_id": r["repo_id"],
                     "file_path": r["path"],
-                    "start_byte": r["start_byte"] or 0,
-                    "end_byte": r["end_byte"] or 0,
+                    "start_byte": start_b,
+                    "end_byte": end_b,
                     "start_line": r["start_line"] or 1,
                     "end_line": r["end_line"] or 1,
-                    "content_sha256": r["content_sha256"] or "",
+                    "content_sha256": sha,
                     "chunk_id": r["chunk_id"]
                 }
-            })
+
+            results.append(hit)
 
         out = {
             "query": query_text,

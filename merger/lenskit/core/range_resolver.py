@@ -45,15 +45,24 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
     # Try resolving via dump_index format
     elif manifest.get("contract") == "dump-index":
         artifacts = manifest.get("artifacts", {})
-        for _, artifact in artifacts.items():
-            if artifact.get("role") == role.value:
-                target_path_str = artifact.get("path")
-                break
+        # O(1) resolution first
+        if role.value in artifacts and isinstance(artifacts[role.value], dict):
+            target_path_str = artifacts[role.value].get("path")
+        else:
+            # Fallback to iteration for older formats
+            for _, artifact in artifacts.items():
+                if isinstance(artifact, dict) and artifact.get("role") == role.value:
+                    target_path_str = artifact.get("path")
+                    break
     else:
         raise ValueError("Unsupported manifest format (must be bundle.manifest or dump_index)")
 
     if not target_path_str:
         raise ValueError(f"Artifact with role '{role_str}' not found in manifest")
+
+    ref_file_path = ref.get("file_path")
+    if ref_file_path and ref_file_path != target_path_str:
+        raise ValueError(f"file_path mismatch: ref={ref_file_path} manifest={target_path_str}")
 
     target_path = manifest_path.parent / target_path_str
 
