@@ -4911,6 +4911,7 @@ def write_reports_v2(
             "created_at": now_str,
             "generated_at": now_str,
             "canonical_dump_index_sha256": dump_sha256,
+            "config_sha256": generator_info.get("config_sha256", ""),
             "generator": generator_info,
             "repos": repo_names,
             "artifacts": dict(sorted(artifacts_block.items()))
@@ -4931,7 +4932,11 @@ def write_reports_v2(
         sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
         eval_json_path = None
         try:
-            build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=None)
+            config_payload = {
+                "config_sha256": generator_info.get("config_sha256", ""),
+                "lenskit_version": generator_info.get("version", "unknown")
+            }
+            build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=config_payload)
             derived_paths.append(sqlite_index_path)
 
             # Evaluate

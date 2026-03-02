@@ -17,13 +17,17 @@ def _compute_file_sha256(path: Path) -> Optional[str]:
     except OSError:
         return None
 
-def check_stale_index(index_path: Path) -> bool:
+def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
     """
-    Non-fatally checks if the given SQLite index is stale by comparing the
+    Checks if the given SQLite index is stale by comparing the
     'canonical_dump_index_sha256' in the adjacent derived manifest with the actual
-    hash of the adjacent dump_index.json (canonical index). Warns via sys.stderr on mismatch.
+    hash of the adjacent dump_index.json (canonical index).
+    Behavior depends on stale_policy ('warn', 'fail', 'ignore').
     Returns True if stale, False otherwise.
     """
+    if stale_policy == "ignore":
+        return False
+
     try:
         # Expected naming: <base>.chunk_index.index.sqlite
         # Derived manifest: <base>.derived_index.json
@@ -56,11 +60,18 @@ def check_stale_index(index_path: Path) -> bool:
         actual_sha = _compute_file_sha256(dump_path)
 
         if actual_sha is not None and recorded_sha != actual_sha:
-            print(
-                f"Warning: The index '{index_path.name}' appears to be stale. "
-                f"The canonical dump_index.json has changed.",
-                file=sys.stderr
-            )
+            if stale_policy == "fail":
+                print(
+                    f"Error: The index '{index_path.name}' is stale. "
+                    f"The canonical dump_index.json has changed. Failing as per stale-policy.",
+                    file=sys.stderr
+                )
+            elif stale_policy == "warn":
+                print(
+                    f"Warning: The index '{index_path.name}' appears to be stale. "
+                    f"The canonical dump_index.json has changed.",
+                    file=sys.stderr
+                )
             return True
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
         # Fail silently if JSON parsing or file IO fails

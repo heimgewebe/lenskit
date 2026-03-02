@@ -71,11 +71,11 @@ Suchqualität kommt dann fast automatisch.
 ### Phase D — Index Lifecycle: Validity & Staleness als First-Class
 **Ziel:** Maschinen sollen nicht „aus Versehen“ stale Indizes nutzen.
 
-- [ ] **D1) Index Meta Table + Manifest Validity**
+- [x] **D1) Index Meta Table + Manifest Validity**
     - In SQLite `index_meta`: `canonical_dump_index_sha256`, `config_sha256`, `created_at`, `lenskit_version`.
     - In derived manifest: `canonical_dump_index_sha256`, zusätzlich `config_sha256`.
 
-- [ ] **D2) Stale-Policy (konfigurierbar)**
+- [x] **D2) Stale-Policy (konfigurierbar)**
     - `--stale-policy warn|fail|ignore`
     - Default für Agents: `fail` (damit sie nicht still falsch arbeiten).
     - **Stop-Kriterium:** Stale Index kann nicht unbemerkt genutzt werden.
