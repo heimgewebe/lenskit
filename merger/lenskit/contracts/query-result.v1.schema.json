@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/query-result.v1.schema.json",
+  "title": "Query Result (query-result v1.0)",
+  "description": "Standardized output for retrieval queries with explainability.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "query",
+    "k",
+    "engine",
+    "query_mode",
+    "applied_filters",
+    "count",
+    "results"
+  ],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The search query text."
+    },
+    "k": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The requested max results."
+    },
+    "engine": {
+      "type": "string",
+      "description": "The engine used to execute the query (e.g., fts5, metadata)."
+    },
+    "query_mode": {
+      "type": "string",
+      "description": "The mode of query execution (e.g., fts, metadata)."
+    },
+    "fts_query": {
+      "type": "string",
+      "description": "The translated FTS query string, if applicable."
+    },
+    "applied_filters": {
+      "type": "object",
+      "description": "The filters applied during the query.",
+      "additionalProperties": {
+        "type": ["string", "null"]
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The number of results returned."
+    },
+    "results": {
+      "type": "array",
+      "description": "The list of matched items.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "chunk_id",
+          "repo_id",
+          "path",
+          "range",
+          "score",
+          "layer",
+          "type",
+          "sha256",
+          "why"
+        ],
+        "properties": {
+          "chunk_id": {
+            "type": "string"
+          },
+          "repo_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "range": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "range_ref": {
+            "type": "object",
+            "description": "Optional deterministic range reference."
+          },
+          "why": {
+            "type": "object",
+            "description": "Machine-readable explainability block.",
+            "additionalProperties": false,
+            "required": [
+              "query_terms",
+              "applied_filter_keys",
+              "rank_features"
+            ],
+            "properties": {
+              "query_terms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The input or translated terms used for execution."
+              },
+              "applied_filter_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of global filter keys applied to the query."
+              },
+              "rank_features": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Ranking features like bm25."
+              },
+              "diagnostics": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional diagnostics information."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

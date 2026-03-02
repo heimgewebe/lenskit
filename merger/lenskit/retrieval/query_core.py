@@ -106,6 +106,15 @@ def execute_query(
 
         results = []
         for r in rows:
+            query_terms = [query_text] if query_text else [query_mode]
+            applied_filter_keys = [k for k, v in filters.items() if v]
+
+            rank_features = {}
+            if query_text:
+                rank_features["bm25"] = r["score"]
+            else:
+                rank_features["metadata"] = 0
+
             hit = {
                 "chunk_id": r["chunk_id"],
                 "repo_id": r["repo_id"],
@@ -114,7 +123,12 @@ def execute_query(
                 "score": r["score"],
                 "layer": r["layer"],
                 "type": r["artifact_type"],
-                "sha256": r["content_sha256"]
+                "sha256": r["content_sha256"],
+                "why": {
+                    "query_terms": query_terms,
+                    "applied_filter_keys": applied_filter_keys,
+                    "rank_features": rank_features
+                }
             }
 
             # NOTE: We do not currently emit a `range_ref` here because `r["path"]` is a repo-internal
@@ -127,10 +141,11 @@ def execute_query(
 
         out = {
             "query": query_text,
-            "count": len(results),
+            "k": k,
             "engine": engine_type,
             "query_mode": query_mode,
             "applied_filters": filters,
+            "count": len(results),
             "results": results
         }
         if fts_query_str is not None:

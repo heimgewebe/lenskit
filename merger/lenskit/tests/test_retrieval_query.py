@@ -60,17 +60,33 @@ def test_query_fts_combined_filter(mini_index):
     assert res["results"][0]["chunk_id"] == "c2"
 
 def test_query_json_structure(mini_index):
+    import jsonschema
+    from pathlib import Path
+
     res = query_core.execute_query(mini_index, query_text="main", k=5, filters={"layer": "core"})
     assert "query" in res
+    assert "k" in res
     assert "results" in res
     assert "engine" in res
     assert res["engine"] == "fts5"
     assert len(res["results"]) == 1
 
+    schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+    jsonschema.validate(instance=res, schema=schema)
+
     hit = res["results"][0]
     assert "chunk_id" in hit
     assert "range" in hit
     assert "score" in hit
+    assert "why" in hit
+    assert "query_terms" in hit["why"]
+    assert "applied_filter_keys" in hit["why"]
+    assert "rank_features" in hit["why"]
+    assert hit["why"]["query_terms"] == ["main"]
+    assert hit["why"]["applied_filter_keys"] == ["layer"]
+    assert "bm25" in hit["why"]["rank_features"]
 
     # We explicitly disabled range_ref emission because the database currently
     # stores repo-internal paths, which do not deterministically match the bundle

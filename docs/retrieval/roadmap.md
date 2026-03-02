@@ -45,11 +45,11 @@ Suchqualität kommt dann fast automatisch.
 ### Phase B — Range-Resolver als Maschinendienst (Zitierbarkeit)
 **Ziel:** Maschinen holen Content exakt per Range, ohne Markdown parsen zu „müssen“.
 
-- [ ] **B1) Standardisiere „Range Identity“**
+- [x] **B1) Standardisiere „Range Identity“**
     - Contract: `range-ref.v1`
     - Felder: `artifact_role` (oder `artifact_path`), `repo_id`, `path`, `start_byte`, `end_byte`, `start_line`, `end_line`, `content_sha256` (Hash des exakt referenzierten Ausschnitts, empfohlen: Hash des Chunk-Inhalts).
 
-- [ ] **B2) CLI/Lib: `lenskit range get`**
+- [x] **B2) CLI/Lib: `lenskit range get`**
     - `lenskit range get --manifest bundle.manifest.json --ref <range-ref.json>`
     - Ausgabe: exact bytes + optional line-context, optional JSON: `{text, sha256, bytes, lines, provenance}`
     - **Stop-Kriterium:** Ein Agent kann jeden Treffer mit `range get` reproduzierbar ausgeben und zitieren.
