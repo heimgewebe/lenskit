@@ -148,7 +148,6 @@ def execute_query(
             # and truncation to verify pipeline wiring.
             # Real embeddings would be implemented in a subsequent phase.
             results = results[:k]
-            engine_type = "fts5+semantic" if engine_type == "fts5" else "metadata+semantic"
 
         out = {
             "query": query_text,

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pytest
-from merger.lenskit.cli.policy_loader import load_and_validate_embedding_policy
+from merger.lenskit.cli.policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
 
 def test_load_and_validate_embedding_policy_success(tmp_path):
     policy_path = tmp_path / "valid_policy.json"
@@ -17,18 +17,16 @@ def test_load_and_validate_embedding_policy_success(tmp_path):
     assert loaded["model_name"] == "test-model"
     assert loaded["dimensions"] == 128
 
-def test_load_and_validate_embedding_policy_invalid_json(tmp_path, capsys):
+def test_load_and_validate_embedding_policy_invalid_json(tmp_path):
     policy_path = tmp_path / "invalid_json.json"
     policy_path.write_text("{ broken json ", encoding="utf-8")
 
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(EmbeddingPolicyError) as exc:
         load_and_validate_embedding_policy(policy_path)
 
-    assert exc.value.code == 1
-    captured = capsys.readouterr()
-    assert "Error: Failed to parse embedding policy JSON" in captured.err
+    assert "Failed to parse embedding policy JSON" in str(exc.value)
 
-def test_load_and_validate_embedding_policy_invalid_schema(tmp_path, capsys):
+def test_load_and_validate_embedding_policy_invalid_schema(tmp_path):
     policy_path = tmp_path / "invalid_schema.json"
     invalid_policy = {
         "model_name": "test-model",
@@ -38,19 +36,15 @@ def test_load_and_validate_embedding_policy_invalid_schema(tmp_path, capsys):
     }
     policy_path.write_text(json.dumps(invalid_policy), encoding="utf-8")
 
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(EmbeddingPolicyError) as exc:
         load_and_validate_embedding_policy(policy_path)
 
-    assert exc.value.code == 1
-    captured = capsys.readouterr()
-    assert "Error: Embedding policy validation failed" in captured.err
+    assert "Embedding policy validation failed" in str(exc.value)
 
-def test_load_and_validate_embedding_policy_not_found(tmp_path, capsys):
+def test_load_and_validate_embedding_policy_not_found(tmp_path):
     policy_path = tmp_path / "not_found.json"
 
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(EmbeddingPolicyError) as exc:
         load_and_validate_embedding_policy(policy_path)
 
-    assert exc.value.code == 1
-    captured = capsys.readouterr()
-    assert "Error: Embedding policy file not found" in captured.err
+    assert "Embedding policy file not found" in str(exc.value)

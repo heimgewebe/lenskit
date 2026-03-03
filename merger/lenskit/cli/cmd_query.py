@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 
 from ..retrieval.query_core import execute_query
 from .stale_check import check_stale_index
-from .policy_loader import load_and_validate_embedding_policy
+from .policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
 
 def run_query(args: argparse.Namespace) -> int:
     index_path = Path(args.index)
@@ -31,7 +31,11 @@ def run_query(args: argparse.Namespace) -> int:
     policy_instance = None
     if getattr(args, "embedding_policy", None):
         policy_path = Path(args.embedding_policy)
-        policy_instance = load_and_validate_embedding_policy(policy_path)
+        try:
+            policy_instance = load_and_validate_embedding_policy(policy_path)
+        except EmbeddingPolicyError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
 
     try:
         result = execute_query(
