@@ -62,12 +62,14 @@ def test_stale_check_fail_policy_ambiguous_manifest(tmp_path, capsys):
     index_path = tmp_path / "x.index.sqlite"
     index_path.write_text("dummy", encoding="utf-8")
 
-    # Two derived indices
+    # Two derived indices and Two dump indices
     derived_path1 = tmp_path / "foo.derived_index.json"
     derived_path2 = tmp_path / "bar.derived_index.json"
-    dump_path = tmp_path / "foo.dump_index.json"
+    dump_path1 = tmp_path / "foo.dump_index.json"
+    dump_path2 = tmp_path / "bar.dump_index.json"
 
-    dump_path.write_text("dummy", encoding="utf-8")
+    dump_path1.write_text("dummy1", encoding="utf-8")
+    dump_path2.write_text("dummy2", encoding="utf-8")
     derived_data = {"canonical_dump_index_sha256": "old_hash_xyz"}
     derived_path1.write_text(json.dumps(derived_data), encoding="utf-8")
     derived_path2.write_text(json.dumps(derived_data), encoding="utf-8")
@@ -76,7 +78,7 @@ def test_stale_check_fail_policy_ambiguous_manifest(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result is True
-    assert f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail)" in captured.err
+    assert f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail): missing/ambiguous manifests or dump." in captured.err
 
 def test_stale_check_ignore_policy_on_mismatch(tmp_path, capsys):
     base_name = "test_run"
@@ -173,7 +175,7 @@ def test_stale_check_fail_policy_wrong_extension(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result is True
-    assert f"Error: Cannot determine staleness/validity for '{wrong_path.name}' (policy=fail)" in captured.err
+    assert f"Error: Cannot determine staleness/validity for '{wrong_path.name}' (policy=fail): not an .index.sqlite file." in captured.err
 
 def test_stale_check_fallback_discovery(tmp_path, capsys):
     # Create an index with an unrelated name
@@ -201,19 +203,21 @@ def test_stale_check_fallback_multiple_aborts(tmp_path, capsys):
     index_path = tmp_path / "x.index.sqlite"
     index_path.write_text("dummy", encoding="utf-8")
 
-    # Create TWO derived indices, making fallback ambiguous
+    # Create TWO derived indices and TWO dump indices, making fallback ambiguous
     derived_path1 = tmp_path / "foo.derived_index.json"
     derived_path2 = tmp_path / "bar.derived_index.json"
-    dump_path = tmp_path / "foo.dump_index.json"
+    dump_path1 = tmp_path / "foo.dump_index.json"
+    dump_path2 = tmp_path / "bar.dump_index.json"
 
-    dump_path.write_text("dummy", encoding="utf-8")
+    dump_path1.write_text("dummy1", encoding="utf-8")
+    dump_path2.write_text("dummy2", encoding="utf-8")
     derived_data = {"canonical_dump_index_sha256": "old_hash_xyz"}
     derived_path1.write_text(json.dumps(derived_data), encoding="utf-8")
     derived_path2.write_text(json.dumps(derived_data), encoding="utf-8")
 
+    # default is warn, meaning fail-open -> silent abort
     check_stale_index(index_path)
 
-    # Because there are 2 derived indices, it aborts silently
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out == ""

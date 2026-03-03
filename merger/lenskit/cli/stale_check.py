@@ -43,10 +43,10 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
     if stale_policy == "ignore":
         return False
 
-    def undeterminable() -> bool:
+    def undeterminable(reason: str = "missing/ambiguous manifests or dump") -> bool:
         if stale_policy == "fail":
             print(
-                f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail): missing/ambiguous/unreadable manifests or dump.",
+                f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail): {reason}.",
                 file=sys.stderr
             )
             return True
@@ -57,7 +57,7 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
         # Derived manifest: <base>.derived_index.json
         # Dump manifest: <base>.dump_index.json
         if not index_path.name.endswith(".index.sqlite"):
-            return undeterminable()
+            return undeterminable("not an .index.sqlite file")
 
         base_name = index_path.name.replace(".chunk_index.index.sqlite", "").replace(".index.sqlite", "")
         dir_path = index_path.parent
@@ -80,8 +80,10 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
                 recorded_sha = _get_sha_from_db(index_path)
             elif dump_path.exists():
                 recorded_sha = _get_sha_from_db(index_path)
+            elif not all_dump and not dump_path.exists():
+                return undeterminable("dump manifest missing")
             else:
-                return undeterminable()
+                return undeterminable("missing/ambiguous manifests or dump")
 
         if recorded_sha is None:
             if derived_path.exists():
@@ -94,12 +96,12 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
             return undeterminable()
 
         if not dump_path.exists():
-            return undeterminable()
+            return undeterminable("dump manifest missing")
 
         actual_sha = _compute_file_sha256(dump_path)
 
         if actual_sha is None:
-            return undeterminable()
+            return undeterminable("unreadable dump manifest")
 
         if recorded_sha != actual_sha:
             if stale_policy == "fail":
