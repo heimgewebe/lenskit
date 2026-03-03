@@ -20,6 +20,7 @@ def _compute_file_sha256(path: Path) -> Optional[str]:
 
 def _get_sha_from_db(index_path: Path) -> Optional[str]:
     try:
+        # file: URI assumes normal filesystem paths (no special characters like '?' or '#' in directory names).
         with sqlite3.connect(f"file:{index_path}?mode=ro", uri=True) as conn:
             c = conn.cursor()
             row = c.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'").fetchone()
@@ -28,7 +29,9 @@ def _get_sha_from_db(index_path: Path) -> Optional[str]:
             row = c.execute("SELECT value FROM index_meta WHERE key='dump_sha256'").fetchone()
             if row:
                 return row[0]
-    except sqlite3.Error:
+    except (sqlite3.Error, Exception):
+        # We catch Exception here as a failsafe against URI parsing errors or unexpected DB state
+        # to ensure the fallback never crashes the main stale check flow.
         pass
     return None
 
