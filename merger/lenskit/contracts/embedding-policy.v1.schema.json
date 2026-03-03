@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/embedding-policy.v1.schema.json",
+  "title": "Embedding Policy (embedding-policy v1.0)",
+  "description": "Standardized configuration contract for semantic re-ranking and embeddings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model_name",
+    "dimensions",
+    "provider",
+    "similarity_metric"
+  ],
+  "properties": {
+    "model_name": {
+      "type": "string",
+      "description": "The name of the embedding model (e.g., text-embedding-3-small, all-MiniLM-L6-v2)."
+    },
+    "dimensions": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The vector dimensionality produced by the model."
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["local", "api"],
+      "description": "Indicates whether the model runs locally or via an external API."
+    },
+    "similarity_metric": {
+      "type": "string",
+      "enum": ["cosine", "dot_product", "euclidean"],
+      "description": "The distance metric used to compare vectors."
+    },
+    "fallback_behavior": {
+      "type": "string",
+      "enum": ["ignore", "fail"],
+      "default": "ignore",
+      "description": "Behavior if semantic re-ranking fails (e.g., fallback to raw BM25). Note: The JSON Schema \"default\" keyword is informational only. Runtime consumers MUST apply the default explicitly if the field is omitted."
+    },
+    "max_tokens": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional token limit for the model context window."
+    }
+  }
+}
