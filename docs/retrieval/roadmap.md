@@ -85,9 +85,9 @@ Suchqualität kommt dann fast automatisch.
 
 - [x] **E1) `pr_delta.v1` minimal operational**
     - `changed_files[]` + `hunks` optional.
-    - Zusätzlich: `affected_chunk_ids[]` oder `affected_range_refs[]` (Mapping durch Chunk/Range-Overlap).
+    - Zusätzlich: `affected_chunk_ids[]` oder `affected_range_refs[]` (Mapping durch Chunk/Range-Overlap ist optional in v1 und kann anfangs leer sein).
 
-- [x] **E2) CLI: `lenskit pr explain`**
+- [x] **E2) CLI: `lenskit pr-explain`**
     - Gibt aus: changed files, top related chunks per file (context), suspicious patterns (secrets, auth, migrations) nur lexikalisch als heuristische Flags (klar markiert).
     - **Stop-Kriterium:** Agent kann PR-Kontext automatisch laden.
 

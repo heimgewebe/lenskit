@@ -1,11 +1,11 @@
-import pytest
-import sys
 import json
-from pathlib import Path
 from merger.lenskit.cli.main import main
 
-def test_pr_explain_missing_delta(capsys):
-    ret = main(["pr-explain", "--delta", "nonexistent.json"])
+def test_pr_explain_missing_delta(capsys, tmp_path):
+    delta_path = tmp_path / "nonexistent.json"
+    assert not delta_path.exists()
+
+    ret = main(["pr-explain", "--delta", str(delta_path)])
     assert ret == 1
     captured = capsys.readouterr()
     assert "Error: PR delta file not found:" in captured.err

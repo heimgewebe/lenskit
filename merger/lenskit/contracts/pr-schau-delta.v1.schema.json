@@ -64,7 +64,7 @@
           "affected_chunk_ids": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "Optional mapping of which chunks were modified."
+            "description": "Optional mapping of which chunks were modified. May be empty when chunk mapping is not available."
           },
           "suspicious_patterns": {
             "type": "array",

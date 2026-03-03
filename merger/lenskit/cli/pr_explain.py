@@ -2,7 +2,6 @@ import argparse
 import sys
 import json
 from pathlib import Path
-from typing import List, Optional
 
 def run_pr_explain(args: argparse.Namespace) -> int:
     delta_path = Path(args.delta)
