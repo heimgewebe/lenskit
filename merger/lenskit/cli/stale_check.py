@@ -1,6 +1,7 @@
 import sys
 import json
 import hashlib
+import sqlite3
 from pathlib import Path
 from typing import Optional
 
@@ -17,6 +18,23 @@ def _compute_file_sha256(path: Path) -> Optional[str]:
     except OSError:
         return None
 
+def _get_sha_from_db(index_path: Path) -> Optional[str]:
+    try:
+        # file: URI assumes normal filesystem paths (no special characters like '?' or '#' in directory names).
+        with sqlite3.connect(f"file:{index_path}?mode=ro", uri=True) as conn:
+            c = conn.cursor()
+            row = c.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'").fetchone()
+            if row:
+                return row[0]
+            row = c.execute("SELECT value FROM index_meta WHERE key='dump_sha256'").fetchone()
+            if row:
+                return row[0]
+    except Exception:
+        # We catch Exception here as a failsafe against URI parsing errors or unexpected DB state
+        # to ensure the fallback never crashes the main stale check flow.
+        pass
+    return None
+
 def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
     """
     Checks if the given SQLite index is stale by comparing the
@@ -28,18 +46,29 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
     if stale_policy == "ignore":
         return False
 
+    def undeterminable(reason: str = "missing/ambiguous manifests or dump") -> bool:
+        if stale_policy == "fail":
+            print(
+                f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail): {reason}.",
+                file=sys.stderr
+            )
+            return True
+        return False
+
     try:
         # Expected naming: <base>.chunk_index.index.sqlite
         # Derived manifest: <base>.derived_index.json
         # Dump manifest: <base>.dump_index.json
         if not index_path.name.endswith(".index.sqlite"):
-            return False
+            return undeterminable("not an .index.sqlite file")
 
         base_name = index_path.name.replace(".chunk_index.index.sqlite", "").replace(".index.sqlite", "")
         dir_path = index_path.parent
 
         derived_path = dir_path / f"{base_name}.derived_index.json"
         dump_path = dir_path / f"{base_name}.dump_index.json"
+
+        recorded_sha = None
 
         if not derived_path.exists() or not dump_path.exists():
             # Fallback discovery: Check if exactly one exists in the directory
@@ -49,17 +78,35 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
             if len(all_derived) == 1 and len(all_dump) == 1:
                 derived_path = all_derived[0]
                 dump_path = all_dump[0]
+            elif len(all_dump) == 1:
+                dump_path = all_dump[0]
+                recorded_sha = _get_sha_from_db(index_path)
+            elif dump_path.exists():
+                recorded_sha = _get_sha_from_db(index_path)
+            elif not all_dump and not dump_path.exists():
+                return undeterminable("dump manifest missing")
             else:
-                return False
+                return undeterminable("missing/ambiguous manifests or dump")
 
-        derived_data = json.loads(derived_path.read_text(encoding="utf-8"))
-        recorded_sha = derived_data.get("canonical_dump_index_sha256")
+        if recorded_sha is None:
+            if derived_path.exists():
+                derived_data = json.loads(derived_path.read_text(encoding="utf-8"))
+                recorded_sha = derived_data.get("canonical_dump_index_sha256")
+            else:
+                recorded_sha = _get_sha_from_db(index_path)
+
         if not recorded_sha:
-            return False
+            return undeterminable()
+
+        if not dump_path.exists():
+            return undeterminable("dump manifest missing")
 
         actual_sha = _compute_file_sha256(dump_path)
 
-        if actual_sha is not None and recorded_sha != actual_sha:
+        if actual_sha is None:
+            return undeterminable("unreadable dump manifest")
+
+        if recorded_sha != actual_sha:
             if stale_policy == "fail":
                 print(
                     f"Error: The index '{index_path.name}' is stale. "
@@ -73,8 +120,10 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
                     file=sys.stderr
                 )
             return True
+
+        return False
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
-        # Fail silently if JSON parsing or file IO fails
-        pass
+        # Fail silently if JSON parsing or file IO fails under warn, but fail under fail policy
+        return undeterminable()
 
     return False
