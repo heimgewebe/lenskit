@@ -56,7 +56,9 @@ def test_stale_check_fail_policy_missing_manifest(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result is True
-    assert f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail)" in captured.err
+    assert "Cannot determine staleness/validity" in captured.err
+    assert "(policy=fail)" in captured.err
+    assert "dump manifest missing" in captured.err
 
 def test_stale_check_fail_policy_ambiguous_manifest(tmp_path, capsys):
     index_path = tmp_path / "x.index.sqlite"
@@ -78,7 +80,9 @@ def test_stale_check_fail_policy_ambiguous_manifest(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result is True
-    assert f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail): missing/ambiguous manifests or dump." in captured.err
+    assert "Cannot determine staleness/validity" in captured.err
+    assert "(policy=fail)" in captured.err
+    assert "missing/ambiguous manifests or dump" in captured.err
 
 def test_stale_check_ignore_policy_on_mismatch(tmp_path, capsys):
     base_name = "test_run"
@@ -114,7 +118,7 @@ def test_stale_check_fail_policy_on_mismatch(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result is True
-    assert "Error: The index" in captured.err
+    assert "is stale" in captured.err
     assert "Failing as per stale-policy" in captured.err
 
 def test_stale_check_fallback_db(tmp_path, capsys):
@@ -164,7 +168,9 @@ def test_stale_check_fallback_db_missing_dump(tmp_path, capsys):
     result = check_stale_index(index_path, stale_policy="fail")
     assert result is True
     captured = capsys.readouterr()
-    assert f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail)" in captured.err
+    assert "Cannot determine staleness/validity" in captured.err
+    assert "(policy=fail)" in captured.err
+    assert "dump manifest missing" in captured.err
 
 def test_stale_check_fail_policy_wrong_extension(tmp_path, capsys):
     # Not an index.sqlite file
@@ -175,7 +181,9 @@ def test_stale_check_fail_policy_wrong_extension(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert result is True
-    assert f"Error: Cannot determine staleness/validity for '{wrong_path.name}' (policy=fail): not an .index.sqlite file." in captured.err
+    assert "Cannot determine staleness/validity" in captured.err
+    assert "(policy=fail)" in captured.err
+    assert "not an .index.sqlite file" in captured.err
 
 def test_stale_check_fallback_discovery(tmp_path, capsys):
     # Create an index with an unrelated name
