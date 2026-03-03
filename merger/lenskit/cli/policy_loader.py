@@ -1,5 +1,4 @@
 import json
-import sys
 import jsonschema
 from pathlib import Path
 from typing import Dict, Any
@@ -24,10 +23,9 @@ def load_and_validate_embedding_policy(path: Path) -> Dict[str, Any]:
     except IOError as e:
         raise EmbeddingPolicyError(f"Could not read embedding policy file: {e}")
 
-    schema_path = Path(__file__).parent.parent / "contracts" / "embedding-policy.v1.schema.json"
+    schema_path = (Path(__file__).resolve().parent.parent / "contracts" / "embedding-policy.v1.schema.json")
     if not schema_path.exists():
-        # Fallback to absolute if running from odd location, but typically relative to this file
-        schema_path = Path("merger/lenskit/contracts/embedding-policy.v1.schema.json")
+        raise EmbeddingPolicyError(f"Embedding policy schema not found at: {schema_path}")
 
     try:
         with schema_path.open("r", encoding="utf-8") as sf:

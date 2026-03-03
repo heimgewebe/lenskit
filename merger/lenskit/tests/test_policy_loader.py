@@ -41,6 +41,23 @@ def test_load_and_validate_embedding_policy_invalid_schema(tmp_path):
 
     assert "Embedding policy validation failed" in str(exc.value)
 
+def test_load_and_validate_embedding_policy_invalid_schema_additional_properties(tmp_path):
+    policy_path = tmp_path / "invalid_schema_additional.json"
+    invalid_policy = {
+        "model_name": "test-model",
+        "dimensions": 128,
+        "provider": "local",
+        "similarity_metric": "cosine",
+        "unknown_field": "should fail"
+    }
+    policy_path.write_text(json.dumps(invalid_policy), encoding="utf-8")
+
+    with pytest.raises(EmbeddingPolicyError) as exc:
+        load_and_validate_embedding_policy(policy_path)
+
+    assert "Embedding policy validation failed" in str(exc.value)
+    assert "unknown_field" in str(exc.value)
+
 def test_load_and_validate_embedding_policy_not_found(tmp_path):
     policy_path = tmp_path / "not_found.json"
 
