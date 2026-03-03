@@ -15,7 +15,7 @@ The retrieval pipeline consists of two stages:
 2. **Semantic Re-Ranking (Top-N Semantic):**
    The semantic engine processes the queries and candidate pool. Vectors for candidate chunks are retrieved (or calculated dynamically) and compared against the query vector. The top N items (e.g., N = 10) are returned.
 
-## `embedding_policy.v1` Contract
+## `embedding-policy.v1` Contract
 
 The parameters for this re-ranking step are defined by the `embedding-policy.v1.schema.json` contract. This defines:
 - **`model_name`**: Identifies the text embedding model used.
@@ -32,6 +32,8 @@ Semantic re-ranking must prove its worth against the established baseline:
 - `lenskit eval` will generate metrics (like `recall@10`) using the lexical-only approach.
 - The same gold queries (`queries.v1.json`) are evaluated using the semantic re-ranker.
 - The measurable difference between the two strategies constitutes the "improvement delta".
+
+For evaluation output, the semantic runs will strictly use the existing `retrieval-eval.v1.schema.json` contract. No new schema extensions are planned yet. Differentiation between lexical and semantic runs will occur by setting the `engine` or strategy value appropriately in the existing fields.
 
 ## Stop Criterion
 

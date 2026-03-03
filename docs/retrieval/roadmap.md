@@ -94,11 +94,11 @@ Suchqualität kommt dann fast automatisch.
 ### Phase F — (bewusst später) Semantik als Re-Ranker
 **Ziel:** Nur nachdem A–E stabil sind.
 
-- [x] **F1) Semantik Re-Ranker**
+- [ ] **F1) Semantik Re-Ranker**
     - `candidate` (Top-50) → `rerank` (Top-10).
     - `embedding_policy.v1`.
     - Eval: improvement delta vs non-semantic.
-    - **Stop-Kriterium:** Messbare Verbesserung ohne neue Failure-Klasse.
+    - **Stop-Kriterium:** Messbare Verbesserung ohne neue Failure-Klasse. F1 ist erst erfüllt nach messbarem improvement delta und ohne neue failure classes.
 
 ## Empfohlene Reihenfolge (nächste Aktionen)
 1. A1/A2 Bundle Manifest + Rollen-Enum
