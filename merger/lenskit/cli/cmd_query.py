@@ -27,12 +27,26 @@ def run_query(args: argparse.Namespace) -> int:
         "artifact_type": getattr(args, "artifact_type", None)
     }
 
+    embedding_policy = None
+    if getattr(args, "embedding_policy", None):
+        policy_path = Path(args.embedding_policy)
+        if not policy_path.exists():
+            print(f"Error: Embedding policy file not found: {policy_path}", file=sys.stderr)
+            return 1
+        try:
+            with policy_path.open("r", encoding="utf-8") as f:
+                embedding_policy = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error: Failed to parse embedding policy JSON: {e}", file=sys.stderr)
+            return 1
+
     try:
         result = execute_query(
             index_path=index_path,
             query_text=args.q,
             k=args.k,
-            filters=applied_filters
+            filters=applied_filters,
+            embedding_policy=embedding_policy
         )
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)

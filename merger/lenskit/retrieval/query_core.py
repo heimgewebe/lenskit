@@ -6,7 +6,8 @@ def execute_query(
     index_path: Path,
     query_text: str,
     k: int = 10,
-    filters: Optional[Dict[str, Optional[str]]] = None
+    filters: Optional[Dict[str, Optional[str]]] = None,
+    embedding_policy: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -98,8 +99,11 @@ def execute_query(
             # For metadata query, we have `FROM chunks c`. We need to start WHERE clause.
             base_sql += " WHERE " + " AND ".join(where_clauses)
 
+        # If semantic re-ranking is requested, fetch a larger candidate pool
+        fetch_k = 50 if embedding_policy else k
+
         base_sql += f" {order_clause} LIMIT ?"
-        params.append(k)
+        params.append(fetch_k)
 
         cursor = conn.execute(base_sql, params)
         rows = cursor.fetchall()
@@ -138,6 +142,35 @@ def execute_query(
             # path for each chunk, this can be re-enabled.
 
             results.append(hit)
+
+        if embedding_policy:
+            fallback = embedding_policy.get("fallback_behavior", "ignore")
+            # In Phase F1, we simulate a mock semantic re-ranker since we don't have
+            # real vector embeddings. We'll simply score based on path matching or some
+            # synthetic metric to prove the pipeline correctly re-ranks.
+
+            # Simple mock: Give higher score if query words appear in the path.
+            # Real embeddings would actually call an LLM API or local model here.
+            query_words = set(query_text.lower().split()) if query_text else set()
+
+            for res in results:
+                semantic_score = 0.0
+                path_lower = res["path"].lower()
+                for w in query_words:
+                    if w in path_lower:
+                        semantic_score += 1.0
+
+                # Mock similarity is just this arbitrary score
+                res["why"]["rank_features"]["semantic_similarity"] = semantic_score
+
+            # Re-rank based on our mock semantic score (descending), then original bm25
+            results.sort(
+                key=lambda x: (x["why"]["rank_features"].get("semantic_similarity", 0.0), x["score"]),
+                reverse=True
+            )
+
+            results = results[:k]
+            engine_type = "fts5+semantic" if engine_type == "fts5" else "metadata+semantic"
 
         out = {
             "query": query_text,

@@ -35,6 +35,7 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--artifact-type", help="Filter by artifact_type")
     query_parser.add_argument("--emit", choices=["text", "json"], default="text", help="Output format")
     query_parser.add_argument("--stale-policy", choices=["warn", "fail", "ignore"], default="fail", help="Policy for handling stale indices")
+    query_parser.add_argument("--embedding-policy", help="Path to embedding-policy.v1.schema.json configuration")
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")
@@ -43,6 +44,7 @@ def main(args: Optional[List[str]] = None) -> int:
     eval_parser.add_argument("--k", type=int, default=10, help="Max results for recall calculation")
     eval_parser.add_argument("--emit", choices=["text", "json"], default="text", help="Output format")
     eval_parser.add_argument("--stale-policy", choices=["warn", "fail", "ignore"], default="fail", help="Policy for handling stale indices")
+    eval_parser.add_argument("--embedding-policy", help="Path to embedding-policy.v1.schema.json configuration")
 
     # Range command
     range_parser = subparsers.add_parser("range", help="Range operations")
