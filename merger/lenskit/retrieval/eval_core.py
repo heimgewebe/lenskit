@@ -70,7 +70,14 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
 
     return queries
 
-def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = False, is_stale: bool = False) -> Optional[Dict[str, Any]]:
+def do_eval(
+    index_path: Path,
+    queries_path: Path,
+    k: int,
+    is_json_mode: bool = False,
+    is_stale: bool = False,
+    embedding_policy: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
     try:
         gold_queries = parse_gold_queries(queries_path)
     except Exception as e:
@@ -101,7 +108,8 @@ def do_eval(index_path: Path, queries_path: Path, k: int, is_json_mode: bool = F
                 index_path=index_path,
                 query_text=q_text,
                 k=k,
-                filters=filters
+                filters=filters,
+                embedding_policy=embedding_policy
             )
 
             is_relevant = False

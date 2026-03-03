@@ -88,6 +88,8 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
         queries = str(queries_md)
         k = 5
         emit = "json"
+        stale_policy = "ignore"
+        embedding_policy = None
 
     # Run Eval
     ret_code = cmd_eval.run_eval(Args())
@@ -176,6 +178,8 @@ def test_run_eval_integration_json(mini_index_for_eval, tmp_path, capsys):
         queries = str(queries_json)
         k = 5
         emit = "json"
+        stale_policy = "ignore"
+        embedding_policy = None
 
     # Run Eval
     ret_code = cmd_eval.run_eval(Args())
@@ -210,6 +214,8 @@ def test_run_eval_gate_failure(mini_index_for_eval, tmp_path, capsys):
         queries = str(queries_json)
         k = 5
         emit = "json"
+        stale_policy = "ignore"
+        embedding_policy = None
 
     # Should fail due to accept criteria gate
     ret_code = cmd_eval.run_eval(Args())
@@ -235,6 +241,8 @@ def test_run_eval_conflicting_thresholds_fails(mini_index_for_eval, tmp_path, ca
         queries = str(queries_json)
         k = 5
         emit = "json"
+        stale_policy = "ignore"
+        embedding_policy = None
 
     ret_code = cmd_eval.run_eval(Args())
     assert ret_code == 1
@@ -256,6 +264,8 @@ def test_run_eval_invalid_threshold_fails(mini_index_for_eval, tmp_path, capsys)
         queries = str(queries_json)
         k = 5
         emit = "json"
+        stale_policy = "ignore"
+        embedding_policy = None
 
     ret_code = cmd_eval.run_eval(Args())
     assert ret_code == 1

@@ -6,7 +6,8 @@ def execute_query(
     index_path: Path,
     query_text: str,
     k: int = 10,
-    filters: Optional[Dict[str, Optional[str]]] = None
+    filters: Optional[Dict[str, Optional[str]]] = None,
+    embedding_policy: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -98,8 +99,11 @@ def execute_query(
             # For metadata query, we have `FROM chunks c`. We need to start WHERE clause.
             base_sql += " WHERE " + " AND ".join(where_clauses)
 
+        # If semantic re-ranking is requested, fetch a larger candidate pool
+        fetch_k = max(k, 50) if embedding_policy else k
+
         base_sql += f" {order_clause} LIMIT ?"
-        params.append(k)
+        params.append(fetch_k)
 
         cursor = conn.execute(base_sql, params)
         rows = cursor.fetchall()
@@ -138,6 +142,12 @@ def execute_query(
             # path for each chunk, this can be re-enabled.
 
             results.append(hit)
+
+        if embedding_policy:
+            # We don't implement actual re-ranking yet, just candidate overfetch
+            # and truncation to verify pipeline wiring.
+            # Real embeddings would be implemented in a subsequent phase.
+            results = results[:k]
 
         out = {
             "query": query_text,
