@@ -29,7 +29,7 @@ def _get_sha_from_db(index_path: Path) -> Optional[str]:
             row = c.execute("SELECT value FROM index_meta WHERE key='dump_sha256'").fetchone()
             if row:
                 return row[0]
-    except (sqlite3.Error, Exception):
+    except Exception:
         # We catch Exception here as a failsafe against URI parsing errors or unexpected DB state
         # to ensure the fallback never crashes the main stale check flow.
         pass
