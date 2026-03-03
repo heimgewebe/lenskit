@@ -83,7 +83,7 @@ Suchqualität kommt dann fast automatisch.
 ### Phase E — PR-Verstehen als eigener Entry (ohne Symbolik, v1)
 **Ziel:** PR-Usecase bedienbar machen, ohne gleich Symbolgraph zu bauen.
 
-- [x] **E1) `pr_delta.v1` minimal operational**
+- [x] **E1) `pr-schau-delta.v1` minimal operational**
     - `changed_files[]` + `hunks` optional.
     - Zusätzlich: `affected_chunk_ids[]` oder `affected_range_refs[]` (Mapping durch Chunk/Range-Overlap ist optional in v1 und kann anfangs leer sein).
 
