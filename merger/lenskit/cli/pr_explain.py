@@ -31,8 +31,14 @@ def run_pr_explain(args: argparse.Namespace) -> int:
             if chunk_ids:
                 print(f"    Affected chunks: {', '.join(chunk_ids)}")
 
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON in delta file: {e}", file=sys.stderr)
+        return 1
+    except IOError as e:
+        print(f"I/O error reading delta file: {e}", file=sys.stderr)
+        return 1
     except Exception as e:
-        print(f"Error reading delta file: {e}", file=sys.stderr)
+        print(f"Unexpected error processing delta file: {e}", file=sys.stderr)
         return 1
 
     return 0
