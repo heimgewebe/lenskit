@@ -46,7 +46,7 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
     def undeterminable() -> bool:
         if stale_policy == "fail":
             print(
-                "Error: Cannot determine staleness/validity (missing or unreadable manifests)",
+                f"Error: Cannot determine staleness/validity for '{index_path.name}' (policy=fail): missing/ambiguous/unreadable manifests or dump.",
                 file=sys.stderr
             )
             return True
@@ -99,7 +99,7 @@ def check_stale_index(index_path: Path, stale_policy: str = "warn") -> bool:
         actual_sha = _compute_file_sha256(dump_path)
 
         if actual_sha is None:
-             return undeterminable()
+            return undeterminable()
 
         if recorded_sha != actual_sha:
             if stale_policy == "fail":
