@@ -33,7 +33,9 @@ Semantic re-ranking must prove its worth against the established baseline:
 - The same gold queries (`queries.v1.json`) are evaluated using the semantic re-ranker.
 - The measurable difference between the two strategies constitutes the "improvement delta".
 
-For evaluation output, the semantic runs will strictly use the existing `retrieval-eval.v1.schema.json` contract. No new schema extensions are planned yet. Differentiation between lexical and semantic runs will occur by setting the `engine` or strategy value appropriately in the existing fields.
+All evaluation outputs MUST conform to the existing `retrieval-eval.v1.schema.json` contract.
+
+Semantic re-ranking runs are represented using the same schema as lexical baselines. They are distinguished solely via a strategy/engine identifier within the existing evaluation schema. No schema extension is introduced in Phase F1.
 
 ## Stop Criterion
 

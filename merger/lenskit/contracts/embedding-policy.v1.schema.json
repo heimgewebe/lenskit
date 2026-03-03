@@ -35,7 +35,7 @@
       "type": "string",
       "enum": ["ignore", "fail"],
       "default": "ignore",
-      "description": "Behavior if semantic re-ranking fails (e.g., fallback to raw BM25). Note: The JSON Schema default is only informative; the runtime implementation must explicitly apply this default if omitted."
+      "description": "Behavior if semantic re-ranking fails (e.g., fallback to raw BM25). Note: The JSON Schema \"default\" keyword is informational only. Runtime consumers MUST apply the default explicitly if the field is omitted."
     },
     "max_tokens": {
       "type": "integer",
