@@ -52,6 +52,10 @@ def main(args: Optional[List[str]] = None) -> int:
     range_get_parser.add_argument("--ref", required=True, help="Path to range_ref JSON file")
     range_get_parser.add_argument("--format", choices=["raw", "json"], default="json", help="Output format")
 
+    # PR-Explain command
+    pr_explain_parser = subparsers.add_parser("pr-explain", help="Explain PR context")
+    pr_explain_parser.add_argument("--delta", required=True, help="Path to delta.json file")
+
     # Verify command (placeholder)
     verify_parser = subparsers.add_parser("verify", help="Verify artifacts or bundles")
 
@@ -73,6 +77,9 @@ def main(args: Optional[List[str]] = None) -> int:
         else:
             parser.parse_args(["range", "--help"])
             return 0
+    elif parsed_args.command == "pr-explain":
+        from . import pr_explain
+        return pr_explain.run_pr_explain(parsed_args)
     elif parsed_args.command == "verify":
         print("Verify command placeholder. Use pr-schau-verify for now.")
         return 1

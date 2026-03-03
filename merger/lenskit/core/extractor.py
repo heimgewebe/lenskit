@@ -502,6 +502,16 @@ def generate_review_bundle(
     def make_entry(rel_path, status, root_path):
         fpath = root_path / rel_path
 
+        # Simple heuristic for suspicious patterns
+        lower_path = rel_path.lower()
+        suspicious = []
+        if "secret" in lower_path or "password" in lower_path:
+            suspicious.append("secret")
+        if "auth" in lower_path:
+            suspicious.append("auth")
+        if "migration" in lower_path:
+            suspicious.append("migration")
+
         if status == "removed":
             size = old_snap[rel_path][0] if rel_path in old_snap else 0
             return {
@@ -510,7 +520,9 @@ def generate_review_bundle(
                 "category": _heuristic_category(rel_path),
                 "size_bytes": size,
                 "sha256": None,
-                "sha256_status": "skipped"
+                "sha256_status": "skipped",
+                "affected_chunk_ids": [],
+                "suspicious_patterns": suspicious
             }
 
         # For added/changed: use robust computation
@@ -524,7 +536,9 @@ def generate_review_bundle(
             "category": _heuristic_category(rel_path),
             "size_bytes": size,
             "sha256": sha,
-            "sha256_status": sha_status
+            "sha256_status": sha_status,
+            "affected_chunk_ids": [],
+            "suspicious_patterns": suspicious
         }
 
     # Populate delta_files with prioritization for review order

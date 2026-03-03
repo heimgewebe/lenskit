@@ -1,0 +1,31 @@
+{
+  "kind": "repolens.pr_schau.delta",
+  "version": 1,
+  "repo": "example-repo",
+  "generated_at": "2024-05-20T10:00:00Z",
+  "summary": {
+    "added": 1,
+    "changed": 1,
+    "removed": 0
+  },
+  "files": [
+    {
+      "path": "foo.py",
+      "status": "changed",
+      "size_bytes": 1024,
+      "sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "sha256_status": "ok",
+      "affected_chunk_ids": ["c1", "c2"],
+      "suspicious_patterns": []
+    },
+    {
+      "path": "auth.md",
+      "status": "added",
+      "size_bytes": 256,
+      "sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "sha256_status": "ok",
+      "affected_chunk_ids": [],
+      "suspicious_patterns": ["auth"]
+    }
+  ]
+}
