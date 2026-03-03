@@ -35,7 +35,7 @@ Semantic re-ranking must prove its worth against the established baseline:
 
 All evaluation outputs MUST conform to the existing `retrieval-eval.v1.schema.json` contract.
 
-Semantic re-ranking runs are represented using the same schema as lexical baselines. They are distinguished solely via a strategy/engine identifier within the existing evaluation schema. No schema extension is introduced in Phase F1.
+Semantic re-ranking runs are represented using the same schema as lexical baselines. They are distinguished in evaluation reports via an explicit run label or engine marker carried in the existing `retrieval-eval.v1` structure (no schema extension is introduced in Phase F1). If the current schema lacks such a dedicated marker, Phase F2 will introduce it.
 
 ## Stop Criterion
 
