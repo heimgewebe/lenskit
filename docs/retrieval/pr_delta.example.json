@@ -1,0 +1,4 @@
+{
+  "changed_files": ["foo.py", "bar.md"],
+  "affected_chunk_ids": ["c1", "c2"]
+}

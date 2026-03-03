@@ -60,6 +60,16 @@
             "type": "string",
             "enum": ["ok", "missing", "permission", "io_error", "skipped", "error"],
             "description": "Cryptographic hash status. 'skipped' is used for removed files."
+          },
+          "affected_chunk_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional mapping of which chunks were modified."
+          },
+          "suspicious_patterns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Lexical heuristic flags like 'secret', 'auth', 'migration'."
           }
         },
         "allOf": [
