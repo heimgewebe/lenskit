@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ..retrieval.eval_core import do_eval, parse_gold_queries
 from .stale_check import check_stale_index
+from .policy_loader import load_and_validate_embedding_policy
 
 def run_eval(args: argparse.Namespace) -> int:
     index_path = Path(args.index)
@@ -21,20 +22,12 @@ def run_eval(args: argparse.Namespace) -> int:
     queries_path = Path(args.queries) if args.queries else Path("docs/retrieval/queries.md")
     is_json_mode = (args.emit == "json")
 
-    embedding_policy = None
+    policy_instance = None
     if getattr(args, "embedding_policy", None):
         policy_path = Path(args.embedding_policy)
-        if not policy_path.exists():
-            print(f"Error: Embedding policy file not found: {policy_path}", file=sys.stderr)
-            return 1
-        try:
-            with policy_path.open("r", encoding="utf-8") as f:
-                embedding_policy = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error: Failed to parse embedding policy JSON: {e}", file=sys.stderr)
-            return 1
+        policy_instance = load_and_validate_embedding_policy(policy_path)
 
-    out = do_eval(index_path, queries_path, args.k, is_json_mode, is_stale, embedding_policy)
+    out = do_eval(index_path, queries_path, args.k, is_json_mode, is_stale, policy_instance)
     if out is None:
         return 1
 

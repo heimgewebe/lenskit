@@ -94,7 +94,7 @@ Suchqualität kommt dann fast automatisch.
 ### Phase F — (bewusst später) Semantik als Re-Ranker
 **Ziel:** Nur nachdem A–E stabil sind.
 
-- [x] **F1) Semantik Re-Ranker**
+- [ ] **F1) Semantik Re-Ranker**
     - `candidate` (Top-50) → `rerank` (Top-10).
     - `embedding-policy.v1`.
     - Eval: improvement delta vs non-semantic.

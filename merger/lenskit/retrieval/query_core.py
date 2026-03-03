@@ -100,7 +100,7 @@ def execute_query(
             base_sql += " WHERE " + " AND ".join(where_clauses)
 
         # If semantic re-ranking is requested, fetch a larger candidate pool
-        fetch_k = 50 if embedding_policy else k
+        fetch_k = max(k, 50) if embedding_policy else k
 
         base_sql += f" {order_clause} LIMIT ?"
         params.append(fetch_k)
@@ -144,31 +144,9 @@ def execute_query(
             results.append(hit)
 
         if embedding_policy:
-            fallback = embedding_policy.get("fallback_behavior", "ignore")
-            # In Phase F1, we simulate a mock semantic re-ranker since we don't have
-            # real vector embeddings. We'll simply score based on path matching or some
-            # synthetic metric to prove the pipeline correctly re-ranks.
-
-            # Simple mock: Give higher score if query words appear in the path.
-            # Real embeddings would actually call an LLM API or local model here.
-            query_words = set(query_text.lower().split()) if query_text else set()
-
-            for res in results:
-                semantic_score = 0.0
-                path_lower = res["path"].lower()
-                for w in query_words:
-                    if w in path_lower:
-                        semantic_score += 1.0
-
-                # Mock similarity is just this arbitrary score
-                res["why"]["rank_features"]["semantic_similarity"] = semantic_score
-
-            # Re-rank based on our mock semantic score (descending), then original bm25
-            results.sort(
-                key=lambda x: (x["why"]["rank_features"].get("semantic_similarity", 0.0), x["score"]),
-                reverse=True
-            )
-
+            # We don't implement actual re-ranking yet, just candidate overfetch
+            # and truncation to verify pipeline wiring.
+            # Real embeddings would be implemented in a subsequent phase.
             results = results[:k]
             engine_type = "fts5+semantic" if engine_type == "fts5" else "metadata+semantic"
 

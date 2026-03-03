@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 
 from ..retrieval.query_core import execute_query
 from .stale_check import check_stale_index
+from .policy_loader import load_and_validate_embedding_policy
 
 def run_query(args: argparse.Namespace) -> int:
     index_path = Path(args.index)
@@ -27,18 +28,10 @@ def run_query(args: argparse.Namespace) -> int:
         "artifact_type": getattr(args, "artifact_type", None)
     }
 
-    embedding_policy = None
+    policy_instance = None
     if getattr(args, "embedding_policy", None):
         policy_path = Path(args.embedding_policy)
-        if not policy_path.exists():
-            print(f"Error: Embedding policy file not found: {policy_path}", file=sys.stderr)
-            return 1
-        try:
-            with policy_path.open("r", encoding="utf-8") as f:
-                embedding_policy = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error: Failed to parse embedding policy JSON: {e}", file=sys.stderr)
-            return 1
+        policy_instance = load_and_validate_embedding_policy(policy_path)
 
     try:
         result = execute_query(
@@ -46,7 +39,7 @@ def run_query(args: argparse.Namespace) -> int:
             query_text=args.q,
             k=args.k,
             filters=applied_filters,
-            embedding_policy=embedding_policy
+            embedding_policy=policy_instance
         )
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)
