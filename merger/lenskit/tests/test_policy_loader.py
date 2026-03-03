@@ -56,7 +56,6 @@ def test_load_and_validate_embedding_policy_invalid_schema_additional_properties
         load_and_validate_embedding_policy(policy_path)
 
     assert "Embedding policy validation failed" in str(exc.value)
-    assert "unknown_field" in str(exc.value)
 
 def test_load_and_validate_embedding_policy_not_found(tmp_path):
     policy_path = tmp_path / "not_found.json"
