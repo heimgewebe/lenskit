@@ -171,7 +171,7 @@ def do_eval(
                 "explain": {
                     "error": str(e),
                     "filters": filters,
-                    "why_zero": "query failed"
+                    "why_fail": "query execution failed"
                 }
             })
 
