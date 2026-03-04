@@ -94,19 +94,22 @@ Suchqualität kommt dann fast automatisch.
 ### Phase F — (bewusst später) Semantik als Re-Ranker
 **Ziel:** Nur nachdem A–E stabil sind.
 
-- [ ] **F1) Semantik Re-Ranker**
-    - `candidate` (Top-50) → `rerank` (Top-10).
-    - `embedding-policy.v1`.
+- [x] **F1a) Semantik Re-Ranker (Plumbing)**
+    - `candidate` (Top-50) → `rerank` (Top-10) Plumbing (semantic request marker, candidate overfetch, diagnostics, fail/ignore enforcement).
+    - `embedding-policy.v1` Validation und CLI-Wiring.
+    - **Stop-Kriterium:** `fallback_behavior` ist enforced (ignore/fail). Pipeline ist fehlerfrei vorbereitet, aber noch ohne echtes ML-Modell.
+
+- [ ] **F1b) Semantik Re-Ranker (Model Integration)**
     - Eval: improvement delta vs non-semantic.
     - **Stop-Kriterium:** Messbare Verbesserung (improvement delta) ohne neue Failure-Klasse.
 
 ## Empfohlene Reihenfolge (nächste Aktionen)
-1. A1/A2 Bundle Manifest + Rollen-Enum
-2. B1/B2 Range-Resolver
-3. C1/C2 Explain + Gold-Query JSON + CI Gate
-4. D1/D2 Stale fail-policy
-5. E1/E2 PR explain (ohne Symbolik)
-6. F später
+- [x] A1/A2 Bundle Manifest + Rollen-Enum
+- [x] B1/B2 Range-Resolver
+- [x] C1/C2 Explain + Gold-Query JSON + CI Gate
+- [x] D1/D2 Stale fail-policy
+- [x] E1/E2 PR explain (ohne Symbolik)
+- [ ] F später
 
 ---
 
