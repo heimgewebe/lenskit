@@ -1,6 +1,5 @@
 import json
 import sqlite3
-from pathlib import Path
 import pytest
 from merger.lenskit.retrieval import index_db
 from merger.lenskit.retrieval import query_core
@@ -143,7 +142,7 @@ def test_query_explain_zero_hits(mini_index):
     assert "fts_query" in explain
     assert explain["filters"]["layer"] == "core"
     assert "why_zero" in explain
-    assert explain["why_zero"] == "Tokens zu restriktiv"
+    assert explain["why_zero"] == "tokens too restrictive"
 
 def test_query_semantic_fallback_fail(mini_index):
     policy = {

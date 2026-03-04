@@ -186,7 +186,12 @@ def execute_query(
                 explain_block["fts_query"] = fts_query_str
             explain_block["filters"] = {k: v for k, v in (filters or {}).items() if v}
             if len(results) == 0:
-                explain_block["why_zero"] = "Tokens zu restriktiv"
+                if fts_query_str is not None:
+                    explain_block["why_zero"] = "tokens too restrictive"
+                elif explain_block["filters"]:
+                    explain_block["why_zero"] = "filters too restrictive"
+                else:
+                    explain_block["why_zero"] = "no results"
             else:
                 # extract top-k scoring from the hits
                 # we just need a summary of scores

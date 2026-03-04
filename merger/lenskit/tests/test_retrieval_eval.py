@@ -122,7 +122,7 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     assert miss["query"] == "missing thing"
     assert miss["is_relevant"] is False
     assert "explain" in miss
-    assert miss["explain"].get("why_zero") == "Tokens zu restriktiv"
+    assert miss["explain"].get("why_zero") == "tokens too restrictive"
 
 def test_schema_smoke():
     """

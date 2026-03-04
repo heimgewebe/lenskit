@@ -167,7 +167,12 @@ def do_eval(
                 "hit_path": None,
                 "found_count": 0,
                 "top_results": [],
-                "error": str(e)
+                "error": str(e),
+                "explain": {
+                    "error": str(e),
+                    "filters": filters,
+                    "why_zero": "query failed"
+                }
             })
 
     recall_at_k = (hits_at_k / total_queries) * 100.0 if total_queries > 0 else 0.0
