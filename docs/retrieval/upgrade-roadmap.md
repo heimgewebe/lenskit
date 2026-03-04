@@ -68,7 +68,7 @@ Evidenzlevel (S0/S1/S2) ist ein Pflichtfeld. Import-Graphen dürfen nicht als La
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://heimgewebe.local/schema/architecture.graph.v1.schema.json",
+  "$id": "lenskit/schema/architecture.graph.v1.schema.json",
   "title": "Architecture Graph (architecture.graph v1)",
   "type": "object",
   "additionalProperties": false,
@@ -142,7 +142,7 @@ Evidenzlevel (S0/S1/S2) ist ein Pflichtfeld. Import-Graphen dürfen nicht als La
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://heimgewebe.local/schema/entrypoints.v1.schema.json",
+  "$id": "lenskit/schema/entrypoints.v1.schema.json",
   "title": "Entrypoints (entrypoints v1)",
   "type": "object",
   "additionalProperties": false,
@@ -176,7 +176,7 @@ Evidenzlevel (S0/S1/S2) ist ein Pflichtfeld. Import-Graphen dürfen nicht als La
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://heimgewebe.local/schema/contracts.graph.v1.schema.json",
+  "$id": "lenskit/schema/contracts.graph.v1.schema.json",
   "title": "Contracts/Flows Graph (contracts.graph v1)",
   "type": "object",
   "additionalProperties": false,
@@ -270,29 +270,65 @@ Transparenz über Query-Routing, Gewichte und Treffer-Gründe:
 - Contract-First: Jede neue ArtifactRole erfordert Schema, Beispiel und Test.
 - `canonical_dump_index_sha256` Verknüpfung in generierten Graphen (`architecture.graph.json`) muss matchen, ansonsten greift die Stale-Policy.
 
-## Nächste Pull Requests (Priorisiert)
+## Konventionen für Artefakt-Pfade & Rollen
 
-Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags).
+Artefakte werden stets innerhalb des Bundles (z. B. `_merge.bundle/`) platziert, um Drift zu vermeiden:
+- **Rolle im Manifest:** `architecture_graph_json`, `entrypoints_json`, `graph_index_json`.
 
-### PR 1: Explain und Query Router MVP (P0)
-- `retrieval`: `query_router` (Synonyme, Intent-Tags).
-- `cli(query)`: `--explain` Flag, das Router, SQL und Scores ausgibt.
-- FTS5 Query-Rewrite mit OR-Expansion und Spaltenfilter (`content:`, `path_tokens:`).
+## Abhakbare PR-Blaupause (Step-by-Step)
+
+Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei Lenskit ist ein PR erst fertig, wenn **Artefakt + Contract + Test** zusammen laufen.
+
+### PR 1: Query Router MVP + Explain (P0)
+**Deliverables:**
+- [ ] `query_router` (Stop-Verbs, Intent Tags, Synonym OR-Expansion).
+- [ ] `lenskit query --explain` (immer: Router Output + FTS_Query + Filter + Top-K Scoring).
+- [ ] Explain **auch bei 0 Treffern** (mit `why_zero`, z.B. Tokens zu restriktiv).
+- [ ] Golden Tests: Explain JSON stable order.
+
+**Stop-Kriterium:**
+- [ ] `retrieval_eval` läuft reproduzierbar und liefert für jede Query Explain-Payload (auch im Fail-Fall).
+
+**Bias-Guard:**
+- [ ] "Overmatching-Schalter": Router kann OR-Expansion über Config abschalten.
 
 ### PR 2: Eval v2 (P0)
-- `eval`: Schema-Erweiterung für per-category recall@5/10.
-- `eval_core`: Metrikenberechnung pro Kategorie.
+**Deliverables:**
+- [ ] Kategorien im Query-Set (architecture/entrypoint/feature/cli/security).
+- [ ] Recall@5/10 pro Kategorie.
+- [ ] Coverage-Metrik (Anteil der Queries mit 0 Treffern).
 
-### PR 3: G0 Import-Graph + Entrypoints + Schemas (P1)
-- `contracts`: `architecture.graph.v1` + `entrypoints.v1` Schemas.
-- `architecture`: Aufbau des Import-Graphen aus `chunk_index.jsonl` (AST Import/ImportFrom).
-- `cli`: Neues `lenskit architecture` Kommando.
+**Stop-Kriterium:**
+- [ ] Eval-Output ist schema-validiert + Golden Fixture vorhanden.
 
-### PR 4: graph_index + graph-aware rerank (P2)
-- `graph_index`: Kompilierung von Adjazenz und Entrypoint-Distanzen.
-- `retrieval`: Feature Join (Score Blend) + Test-Penalty.
-- `cli(query)`: Explain um Graph-Terme erweitern.
+### PR 3: Architecture Graph v1 + Entrypoints v1 (P1)
+*(Minimaler maschinenlesbarer Kern)*
+**Deliverables:**
+- [ ] `contracts/architecture/architecture.graph.v1.json` und `entrypoints.v1.json`.
+- [ ] Generator: Python-Imports via AST (Edges: `import`, Evidence S1, line-refs).
+- [ ] Entrypoints v1 minimal (console scripts + lenskit cli root).
+- [ ] CLI: `lenskit architecture --format json|md`.
+- [ ] `coverage` vollständig (inklusive `files_parsed / files_seen`) + Warnungen bei low coverage.
 
-### PR 5: range_ref re-aktivieren (P1/P2)
-- `chunk_index`: `content_range_ref` (bundle-consistent) beim Erzeugen des Merge-MD aus Offsets berechnen.
-- `query_result`: Optionale Ausgabe von `range_ref` pro Treffer.
+**Stop-Kriterium:**
+- [ ] Determinismus: Sortierte Nodes/Edges, stabile `node_id` Regeln.
+- [ ] Golden Test: Mini Fixture Project erzeugt exakten Graph Output.
+
+### PR 4: graph_index compile + graph-aware rerank (P2)
+**Deliverables:**
+- [ ] `graph_index.json` (Adjacency + Entrypoint Distances + Metrics).
+- [ ] Retrieval: BM25 topN → Rerank (Distance/Entrypoint/Test-Penalty).
+- [ ] Explain: Final Score Breakdown + Features per Result.
+
+**Stop-Kriterium:**
+- [ ] Rerank ist "feature-flagged" und bietet sauberen Fallback auf BM25.
+- [ ] Regression Test: Rerank deterministisch, keine Random Tie Flips.
+
+### PR 5: range_ref (Proof-Carrying Retrieval) (P1/P2)
+**Deliverables:**
+- [ ] `chunk_index.jsonl` optional erweitert um `content_range_ref` (bundle-konsistent).
+- [ ] Query Results können `range_ref` ausgeben.
+- [ ] Roundtrip-Test: Top-Result → `range_get` → extrahierter Text matcht Hash.
+
+**Stop-Kriterium:**
+- [ ] Eine Retrieval-Antwort ist belegbar (nicht nur plausibel).
