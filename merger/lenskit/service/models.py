@@ -34,6 +34,18 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
         else:
             inc_paths = sorted(req.include_paths)
 
+    # Normalize include_paths_by_repo
+    inc_paths_repo = None
+    if req.include_paths_by_repo is not None:
+        inc_paths_repo = {}
+        for r, paths in req.include_paths_by_repo.items():
+            if paths is None:
+                inc_paths_repo[r] = None
+            elif any(p in (".", "") for p in paths):
+                inc_paths_repo[r] = None
+            else:
+                inc_paths_repo[r] = sorted(paths)
+
     # Construct signature dict
     sig = {
         "lenskit_version": version,
@@ -51,6 +63,8 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
         "json_sidecar": req.json_sidecar,
         "meta_density": req.meta_density,
         "include_paths": inc_paths,
+        "include_paths_by_repo": inc_paths_repo,
+        "strict_include_paths_by_repo": req.strict_include_paths_by_repo,
         # New fields v2.4
         "output_mode": req.output_mode,
         "redact_secrets": req.redact_secrets,
