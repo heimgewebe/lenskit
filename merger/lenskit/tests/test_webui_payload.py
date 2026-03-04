@@ -111,6 +111,7 @@ def test_run_merge_picks_up_pool_selections(page_with_static: Page):
     assert ipbr["repoB"] == ["fileB.txt"] # Partial
     assert p.get("strict_include_paths_by_repo") is True
     assert "include_paths" not in p or p["include_paths"] is None
+    assert p.get("force_new") is True
 
     # Ensure global filters are cleared when pool is active (even partially)
     assert p.get("path_filter") is None
@@ -172,6 +173,7 @@ def test_run_merge_mixed_pool_and_non_pool(page_with_static: Page):
     assert p["include_paths_by_repo"]["repoA"] == ["fileA.txt"]
     assert p["include_paths_by_repo"]["repoB"] is None # Not in pool -> Full
     assert p.get("strict_include_paths_by_repo") is True
+    assert p.get("force_new") is True
 
 
 def test_run_merge_blocks_dirty_keys(page_with_static: Page):
@@ -275,3 +277,4 @@ def test_run_merge_clears_global_filters_for_pool(page_with_static: Page):
     assert p["include_paths_by_repo"]["repoA"] == ["foo.txt"]
     assert p.get("path_filter") is None, "path_filter must be cleared when pool is active"
     assert p.get("extensions") is None, "extensions must be cleared when pool is active"
+    assert p.get("force_new") is True

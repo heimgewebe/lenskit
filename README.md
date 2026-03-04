@@ -47,3 +47,7 @@ Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschr
 
 Alle Rollen-Definitionen, Datenflüsse und Contract-Zuordnungen dieses Repos
 sind dort verankert.
+
+### Merge Job Deduplication
+
+When requesting a repository merge via the WebUI, `force_new=True` is used by default to ensure that a fresh, non-cached merge is executed. This prevents issues with stale cache hits when a repository changes between requests.

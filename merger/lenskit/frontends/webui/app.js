@@ -981,7 +981,9 @@ async function startJob(e) {
     // JSON Sidecar legacy logic
     const jsonSidecar = checkedExtras.includes('json_sidecar');
 
+    const planOnlyChecked = document.getElementById('planOnly').checked;
     const commonPayload = {
+        force_new: !planOnlyChecked,
         hub: document.getElementById('hubPath').value,
         merges_dir: document.getElementById('mergesPath').value || null,
         level: document.getElementById('profile').value,
