@@ -74,6 +74,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 ### architecture.graph.v1 Schema
 *Draft sketch – not canonical contract yet.*
 *Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
+*These schema sketches intentionally follow existing contract conventions (kind prefix, typed consts, date-time formatting) to prevent drift.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -84,11 +85,11 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
   "additionalProperties": false,
   "required": ["kind", "version", "run_id", "canonical_dump_index_sha256", "nodes", "edges", "coverage"],
   "properties": {
-    "kind": { "const": "lenskit.architecture.graph" },
-    "version": { "const": "1.0" },
+    "kind": { "type": "string", "const": "repolens.architecture.graph" },
+    "version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string" },
     "canonical_dump_index_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "generated_at": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
     "granularity": { "type": "string", "enum": ["file", "package", "module"] },
     "nodes": {
       "type": "array",
@@ -151,6 +152,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 ### entrypoints.v1 Schema
 *Draft sketch – not canonical contract yet.*
 *Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
+*These schema sketches intentionally follow existing contract conventions (kind prefix, typed consts, date-time formatting) to prevent drift.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -161,8 +163,8 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
   "additionalProperties": false,
   "required": ["kind", "version", "run_id", "canonical_dump_index_sha256", "entrypoints"],
   "properties": {
-    "kind": { "const": "lenskit.entrypoints" },
-    "version": { "const": "1.0" },
+    "kind": { "type": "string", "const": "repolens.entrypoints" },
+    "version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string" },
     "canonical_dump_index_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "entrypoints": {
@@ -188,6 +190,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 ### contracts.graph.v1 Schema (Alternative Achse)
 *Draft sketch – not canonical contract yet.*
 *Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
+*These schema sketches intentionally follow existing contract conventions (kind prefix, typed consts, date-time formatting) to prevent drift.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -198,8 +201,8 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
   "additionalProperties": false,
   "required": ["kind", "version", "nodes", "edges"],
   "properties": {
-    "kind": { "const": "lenskit.contracts.graph" },
-    "version": { "const": "1.0" },
+    "kind": { "type": "string", "const": "repolens.contracts.graph" },
+    "version": { "type": "string", "const": "1.0" },
     "nodes": {
       "type": "array",
       "items": {
@@ -235,10 +238,11 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 ```json
 {
   "artifact_role": "canonical_md",
+  "repo_id": "example-repo-id",
   "file_path": "lenskit-max-..._merge.md",
   "start_byte": 214998,
   "end_byte": 217441,
-  "content_sha256": "…",
+  "content_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "start_line": 1203,
   "end_line": 1321
 }
