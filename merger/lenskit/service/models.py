@@ -29,10 +29,26 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
     # Normalize include_paths
     inc_paths = None
     if req.include_paths is not None:
-        if any(p in (".", "") for p in req.include_paths):
+        stripped_paths = [p.strip() for p in req.include_paths]
+        if any(p in (".", "") for p in stripped_paths):
             inc_paths = None
         else:
-            inc_paths = sorted(req.include_paths)
+            inc_paths = sorted(set(stripped_paths))
+
+    # Normalize include_paths_by_repo
+    inc_paths_repo = None
+    if req.include_paths_by_repo is not None:
+        inc_paths_repo = {}
+        for r, paths in req.include_paths_by_repo.items():
+            if paths is None:
+                inc_paths_repo[r] = None
+            else:
+                stripped_repo_paths = [p.strip() for p in paths]
+                if not req.strict_include_paths_by_repo and any(p in (".", "") for p in stripped_repo_paths):
+                    # Legacy behavior: if not strict, treat "." or "" as None (All)
+                    inc_paths_repo[r] = None
+                else:
+                    inc_paths_repo[r] = sorted(set(stripped_repo_paths))
 
     # Construct signature dict
     sig = {
@@ -51,6 +67,8 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
         "json_sidecar": req.json_sidecar,
         "meta_density": req.meta_density,
         "include_paths": inc_paths,
+        "include_paths_by_repo": inc_paths_repo,
+        "strict_include_paths_by_repo": req.strict_include_paths_by_repo,
         # New fields v2.4
         "output_mode": req.output_mode,
         "redact_secrets": req.redact_secrets,
