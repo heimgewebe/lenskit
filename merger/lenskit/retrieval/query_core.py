@@ -182,8 +182,7 @@ def execute_query(
 
         if explain:
             explain_block = {}
-            if fts_query_str is not None:
-                explain_block["fts_query"] = fts_query_str
+            explain_block["fts_query"] = fts_query_str
             explain_block["filters"] = {k: v for k, v in (filters or {}).items() if v}
             if len(results) == 0:
                 if fts_query_str is not None:

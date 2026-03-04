@@ -203,9 +203,9 @@ def test_query_unable_to_use_bm25_handling(mini_index, monkeypatch):
 
 def test_explain_json_stable_order(mini_index):
     """
-    Golden Test: Ensure Explain JSON output has a stable, predictable key order.
+    Golden Test: Ensure Explain JSON output has a stable prefix order (fts_query, filters) and required keys present.
     Dictionaries in Python 3.7+ maintain insertion order. We enforce the required schema fields
-    to ensure the output matches expected 'Golden' snapshot ordering.
+    to ensure the output matches expected 'Golden' prefix ordering.
     """
     res = query_core.execute_query(
         index_path=mini_index,
