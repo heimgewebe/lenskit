@@ -52,6 +52,7 @@ def run_query(args: argparse.Namespace) -> int:
 
     if args.emit == "json":
         print(json.dumps(result, indent=2))
+        return 0
     else:
         print(f"Found {result['count']} chunks for '{result['query']}'")
         print("-" * 60)
