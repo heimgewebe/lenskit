@@ -983,7 +983,6 @@ async function startJob(e) {
 
     const planOnlyChecked = document.getElementById('planOnly').checked;
     const commonPayload = {
-        force_new: !planOnlyChecked,
         hub: document.getElementById('hubPath').value,
         merges_dir: document.getElementById('mergesPath').value || null,
         level: document.getElementById('profile').value,
@@ -998,6 +997,10 @@ async function startJob(e) {
         extensions: extensions,
         extras: extrasCsv
     };
+
+    if (!planOnlyChecked) {
+        commonPayload.force_new = true;
+    }
 
     try {
         // Run Merge Strategy: STRICTLY Batch / Single based on checkboxes.

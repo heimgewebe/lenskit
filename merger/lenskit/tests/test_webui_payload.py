@@ -278,3 +278,46 @@ def test_run_merge_clears_global_filters_for_pool(page_with_static: Page):
     assert p.get("path_filter") is None, "path_filter must be cleared when pool is active"
     assert p.get("extensions") is None, "extensions must be cleared when pool is active"
     assert p.get("force_new") is True
+
+def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
+    """
+    Verifies that when 'Plan Only' is checked, the generated payload
+    omits the 'force_new' parameter to allow caching.
+    """
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.goto("http://localhost:8000/")
+    page_with_static.wait_for_selector("#repoList input[name='repos']")
+
+    # Select repoA
+    page_with_static.evaluate("""
+        const boxes = document.querySelectorAll('input[name="repos"]');
+        boxes.forEach(b => {
+            if (b.value === 'repoA') b.checked = true;
+        });
+    """)
+
+    # Check Plan Only
+    page_with_static.check("#planOnly")
+
+    payloads = []
+    def handle_jobs(route: Route):
+        if route.request.method == "POST":
+            data = route.request.post_data_json or json.loads(route.request.post_data)
+            payloads.append(data)
+            route.fulfill(json={"id": "job-plan-only", "status": "queued"})
+        else:
+            route.continue_()
+
+    page_with_static.route("**/api/jobs", handle_jobs)
+    page_with_static.select_option("#mode", "gesamt")
+    page_with_static.click("#jobForm button[type='submit']")
+
+    start = time.time()
+    while len(payloads) == 0 and time.time() - start < 5:
+        page_with_static.wait_for_timeout(50)
+
+    assert len(payloads) == 1
+    p = payloads[0]
+
+    assert p["plan_only"] is True
+    assert "force_new" not in p, "force_new should be omitted for plan_only jobs"

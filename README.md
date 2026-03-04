@@ -50,4 +50,4 @@ sind dort verankert.
 
 ### Merge Job Deduplication
 
-When requesting a repository merge via the WebUI, `force_new=True` is used by default to ensure that a fresh, non-cached merge is executed. This prevents issues with stale cache hits when a repository changes between requests.
+When requesting a non-plan repository merge via the WebUI, the JSON payload includes `force_new: true` to ensure a fresh merge is executed rather than reusing a cached job. Plan-only jobs omit the `force_new` flag so they can reuse cached planning results when possible.
