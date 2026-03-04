@@ -111,6 +111,7 @@ def test_run_merge_picks_up_pool_selections(page_with_static: Page):
     assert ipbr["repoB"] == ["fileB.txt"] # Partial
     assert p.get("strict_include_paths_by_repo") is True
     assert "include_paths" not in p or p["include_paths"] is None
+    assert p.get("force_new") is True
 
     # Ensure global filters are cleared when pool is active (even partially)
     assert p.get("path_filter") is None
@@ -172,6 +173,7 @@ def test_run_merge_mixed_pool_and_non_pool(page_with_static: Page):
     assert p["include_paths_by_repo"]["repoA"] == ["fileA.txt"]
     assert p["include_paths_by_repo"]["repoB"] is None # Not in pool -> Full
     assert p.get("strict_include_paths_by_repo") is True
+    assert p.get("force_new") is True
 
 
 def test_run_merge_blocks_dirty_keys(page_with_static: Page):
@@ -275,3 +277,42 @@ def test_run_merge_clears_global_filters_for_pool(page_with_static: Page):
     assert p["include_paths_by_repo"]["repoA"] == ["foo.txt"]
     assert p.get("path_filter") is None, "path_filter must be cleared when pool is active"
     assert p.get("extensions") is None, "extensions must be cleared when pool is active"
+    assert p.get("force_new") is True
+
+def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
+    """
+    Verifies that when 'Plan Only' is checked, the generated payload
+    omits the 'force_new' parameter to allow caching.
+    """
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.goto("http://localhost:8000/")
+    page_with_static.wait_for_selector("#repoList input[name='repos']")
+
+    # Select repoA
+    page_with_static.evaluate("""
+        const boxes = document.querySelectorAll('input[name="repos"]');
+        boxes.forEach(b => {
+            if (b.value === 'repoA') b.checked = true;
+        });
+    """)
+
+    # Check Plan Only
+    page_with_static.check("#planOnly")
+
+    def handle_jobs(route: Route):
+        if route.request.method == "POST":
+            route.fulfill(json={"id": "job-plan-only", "status": "queued"})
+        else:
+            route.continue_()
+
+    page_with_static.route("**/api/jobs", handle_jobs)
+    page_with_static.select_option("#mode", "gesamt")
+
+    with page_with_static.expect_request("**/api/jobs") as req_info:
+        page_with_static.click("#jobForm button[type='submit']")
+
+    req = req_info.value
+    p = req.post_data_json or json.loads(req.post_data)
+
+    assert p["plan_only"] is True
+    assert "force_new" not in p, "force_new should be omitted for plan_only jobs"

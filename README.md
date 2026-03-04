@@ -47,3 +47,7 @@ Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschr
 
 Alle Rollen-Definitionen, Datenflüsse und Contract-Zuordnungen dieses Repos
 sind dort verankert.
+
+### Merge Job Deduplizierung
+
+Wenn ein non-plan Repository-Merge über die WebUI angefordert wird, enthält der JSON-Payload `force_new: true`. Dies stellt sicher, dass ein frischer Merge ausgeführt wird, anstatt einen gecachten Job wiederzuverwenden. Plan-only Jobs lassen das `force_new` Flag weg, damit gecachte Planungsergebnisse wenn möglich wiederverwendet werden können.

@@ -981,6 +981,7 @@ async function startJob(e) {
     // JSON Sidecar legacy logic
     const jsonSidecar = checkedExtras.includes('json_sidecar');
 
+    const planOnlyChecked = document.getElementById('planOnly').checked;
     const commonPayload = {
         hub: document.getElementById('hubPath').value,
         merges_dir: document.getElementById('mergesPath').value || null,
@@ -996,6 +997,10 @@ async function startJob(e) {
         extensions: extensions,
         extras: extrasCsv
     };
+
+    if (!planOnlyChecked) {
+        commonPayload.force_new = true;
+    }
 
     try {
         // Run Merge Strategy: STRICTLY Batch / Single based on checkboxes.
