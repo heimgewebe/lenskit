@@ -57,3 +57,45 @@ def test_force_new_ignored_if_no_existing(service_client):
     job = resp.json()
 
     assert ctx.store.get_job(job["id"]) is not None
+
+
+def test_whitespace_only_include_paths_collapsed_to_none(service_client):
+    """
+    Ensure that whitespace-only paths (e.g. "   ") are treated consistently with ""
+    and collapse the selection to None (All) under non-strict semantics.
+    """
+    ctx = service_client
+
+    # Create job with an explicit empty string include path
+    req_payload_empty = {
+        "repos": ["repo-test"],
+        "level": "summary",
+        "plan_only": True,
+        "include_paths_by_repo": {
+            "repo-test": [""]
+        }
+    }
+    resp1 = ctx.client.post("/api/jobs", json=req_payload_empty, headers=ctx.headers)
+    assert resp1.status_code == 200
+    job1_id = resp1.json()["id"]
+
+    # Simulate completion
+    job_obj = ctx.store.get_job(job1_id)
+    job_obj.status = "succeeded"
+    ctx.store.update_job(job_obj)
+
+    # Create job with a whitespace-only include path
+    req_payload_space = {
+        "repos": ["repo-test"],
+        "level": "summary",
+        "plan_only": True,
+        "include_paths_by_repo": {
+            "repo-test": ["   "]
+        }
+    }
+    resp2 = ctx.client.post("/api/jobs", json=req_payload_space, headers=ctx.headers)
+    assert resp2.status_code == 200
+    job2_id = resp2.json()["id"]
+
+    # Should reuse the exact same job since both normalize to None
+    assert job1_id == job2_id
