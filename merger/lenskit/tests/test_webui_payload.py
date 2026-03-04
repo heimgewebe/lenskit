@@ -310,14 +310,12 @@ def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
 
     page_with_static.route("**/api/jobs", handle_jobs)
     page_with_static.select_option("#mode", "gesamt")
-    page_with_static.click("#jobForm button[type='submit']")
 
-    start = time.time()
-    while len(payloads) == 0 and time.time() - start < 5:
-        page_with_static.wait_for_timeout(50)
+    with page_with_static.expect_request("**/api/jobs") as req_info:
+        page_with_static.click("#jobForm button[type='submit']")
 
-    assert len(payloads) == 1
-    p = payloads[0]
+    req = req_info.value
+    p = req.post_data_json or json.loads(req.post_data)
 
     assert p["plan_only"] is True
     assert "force_new" not in p, "force_new should be omitted for plan_only jobs"
