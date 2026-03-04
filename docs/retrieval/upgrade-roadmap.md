@@ -73,6 +73,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 
 ### architecture.graph.v1 Schema
 *Draft sketch – not canonical contract yet.*
+*Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -149,6 +150,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 
 ### entrypoints.v1 Schema
 *Draft sketch – not canonical contract yet.*
+*Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -185,6 +187,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 
 ### contracts.graph.v1 Schema (Alternative Achse)
 *Draft sketch – not canonical contract yet.*
+*Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -283,27 +286,32 @@ Transparenz über Query-Routing, Gewichte und Treffer-Gründe:
 - Contract-First: Jede neue ArtifactRole erfordert Schema, Beispiel und Test.
 - `canonical_dump_index_sha256` Verknüpfung in generierten Graphen (`architecture.graph.json`) muss matchen, ansonsten greift die Stale-Policy.
 
-## Konventionen für Artefakt-Pfade & Rollen
+## Vorschlag für Artefakt-Pfade & Rollen (pending repo conventions)
 
 Artefakte werden stets innerhalb des Bundles (z. B. `_merge.bundle/`) platziert, um Drift zu vermeiden:
 - **Rolle im Manifest:** `architecture_graph_json`, `entrypoints_json`, `graph_index_json`.
+*(Finalize names once existing manifest role naming is confirmed.)*
 
 ## Abhakbare PR-Blaupause (Step-by-Step)
 
 Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei Lenskit ist ein PR erst fertig, wenn **Artefakt + Contract + Test** zusammen laufen.
 
-### PR 1: Query Router MVP + Explain (P0)
+### PR 1a: Explain Baseline (P0)
 **Deliverables:**
-- [ ] `query_router` (Stop-Verbs, Intent Tags, Synonym OR-Expansion).
-- [ ] `lenskit query --explain` (immer: Router Output + FTS_Query + Filter + Top-K Scoring).
+- [ ] `lenskit query --explain` (immer: FTS_Query + Filter + Top-K Scoring, ohne Router/Rewrite).
 - [ ] Explain **auch bei 0 Treffern** (mit `why_zero`, z.B. Tokens zu restriktiv).
 - [ ] Golden Tests: Explain JSON stable order.
 
 **Stop-Kriterium:**
 - [ ] `retrieval_eval` läuft reproduzierbar und liefert für jede Query Explain-Payload (auch im Fail-Fall).
 
+### PR 1b: Query Router MVP (P0)
+**Deliverables:**
+- [ ] `query_router` (Stop-Verbs, Intent Tags, Synonym OR-Expansion).
+- [ ] Explain Output um Router-Entscheidungen erweitern.
+
 **Bias-Guard:**
-- [ ] "Overmatching-Schalter": Router kann OR-Expansion über Config abschalten.
+- [ ] "Overmatching-Schalter": Router kann OR-Expansion über Config abschalten (feature-flagged).
 
 ### PR 2: Eval v2 (P0)
 **Deliverables:**
@@ -314,17 +322,26 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 **Stop-Kriterium:**
 - [ ] Eval-Output ist schema-validiert + Golden Fixture vorhanden.
 
-### PR 3: Architecture Graph v1 + Entrypoints v1 (P1)
-*(Minimaler maschinenlesbarer Kern)*
+### PR 3a: Entrypoints v1 (P1)
+*(Minimaler maschinenlesbarer Kern S0)*
 **Deliverables:**
-- [ ] `contracts/architecture/architecture.graph.v1.json` und `entrypoints.v1.json`.
-- [ ] Generator: Python-Imports via AST (Edges: `import`, Evidence S1, line-refs).
+- [ ] `contracts/architecture/entrypoints.v1.json`.
 - [ ] Entrypoints v1 minimal (console scripts + lenskit cli root).
-- [ ] CLI: `lenskit architecture --format json|md`.
+- [ ] CLI: `lenskit architecture --entrypoints` (oder `--format json`).
+
+**Stop-Kriterium:**
+- [ ] Determinismus: Stabile `node_id` Regeln und sortierte Liste.
+- [ ] Golden Test: Mini Fixture Project erzeugt exakten Entrypoints Output.
+
+### PR 3b: Import-Graph v1 (P1)
+*(Minimaler maschinenlesbarer Kern S1)*
+**Deliverables:**
+- [ ] `contracts/architecture/architecture.graph.v1.json`.
+- [ ] Generator: Python-Imports via AST (Edges: `import`, Evidence S1, line-refs).
 - [ ] `coverage` vollständig (inklusive `files_parsed / files_seen`) + Warnungen bei low coverage.
 
 **Stop-Kriterium:**
-- [ ] Determinismus: Sortierte Nodes/Edges, stabile `node_id` Regeln.
+- [ ] Determinismus: Sortierte Nodes/Edges.
 - [ ] Golden Test: Mini Fixture Project erzeugt exakten Graph Output.
 
 ### PR 4: graph_index compile + graph-aware rerank (P2)

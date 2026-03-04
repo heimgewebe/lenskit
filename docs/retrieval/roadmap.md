@@ -6,10 +6,17 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
 *Dieser PR ändert nur Dokumentation: Vision + Upgrade-Roadmap. Keine Code-Änderungen, keine neuen CI-Gates oder echten Contract-Dateien werden in diesem PR eingeführt.*
 *Folge-PRs: Contracts/Schemas als Dateien + Validatoren.*
 
+*(TODO: Align document language with repository conventions. Falls Englisch Pflicht ist, wird diese Roadmap in einem Folge-PR übersetzt.)*
+
 ## Vision
 **Mach Lenskit zur Repository-Kognition-Engine mit minimalem, hartem Maschinenvertrag:**
 Lenskit produziert bereits kanonische, deterministische Artefakte (Markdown, JSON, Retrieval-Index) mit maschinenlesbarer Provenienz. Um epistemische Blindheit zu vermeiden, wird Lenskit um ein **mehrschichtiges, evidenzmarkiertes Architekturmodell** erweitert:
 
+- **Truth Layer** (Dump + Chunks + Reading Policy)
+- **Index Layer** (SQLite + Eval + optional Graph-Index)
+- **Interface Layer** (Query/Eval JSON + Explain + Staleness/Provenance)
+
+Die Architektur-Sichten sind strikt nach Evidenz gegliedert:
 - **S0 (belegt):** Struktur, Entrypoints, deklarative Abhängigkeiten, Artefakt-/Contract-Flüsse.
 - **S1 (hoch plausibel):** Import-Graph, CLI-Kommandokette, statische Wiring-Heuristiken.
 - **S2 (spekulativ):** Laufzeitpfade/Hotspots (nur mit Logs/Tracing).
