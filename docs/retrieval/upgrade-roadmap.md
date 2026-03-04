@@ -62,9 +62,18 @@ flowchart LR
 
 ## Artefakte und Contracts
 
-Evidenzlevel (S0/S1/S2) ist ein Pflichtfeld. Import-Graphen dürfen nicht als Laufzeitgraphen fehlgedeutet werden.
+*Warnung: Die folgenden JSON-Schema Skizzen sind erst verbindliche Contracts, wenn sie als Dateien im designierten Contracts-Bereich des Repositories liegen, validiert werden und Fixtures/Tests existieren. Bis dahin sind es Entwürfe (Drafts).*
+
+**Evidenzlevel Policy (S0/S1/S2)**
+Das Evidenzlevel ist ein Pflichtfeld in Graphen. Es gelten folgende Regeln:
+- **S0 (belegt):** z. B. CLI-Kommando-Deklarationen.
+- **S1 (hoch plausibel):** z. B. statische AST-Imports. **S1 darf nicht als Laufzeitkausalität ausgegeben werden.**
+- **S2 (spekulativ):** z. B. Hotspots, Traces.
+Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sichtbar machen, um Scheinpräzision ("der Graph sagt es, also ist es Laufzeit-Wahrheit") zu verhindern.
 
 ### architecture.graph.v1 Schema
+*Draft sketch – not canonical contract yet.*
+<!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -139,6 +148,8 @@ Evidenzlevel (S0/S1/S2) ist ein Pflichtfeld. Import-Graphen dürfen nicht als La
 ```
 
 ### entrypoints.v1 Schema
+*Draft sketch – not canonical contract yet.*
+<!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -173,6 +184,8 @@ Evidenzlevel (S0/S1/S2) ist ein Pflichtfeld. Import-Graphen dürfen nicht als La
 ```
 
 ### contracts.graph.v1 Schema (Alternative Achse)
+*Draft sketch – not canonical contract yet.*
+<!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -332,3 +345,12 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 
 **Stop-Kriterium:**
 - [ ] Eine Retrieval-Antwort ist belegbar (nicht nur plausibel).
+
+---
+
+## Offene Fragen zur Repository-Realität (Open Questions)
+*Dieser Abschnitt dient der Klärung von Konventionen, bevor die PRs 3-5 implementiert werden.*
+
+1. **Vertrags-Pfad:** Wo liegt das offizielle `contracts/`-Verzeichnis für die neuen JSON-Schemas (z. B. `architecture.graph.v1.schema.json`) und wo sind die Validatoren angesiedelt?
+2. **Artefakt-Rollen:** Entsprechen die neuen Artefakt-Rollen (wie `architecture_graph_json`) den etablierten Konventionen im `bundle.manifest.json`?
+3. **Erweiterung von Chunk Index:** Sind Erweiterungen wie `symbol_name`, `node_id` und `is_test_penalty` im aktuellen `chunk_index.jsonl` Schema direkt integrierbar oder verletzen sie Strict-Type Checks?

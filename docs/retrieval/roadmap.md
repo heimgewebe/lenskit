@@ -2,57 +2,30 @@
 
 Tracking the evolution of lenskit retrieval from basic artifacts to an intelligent "Retrieval OS".
 
+## Scope dieses PRs
+*Dieser PR ändert nur Dokumentation: Vision + Upgrade-Roadmap. Keine Code-Änderungen, keine neuen CI-Gates oder echten Contract-Dateien werden in diesem PR eingeführt.*
+*Folge-PRs: Contracts/Schemas als Dateien + Validatoren.*
+
 ## Vision
 **Mach Lenskit zur Repository-Kognition-Engine mit minimalem, hartem Maschinenvertrag:**
-Lenskit produziert bereits kanonische, deterministische Artefakte (Markdown, JSON, Retrieval-Index) mit maschinenlesbarer Provenienz. Um epistemische Blindheit (z. B. Bevorzugung sprachlicher Oberflächen bei BM25) zu vermeiden, wird Lenskit um ein **mehrschichtiges, evidenzmarkiertes Architekturmodell** erweitert.
+Lenskit produziert bereits kanonische, deterministische Artefakte (Markdown, JSON, Retrieval-Index) mit maschinenlesbarer Provenienz. Um epistemische Blindheit zu vermeiden, wird Lenskit um ein **mehrschichtiges, evidenzmarkiertes Architekturmodell** erweitert:
 
-1. Truth Layer (Dump + Chunk + Reading Policy)
-2. Index Layer (SQLite + Eval + Graph-Index)
-3. Interface Layer (Query/Eval JSON mit Explain + Staleness + Provenance)
-
-Dieses Architekturmodell wird reproduzierbar aus bestehenden Artefakten abgeleitet, per JSON-Schema validiert und im Retrieval direkt verwertet. Die Sichten sind strikt nach Evidenz (statt Scheinpräzision) gegliedert:
 - **S0 (belegt):** Struktur, Entrypoints, deklarative Abhängigkeiten, Artefakt-/Contract-Flüsse.
 - **S1 (hoch plausibel):** Import-Graph, CLI-Kommandokette, statische Wiring-Heuristiken.
 - **S2 (spekulativ):** Laufzeitpfade/Hotspots (nur mit Logs/Tracing).
 
-**Alternative Sinnachse: „Maschinen-Operabilität“ statt „Suchqualität“**
-Wenn das Ziel nicht „Code finden“, sondern „System steuerbar machen“ ist, wird der Contracts/Flows-Atlas zum primären Graph.
-
-Maschinen-Operabilität =
-- deterministische Identifikatoren
-- stabile Pfade/roles
-- range-resolver
-- maschinenlesbare Stale/Validity
-- standardisierte Explainability
-- Gate-Metriken
-
-Suchqualität kommt dann fast automatisch.
-
-## Upgrade Roadmap: Graph-Index & Explainability (Phasen P0-P5)
-
-Die erwarteten Recall-Gewinne sind plausible Schätzungen.
+## Upgrade Roadmap (Phasen P0-P5)
 
 | Phase | Kernziel | Haupt-Risiko |
 |---|---|---|
 | P0 | Retrieval „ehrlich & debugbar“ (Explain, Query Router, Eval v2) | Overmatching / falsche Sicherheit |
-| P1 | **G0 Graph-Index**: Python Import-Graph + Entrypoints + Evidenzlabel (S0/S1) | Scheinpräzision, Tests verzerren |
+| P1 | **G0 Graph-Index**: Python Import-Graph + Entrypoints + Evidenzlabel | Scheinpräzision, Tests verzerren |
 | P2 | Graph-aware Scoring: BM25 + Nähe + Entrypoint-Dist + Test-Penalty | Tuning/Tradeoffs |
 | P3 | Contracts/Flows-Atlas (Alternative Achse) + CI/Drift Regeln | Governance-Overhead |
 | P4 | Multi-Lang Parsing (Tree-sitter) + Symbol-Index v2 | Parser-Wartung |
 | P5 | Call-Graph/CPG v2 (S2) | falsch-positive Pfade |
 
-```mermaid
-timeline
-  title Lenskit Evolution (Roadmap)
-  P0 : Explain + Query Router + Eval v2
-  P1 : G0 Import-Graph + Entrypoints + Schemas
-  P2 : Graph-aware Ranking + Explain-Details
-  P3 : Contracts/Flows-Atlas + Drift/CI
-  P4 : Tree-sitter Multi-Lang + Symbol-Index
-  P5 : Call-Graph/CPG (optional, S2)
-```
-
-Weitere Details zu den Upgrade-Phasen finden sich in [upgrade-roadmap.md](upgrade-roadmap.md).
+Weitere technische Details zu den Upgrade-Phasen, Contract-Skizzen und PR-Blaupausen finden sich in [upgrade-roadmap.md](upgrade-roadmap.md).
 
 ## Blueprint Status (Lenskit vNext)
 
