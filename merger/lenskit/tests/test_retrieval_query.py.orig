@@ -256,7 +256,3 @@ def test_cmd_query_json_emit(mini_index, capsys):
     assert ret == 0
     captured = capsys.readouterr()
     assert captured.err == "", f"Expected empty stderr, got: {captured.err}"
-    parsed = json.loads(captured.out)
-    assert isinstance(parsed, dict)
-    assert "results" in parsed
-    assert "explain" in parsed
