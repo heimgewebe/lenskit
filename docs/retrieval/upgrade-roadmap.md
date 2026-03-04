@@ -74,7 +74,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 ### architecture.graph.v1 Schema
 *Draft sketch – not canonical contract yet.*
 *Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
-*These schema sketches intentionally follow existing contract conventions (kind prefix, typed consts, date-time formatting) to prevent drift.*
+*These schema sketches aim to be compatible with expected repo contract patterns (kind/version/run_id/hash). Finalize once contract location and validator rules are confirmed.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -85,7 +85,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
   "additionalProperties": false,
   "required": ["kind", "version", "run_id", "canonical_dump_index_sha256", "nodes", "edges", "coverage"],
   "properties": {
-    "kind": { "type": "string", "const": "repolens.architecture.graph" },
+    "kind": { "type": "string", "const": "lenskit.architecture.graph" },
     "version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string" },
     "canonical_dump_index_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
@@ -152,7 +152,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 ### entrypoints.v1 Schema
 *Draft sketch – not canonical contract yet.*
 *Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
-*These schema sketches intentionally follow existing contract conventions (kind prefix, typed consts, date-time formatting) to prevent drift.*
+*These schema sketches aim to be compatible with expected repo contract patterns (kind/version/run_id/hash). Finalize once contract location and validator rules are confirmed.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -163,7 +163,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
   "additionalProperties": false,
   "required": ["kind", "version", "run_id", "canonical_dump_index_sha256", "entrypoints"],
   "properties": {
-    "kind": { "type": "string", "const": "repolens.entrypoints" },
+    "kind": { "type": "string", "const": "lenskit.entrypoints" },
     "version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string" },
     "canonical_dump_index_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
@@ -190,7 +190,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
 ### contracts.graph.v1 Schema (Alternative Achse)
 *Draft sketch – not canonical contract yet.*
 *Note: `$id` is a placeholder; final `$id` and path follow repo contract conventions.*
-*These schema sketches intentionally follow existing contract conventions (kind prefix, typed consts, date-time formatting) to prevent drift.*
+*These schema sketches aim to be compatible with expected repo contract patterns (kind/version/run_id/hash). Finalize once contract location and validator rules are confirmed.*
 <!-- TODO: place under <repo canonical contracts path> -->
 ```json
 {
@@ -201,7 +201,7 @@ Die Retrieval-Engine (insb. `--explain`) muss das Evidence-Level jederzeit sicht
   "additionalProperties": false,
   "required": ["kind", "version", "nodes", "edges"],
   "properties": {
-    "kind": { "type": "string", "const": "repolens.contracts.graph" },
+    "kind": { "type": "string", "const": "lenskit.contracts.graph" },
     "version": { "type": "string", "const": "1.0" },
     "nodes": {
       "type": "array",
@@ -375,3 +375,4 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 1. **Vertrags-Pfad:** Wo liegt das offizielle `contracts/`-Verzeichnis für die neuen JSON-Schemas (z. B. `architecture.graph.v1.schema.json`) und wo sind die Validatoren angesiedelt?
 2. **Artefakt-Rollen:** Entsprechen die neuen Artefakt-Rollen (wie `architecture_graph_json`) den etablierten Konventionen im `bundle.manifest.json`?
 3. **Erweiterung von Chunk Index:** Sind Erweiterungen wie `symbol_name`, `node_id` und `is_test_penalty` im aktuellen `chunk_index.jsonl` Schema direkt integrierbar oder verletzen sie Strict-Type Checks?
+4. **Schema-Dateinamen/Discovery:** `*.schema.json` vs `*.json` – how does the validator discover and version schemas?
