@@ -329,7 +329,7 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 ### PR 3a: Entrypoints v1 (P1)
 *(Minimaler maschinenlesbarer Kern S0)*
 **Deliverables:**
-- [ ] `contracts/architecture/entrypoints.v1.json`.
+- [ ] `entrypoints.v1` schema file (path TBD; see Open Questions).
 - [ ] Entrypoints v1 minimal (console scripts + lenskit cli root).
 - [ ] CLI: `lenskit architecture --entrypoints` (oder `--format json`).
 
@@ -340,7 +340,7 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 ### PR 3b: Import-Graph v1 (P1)
 *(Minimaler maschinenlesbarer Kern S1)*
 **Deliverables:**
-- [ ] `contracts/architecture/architecture.graph.v1.json`.
+- [ ] `architecture.graph.v1` schema file (path TBD; see Open Questions).
 - [ ] Generator: Python-Imports via AST (Edges: `import`, Evidence S1, line-refs).
 - [ ] `coverage` vollständig (inklusive `files_parsed / files_seen`) + Warnungen bei low coverage.
 

@@ -6,7 +6,7 @@ Tracking the evolution of lenskit retrieval from basic artifacts to an intellige
 *Dieser PR ändert nur Dokumentation: Vision + Upgrade-Roadmap. Keine Code-Änderungen, keine neuen CI-Gates oder echten Contract-Dateien werden in diesem PR eingeführt.*
 *Folge-PRs: Contracts/Schemas als Dateien + Validatoren.*
 
-*(TODO: Align document language with repository conventions. Falls Englisch Pflicht ist, wird diese Roadmap in einem Folge-PR übersetzt.)*
+*(TODO: Align document language with repository conventions. Falls Englisch Pflicht ist, wird diese Roadmap in einem Folge-PR übersetzt. German draft for speed; follow-up PR will translate while preserving meaning.)*
 
 ## Vision
 **Mach Lenskit zur Repository-Kognition-Engine mit minimalem, hartem Maschinenvertrag:**
