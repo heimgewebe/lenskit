@@ -109,6 +109,12 @@ def execute_query(
         rows = cursor.fetchall()
 
         results = []
+        semantic_enabled = embedding_policy is not None
+        fallback = embedding_policy.get("fallback_behavior", "ignore") if semantic_enabled else "ignore"
+
+        if semantic_enabled:
+            engine_type += "+semantic"
+
         for r in rows:
             matched_terms = [query_text] if query_text else [query_mode]
             filter_pass = [key for key, v in filters.items() if v]
@@ -118,6 +124,13 @@ def execute_query(
                 rank_features["bm25"] = r["score"]
             else:
                 rank_features["metadata"] = 0
+
+            diagnostics = {}
+            if semantic_enabled:
+                diagnostics["semantic"] = {
+                    "enabled": True,
+                    "fallback_behavior": fallback
+                }
 
             hit = {
                 "chunk_id": r["chunk_id"],
@@ -131,7 +144,8 @@ def execute_query(
                 "why": {
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
-                    "rank_features": rank_features
+                    "rank_features": rank_features,
+                    "diagnostics": diagnostics
                 }
             }
 
