@@ -299,11 +299,8 @@ def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
     # Check Plan Only
     page_with_static.check("#planOnly")
 
-    payloads = []
     def handle_jobs(route: Route):
         if route.request.method == "POST":
-            data = route.request.post_data_json or json.loads(route.request.post_data)
-            payloads.append(data)
             route.fulfill(json={"id": "job-plan-only", "status": "queued"})
         else:
             route.continue_()
