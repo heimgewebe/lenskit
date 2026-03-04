@@ -95,7 +95,7 @@ Suchqualität kommt dann fast automatisch.
 **Ziel:** Nur nachdem A–E stabil sind.
 
 - [x] **F1a) Semantik Re-Ranker (Plumbing)**
-    - `candidate` (Top-50) → `rerank` (Top-10) Interface.
+    - `candidate` (Top-50) → `rerank` (Top-10) Plumbing (request marker, candidate overfetch, fail/ignore enforcement, diagnostics).
     - `embedding-policy.v1` Validation und CLI-Wiring.
     - **Stop-Kriterium:** `fallback_behavior` ist enforced (ignore/fail). Pipeline ist fehlerfrei vorbereitet, aber noch ohne echtes ML-Modell.
 

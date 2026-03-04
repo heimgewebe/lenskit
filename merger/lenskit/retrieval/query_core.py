@@ -149,7 +149,7 @@ def execute_query(
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
                     "rank_features": rank_features,
-                    "diagnostics": dict(base_diagnostics)
+                    "diagnostics": base_diagnostics
                 }
             }
 
