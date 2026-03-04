@@ -56,6 +56,20 @@ def _get_port() -> int:
 
 def main():
     parser = argparse.ArgumentParser(prog="rlens")
+    subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
+
+    # Atlas command
+    atlas_parser = subparsers.add_parser("atlas", help="Atlas filesystem crawler")
+    atlas_subparsers = atlas_parser.add_subparsers(dest="atlas_cmd", required=True, help="Atlas commands")
+    atlas_scan_parser = atlas_subparsers.add_parser("scan", help="Scan a filesystem path")
+    atlas_scan_parser.add_argument("path", help="The root path to scan")
+    atlas_scan_parser.add_argument("--exclude", help="Comma-separated list of glob patterns to exclude")
+    atlas_scan_parser.add_argument("--no-default-excludes", action="store_true", help="Do not use default system excludes")
+    atlas_scan_parser.add_argument("--max-file-size", type=int, help="Maximum file size in MB to include in scan (default 50)")
+    atlas_scan_parser.add_argument("--depth", type=int, default=6, help="Maximum depth to scan")
+    atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
+
+    # Server mode (default when no subcommands provided)
     parser.add_argument("--host", default=os.environ.get("RLENS_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=_get_port())
     parser.add_argument("--hub", default=os.environ.get("RLENS_HUB"), help="Path to the Hub directory (Required)")
@@ -63,7 +77,15 @@ def main():
     parser.add_argument("--token", default=os.environ.get("RLENS_TOKEN"), help="Auth token (Required for non-loopback)")
     parser.add_argument("--open", action="store_true", help="ignored (legacy)")
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+
+    if args.command == "atlas":
+        if args.atlas_cmd == "scan":
+            from . import cmd_atlas
+            sys.exit(cmd_atlas.run_atlas_scan(args))
+        else:
+            parser.parse_args(["atlas", "--help"])
+            sys.exit(0)
 
     # 1. Validate Hub Path
     if not args.hub:

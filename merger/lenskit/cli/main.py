@@ -61,6 +61,17 @@ def main(args: Optional[List[str]] = None) -> int:
     # Verify command (placeholder)
     verify_parser = subparsers.add_parser("verify", help="Verify artifacts or bundles")
 
+    # Atlas command
+    atlas_parser = subparsers.add_parser("atlas", help="Atlas filesystem crawler")
+    atlas_subparsers = atlas_parser.add_subparsers(dest="atlas_cmd", required=True, help="Atlas commands")
+    atlas_scan_parser = atlas_subparsers.add_parser("scan", help="Scan a filesystem path")
+    atlas_scan_parser.add_argument("path", help="The root path to scan")
+    atlas_scan_parser.add_argument("--exclude", help="Comma-separated list of glob patterns to exclude")
+    atlas_scan_parser.add_argument("--no-default-excludes", action="store_true", help="Do not use default system excludes")
+    atlas_scan_parser.add_argument("--max-file-size", type=int, help="Maximum file size in MB to include in scan (default 50)")
+    atlas_scan_parser.add_argument("--depth", type=int, default=6, help="Maximum depth to scan")
+    atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
@@ -85,6 +96,13 @@ def main(args: Optional[List[str]] = None) -> int:
     elif parsed_args.command == "verify":
         print("Verify command placeholder. Use pr-schau-verify for now.")
         return 1
+    elif parsed_args.command == "atlas":
+        if parsed_args.atlas_cmd == "scan":
+            from . import cmd_atlas
+            return cmd_atlas.run_atlas_scan(parsed_args)
+        else:
+            parser.parse_args(["atlas", "--help"])
+            return 0
 
     return 0
 

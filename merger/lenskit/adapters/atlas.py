@@ -38,14 +38,14 @@ logger = logging.getLogger(__name__)
 
 class AtlasScanner:
     DEFAULT_ATLAS_EXCLUDES = [
-        "proc",
-        "sys",
-        "dev",
-        "run",
-        "tmp",
-        "var/tmp",
-        "var/run",
-        "lost+found"
+        "proc/**",
+        "sys/**",
+        "dev/**",
+        "run/**",
+        "tmp/**",
+        "var/tmp/**",
+        "var/run/**",
+        "lost+found/**"
     ]
 
     def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,

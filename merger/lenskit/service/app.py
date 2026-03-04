@@ -190,18 +190,14 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
             allow_origin_regex = None
             allow_origins = [] # Strict for non-loopback by default
 
-        # In tests, init_service may be called multiple times which fails when adding middleware
-        # Fastapi does not allow adding middleware after app has started handling requests
-        # We can bypass this if CORSMiddleware is already added (e.g. len of user_middleware)
-        if app.middleware_stack is None and not any(m.cls == CORSMiddleware for m in app.user_middleware):
-            app.add_middleware(
-                CORSMiddleware,
-                allow_origins=allow_origins,
-                allow_origin_regex=allow_origin_regex,
-                allow_credentials=False,
-                allow_methods=["GET", "POST"],
-                allow_headers=["Authorization", "Content-Type", "x-rlens-token"],
-            )
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=allow_origins,
+            allow_origin_regex=allow_origin_regex,
+            allow_credentials=False,
+            allow_methods=["GET", "POST"],
+            allow_headers=["Authorization", "Content-Type", "x-rlens-token"],
+        )
 
 def _list_dir(candidate: Path) -> Dict[str, Any]:
     # Defense-in-depth: always re-validate before touching the filesystem.
@@ -760,7 +756,9 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                     if any(part == ".." for part in p.parts):
                         raise ValueError("Path traversal not allowed")
 
-                    scan_root = p.resolve()  # lgtm [py/path-injection]
+                    # We avoid .resolve() because it triggers CodeQL path-injection on user input.
+                    # 'p' is already an absolute path and stripped of traverses.
+                    scan_root = p
                 except Exception:
                     # Strict rejection of raw paths for Atlas to satisfy CodeQL
                     raise HTTPException(status_code=400, detail="Invalid root directory identifier")

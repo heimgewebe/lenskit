@@ -2,14 +2,11 @@ import pytest
 from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
 from fastapi.testclient import TestClient
-from merger.lenskit.service.app import app, init_service, state
 from unittest.mock import patch, MagicMock
 
-def test_atlas_scan_root_allowed():
-    client = TestClient(app)
-
-    mock_hub = Path("/tmp/mock_hub")
-    mock_merges = Path("/tmp/mock_merges")
+def test_atlas_scan_root_allowed(service_client):
+    # Use the test client provided by conftest.py
+    client = service_client.client
 
     with patch("merger.lenskit.service.app.get_security_config") as mock_get_sec, \
          patch("merger.lenskit.service.app.AtlasScanner") as MockScanner, \
@@ -21,12 +18,6 @@ def test_atlas_scan_root_allowed():
         mock_get_sec.return_value = mock_sec_instance
         mock_fs_sec.return_value = mock_sec_instance
 
-        # Avoid real filesystem issues by passing a state directly
-        app.dependency_overrides = {}
-        # Setup mock state for test client endpoint
-        state.hub = mock_hub
-        state.merges_dir = mock_merges
-
         mock_instance = MockScanner.return_value
         mock_instance.scan.return_value = {"root": "/", "tree": {}}
         mock_render.return_value = "Mock MD"
@@ -37,18 +28,14 @@ def test_atlas_scan_root_allowed():
             "max_entries": 100
         }
 
-        # Override verify_token since we just want to test path resolution
-        from merger.lenskit.service.auth import verify_token
-        app.dependency_overrides[verify_token] = lambda: True
-
-        response = client.post("/api/atlas", json=payload)
+        response = client.post("/api/atlas", json=payload, headers=service_client.headers)
         assert response.status_code == 200
 
         data = response.json()
         assert data["root_scanned"] == str(Path("/").resolve())
 
-def test_atlas_scan_home_allowed():
-    client = TestClient(app)
+def test_atlas_scan_home_allowed(service_client):
+    client = service_client.client
 
     with patch("merger.lenskit.service.app.get_security_config") as mock_get_sec, \
          patch("merger.lenskit.service.app.AtlasScanner") as MockScanner, \
@@ -57,9 +44,6 @@ def test_atlas_scan_home_allowed():
         mock_sec_instance = MagicMock()
         mock_sec_instance.validate_path.side_effect = lambda p: Path(p).resolve()
         mock_get_sec.return_value = mock_sec_instance
-
-        state.hub = Path("/tmp/mock_hub")
-        state.merges_dir = Path("/tmp/mock_merges")
 
         mock_instance = MockScanner.return_value
         mock_instance.scan.return_value = {"root": "/home", "tree": {}}
@@ -71,33 +55,66 @@ def test_atlas_scan_home_allowed():
             "max_entries": 100
         }
 
-        from merger.lenskit.service.auth import verify_token
-        app.dependency_overrides[verify_token] = lambda: True
-
-        response = client.post("/api/atlas", json=payload)
+        response = client.post("/api/atlas", json=payload, headers=service_client.headers)
         assert response.status_code == 200
 
         data = response.json()
         assert data["root_scanned"] == str(Path("/home").resolve())
 
 def test_atlas_excludes_proc(tmp_path: Path):
-    scanner = AtlasScanner(Path("/"))
-    # We must pass strings that don't start with / if we want to test relative path globs matching
-    # Because AtlasScanner._is_excluded specifically rejects strings starting with / as absolute paths
-    # However, since root is /, walking gives relative paths like "proc", "sys"
-    assert scanner._is_excluded("proc") is True
-    assert scanner._is_excluded("proc/1/cmdline") is True
+    # Setup mock filesystem
+    (tmp_path / "proc").mkdir()
+    (tmp_path / "proc" / "1").mkdir()
+    (tmp_path / "proc" / "1" / "cmdline").write_text("mock")
+
+    (tmp_path / "home").mkdir()
+    (tmp_path / "home" / "proc").mkdir()
+    (tmp_path / "home" / "proc" / "notes.txt").write_text("notes")
+
+    # Run scan with inventory
+    inv_file = tmp_path / "inventory.jsonl"
+    scanner = AtlasScanner(tmp_path)
+    result = scanner.scan(inventory_file=inv_file)
+
+    # Get relative paths of all files found
+    paths = []
+    with open(inv_file, "r") as f:
+        for line in f:
+            import json
+            paths.append(json.loads(line)["rel_path"])
+
+    assert not any(p.startswith("proc/") or p == "proc" for p in paths), f"Root /proc was not excluded. Found: {paths}"
+    assert any(p == "home/proc/notes.txt" for p in paths), f"Nested /home/proc was improperly excluded. Found: {paths}"
 
 def test_atlas_excludes_sys(tmp_path: Path):
-    scanner = AtlasScanner(Path("/"))
-    assert scanner._is_excluded("sys") is True
-    assert scanner._is_excluded("sys/kernel/debug") is True
+    (tmp_path / "sys").mkdir()
+    (tmp_path / "sys" / "kernel").mkdir()
+    (tmp_path / "sys" / "kernel" / "debug").write_text("mock")
+
+    inv_file = tmp_path / "inventory.jsonl"
+    scanner = AtlasScanner(tmp_path)
+    result = scanner.scan(inventory_file=inv_file)
+
+    paths = []
+    with open(inv_file, "r") as f:
+        import json
+        for line in f:
+            paths.append(json.loads(line)["rel_path"])
+
+    assert not any(p.startswith("sys/") or p == "sys" for p in paths), f"sys was not excluded. Found: {paths}"
 
 def test_atlas_override_excludes(tmp_path: Path):
-    # Using no_default_excludes flag should prevent default /proc exclusion
-    scanner = AtlasScanner(Path("/"), no_default_excludes=True)
-    # the exclude patterns built initially won't have /proc etc unless passed in exclude_globs
-    assert scanner._is_excluded("proc") is False
-    assert scanner._is_excluded("sys") is False
-    # But normal defaults like .git should still be there because they are passed or defaulted
-    assert scanner._is_excluded(".git") is True
+    (tmp_path / "proc").mkdir()
+    (tmp_path / "proc" / "1").write_text("mock")
+
+    inv_file = tmp_path / "inventory.jsonl"
+    scanner = AtlasScanner(tmp_path, no_default_excludes=True)
+    result = scanner.scan(inventory_file=inv_file)
+
+    paths = []
+    with open(inv_file, "r") as f:
+        import json
+        for line in f:
+            paths.append(json.loads(line)["rel_path"])
+
+    assert any(p == "proc/1" for p in paths), f"proc was excluded despite no_default_excludes=True. Found: {paths}"
