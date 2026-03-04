@@ -112,8 +112,19 @@ def execute_query(
         semantic_enabled = embedding_policy is not None
         fallback = embedding_policy.get("fallback_behavior", "ignore") if semantic_enabled else "ignore"
 
+        base_diagnostics = {}
         if semantic_enabled:
             engine_type += "+semantic_requested"
+            if fallback == "fail":
+                raise RuntimeError("Semantic re-ranking is not yet implemented (fallback_behavior=fail).")
+
+            base_diagnostics["semantic"] = {
+                "enabled": True,
+                "fallback_behavior": fallback,
+                "candidate_k": fetch_k,
+                "provider": embedding_policy.get("provider"),
+                "model_name": embedding_policy.get("model_name")
+            }
 
         for r in rows:
             matched_terms = [query_text] if query_text else [query_mode]
@@ -124,16 +135,6 @@ def execute_query(
                 rank_features["bm25"] = r["score"]
             else:
                 rank_features["metadata"] = 0
-
-            diagnostics = {}
-            if semantic_enabled:
-                diagnostics["semantic"] = {
-                    "enabled": True,
-                    "fallback_behavior": fallback,
-                    "candidate_k": fetch_k,
-                    "provider": embedding_policy.get("provider"),
-                    "model_name": embedding_policy.get("model_name")
-                }
 
             hit = {
                 "chunk_id": r["chunk_id"],
@@ -148,7 +149,7 @@ def execute_query(
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
                     "rank_features": rank_features,
-                    "diagnostics": diagnostics
+                    "diagnostics": dict(base_diagnostics)
                 }
             }
 

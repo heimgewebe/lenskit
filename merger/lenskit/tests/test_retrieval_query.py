@@ -125,6 +125,20 @@ def test_query_semantic_markers(mini_index):
     assert semantic_diag["provider"] == "api"
     assert semantic_diag["model_name"] == "test-model"
 
+def test_query_semantic_fallback_fail(mini_index):
+    policy = {
+        "model_name": "test-model",
+        "provider": "api",
+        "fallback_behavior": "fail",
+        "similarity_metric": "cosine",
+        "dimensions": 128
+    }
+
+    with pytest.raises(RuntimeError) as excinfo:
+        query_core.execute_query(mini_index, query_text="def", k=2, embedding_policy=policy)
+
+    assert "Semantic re-ranking is not yet implemented (fallback_behavior=fail)" in str(excinfo.value)
+
 
 def _make_mock_conn(err_msg: str):
     class MockConn:
