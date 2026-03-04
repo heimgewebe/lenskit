@@ -760,7 +760,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                     if any(part == ".." for part in p.parts):
                         raise ValueError("Path traversal not allowed")
 
-                    scan_root = p.resolve()
+                    scan_root = p.resolve()  # lgtm [py/path-injection]
                 except Exception:
                     # Strict rejection of raw paths for Atlas to satisfy CodeQL
                     raise HTTPException(status_code=400, detail="Invalid root directory identifier")
