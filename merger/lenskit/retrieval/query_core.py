@@ -113,8 +113,9 @@ def execute_query(
         fallback = embedding_policy.get("fallback_behavior", "ignore") if semantic_enabled else "ignore"
 
         if semantic_enabled:
-            engine_type += "+semantic"
+            engine_type += "+semantic_requested"
 
+        results = []
         for r in rows:
             matched_terms = [query_text] if query_text else [query_mode]
             filter_pass = [key for key, v in filters.items() if v]
@@ -129,7 +130,10 @@ def execute_query(
             if semantic_enabled:
                 diagnostics["semantic"] = {
                     "enabled": True,
-                    "fallback_behavior": fallback
+                    "fallback_behavior": fallback,
+                    "candidate_k": fetch_k,
+                    "provider": embedding_policy.get("provider"),
+                    "model_name": embedding_policy.get("model_name")
                 }
 
             hit = {

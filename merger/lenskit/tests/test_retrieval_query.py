@@ -101,6 +101,31 @@ def test_query_json_structure(mini_index):
     assert len(res3["results"]) == 1
     assert "range_ref" not in res3["results"][0]
 
+def test_query_semantic_markers(mini_index):
+    policy = {
+        "model_name": "test-model",
+        "provider": "api",
+        "fallback_behavior": "ignore",
+        "similarity_metric": "cosine",
+        "dimensions": 128
+    }
+
+    res = query_core.execute_query(mini_index, query_text="def", k=2, embedding_policy=policy)
+
+    assert res["engine"] == "fts5+semantic_requested"
+    assert res["count"] == 2 # Should find c1 and c2
+
+    # Check diagnostic markers
+    hit = res["results"][0]
+    assert "diagnostics" in hit["why"]
+    semantic_diag = hit["why"]["diagnostics"]["semantic"]
+    assert semantic_diag["enabled"] is True
+    assert semantic_diag["fallback_behavior"] == "ignore"
+    assert semantic_diag["candidate_k"] == 50  # Overfetch logic triggers
+    assert semantic_diag["provider"] == "api"
+    assert semantic_diag["model_name"] == "test-model"
+
+
 def _make_mock_conn(err_msg: str):
     class MockConn:
         row_factory = None
