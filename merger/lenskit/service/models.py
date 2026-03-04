@@ -130,6 +130,8 @@ class AtlasRequest(BaseModel):
     max_entries: int = 200000
     exclude_globs: Optional[List[str]] = None
     sample_files: bool = False
+    no_default_excludes: bool = False
+    max_file_size: Optional[int] = 50 * 1024 * 1024
 
 class AtlasArtifact(BaseModel):
     id: str
