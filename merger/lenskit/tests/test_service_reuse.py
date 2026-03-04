@@ -71,6 +71,7 @@ def test_whitespace_only_include_paths_collapsed_to_none(service_client):
         "repos": ["repo-test"],
         "level": "summary",
         "plan_only": True,
+        "strict_include_paths_by_repo": False,
         "include_paths_by_repo": {
             "repo-test": [""]
         }
@@ -89,9 +90,48 @@ def test_whitespace_only_include_paths_collapsed_to_none(service_client):
         "repos": ["repo-test"],
         "level": "summary",
         "plan_only": True,
+        "strict_include_paths_by_repo": False,
         "include_paths_by_repo": {
             "repo-test": ["   "]
         }
+    }
+    resp2 = ctx.client.post("/api/jobs", json=req_payload_space, headers=ctx.headers)
+    assert resp2.status_code == 200
+    job2_id = resp2.json()["id"]
+
+    # Should reuse the exact same job since both normalize to None
+    assert job1_id == job2_id
+
+
+def test_whitespace_only_global_include_paths_collapsed_to_none(service_client):
+    """
+    Ensure that global whitespace-only paths (e.g. "   ") in include_paths
+    are treated consistently with "" and collapse the selection to None (All).
+    """
+    ctx = service_client
+
+    # Create job with an explicit empty string global include path
+    req_payload_empty = {
+        "repos": ["repo-test"],
+        "level": "summary",
+        "plan_only": True,
+        "include_paths": [""]
+    }
+    resp1 = ctx.client.post("/api/jobs", json=req_payload_empty, headers=ctx.headers)
+    assert resp1.status_code == 200
+    job1_id = resp1.json()["id"]
+
+    # Simulate completion
+    job_obj = ctx.store.get_job(job1_id)
+    job_obj.status = "succeeded"
+    ctx.store.update_job(job_obj)
+
+    # Create job with a whitespace-only global include path
+    req_payload_space = {
+        "repos": ["repo-test"],
+        "level": "summary",
+        "plan_only": True,
+        "include_paths": ["   "]
     }
     resp2 = ctx.client.post("/api/jobs", json=req_payload_space, headers=ctx.headers)
     assert resp2.status_code == 200
