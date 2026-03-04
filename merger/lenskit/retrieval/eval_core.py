@@ -169,7 +169,6 @@ def do_eval(
                 "top_results": [],
                 "error": str(e),
                 "explain": {
-                    "error": str(e),
                     "filters": filters,
                     "why_fail": "query execution failed"
                 }
