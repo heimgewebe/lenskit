@@ -111,6 +111,9 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     # Check hit
     hit = details[0]
     assert hit["query"] == "login"
+    assert "explain" in hit
+    assert "fts_query" in hit["explain"]
+    assert "top_k_scoring" in hit["explain"]
     assert hit["is_relevant"] is True
     assert "login.py" in hit["hit_path"]
 
@@ -118,6 +121,8 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     miss = details[1]
     assert miss["query"] == "missing thing"
     assert miss["is_relevant"] is False
+    assert "explain" in miss
+    assert miss["explain"].get("why_zero") == "Tokens zu restriktiv"
 
 def test_schema_smoke():
     """

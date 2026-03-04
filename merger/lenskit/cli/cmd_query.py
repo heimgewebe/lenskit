@@ -43,7 +43,8 @@ def run_query(args: argparse.Namespace) -> int:
             query_text=args.q,
             k=args.k,
             filters=applied_filters,
-            embedding_policy=policy_instance
+            embedding_policy=policy_instance,
+            explain=getattr(args, "explain", False)
         )
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)
@@ -57,5 +58,9 @@ def run_query(args: argparse.Namespace) -> int:
         for res in result["results"]:
             print(f"[{res['repo_id']}] {res['path']}:{res['range']}")
             print(f"    Type: {res['type']} | Layer: {res['layer']} | Score: {res['score']:.4f}")
+        if "explain" in result:
+            print("-" * 60)
+            print("Explain Diagnostics:")
+            print(json.dumps(result["explain"], indent=2))
 
     return 0

@@ -109,7 +109,8 @@ def do_eval(
                 query_text=q_text,
                 k=k,
                 filters=filters,
-                embedding_policy=embedding_policy
+                embedding_policy=embedding_policy,
+                explain=True
             )
 
             is_relevant = False
@@ -148,6 +149,8 @@ def do_eval(
             }
             if hit_why is not None:
                 detail["why"] = hit_why
+            if "explain" in res:
+                detail["explain"] = res["explain"]
 
             results_detail.append(detail)
 
