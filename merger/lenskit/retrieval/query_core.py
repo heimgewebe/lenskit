@@ -115,7 +115,6 @@ def execute_query(
         if semantic_enabled:
             engine_type += "+semantic_requested"
 
-        results = []
         for r in rows:
             matched_terms = [query_text] if query_text else [query_mode]
             filter_pass = [key for key, v in filters.items() if v]
