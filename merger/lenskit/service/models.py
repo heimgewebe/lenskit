@@ -32,7 +32,7 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
         if any(p in (".", "") for p in req.include_paths):
             inc_paths = None
         else:
-            inc_paths = sorted(req.include_paths)
+            inc_paths = sorted(set(p.strip() for p in req.include_paths))
 
     # Normalize include_paths_by_repo
     inc_paths_repo = None
@@ -41,10 +41,11 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
         for r, paths in req.include_paths_by_repo.items():
             if paths is None:
                 inc_paths_repo[r] = None
-            elif any(p in (".", "") for p in paths):
+            elif not req.strict_include_paths_by_repo and any(p in (".", "") for p in paths):
+                # Legacy behavior: if not strict, treat "." or "" as None (All)
                 inc_paths_repo[r] = None
             else:
-                inc_paths_repo[r] = sorted(paths)
+                inc_paths_repo[r] = sorted(set(p.strip() for p in paths))
 
     # Construct signature dict
     sig = {
