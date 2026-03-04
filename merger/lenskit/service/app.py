@@ -746,9 +746,20 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             root_id = request.root_id
             if root_id not in ("hub", "merges", "system"):
                 try:
-                    p = Path(root_id)
-                    if not p.is_absolute() and not root_id.startswith(('/', '\\')):
-                        raise ValueError()
+                    # Explicit sanitization to satisfy CodeQL
+                    if "\x00" in root_id:
+                        raise ValueError("Invalid characters in path")
+
+                    raw_path = os.path.expanduser(root_id)
+                    norm_path = os.path.normpath(raw_path)
+
+                    if not os.path.isabs(norm_path) and not norm_path.startswith(('/', '\\')):
+                        raise ValueError("Path must be absolute")
+
+                    p = Path(norm_path)
+                    if any(part == ".." for part in p.parts):
+                        raise ValueError("Path traversal not allowed")
+
                     scan_root = p.resolve()
                 except Exception:
                     # Strict rejection of raw paths for Atlas to satisfy CodeQL

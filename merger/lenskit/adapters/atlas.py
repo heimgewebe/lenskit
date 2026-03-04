@@ -63,7 +63,7 @@ class AtlasScanner:
         else:
             default_excludes = ["**/.git", "**/node_modules", "**/.venv", "**/__pycache__", "**/.cache"]
 
-        self.exclude_globs = exclude_globs if exclude_globs is not None else default_excludes
+        self.exclude_globs = list(exclude_globs) if exclude_globs is not None else list(default_excludes)
         if not no_default_excludes:
             self.exclude_globs.extend(self.DEFAULT_ATLAS_EXCLUDES)
 
