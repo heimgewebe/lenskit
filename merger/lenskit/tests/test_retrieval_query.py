@@ -24,6 +24,7 @@ def mini_index(tmp_path):
     dump_path.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
 
     index_db.build_index(dump_path, chunk_path, db_path)
+
     return db_path
 
 def test_query_metadata_filter(mini_index):
@@ -236,3 +237,22 @@ def test_explain_json_stable_order(mini_index):
 
     assert actual_zero_keys[:2] == ["fts_query", "filters"], f"Prefix order mismatch: {actual_zero_keys[:2]} != ['fts_query', 'filters']"
     assert "why_zero" in actual_zero_keys, "Missing 'why_zero'"
+
+def test_cmd_query_json_emit(mini_index, capsys):
+    from merger.lenskit.cli import cmd_query
+    import argparse
+
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=10,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=True
+    )
+    ret = cmd_query.run_query(args)
+    assert ret == 0
+    captured = capsys.readouterr()
+    # This should parse successfully without any extra text
