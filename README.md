@@ -50,4 +50,4 @@ sind dort verankert.
 
 ### Merge Job Deduplizierung
 
-Wenn ein non-plan Repository-Merge über die WebUI angefordert wird, enthält der JSON-Payload standardmäßig `force_new: true`. Dies stellt sicher, dass ein frischer Merge ausgeführt wird, anstatt einen gecachten Job wiederzuverwenden. Plan-only Jobs lassen das `force_new` Flag weg, damit gecachte Planungsergebnisse wenn möglich wiederverwendet werden können.
+Wenn ein non-plan Repository-Merge über die WebUI angefordert wird, enthält der JSON-Payload `force_new: true`. Dies stellt sicher, dass ein frischer Merge ausgeführt wird, anstatt einen gecachten Job wiederzuverwenden. Plan-only Jobs lassen das `force_new` Flag weg, damit gecachte Planungsergebnisse wenn möglich wiederverwendet werden können.
