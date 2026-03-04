@@ -304,7 +304,7 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 **Deliverables:**
 - [x] `lenskit query --explain` (immer: FTS_Query + Filter + Top-K Scoring, ohne Router/Rewrite).
 - [x] Explain **auch bei 0 Treffern** (mit `why_zero`, z.B. Tokens zu restriktiv).
-- [x] Golden Tests: Explain JSON stable order.
+- [x] Golden Tests: Explain JSON stable prefix order (fts_query, filters) and required keys present.
 
 **Stop-Kriterium:**
 - [x] `retrieval_eval` läuft reproduzierbar und liefert für jede Query Explain-Payload (auch im Fail-Fall).
