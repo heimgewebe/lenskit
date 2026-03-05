@@ -10,6 +10,12 @@
     "version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string" },
     "canonical_dump_index_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "skipped_files_count": { "type": "integer", "minimum": 0, "description": "Number of files skipped due to unrecoverable parsing errors" },
+    "skipped_errors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Sample of errors encountered during parsing (capped)"
+    },
     "entrypoints": {
       "type": "array",
       "items": {
@@ -17,11 +23,15 @@
         "additionalProperties": false,
         "required": ["id", "type", "path", "evidence_level"],
         "properties": {
-          "id": { "type": "string" },
+          "id": { "type": "string", "description": "Path-derived stable identifier (strategy: path_v1)" },
           "type": { "type": "string", "enum": ["cli", "module_main", "web", "worker", "test"] },
           "path": { "type": "string" },
           "symbol": { "type": "string" },
-          "evidence_level": { "type": "string", "enum": ["S0", "S1", "S2"] },
+          "evidence_level": {
+            "type": "string",
+            "enum": ["S0", "S1", "S2"],
+            "description": "S0 (proven/declarative like __main__.py), S1 (highly plausible/static heuristic like AST __name__ == '__main__'), S2 (speculative/runtime)"
+          },
           "evidence": { "type": "object" }
         }
       }

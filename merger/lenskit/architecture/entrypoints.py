@@ -1,14 +1,16 @@
 import ast
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
-def extract_entrypoints(repo_root: Path) -> List[Dict[str, Any]]:
+def extract_entrypoints(repo_root: Path) -> Tuple[List[Dict[str, Any]], int, List[str]]:
     """
     Scans a repository to find python entrypoints.
-    Returns a sorted list of entrypoints conforming to entrypoints.v1 schema.
+    Returns a tuple: (sorted list of entrypoints, skipped_files_count, skipped_errors).
     """
     entrypoints = []
+    skipped_files_count = 0
+    skipped_errors = []
 
     # Sort files to ensure deterministic iteration
     for root, dirs, files in sorted(os.walk(repo_root)):
@@ -34,7 +36,8 @@ def extract_entrypoints(repo_root: Path) -> List[Dict[str, Any]]:
                         "extract": "__main__.py file detected"
                     }
                 })
-                # Don't continue because a __main__.py could ALSO have an if __name__ == "__main__": block
+                # Skip AST cli check to prevent semantic double counting of __main__.py
+                continue
 
             # Heuristic 2: Check for `if __name__ == "__main__":` block via AST
             try:
@@ -81,21 +84,25 @@ def extract_entrypoints(repo_root: Path) -> List[Dict[str, Any]]:
                     })
 
             except Exception as e:
-                # Silently ignore parsing errors or unreadable files (e.g. invalid utf-8 or syntax errors)
+                skipped_files_count += 1
+                if len(skipped_errors) < 10:
+                    skipped_errors.append(f"Failed to parse {rel_path}: {type(e).__name__} - {str(e)}")
                 continue
 
     # Sort the entrypoints deterministically by ID to ensure stable output
-    return sorted(entrypoints, key=lambda x: x["id"])
+    return sorted(entrypoints, key=lambda x: x["id"]), skipped_files_count, skipped_errors
 
 def generate_entrypoints_document(repo_root: Path, run_id: str, canonical_sha256: str) -> Dict[str, Any]:
     """
     Generates the full entrypoints.v1 schema compliant JSON document.
     """
-    eps = extract_entrypoints(repo_root)
+    eps, skipped_count, skipped_errors = extract_entrypoints(repo_root)
     return {
         "kind": "lenskit.entrypoints",
         "version": "1.0",
         "run_id": run_id,
         "canonical_dump_index_sha256": canonical_sha256,
+        "skipped_files_count": skipped_count,
+        "skipped_errors": skipped_errors,
         "entrypoints": eps
     }

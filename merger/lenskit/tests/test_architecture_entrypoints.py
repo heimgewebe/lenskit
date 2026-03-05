@@ -7,14 +7,18 @@ from merger.lenskit.architecture.entrypoints import extract_entrypoints, generat
 def test_extract_entrypoints():
     repo_root = Path(__file__).parent / "fixtures" / "entrypoints_test_project"
 
-    eps = extract_entrypoints(repo_root)
+    eps, skipped_count, skipped_errors = extract_entrypoints(repo_root)
 
     # Assert deterministic sort order by id
+    # Note that module_main_src_module___main___py is no longer double-counted as cli.
     assert [e["id"] for e in eps] == [
         "cli_cli_py",
-        "cli_src_module___main___py",
         "module_main_src_module___main___py",
     ]
+
+    # Check that invalid.py is recorded as skipped
+    assert skipped_count == 1
+    assert "Failed to parse invalid.py" in skipped_errors[0]
 
     cli_py = next((e for e in eps if e["id"] == "cli_cli_py"), None)
     assert cli_py is not None
@@ -42,4 +46,5 @@ def test_entrypoints_document_matches_schema():
     jsonschema.validate(instance=doc, schema=schema)
 
     assert doc["kind"] == "lenskit.entrypoints"
-    assert len(doc["entrypoints"]) == 3
+    assert len(doc["entrypoints"]) == 2
+    assert doc["skipped_files_count"] == 1
