@@ -24,6 +24,37 @@
         "stale_flag": {
           "type": "boolean",
           "description": "True if the index was stale during evaluation."
+        },
+        "zero_hit_ratio": {
+          "type": "number",
+          "description": "Ratio of queries that returned 0 total hits (0.0 to 1.0).",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "categories": {
+          "type": "object",
+          "description": "Metrics broken down by category.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "total_queries": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hits": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "patternProperties": {
+              "^recall@\\d+$": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": ["total_queries", "hits"]
+          }
         }
       },
       "patternProperties": {
@@ -50,6 +81,10 @@
           "query": {
             "type": "string",
             "description": "The query text."
+          },
+          "category": {
+            "type": ["string", "null"],
+            "description": "The category of the query."
           },
           "filters": {
             "type": "object",

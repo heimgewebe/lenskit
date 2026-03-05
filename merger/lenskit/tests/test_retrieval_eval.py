@@ -32,6 +32,7 @@ def test_parse_gold_queries_basic(tmp_path):
 
 1. **"find auth"**
    *Intent:* Check login.
+   *Category:* security
    *Expected:* `login.py`, `auth/`
    *Filter:* `layer=core`
 
@@ -45,12 +46,14 @@ def test_parse_gold_queries_basic(tmp_path):
 
     q1 = queries[0]
     assert q1["query"] == "find auth"
+    assert q1["category"] == "security"
     assert "login.py" in q1["expected_paths"]
     assert "auth/" in q1["expected_paths"]
     assert q1["filters"]["layer"] == "core"
 
     q2 = queries[1]
     assert q2["query"] == "find settings"
+    assert q2["category"] is None
     assert "settings.py" in q2["expected_paths"]
 
 def test_parse_gold_queries_robustness(tmp_path):
@@ -76,9 +79,11 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     queries_md = tmp_path / "eval_queries.md"
     queries_md.write_text("""
 1. **"login"**
+   *Category:* feature
    *Expected:* `login.py`
 
 2. **"missing thing"**
+   *Category:* test
    *Expected:* `unicorn.py`
 """, encoding="utf-8")
 
@@ -104,6 +109,11 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     assert metrics["total_queries"] == 2
     assert metrics["hits"] == 1
     assert metrics["recall@5"] == 50.0
+    assert "zero_hit_ratio" in metrics
+    assert metrics["zero_hit_ratio"] == 0.5
+    assert "categories" in metrics
+    assert "feature" in metrics["categories"]
+    assert metrics["categories"]["feature"]["recall@5"] == 100.0
 
     details = output["details"]
     assert len(details) == 2
@@ -111,6 +121,7 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     # Check hit
     hit = details[0]
     assert hit["query"] == "login"
+    assert hit["category"] == "feature"
     assert "explain" in hit
     assert "fts_query" in hit["explain"]
     assert "top_k_scoring" in hit["explain"]
@@ -123,6 +134,36 @@ def test_run_eval_integration(mini_index_for_eval, tmp_path, capsys):
     assert miss["is_relevant"] is False
     assert "explain" in miss
     assert miss["explain"].get("why_zero") == "tokens too restrictive"
+
+def test_schema_validation(mini_index_for_eval, tmp_path):
+    """
+    Strict validation of the evaluation output against the JSON schema.
+    """
+    import jsonschema
+
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {
+            "query": "login",
+            "category": "architecture",
+            "expected_patterns": ["login.py"]
+        }
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    base_dir = Path(__file__).resolve().parent.parent
+    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    jsonschema.validate(instance=out, schema=schema)
+
 
 def test_schema_smoke():
     """
@@ -148,6 +189,7 @@ def test_parse_gold_queries_json(tmp_path):
     json_content = [
         {
             "query": "find auth",
+            "category": "architecture",
             "expected_patterns": ["login.py", "auth/"],
             "filters": {"layer": "core"},
             "accept_criteria": {"recall_at_10": 0.5}
@@ -159,6 +201,7 @@ def test_parse_gold_queries_json(tmp_path):
     assert len(queries) == 1
     q1 = queries[0]
     assert q1["query"] == "find auth"
+    assert q1["category"] == "architecture"
     assert "login.py" in q1["expected_paths"]
     assert q1["filters"]["layer"] == "core"
     assert q1["accept_criteria"]["recall_at_10"] == 0.5

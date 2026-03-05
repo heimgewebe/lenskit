@@ -319,12 +319,12 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 
 ### PR 2: Eval v2 (P0)
 **Deliverables:**
-- [ ] Kategorien im Query-Set (architecture/entrypoint/feature/cli/security).
-- [ ] Recall@5/10 pro Kategorie.
-- [ ] Coverage-Metrik (Anteil der Queries mit 0 Treffern).
+- [x] Kategorien im Query-Set (architecture/entrypoint/feature/cli/security).
+- [x] Recall@5/10 pro Kategorie.
+- [x] Coverage-Metrik (Anteil der Queries mit 0 Treffern).
 
 **Stop-Kriterium:**
-- [ ] Eval-Output ist schema-validiert + Golden Fixture vorhanden.
+- [x] Eval-Output ist schema-validiert + Golden Fixture vorhanden.
 
 ### PR 3a: Entrypoints v1 (P1)
 *(Minimaler maschinenlesbarer Kern S0)*
