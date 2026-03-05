@@ -12,6 +12,7 @@ import time
 import ipaddress
 import logging
 import re
+import uuid
 from datetime import datetime, timezone
 
 from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse
@@ -131,7 +132,7 @@ async def add_cache_control_header(request: Request, call_next):
 
 def _write_json_atomic(path: Path, data: dict) -> None:
     """Writes JSON data to a file atomically to prevent partial reads."""
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path = path.with_suffix(path.suffix + f".tmp.{os.getpid()}.{uuid.uuid4().hex}")
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
         f.flush()
