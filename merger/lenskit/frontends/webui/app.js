@@ -728,7 +728,7 @@ function closePicker() {
 }
 
 function applyPickerSelection() {
-    if (!currentPickerTarget) return;
+    if (!currentPickerTarget || !currentPickerPath) return;
 
     // Store token (opaque) in data attribute if target supports it (e.g. Atlas),
     // or value if appropriate.
@@ -1261,25 +1261,6 @@ function switchTab(tabId) {
 }
 
 // --- Atlas Logic ---
-function buildAtlasPayload(rootPath, rootToken, depth, limit, excludes) {
-    let payloadToken = rootToken || null;
-    let payloadId = null;
-
-    const lower = (rootPath || "").trim().toLowerCase();
-    if (['hub', 'merges', 'system', 'home'].includes(lower)) {
-        payloadId = lower === 'home' ? 'system' : lower;
-        payloadToken = null; // Explicit ID overrides token
-    }
-
-    return {
-        root_token: payloadToken,
-        root_id: payloadId,
-        max_depth: parseInt(depth, 10) || 6,
-        max_entries: parseInt(limit, 10) || 200000,
-        exclude_globs: excludes ? excludes.split(',').map(s => s.trim()).filter(Boolean) : []
-    };
-}
-
 async function startAtlasJob(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');

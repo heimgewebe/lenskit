@@ -1,15 +1,4 @@
-const fs = require('fs');
-const appJsCode = fs.readFileSync('merger/lenskit/frontends/webui/app.js', 'utf8');
-
-// We just want to extract the buildAtlasPayload function
-const match = appJsCode.match(/function buildAtlasPayload\([\s\S]*?^}/m);
-if (!match) {
-    console.error("Could not find buildAtlasPayload function in app.js");
-    process.exit(1);
-}
-
-// Evaluate it in global scope
-eval(match[0]);
+const { buildAtlasPayload } = require('../atlas_payload.js');
 
 let failed = 0;
 
