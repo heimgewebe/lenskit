@@ -35,14 +35,20 @@ def test_atlas_invalid_utf8_filename(tmp_path: Path):
     except UnicodeEncodeError as e:
         pytest.fail(f"Scanner crashed with UnicodeEncodeError: {e}")
 
-    # B) Verify inventory file exists
+    # B) Verify inventory files exist
     assert inventory_file.exists(), "Inventory file was not created"
+    assert dirs_inventory_file.exists(), "Dirs inventory file was not created"
 
-    # C) Verify inventory file is valid UTF-8
+    # C) Verify inventory files are valid UTF-8
     try:
         content = inventory_file.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         pytest.fail("Inventory file is not valid UTF-8")
+
+    try:
+        dirs_inventory_file.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        pytest.fail("Dirs inventory file is not valid UTF-8")
 
     # D) Verify inventory contains the file and it has escaped unicode sequences
     lines = content.strip().split("\n")
@@ -68,4 +74,4 @@ def test_atlas_invalid_utf8_filename(tmp_path: Path):
     assert "invalid_\udcff_name.txt" in target_entry["name"]
 
     # If we read the raw text of the JSONL file, we should see the explicit escape sequence
-    assert "\\udc" in content, "Expected JSON serialization to escape the surrogate character using surrogateescape (\\udcXX)"
+    assert "\\udcff" in content, "Expected JSON serialization to escape the specific surrogate character using surrogateescape (\\udcff)"
