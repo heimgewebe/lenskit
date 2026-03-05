@@ -80,6 +80,11 @@ def main():
 
     args, unknown = parser.parse_known_args()
 
+    if unknown:
+        print(f"rlens: error: unrecognized arguments: {' '.join(unknown)}", file=sys.stderr)
+        parser.print_help(sys.stderr)
+        sys.exit(2)
+
     if args.command == "atlas":
         if args.atlas_cmd == "scan":
             from . import cmd_atlas

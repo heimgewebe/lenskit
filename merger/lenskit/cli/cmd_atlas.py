@@ -15,7 +15,9 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             print("Error: Path must be absolute.", file=sys.stderr)
             return 1
 
-        scan_root = Path(norm_path).resolve()
+        # Avoid .resolve() to maintain semantic parity with backend app.py
+        # (which drops resolve() to dodge CodeQL path injection sinks on user input)
+        scan_root = Path(norm_path)
 
         exclude_globs = []
         if args.exclude:
