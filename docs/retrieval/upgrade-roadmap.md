@@ -311,7 +311,7 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 
 ### PR 1b: Query Router MVP (P0)
 **Deliverables:**
-- [x] `query_router` (Stop-Verbs, Intent Tags, Synonym OR-Expansion).
+- [x] `query_router` (Stopwords, Intent Tags, Synonym OR-Expansion).
 - [x] Explain Output um Router-Entscheidungen erweitern.
 
 **Bias-Guard:**
