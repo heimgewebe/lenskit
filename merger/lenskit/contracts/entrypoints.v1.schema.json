@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "lenskit/schema/entrypoints.v1.schema.json",
+  "title": "Entrypoints (entrypoints v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "version", "run_id", "canonical_dump_index_sha256", "entrypoints"],
+  "properties": {
+    "kind": { "type": "string", "const": "lenskit.entrypoints" },
+    "version": { "type": "string", "const": "1.0" },
+    "run_id": { "type": "string" },
+    "canonical_dump_index_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "path", "evidence_level"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["cli", "module_main", "web", "worker", "test"] },
+          "path": { "type": "string" },
+          "symbol": { "type": "string" },
+          "evidence_level": { "type": "string", "enum": ["S0", "S1", "S2"] },
+          "evidence": { "type": "object" }
+        }
+      }
+    }
+  }
+}

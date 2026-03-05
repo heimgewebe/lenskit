@@ -329,13 +329,13 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 ### PR 3a: Entrypoints v1 (P1)
 *(Minimaler maschinenlesbarer Kern S0)*
 **Deliverables:**
-- [ ] `entrypoints.v1` schema file (path TBD; see Open Questions).
-- [ ] Entrypoints v1 minimal (console scripts + lenskit cli root).
-- [ ] CLI: `lenskit architecture --entrypoints` (oder `--format json`).
+- [x] `entrypoints.v1` schema file (path TBD; see Open Questions).
+- [x] Entrypoints v1 minimal (console scripts + lenskit cli root).
+- [x] CLI: `lenskit architecture --entrypoints` (oder `--format json`).
 
 **Stop-Kriterium:**
-- [ ] Determinismus: Stabile `node_id` Regeln und sortierte Liste.
-- [ ] Golden Test: Mini Fixture Project erzeugt exakten Entrypoints Output.
+- [x] Determinismus: Stabile `node_id` Regeln und sortierte Liste.
+- [x] Golden Test: Mini Fixture Project erzeugt exakten Entrypoints Output.
 
 ### PR 3b: Import-Graph v1 (P1)
 *(Minimaler maschinenlesbarer Kern S1)*
