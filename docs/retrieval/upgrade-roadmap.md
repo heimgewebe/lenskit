@@ -311,11 +311,11 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 
 ### PR 1b: Query Router MVP (P0)
 **Deliverables:**
-- [ ] `query_router` (Stop-Verbs, Intent Tags, Synonym OR-Expansion).
-- [ ] Explain Output um Router-Entscheidungen erweitern.
+- [x] `query_router` (Stop-Verbs, Intent Tags, Synonym OR-Expansion).
+- [x] Explain Output um Router-Entscheidungen erweitern.
 
 **Bias-Guard:**
-- [ ] "Overmatching-Schalter": Router kann OR-Expansion über Config abschalten (feature-flagged).
+- [x] "Overmatching-Schalter": Router kann OR-Expansion über Config abschalten (feature-flagged).
 
 ### PR 2: Eval v2 (P0)
 **Deliverables:**

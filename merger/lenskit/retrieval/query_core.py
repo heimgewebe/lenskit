@@ -2,6 +2,8 @@ import sqlite3
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from .router import route_query
+
 WHY_ZERO_TOKENS = "tokens too restrictive"
 WHY_ZERO_FILTERS = "filters too restrictive"
 WHY_ZERO_NONE = "no results"
@@ -12,7 +14,8 @@ def execute_query(
     k: int = 10,
     filters: Optional[Dict[str, Optional[str]]] = None,
     embedding_policy: Optional[Dict[str, Any]] = None,
-    explain: bool = False
+    explain: bool = False,
+    overmatch_guard: bool = False
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -32,13 +35,20 @@ def execute_query(
         engine_type = "metadata"
         query_mode = "metadata"
         fts_query_str = None
+        router_output = None
 
         if query_text:
             engine_type = "fts5"
             query_mode = "fts"
 
+            # Route query (synonym expansion, stop-verbs, intent)
+            router_output = route_query(query_text, overmatch_guard=overmatch_guard)
+
+            # Use routed fts_query if available, fallback to original query
+            routed_query = router_output["fts_query"] if router_output["fts_query"] else query_text
+
             # FTS Query: Escape double quotes
-            cleaned_q = query_text.replace('"', '""')
+            cleaned_q = routed_query.replace('"', '""')
 
             scoring_expr = "bm25(chunks_fts)"
 
@@ -188,6 +198,8 @@ def execute_query(
             explain_block = {}
             explain_block["fts_query"] = fts_query_str if fts_query_str is not None else ""
             explain_block["filters"] = {k: v for k, v in (filters or {}).items() if v}
+            if router_output:
+                explain_block["router"] = router_output
             if len(results) == 0:
                 if fts_query_str is not None:
                     explain_block["why_zero"] = WHY_ZERO_TOKENS
