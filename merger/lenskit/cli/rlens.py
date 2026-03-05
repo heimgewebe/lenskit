@@ -66,6 +66,7 @@ def main():
     atlas_scan_parser.add_argument("--exclude", help="Comma-separated list of glob patterns to exclude")
     atlas_scan_parser.add_argument("--no-default-excludes", action="store_true", help="Do not use default system excludes")
     atlas_scan_parser.add_argument("--max-file-size", type=int, help="Maximum file size in MB to include in scan (default 50)")
+    atlas_scan_parser.add_argument("--no-max-file-size", action="store_true", help="Remove file size limits for the scan")
     atlas_scan_parser.add_argument("--depth", type=int, default=6, help="Maximum depth to scan")
     atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
 

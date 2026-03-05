@@ -50,11 +50,14 @@ class AtlasScanner:
 
     def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,
                  exclude_globs: List[str] = None, inventory_strict: bool = False,
-                 no_default_excludes: bool = False, max_file_size: int = 50 * 1024 * 1024):
+                 no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024):
         self.root = root
         self.max_depth = max_depth
         self.max_entries = max_entries
         self.inventory_strict = inventory_strict
+
+        if max_file_size is not None and max_file_size <= 0:
+            raise ValueError("max_file_size must be a positive integer or None.")
         self.max_file_size = max_file_size
 
         if self.inventory_strict:

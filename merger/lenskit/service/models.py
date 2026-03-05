@@ -131,7 +131,9 @@ class AtlasRequest(BaseModel):
     exclude_globs: Optional[List[str]] = None
     sample_files: bool = False
     no_default_excludes: bool = False
-    max_file_size: Optional[int] = 50 * 1024 * 1024
+    # max_file_size: Limit in bytes for files included in the scan.
+    # null indicates unlimited size. >0 limits size. 0 or negative are rejected by logic.
+    max_file_size: Optional[int] = Field(default=50 * 1024 * 1024, gt=0, description="Max file size in bytes. Null for unlimited.")
 
 class AtlasArtifact(BaseModel):
     id: str

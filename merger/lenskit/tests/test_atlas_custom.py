@@ -118,3 +118,52 @@ def test_atlas_override_excludes(tmp_path: Path):
             paths.append(json.loads(line)["rel_path"])
 
     assert any(p == "proc/1" for p in paths), f"proc was excluded despite no_default_excludes=True. Found: {paths}"
+
+def test_atlas_max_file_size_validation():
+    with pytest.raises(ValueError, match="max_file_size must be a positive integer or None."):
+        AtlasScanner(Path("/"), max_file_size=0)
+
+    with pytest.raises(ValueError, match="max_file_size must be a positive integer or None."):
+        AtlasScanner(Path("/"), max_file_size=-5)
+
+def test_atlas_max_file_size_unlimited(tmp_path: Path):
+    big_file = tmp_path / "big.bin"
+    # Create a mock file
+    big_file.write_text("mock")
+
+    # We mock stat to simulate a huge file
+    original_stat = Path.stat
+    def mock_stat(self, *args, **kwargs):
+        st = original_stat(self, *args, **kwargs)
+        class MockStat:
+            st_size = 100 * 1024 * 1024 if self.name == "big.bin" else st.st_size
+            st_mtime = st.st_mtime
+            st_mode = st.st_mode
+        return MockStat()
+
+    with patch.object(Path, "stat", mock_stat):
+        # 1. With default limit, the big file should be skipped
+        scanner = AtlasScanner(tmp_path)
+        res = scanner.scan()
+        assert scanner.stats["total_files"] == 0
+
+        # 2. With no limit, the big file should be included
+        scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None)
+        res_unlimited = scanner_unlimited.scan()
+        assert scanner_unlimited.stats["total_files"] == 1
+
+def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
+    my_excludes = ["**/.custom"]
+    original_id = id(my_excludes)
+    original_len = len(my_excludes)
+
+    scanner = AtlasScanner(tmp_path, exclude_globs=my_excludes, no_default_excludes=False)
+
+    # Check that my_excludes wasn't mutated
+    assert len(my_excludes) == original_len
+    assert my_excludes == ["**/.custom"]
+    assert id(my_excludes) == original_id
+
+    # Check that scanner correctly added defaults internally
+    assert len(scanner.exclude_globs) > original_len
+    assert "proc/**" in scanner.exclude_globs

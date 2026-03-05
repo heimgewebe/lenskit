@@ -21,9 +21,12 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         if args.exclude:
             exclude_globs = [x.strip() for x in args.exclude.split(",") if x.strip()]
 
-        max_file_size = 50 * 1024 * 1024 # default
-        if args.max_file_size is not None:
-            max_file_size = args.max_file_size * 1024 * 1024
+        if args.no_max_file_size:
+            max_file_size = None
+        else:
+            max_file_size = 50 * 1024 * 1024 # default
+            if args.max_file_size is not None:
+                max_file_size = args.max_file_size * 1024 * 1024
 
         scanner = AtlasScanner(
             root=scan_root,
