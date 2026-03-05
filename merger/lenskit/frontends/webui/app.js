@@ -728,7 +728,7 @@ function closePicker() {
 }
 
 function applyPickerSelection() {
-    if (!currentPickerTarget) return;
+    if (!currentPickerTarget || !currentPickerPath) return;
 
     // Store token (opaque) in data attribute if target supports it (e.g. Atlas),
     // or value if appropriate.
@@ -744,6 +744,11 @@ function applyPickerSelection() {
     if (el) {
         el.value = currentPickerPath || '';
         el.dataset.token = currentPickerToken || '';
+    }
+
+    // If hub changed, reload repos
+    if (currentPickerTarget === 'hubPath') {
+        fetchRepos(currentPickerPath);
     }
 
     closePicker();
@@ -843,16 +848,7 @@ async function loadPickerToken(token) {
 }
 
 function pickerSelect() {
-    if (currentPickerTarget && currentPickerPath) {
-        document.getElementById(currentPickerTarget).value = currentPickerPath;
-
-        // If hub changed, reload repos
-        if (currentPickerTarget === 'hubPath') {
-            fetchRepos(currentPickerPath);
-        }
-
-        closePicker();
-    }
+    applyPickerSelection();
 }
 
 async function loadArtifacts() {
@@ -1235,6 +1231,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('jobForm').addEventListener('submit', startJob);
     document.getElementById('atlasForm').addEventListener('submit', startAtlasJob);
+
+    // Clear token if user manually edits the root path
+    const atlasRootEl = document.getElementById('atlasRoot');
+    if (atlasRootEl) {
+        atlasRootEl.addEventListener('input', (e) => {
+            delete e.target.dataset.token;
+        });
+    }
 });
 
 // --- Tabs ---
@@ -1281,25 +1285,21 @@ async function startAtlasJob(e) {
     };
     localStorage.setItem(ATLAS_CONFIG_KEY, JSON.stringify(config));
 
-    // Determine Root Strategy
-    let payloadToken = rootToken || null;
-    let payloadId = null;
-
-    // Check for explicit ID keywords
-    const lower = rootPath.toLowerCase();
-    if (['hub', 'merges', 'system', 'home'].includes(lower)) {
-        payloadId = lower === 'home' ? 'system' : lower;
-        payloadToken = null; // Explicit ID overrides token
+    if (typeof buildAtlasPayload !== 'function') {
+        console.error("atlas_payload.js not loaded: buildAtlasPayload missing");
+        alert("Internal error: atlas payload builder missing. Please hard-reload (Ctrl+Shift+R).");
+        btn.disabled = false;
+        btn.innerText = "Create Atlas";
+        return;
     }
 
-    const payload = {
-        root_token: payloadToken,
-        root_id: payloadId,
-
-        max_depth: parseInt(config.depth),
-        max_entries: parseInt(config.limit),
-        exclude_globs: config.excludes.split(',').map(s => s.trim())
-    };
+    const payload = buildAtlasPayload(
+        config.root,
+        config.token,
+        config.depth,
+        config.limit,
+        config.excludes
+    );
 
     if (!payload.root_token && !payload.root_id) {
          alert("Invalid Root. Raw paths are not supported for security reasons. Please use the picker (folder icon) or type a valid ID ('hub', 'merges', 'system').");
