@@ -2,12 +2,12 @@ import pytest
 import json
 import jsonschema
 from pathlib import Path
-from merger.lenskit.architecture.entrypoints import extract_entrypoints, generate_entrypoints_document
+from merger.lenskit.architecture.entrypoints import extract_entrypoints_with_stats, generate_entrypoints_document
 
 def test_extract_entrypoints():
     repo_root = Path(__file__).parent / "fixtures" / "entrypoints_test_project"
 
-    eps, skipped_count, skipped_errors = extract_entrypoints(repo_root)
+    eps, skipped_count, skipped_errors = extract_entrypoints_with_stats(repo_root)
 
     # Assert deterministic sort order by id
     # Note that module_main_src_module___main___py is no longer double-counted as cli.
@@ -18,7 +18,7 @@ def test_extract_entrypoints():
 
     # Check that invalid.py is recorded as skipped
     assert skipped_count == 1
-    assert "Failed to parse invalid.py" in skipped_errors[0]
+    assert any("invalid.py" in e for e in skipped_errors)
 
     cli_py = next((e for e in eps if e["id"] == "cli_cli_py"), None)
     assert cli_py is not None

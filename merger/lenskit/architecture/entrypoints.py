@@ -3,7 +3,15 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-def extract_entrypoints(repo_root: Path) -> Tuple[List[Dict[str, Any]], int, List[str]]:
+def extract_entrypoints(repo_root: Path) -> List[Dict[str, Any]]:
+    """
+    Scans a repository to find python entrypoints.
+    Returns a sorted list of entrypoints conforming to entrypoints.v1 schema.
+    """
+    eps, _, _ = extract_entrypoints_with_stats(repo_root)
+    return eps
+
+def extract_entrypoints_with_stats(repo_root: Path) -> Tuple[List[Dict[str, Any]], int, List[str]]:
     """
     Scans a repository to find python entrypoints.
     Returns a tuple: (sorted list of entrypoints, skipped_files_count, skipped_errors).
@@ -96,7 +104,7 @@ def generate_entrypoints_document(repo_root: Path, run_id: str, canonical_sha256
     """
     Generates the full entrypoints.v1 schema compliant JSON document.
     """
-    eps, skipped_count, skipped_errors = extract_entrypoints(repo_root)
+    eps, skipped_count, skipped_errors = extract_entrypoints_with_stats(repo_root)
     return {
         "kind": "lenskit.entrypoints",
         "version": "1.0",
