@@ -1434,8 +1434,7 @@ async function loadAtlasArtifacts() {
             if (art.effective) {
                 const limitsDiv = document.createElement('div');
                 limitsDiv.className = "text-[10px] text-gray-500 mt-1";
-                // Safe to use innerHTML here as it's just numbers
-                limitsDiv.innerHTML = `Limits: Depth=${art.effective.max_depth}, Cap=${art.effective.max_entries}`;
+                limitsDiv.textContent = `Limits: Depth=${art.effective.max_depth}, Cap=${art.effective.max_entries}`;
                 div.appendChild(limitsDiv);
             }
 
@@ -1443,13 +1442,39 @@ async function loadAtlasArtifacts() {
                 const mb = (art.stats.total_bytes / (1024*1024)).toFixed(2);
                 const statsDiv = document.createElement('div');
                 statsDiv.className = "mt-2 text-xs grid grid-cols-2 gap-2 text-gray-400";
-                // Safe to use innerHTML here as it's just numbers
-                statsDiv.innerHTML = `
-                    <div>Files: <span class="text-white">${art.stats.total_files}</span></div>
-                    <div>Dirs: <span class="text-white">${art.stats.total_dirs}</span></div>
-                    <div>Size: <span class="text-white">${mb} MB</span></div>
-                    <div>Duration: <span class="text-white">${art.stats.duration_seconds.toFixed(2)}s</span></div>
-                `;
+
+                const filesDiv = document.createElement('div');
+                filesDiv.textContent = 'Files: ';
+                const filesSpan = document.createElement('span');
+                filesSpan.className = "text-white";
+                filesSpan.textContent = art.stats.total_files;
+                filesDiv.appendChild(filesSpan);
+                statsDiv.appendChild(filesDiv);
+
+                const dirsDiv = document.createElement('div');
+                dirsDiv.textContent = 'Dirs: ';
+                const dirsSpan = document.createElement('span');
+                dirsSpan.className = "text-white";
+                dirsSpan.textContent = art.stats.total_dirs;
+                dirsDiv.appendChild(dirsSpan);
+                statsDiv.appendChild(dirsDiv);
+
+                const sizeDiv = document.createElement('div');
+                sizeDiv.textContent = 'Size: ';
+                const sizeSpan = document.createElement('span');
+                sizeSpan.className = "text-white";
+                sizeSpan.textContent = `${mb} MB`;
+                sizeDiv.appendChild(sizeSpan);
+                statsDiv.appendChild(sizeDiv);
+
+                const durationDiv = document.createElement('div');
+                durationDiv.textContent = 'Duration: ';
+                const durationSpan = document.createElement('span');
+                durationSpan.className = "text-white";
+                durationSpan.textContent = `${art.stats.duration_seconds.toFixed(2)}s`;
+                durationDiv.appendChild(durationSpan);
+                statsDiv.appendChild(durationDiv);
+
                 div.appendChild(statsDiv);
             }
 
