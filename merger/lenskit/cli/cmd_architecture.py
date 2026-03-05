@@ -4,6 +4,7 @@ import json
 import uuid
 from pathlib import Path
 from ..architecture.entrypoints import generate_entrypoints_document
+from ..architecture.import_graph import generate_import_graph_document
 
 def run_architecture_cmd(args: argparse.Namespace) -> int:
     """
@@ -28,6 +29,20 @@ def run_architecture_cmd(args: argparse.Namespace) -> int:
         # For this roadmap step, --entrypoints generates JSON output
         print(json.dumps(doc, indent=2))
         return 0
+    elif args.import_graph:
+        repo_root = Path(args.repo).expanduser().resolve()
+
+        if not repo_root.is_dir():
+            print(f"Error: Path '{args.repo}' is not a directory.", file=sys.stderr)
+            return 1
+
+        run_id = f"cmd_run_{uuid.uuid4().hex[:8]}"
+        canonical_sha256 = "0" * 64
+
+        doc = generate_import_graph_document(repo_root, run_id, canonical_sha256)
+
+        print(json.dumps(doc, indent=2))
+        return 0
     else:
-        print("Error: You must specify an architecture view to extract (e.g., --entrypoints).", file=sys.stderr)
+        print("Error: You must specify an architecture view to extract (e.g., --entrypoints, --import-graph).", file=sys.stderr)
         return 1
