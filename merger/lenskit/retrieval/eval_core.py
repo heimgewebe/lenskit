@@ -6,6 +6,9 @@ from typing import List, Dict, Any, Optional
 
 from .query_core import execute_query
 
+WHY_FAIL_QUERY_EXECUTION = "query execution failed"
+WHY_FAIL_MISSING_EXPLAIN = "missing explain from query execution"
+
 def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
     if not md_path.exists():
         raise FileNotFoundError(f"Queries file not found: {md_path}")
@@ -149,7 +152,7 @@ def do_eval(
             }
             if hit_why is not None:
                 detail["why"] = hit_why
-            detail["explain"] = res.get("explain", {"filters": filters, "why_fail": "missing explain from query execution"})
+            detail["explain"] = res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
 
             results_detail.append(detail)
 
@@ -169,7 +172,7 @@ def do_eval(
                 "error": str(e),
                 "explain": {
                     "filters": filters,
-                    "why_fail": "query execution failed"
+                    "why_fail": WHY_FAIL_QUERY_EXECUTION
                 }
             })
 

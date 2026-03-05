@@ -143,7 +143,7 @@ def test_query_explain_zero_hits(mini_index):
     assert "fts_query" in explain
     assert explain["filters"]["layer"] == "core"
     assert "why_zero" in explain
-    assert explain["why_zero"] == "tokens too restrictive"
+    assert explain["why_zero"] == query_core.WHY_ZERO_TOKENS
 
 def test_query_semantic_fallback_fail(mini_index):
     policy = {

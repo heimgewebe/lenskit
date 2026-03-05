@@ -306,4 +306,4 @@ def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path,
     detail = json.loads(captured.out)["details"][0]
     assert detail["error"] == "Mock DB Crash"
     assert "explain" in detail
-    assert detail["explain"]["why_fail"] == "query execution failed"
+    assert detail["explain"]["why_fail"] == eval_core.WHY_FAIL_QUERY_EXECUTION

@@ -2,6 +2,10 @@ import sqlite3
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+WHY_ZERO_TOKENS = "tokens too restrictive"
+WHY_ZERO_FILTERS = "filters too restrictive"
+WHY_ZERO_NONE = "no results"
+
 def execute_query(
     index_path: Path,
     query_text: str,
@@ -186,11 +190,11 @@ def execute_query(
             explain_block["filters"] = {k: v for k, v in (filters or {}).items() if v}
             if len(results) == 0:
                 if fts_query_str is not None:
-                    explain_block["why_zero"] = "tokens too restrictive"
+                    explain_block["why_zero"] = WHY_ZERO_TOKENS
                 elif explain_block["filters"]:
-                    explain_block["why_zero"] = "filters too restrictive"
+                    explain_block["why_zero"] = WHY_ZERO_FILTERS
                 else:
-                    explain_block["why_zero"] = "no results"
+                    explain_block["why_zero"] = WHY_ZERO_NONE
             else:
                 # extract top-k scoring from the hits
                 # we just need a summary of scores
