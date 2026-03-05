@@ -55,6 +55,12 @@ def test_runner_resolves_and_creates_relative_merges_dir(temp_hub):
         mock_artifacts.index_json = None
         mock_artifacts.canonical_md = None
         mock_artifacts.md_parts = []
+        mock_artifacts.chunk_index = None
+        mock_artifacts.dump_index = None
+        mock_artifacts.sqlite_index = None
+        mock_artifacts.retrieval_eval = None
+        mock_artifacts.derived_manifest = None
+        mock_artifacts.bundle_manifest = None
         mock_write.return_value = mock_artifacts
 
         mock_scan.return_value = {} # Dummy summary
@@ -309,6 +315,12 @@ def test_runner_logs_output_paths(temp_hub):
         mock_artifacts.canonical_md = None
         mock_artifacts.md_parts = []
         mock_artifacts.other = []
+        mock_artifacts.chunk_index = None
+        mock_artifacts.dump_index = None
+        mock_artifacts.sqlite_index = None
+        mock_artifacts.retrieval_eval = None
+        mock_artifacts.derived_manifest = None
+        mock_artifacts.bundle_manifest = None
 
         # Create dummy paths (more than 10 to test truncation)
         # Use temp_hub to be semantically consistent, though specific path doesn't matter for this test
