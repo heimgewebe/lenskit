@@ -283,7 +283,7 @@ class AtlasScanner:
                         # We can't know recursive bytes here yet.
                         "mtime": datetime.fromtimestamp(current_root.stat().st_mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
                     }
-                    dirs_inv_f.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+                    dirs_inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                 self.stats["truncated"]["dirs_seen"] += 1
 
@@ -331,7 +331,7 @@ class AtlasScanner:
                                 "is_text": is_txt,
                                 "is_symlink": is_sym
                             }
-                            inv_f.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+                            inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                     except OSError:
                         continue
