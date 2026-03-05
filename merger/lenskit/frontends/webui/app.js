@@ -1285,6 +1285,10 @@ async function startAtlasJob(e) {
     };
     localStorage.setItem(ATLAS_CONFIG_KEY, JSON.stringify(config));
 
+    if (typeof buildAtlasPayload !== 'function') {
+        throw new Error("atlas_payload.js not loaded: buildAtlasPayload missing");
+    }
+
     const payload = buildAtlasPayload(
         config.root,
         config.token,
