@@ -813,6 +813,21 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     md_filename = f"{scan_id}.md"
     inventory_filename = f"{scan_id}.inventory.jsonl" # Default name
 
+    # Write initial "running" state
+    initial_state = {
+        "status": "running",
+        "root": str(scan_root),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "effective": {
+            "max_depth": effective_max_depth,
+            "max_entries": effective_max_entries,
+            "exclude_globs": effective_excludes
+        },
+        "stats": {}
+    }
+    with open(merges_dir / json_filename, "w", encoding="utf-8") as f:
+        json.dump(initial_state, f, indent=2)
+
     # Helper to run scan and save
     def run_scan_and_save():
         try:
@@ -857,6 +872,11 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             )
             result = scanner.scan(inventory_file=inventory_path)
 
+            # Merge with initial state to preserve required fields, then update status
+            result["status"] = "completed"
+            result["created_at"] = initial_state["created_at"]
+            result["effective"] = initial_state["effective"]
+
             # Save JSON Stats
             with open(merges_dir / json_filename, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2)
@@ -870,7 +890,12 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
         except Exception as e:
             logger.exception(f"Atlas scan failed: {e}")
-            # Could save an error file?
+            # Write failed state
+            failed_state = initial_state.copy()
+            failed_state["status"] = "failed"
+            failed_state["error"] = str(e)
+            with open(merges_dir / json_filename, "w", encoding="utf-8") as f:
+                json.dump(failed_state, f, indent=2)
 
     background_tasks.add_task(run_scan_and_save)
 
@@ -879,7 +904,8 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
     return AtlasArtifact(
         id=scan_id,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        status="running",
+        created_at=initial_state["created_at"],
         hub=str(hub),
         root_scanned=str(scan_root),
         paths=paths,
@@ -932,6 +958,66 @@ def api_sync_metarepo(payload: Dict[str, Any]):
         logger.exception(f"Sync failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/atlas", response_model=List[AtlasArtifact], dependencies=[Depends(verify_token)])
+def list_atlas():
+    merges_dir = state.merges_dir
+    if not merges_dir and state.hub:
+        merges_dir = get_merges_dir(state.hub)
+
+    if not merges_dir or not merges_dir.exists():
+        return []
+
+    # Find atlas files
+    # Pattern: atlas-{timestamp}.json
+    files = list(merges_dir.glob("atlas-*.json"))
+
+    # Sort by name (timestamp) desc
+    files = sorted(files, key=lambda f: f.name, reverse=True)
+
+    artifacts = []
+    for file in files:
+        data = {}
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                stats = data.get("stats", {})
+                scan_root = data.get("root", "?")
+                status = data.get("status", "completed")
+                effective = data.get("effective", None)
+                if effective:
+                    effective = AtlasEffective(**effective)
+        except Exception:
+            stats = {}
+            scan_root = "?"
+            status = "completed"
+            effective = None
+
+        scan_id = file.stem # atlas-123456
+
+        # Construct paths
+        paths = {"json": file.name, "md": file.with_suffix(".md").name}
+        inv_file = file.with_suffix(".inventory.jsonl")
+        if inv_file.name.startswith(scan_id): # Ensure it matches ID
+            if inv_file.exists():
+                paths["inventory"] = inv_file.name
+
+        created_at = datetime.fromtimestamp(file.stat().st_mtime, timezone.utc).isoformat()
+        if "created_at" in data:
+            created_at = data["created_at"]
+
+        artifacts.append(AtlasArtifact(
+            id=scan_id,
+            status=status,
+            created_at=created_at,
+            hub=str(state.hub),
+            root_scanned=scan_root,
+            paths=paths,
+            stats=stats,
+            effective=effective
+        ))
+
+    return artifacts
+
 @app.get("/api/atlas/latest", dependencies=[Depends(verify_token)])
 def get_latest_atlas():
     merges_dir = state.merges_dir
@@ -948,17 +1034,33 @@ def get_latest_atlas():
          raise HTTPException(status_code=404, detail="No atlas artifacts found")
 
     # Sort by name (timestamp) desc
-    latest_file = sorted(files, key=lambda f: f.name, reverse=True)[0]
+    files = sorted(files, key=lambda f: f.name, reverse=True)
 
-    # Load content for stats?
-    try:
-        with open(latest_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            stats = data.get("stats", {})
-            scan_root = data.get("root", "?")
-    except Exception:
-        stats = {}
-        scan_root = "?"
+    latest_file = None
+    data = {}
+    stats = {}
+    scan_root = "?"
+    status = "completed"
+    effective = None
+
+    for file in files:
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                status = data.get("status", "completed")
+                if status == "completed":
+                    latest_file = file
+                    stats = data.get("stats", {})
+                    scan_root = data.get("root", "?")
+                    effective = data.get("effective", None)
+                    if effective:
+                        effective = AtlasEffective(**effective)
+                    break
+        except Exception:
+            continue
+
+    if not latest_file:
+        raise HTTPException(status_code=404, detail="No completed atlas artifacts found")
 
     scan_id = latest_file.stem # atlas-123456
 
@@ -971,13 +1073,19 @@ def get_latest_atlas():
          if inv_file.exists():
              paths["inventory"] = inv_file.name
 
+    created_at = datetime.fromtimestamp(latest_file.stat().st_mtime, timezone.utc).isoformat()
+    if "created_at" in data:
+        created_at = data["created_at"]
+
     return AtlasArtifact(
         id=scan_id,
-        created_at=datetime.fromtimestamp(latest_file.stat().st_mtime, timezone.utc).isoformat(),
+        status="completed",
+        created_at=created_at,
         hub=str(state.hub),
         root_scanned=scan_root,
         paths=paths,
-        stats=stats
+        stats=stats,
+        effective=effective
     )
 
 @app.get("/api/atlas/{id}/download", dependencies=[Depends(verify_token)])

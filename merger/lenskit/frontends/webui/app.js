@@ -1364,81 +1364,125 @@ async function startAtlasJob(e) {
     }
 }
 
+let _atlasPollingTimeout = null;
+
 async function loadAtlasArtifacts() {
     const list = document.getElementById('atlasList');
-    list.innerHTML = '<div class="text-gray-500 italic">Loading...</div>';
+    if (!list.innerHTML || list.innerHTML.includes('No atlas artifacts')) {
+        list.innerHTML = '<div class="text-gray-500 italic">Loading...</div>';
+    }
 
     try {
-        // We only have 'latest' endpoint for now or we could list all files in merges dir via fs list?
-        // But app.py has /api/atlas/latest.
-        // Let's use /api/atlas/latest to show the current map.
-        // Or if we want a list, we need an endpoint.
-        // The instruction B3 said: GET /api/atlas/latest.
-        // But UI shows "Atlas Results".
-
-        const res = await apiFetch(`${API_BASE}/atlas/latest`);
+        const res = await apiFetch(`${API_BASE}/atlas`);
         if (res.status === 404) {
              list.innerHTML = '<div class="text-gray-500 italic">No atlas artifacts found.</div>';
              return;
         }
         if (!res.ok) throw new Error("Failed to load atlas");
 
-        const art = await res.json();
+        const artifacts = await res.json();
+
+        if (artifacts.length === 0) {
+            list.innerHTML = '<div class="text-gray-500 italic">No atlas artifacts found.</div>';
+            return;
+        }
 
         list.innerHTML = '';
 
-        const div = document.createElement('div');
-        div.className = "bg-gray-900 p-2 rounded border border-gray-700 flex flex-col";
+        let anyRunning = false;
 
-        const date = new Date(art.created_at).toLocaleString();
+        artifacts.forEach(art => {
+            const div = document.createElement('div');
+            div.className = "bg-gray-900 p-2 rounded border border-gray-700 flex flex-col mb-2";
 
-        // Show Stats if available
-        let statsHtml = '';
-        if (art.stats && art.stats.total_files) {
-            const mb = (art.stats.total_bytes / (1024*1024)).toFixed(2);
-            statsHtml = `
-                <div class="mt-2 text-xs grid grid-cols-2 gap-2 text-gray-400">
-                    <div>Files: <span class="text-white">${art.stats.total_files}</span></div>
-                    <div>Dirs: <span class="text-white">${art.stats.total_dirs}</span></div>
-                    <div>Size: <span class="text-white">${mb} MB</span></div>
-                    <div>Duration: <span class="text-white">${art.stats.duration_seconds.toFixed(2)}s</span></div>
+            const date = new Date(art.created_at).toLocaleString();
+
+            let statusHtml = '';
+            if (art.status === 'running') {
+                statusHtml = '<span class="text-yellow-400 animate-pulse text-xs font-bold ml-2">RUNNING</span>';
+                anyRunning = true;
+            } else if (art.status === 'failed') {
+                statusHtml = '<span class="text-red-500 text-xs font-bold ml-2">FAILED</span>';
+            }
+
+            // Show Stats if available
+            let statsHtml = '';
+            if (art.stats && art.stats.total_files) {
+                const mb = (art.stats.total_bytes / (1024*1024)).toFixed(2);
+                statsHtml = `
+                    <div class="mt-2 text-xs grid grid-cols-2 gap-2 text-gray-400">
+                        <div>Files: <span class="text-white">${art.stats.total_files}</span></div>
+                        <div>Dirs: <span class="text-white">${art.stats.total_dirs}</span></div>
+                        <div>Size: <span class="text-white">${mb} MB</span></div>
+                        <div>Duration: <span class="text-white">${art.stats.duration_seconds.toFixed(2)}s</span></div>
+                    </div>
+                `;
+            }
+
+            // Observability: Show effective limits if available
+            let limitsHtml = '';
+            if (art.effective) {
+                limitsHtml = `
+                    <div class="text-[10px] text-gray-500 mt-1">
+                        Limits: Depth=${art.effective.max_depth}, Cap=${art.effective.max_entries}
+                    </div>
+                `;
+            }
+
+            let downloadLinks = '';
+            if (art.status === 'completed') {
+                downloadLinks = `
+                <div class="flex flex-wrap gap-2 text-xs mt-3 border-t border-gray-800 pt-2">
+                     <button data-dl="${API_BASE}/atlas/${art.id}/download?key=json" data-name="${art.paths.json}" class="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400">Download JSON</button>
+                     <button data-dl="${API_BASE}/atlas/${art.id}/download?key=md" data-name="${art.paths.md}" class="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400">Download Report</button>
                 </div>
-            `;
-        }
-
-        // Observability: Show effective limits if available
-        let limitsHtml = '';
-        if (art.effective) {
-            limitsHtml = `
-                <div class="text-[10px] text-gray-500 mt-1">
-                    Limits: Depth=${art.effective.max_depth}, Cap=${art.effective.max_entries}
+                `;
+            } else if (art.status === 'failed' && art.error) {
+                downloadLinks = `
+                <div class="text-xs text-red-400 mt-2 p-2 bg-red-900/30 rounded border border-red-800/50 break-words">
+                    ${art.error}
                 </div>
+                `;
+            }
+
+            div.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <span class="font-bold text-green-400">${art.id}${statusHtml}</span>
+                    <span class="text-xs text-gray-500">${date}</span>
+                </div>
+                <div class="text-xs text-gray-300 font-mono bg-gray-800 p-1 rounded mt-1 truncate" title="${art.root_scanned}">
+                    Root: ${art.root_scanned}
+                </div>
+                ${limitsHtml}
+                ${statsHtml}
+                ${downloadLinks}
             `;
-        }
+            list.appendChild(div);
 
-        div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <span class="font-bold text-green-400">${art.id}</span>
-                <span class="text-xs text-gray-500">${date}</span>
-            </div>
-            <div class="text-xs text-gray-300 font-mono bg-gray-800 p-1 rounded mt-1 truncate" title="${art.root_scanned}">
-                Root: ${art.root_scanned}
-            </div>
-            ${limitsHtml}
-            ${statsHtml}
-            <div class="flex flex-wrap gap-2 text-xs mt-3 border-t border-gray-800 pt-2">
-                 <button data-dl="${API_BASE}/atlas/${art.id}/download?key=json" data-name="${art.paths.json}" class="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400">Download JSON</button>
-                 <button data-dl="${API_BASE}/atlas/${art.id}/download?key=md" data-name="${art.paths.md}" class="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400">Download Report</button>
-            </div>
-        `;
-        list.appendChild(div);
-
-        // Wire buttons
-        div.querySelectorAll('button[data-dl]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                downloadWithAuth(btn.getAttribute('data-dl'), btn.getAttribute('data-name'));
+            // Wire buttons
+            div.querySelectorAll('button[data-dl]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    downloadWithAuth(btn.getAttribute('data-dl'), btn.getAttribute('data-name'));
+                });
             });
         });
+
+        if (_atlasPollingTimeout) {
+            clearTimeout(_atlasPollingTimeout);
+            _atlasPollingTimeout = null;
+        }
+
+        if (anyRunning) {
+            _atlasPollingTimeout = setTimeout(() => {
+                // Only poll if tab is active to save resources
+                if (!document.getElementById('layout-atlas').classList.contains('hidden')) {
+                    loadAtlasArtifacts();
+                } else {
+                    // Will be fetched next time tab is switched to
+                    _atlasPollingTimeout = null;
+                }
+            }, 3000);
+        }
 
     } catch (e) {
         list.innerHTML = `<div class="text-gray-500 italic">Error: ${e.message}</div>`;

@@ -137,6 +137,7 @@ class AtlasRequest(BaseModel):
 
 class AtlasArtifact(BaseModel):
     id: str
+    status: Literal["running", "completed", "failed"] = "completed"
     created_at: str
     hub: str
     root_scanned: str
