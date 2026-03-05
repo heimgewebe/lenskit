@@ -6,16 +6,16 @@ def test_route_query_empty():
     assert res["fts_query"] == ""
     assert res["synonyms_used"] == []
 
-def test_route_query_stop_verbs_removal():
+def test_route_query_stopwords_removal():
     res = route_query("show me where the index is")
     assert res["intent"] == "unknown"
-    # "show", "me", "where", "is" are stop verbs
+    # "show", "me", "where", "is" are stopwords
     # remaining: "the", "index"
     # "index" is expanded
     assert "the" in res["fts_query"]
     assert "(index OR indexing OR build_index OR indexer)" in res["fts_query"]
 
-def test_route_query_all_stop_verbs():
+def test_route_query_all_stopwords():
     res = route_query("show me where is")
     assert res["intent"] == "unknown"
     # fallback to original tokens
@@ -37,7 +37,7 @@ def test_route_query_intent_extraction():
 def test_route_query_fts_escaping():
     # 'and' and 'or' are reserved in FTS5
     res = route_query("find auth or config")
-    # 'find' is stop verb
+    # 'find' is stopword
     # 'auth' -> expanded
     # 'or' -> should be "or"
     # 'config' -> expanded
@@ -47,6 +47,14 @@ def test_route_query_fts_escaping():
     # check that we indeed have the exact phrase for token "or" escaped
     # Should look roughly like: (auth OR authentication...) AND "or" AND (config OR ...)
     assert 'AND "or" AND' in res["fts_query"]
+
+def test_route_query_fts_escaping_others():
+    # Test other FTS5 reserved keywords
+    res = route_query("find not near and")
+    assert '"not"' in res["fts_query"]
+    assert '"near"' in res["fts_query"]
+    assert '"and"' in res["fts_query"]
+    assert 'AND' in res["fts_query"] # The joining ANDs should still be present
 
 def test_route_query_synonym_expansion():
     res = route_query("database settings")

@@ -1,7 +1,7 @@
 import re
 from typing import Dict, Any
 
-STOP_VERBS = {
+STOPWORDS = {
     "show", "find", "get", "where", "how", "what", "is", "are", "does", "do",
     "search", "list", "display", "locate", "explain", "give", "me"
 }
@@ -55,10 +55,10 @@ def route_query(query_text: str, overmatch_guard: bool = False) -> Dict[str, Any
                 best_pos = idx
                 detected_intent = intent
 
-    # 2. Stop-Verb Removal
-    filtered_tokens = [t for t in tokens if t not in STOP_VERBS]
+    # 2. Stopword Removal
+    filtered_tokens = [t for t in tokens if t not in STOPWORDS]
     if not filtered_tokens:
-        # If query was entirely stop-verbs, fallback to original tokens
+        # If query was entirely stopwords, fallback to original tokens
         filtered_tokens = tokens
 
     # 3. Synonym OR-Expansion
