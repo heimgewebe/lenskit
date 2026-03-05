@@ -63,4 +63,4 @@ def test_atlas_invalid_utf8_filename(tmp_path: Path):
     assert "invalid_\udcff_name.txt" in target_entry["name"]
 
     # If we read the raw text of the JSONL file, we should see the explicit escape sequence
-    assert "\\u" in content, "Expected JSON serialization to escape the surrogate character"
+    assert "\\udc" in content, "Expected JSON serialization to escape the surrogate character using surrogateescape (\\udcXX)"
