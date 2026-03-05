@@ -37,12 +37,28 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class AtlasScanner:
+    DEFAULT_ATLAS_EXCLUDES = [
+        "proc/**",
+        "sys/**",
+        "dev/**",
+        "run/**",
+        "tmp/**",
+        "var/tmp/**",
+        "var/run/**",
+        "lost+found/**"
+    ]
+
     def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,
-                 exclude_globs: List[str] = None, inventory_strict: bool = False):
+                 exclude_globs: List[str] = None, inventory_strict: bool = False,
+                 no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024):
         self.root = root
         self.max_depth = max_depth
         self.max_entries = max_entries
         self.inventory_strict = inventory_strict
+
+        if max_file_size is not None and max_file_size <= 0:
+            raise ValueError("max_file_size must be a positive integer or None.")
+        self.max_file_size = max_file_size
 
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
@@ -50,7 +66,10 @@ class AtlasScanner:
         else:
             default_excludes = ["**/.git", "**/node_modules", "**/.venv", "**/__pycache__", "**/.cache"]
 
-        self.exclude_globs = exclude_globs if exclude_globs is not None else default_excludes
+        self.exclude_globs = list(exclude_globs) if exclude_globs is not None else list(default_excludes)
+        if not no_default_excludes:
+            self.exclude_globs.extend(self.DEFAULT_ATLAS_EXCLUDES)
+
         self._exclude_patterns = self._build_exclude_patterns(self.exclude_globs)
         self._exclude_regex = self._compile_exclude_regex(self._exclude_patterns)
         self.stats = {
@@ -194,7 +213,7 @@ class AtlasScanner:
         dir_sizes = {} # path -> size
 
         try:
-            for root, dirs, files in os.walk(self.root, topdown=True):
+            for root, dirs, files in os.walk(self.root, topdown=True, followlinks=False):
                 current_root = Path(root)
 
                 # Calculate relative path string once
@@ -285,6 +304,10 @@ class AtlasScanner:
                     try:
                         stat = f_path.stat()
                         size = stat.st_size
+
+                        if self.max_file_size is not None and size > self.max_file_size:
+                            continue
+
                         mtime = stat.st_mtime
                         ext = f_path.suffix.lower()
                         is_sym = f_path.is_symlink()

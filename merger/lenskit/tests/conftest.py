@@ -16,6 +16,10 @@ def service_client():
     # Canonical imports - if this fails, the test should fail (broken code)
     from merger.lenskit.service.app import app, init_service, state
 
+    # Fastapi doesn't allow adding middleware after app has started, and init_service does this.
+    # To cleanly test without polluting app.py, we reset the middleware stack for the fixture.
+    app.middleware_stack = None
+
     # Setup
     temp_dir = tempfile.mkdtemp()
     hub_path = Path(temp_dir) / "hub"

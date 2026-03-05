@@ -21,6 +21,21 @@ python3 -m merger.lenskit.cli.rlens . --level max --split-size 20MB --meta-densi
 
 Siehe [merger/lenskit/repoLens-spec.md](merger/lenskit/repoLens-spec.md) für Details.
 
+### ATLAS MODE
+
+Atlas is a filesystem exploration tool capable of scanning entire systems, distinct from the repository inspection pipeline.
+
+Pseudo-filesystems and volatile paths (`/proc`, `/sys`, `/dev`, `/run`, etc.) are excluded by default to avoid recursion loops, device streams, and meaningless inventory entries. The merge pipeline remains completely unchanged by this feature.
+
+Example usage:
+
+```bash
+# Explore arbitrary filesystem roots via CLI (when integrated) or API
+rlens atlas scan /
+rlens atlas scan /home
+rlens atlas scan /etc
+```
+
 ### JSONL Tools
 
 Minimale Befehle, um die verfügbaren Werkzeuge aufzurufen:

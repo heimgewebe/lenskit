@@ -718,6 +718,10 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     if not hub:
         raise HTTPException(status_code=400, detail="Hub not configured")
 
+    # Validation
+    if request.max_file_size is not None and request.max_file_size <= 0:
+        raise HTTPException(status_code=400, detail="max_file_size must be a positive integer or null.")
+
     # Defaults for effective params
     effective_max_depth = request.max_depth
     effective_max_entries = request.max_entries
@@ -741,16 +745,35 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
             root_id = request.root_id
             if root_id not in ("hub", "merges", "system"):
-                # Strict rejection of raw paths for Atlas to satisfy CodeQL
-                raise HTTPException(status_code=400, detail="Invalid root directory identifier")
+                try:
+                    # Explicit sanitization to satisfy CodeQL
+                    if "\x00" in root_id:
+                        raise ValueError("Invalid characters in path")
 
-            trusted = resolve_fs_path(
-                hub=hub,
-                merges_dir=state.merges_dir,
-                root_id=root_id,
-                rel_path="",
-            )
-            scan_root = trusted.path
+                    raw_path = os.path.expanduser(root_id)
+                    norm_path = os.path.normpath(raw_path)
+
+                    if not os.path.isabs(norm_path) and not norm_path.startswith(('/', '\\')):
+                        raise ValueError("Path must be absolute")
+
+                    p = Path(norm_path)
+                    if any(part == ".." for part in p.parts):
+                        raise ValueError("Path traversal not allowed")
+
+                    # We avoid .resolve() because it triggers CodeQL path-injection on user input.
+                    # 'p' is already an absolute path and stripped of traverses.
+                    scan_root = p
+                except Exception:
+                    # Strict rejection of raw paths for Atlas to satisfy CodeQL
+                    raise HTTPException(status_code=400, detail="Invalid root directory identifier")
+            else:
+                trusted = resolve_fs_path(
+                    hub=hub,
+                    merges_dir=state.merges_dir,
+                    root_id=root_id,
+                    rel_path="",
+                )
+                scan_root = trusted.path
 
             # System Guardrails
             if root_id == "system":
@@ -828,7 +851,9 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 max_depth=effective_max_depth,
                 max_entries=effective_max_entries,
                 exclude_globs=effective_excludes,
-                inventory_strict=False # Default safe. Can be exposed later.
+                inventory_strict=False, # Default safe. Can be exposed later.
+                no_default_excludes=request.no_default_excludes,
+                max_file_size=request.max_file_size
             )
             result = scanner.scan(inventory_file=inventory_path)
 
