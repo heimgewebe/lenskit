@@ -129,6 +129,15 @@ async def add_cache_control_header(request: Request, call_next):
 
     return response
 
+def _write_json_atomic(path: Path, data: dict) -> None:
+    """Writes JSON data to a file atomically to prevent partial reads."""
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, path)
+
 # Global State
 class ServiceState:
     hub: Path = None
@@ -825,8 +834,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
         },
         "stats": {}
     }
-    with open(merges_dir / json_filename, "w", encoding="utf-8") as f:
-        json.dump(initial_state, f, indent=2)
+    _write_json_atomic(merges_dir / json_filename, initial_state)
 
     # Helper to run scan and save
     def run_scan_and_save():
@@ -878,8 +886,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             result["effective"] = initial_state["effective"]
 
             # Save JSON Stats
-            with open(merges_dir / json_filename, "w", encoding="utf-8") as f:
-                json.dump(result, f, indent=2)
+            _write_json_atomic(merges_dir / json_filename, result)
 
             # Render and Save MD
             md_content = render_atlas_md(result)
@@ -893,9 +900,8 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             # Write failed state
             failed_state = initial_state.copy()
             failed_state["status"] = "failed"
-            failed_state["error"] = str(e)
-            with open(merges_dir / json_filename, "w", encoding="utf-8") as f:
-                json.dump(failed_state, f, indent=2)
+            failed_state["error"] = "Atlas scan failed. See server logs for details."
+            _write_json_atomic(merges_dir / json_filename, failed_state)
 
     background_tasks.add_task(run_scan_and_save)
 
@@ -977,6 +983,7 @@ def list_atlas():
     artifacts = []
     for file in files:
         data = {}
+        error_msg = None
         try:
             with open(file, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -986,11 +993,14 @@ def list_atlas():
                 effective = data.get("effective", None)
                 if effective:
                     effective = AtlasEffective(**effective)
+                error_msg = data.get("error")
         except Exception:
+            logger.warning(f"Failed to read/parse atlas artifact: {file.name}")
             stats = {}
             scan_root = "?"
-            status = "completed"
+            status = "failed"
             effective = None
+            error_msg = "Unreadable artifact JSON"
 
         scan_id = file.stem # atlas-123456
 
@@ -1013,7 +1023,8 @@ def list_atlas():
             root_scanned=scan_root,
             paths=paths,
             stats=stats,
-            effective=effective
+            effective=effective,
+            error=error_msg
         ))
 
     return artifacts
