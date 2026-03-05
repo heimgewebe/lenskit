@@ -128,29 +128,18 @@ def test_atlas_max_file_size_validation():
 
 def test_atlas_max_file_size_unlimited(tmp_path: Path):
     big_file = tmp_path / "big.bin"
-    # Create a mock file
-    big_file.write_text("mock")
+    # Create a real file that is e.g. 2048 bytes
+    big_file.write_bytes(b"0" * 2048)
 
-    # We mock stat to simulate a huge file
-    original_stat = Path.stat
-    def mock_stat(self, *args, **kwargs):
-        st = original_stat(self, *args, **kwargs)
-        class MockStat:
-            st_size = 100 * 1024 * 1024 if self.name == "big.bin" else st.st_size
-            st_mtime = st.st_mtime
-            st_mode = st.st_mode
-        return MockStat()
+    # 1. With a limit strictly smaller than the file, the big file should be skipped
+    scanner = AtlasScanner(tmp_path, max_file_size=1024)
+    res = scanner.scan()
+    assert scanner.stats["total_files"] == 0
 
-    with patch.object(Path, "stat", mock_stat):
-        # 1. With default limit, the big file should be skipped
-        scanner = AtlasScanner(tmp_path)
-        res = scanner.scan()
-        assert scanner.stats["total_files"] == 0
-
-        # 2. With no limit, the big file should be included
-        scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None)
-        res_unlimited = scanner_unlimited.scan()
-        assert scanner_unlimited.stats["total_files"] == 1
+    # 2. With no limit (None), the big file should be included
+    scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None)
+    res_unlimited = scanner_unlimited.scan()
+    assert scanner_unlimited.stats["total_files"] == 1
 
 def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
     my_excludes = ["**/.custom"]

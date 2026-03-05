@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 import uuid
 import hashlib
 import json
@@ -132,8 +132,15 @@ class AtlasRequest(BaseModel):
     sample_files: bool = False
     no_default_excludes: bool = False
     # max_file_size: Limit in bytes for files included in the scan.
-    # null indicates unlimited size. >0 limits size. 0 or negative are rejected by logic.
-    max_file_size: Optional[int] = Field(default=50 * 1024 * 1024, gt=0, description="Max file size in bytes. Null for unlimited.")
+    # null indicates unlimited size. >0 limits size.
+    max_file_size: Optional[int] = Field(default=50 * 1024 * 1024, description="Max file size in bytes. Null for unlimited.")
+
+    @field_validator("max_file_size")
+    @classmethod
+    def validate_max_file_size(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("max_file_size must be a positive integer or None.")
+        return v
 
 class AtlasArtifact(BaseModel):
     id: str
