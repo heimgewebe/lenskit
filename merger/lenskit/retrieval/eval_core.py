@@ -106,7 +106,6 @@ def do_eval(
 
     hits_at_k = 0
     zero_hit_count = 0
-    error_count = 0
     total_queries = len(gold_queries)
     results_detail = []
     category_stats: Dict[str, Dict[str, Any]] = {}
@@ -182,7 +181,6 @@ def do_eval(
                 disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
                 print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
 
-            error_count += 1
             results_detail.append({
                 "query": q_text,
                 "category": cat_key,
