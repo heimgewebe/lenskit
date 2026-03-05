@@ -44,7 +44,8 @@ def run_query(args: argparse.Namespace) -> int:
             k=args.k,
             filters=applied_filters,
             embedding_policy=policy_instance,
-            explain=getattr(args, "explain", False)
+            explain=getattr(args, "explain", False),
+            overmatch_guard=getattr(args, "overmatch_guard", False)
         )
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)

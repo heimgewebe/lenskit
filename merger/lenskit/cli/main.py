@@ -37,6 +37,7 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--stale-policy", choices=["warn", "fail", "ignore"], default="fail", help="Policy for handling stale indices")
     query_parser.add_argument("--embedding-policy", help="Path to embedding-policy.v1 JSON policy instance (requests semantic pipeline; currently candidate overfetch only)")
     query_parser.add_argument("--explain", action="store_true", help="Include diagnostic explain block in query results")
+    query_parser.add_argument("--overmatch-guard", action="store_true", help="Disable synonym OR-expansion in router")
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")
