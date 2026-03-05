@@ -296,10 +296,7 @@ def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path,
 
     def mock_execute(*args, **kwargs):
         raise RuntimeError("Mock DB Crash")
-    if hasattr(eval_core, "execute_query"):
-        monkeypatch.setattr(eval_core, "execute_query", mock_execute)
-    from merger.lenskit.retrieval import query_core
-    monkeypatch.setattr(query_core, "execute_query", mock_execute)
+    monkeypatch.setattr(eval_core, "execute_query", mock_execute)
 
     cmd_eval.run_eval(Args())
     captured = capsys.readouterr()
