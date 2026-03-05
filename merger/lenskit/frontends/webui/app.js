@@ -1286,7 +1286,11 @@ async function startAtlasJob(e) {
     localStorage.setItem(ATLAS_CONFIG_KEY, JSON.stringify(config));
 
     if (typeof buildAtlasPayload !== 'function') {
-        throw new Error("atlas_payload.js not loaded: buildAtlasPayload missing");
+        console.error("atlas_payload.js not loaded: buildAtlasPayload missing");
+        alert("Internal error: atlas payload builder missing. Please hard-reload (Ctrl+Shift+R).");
+        btn.disabled = false;
+        btn.innerText = "Create Atlas";
+        return;
     }
 
     const payload = buildAtlasPayload(
