@@ -41,6 +41,10 @@ def lifecycle_client(tmp_path: Path):
     }
     (merges / "atlas-3000.json").write_text(json.dumps(running_data), encoding="utf-8")
 
+    # Snapshot middleware to prevent global test suite contamination
+    orig_middleware = list(app.user_middleware)
+    orig_stack = app.middleware_stack
+
     # Reset FastAPI middleware stack explicitly BEFORE init_service
     app.middleware_stack = None
     app.user_middleware.clear()
@@ -53,6 +57,8 @@ def lifecycle_client(tmp_path: Path):
             yield client
     finally:
         app.dependency_overrides.clear()
+        app.user_middleware = orig_middleware
+        app.middleware_stack = orig_stack
 
 def test_list_all_artifacts(lifecycle_client: TestClient):
     response = lifecycle_client.get("/api/atlas")
@@ -95,6 +101,9 @@ def test_get_latest_artifact_404_if_none_completed(tmp_path: Path):
     }
     (merges / "atlas-3000.json").write_text(json.dumps(running_data), encoding="utf-8")
 
+    orig_middleware = list(app.user_middleware)
+    orig_stack = app.middleware_stack
+
     app.middleware_stack = None
     app.user_middleware.clear()
 
@@ -108,3 +117,5 @@ def test_get_latest_artifact_404_if_none_completed(tmp_path: Path):
             assert "No completed atlas artifacts found" in response.json()["detail"]
     finally:
         app.dependency_overrides.clear()
+        app.user_middleware = orig_middleware
+        app.middleware_stack = orig_stack
