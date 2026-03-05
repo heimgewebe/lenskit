@@ -49,13 +49,18 @@ def test_atlas_invalid_utf8_filename(tmp_path: Path):
 
     # Find the entry for the file with the invalid name
     target_entry = None
+    parsed_names = []
+
     for line in lines:
+        if not line.strip():
+            continue
         entry = json.loads(line)
-        if entry["name"].startswith("invalid_"):
+        parsed_names.append(entry["name"])
+        if entry["name"].startswith("invalid_") and entry["name"].endswith("_name.txt"):
             target_entry = entry
             break
 
-    assert target_entry is not None, "Target file with invalid utf-8 was not found in the inventory"
+    assert target_entry is not None, f"Target file with invalid utf-8 was not found in the inventory. Found names: {parsed_names[:20]}"
 
     # Check that the filename string contains escaped unicode sequences.
     # When python parses the JSON \uXXXX string, it restores the surrogate character.
