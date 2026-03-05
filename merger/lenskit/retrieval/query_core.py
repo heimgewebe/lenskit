@@ -36,6 +36,7 @@ def execute_query(
         query_mode = "metadata"
         fts_query_str = None
         router_output = None
+        routed_query_raw = query_text
 
         if query_text:
             engine_type = "fts5"
@@ -46,6 +47,7 @@ def execute_query(
 
             # Use routed fts_query if available, fallback to original query
             routed_query = router_output["fts_query"] if router_output["fts_query"] else query_text
+            routed_query_raw = routed_query
 
             # FTS Query: Escape double quotes
             cleaned_q = routed_query.replace('"', '""')
@@ -224,8 +226,7 @@ def execute_query(
         elif "no such function: bm25" in msg or "unable to use function bm25" in msg:
             raise RuntimeError("SQLite FTS5 auxiliary function 'bm25' missing.") from e
         elif "syntax error" in msg:
-            routed_query = fts_query_str if fts_query_str is not None else ""
-            raise RuntimeError(f"FTS syntax error. original='{query_text}', routed='{routed_query}'") from e
+            raise RuntimeError(f"FTS syntax error. original='{query_text}', routed='{routed_query_raw}'") from e
         else:
             raise RuntimeError(f"Database error executing query: {e}") from e
     finally:

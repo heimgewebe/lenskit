@@ -28,9 +28,12 @@ SYNONYMS = {
 }
 
 def route_query(query_text: str, overmatch_guard: bool = False) -> Dict[str, Any]:
-    """
+    r"""
     Parses the query text and extracts intents, removes stop-verbs,
     and performs synonym OR-expansion if overmatch_guard is False.
+
+    Note on tokenization: Uses `\b\w+\b`, intentionally dropping characters
+    like `-` or `+` to maintain robust behavior in SQLite FTS matching.
     """
     if not query_text:
         return {
