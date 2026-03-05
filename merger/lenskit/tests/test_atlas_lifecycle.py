@@ -4,7 +4,7 @@ import json
 import time
 from fastapi.testclient import TestClient
 
-from merger.lenskit.service.app import app, init_service
+from merger.lenskit.service.app import app, init_service, verify_token
 from merger.lenskit.service.models import AtlasArtifact
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def lifecycle_client(tmp_path: Path):
         "created_at": "2024-01-01T10:00:00Z",
         "error": "Failed early"
     }
-    (merges / "atlas-1000.json").write_text(json.dumps(failed_data))
+    (merges / "atlas-1000.json").write_text(json.dumps(failed_data), encoding="utf-8")
 
     # Middle: Completed
     completed_data = {
@@ -31,7 +31,7 @@ def lifecycle_client(tmp_path: Path):
         "created_at": "2024-01-02T10:00:00Z",
         "stats": {"total_files": 1}
     }
-    (merges / "atlas-2000.json").write_text(json.dumps(completed_data))
+    (merges / "atlas-2000.json").write_text(json.dumps(completed_data), encoding="utf-8")
 
     # Newest: Running
     running_data = {
@@ -39,7 +39,7 @@ def lifecycle_client(tmp_path: Path):
         "root": "/test",
         "created_at": "2024-01-03T10:00:00Z"
     }
-    (merges / "atlas-3000.json").write_text(json.dumps(running_data))
+    (merges / "atlas-3000.json").write_text(json.dumps(running_data), encoding="utf-8")
 
     # Reset FastAPI middleware stack explicitly BEFORE init_service
     app.middleware_stack = None
@@ -47,8 +47,12 @@ def lifecycle_client(tmp_path: Path):
 
     init_service(hub_path=hub, merges_dir=merges)
 
-    with TestClient(app) as client:
-        yield client
+    app.dependency_overrides[verify_token] = lambda: True
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.dependency_overrides.clear()
 
 def test_list_all_artifacts(lifecycle_client: TestClient):
     response = lifecycle_client.get("/api/atlas")
@@ -89,14 +93,18 @@ def test_get_latest_artifact_404_if_none_completed(tmp_path: Path):
         "root": "/test",
         "created_at": "2024-01-03T10:00:00Z"
     }
-    (merges / "atlas-3000.json").write_text(json.dumps(running_data))
+    (merges / "atlas-3000.json").write_text(json.dumps(running_data), encoding="utf-8")
 
     app.middleware_stack = None
     app.user_middleware.clear()
 
     init_service(hub_path=hub, merges_dir=merges)
 
-    with TestClient(app) as client:
-        response = client.get("/api/atlas/latest")
-        assert response.status_code == 404
-        assert "No completed atlas artifacts found" in response.json()["detail"]
+    app.dependency_overrides[verify_token] = lambda: True
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/atlas/latest")
+            assert response.status_code == 404
+            assert "No completed atlas artifacts found" in response.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
