@@ -110,6 +110,9 @@ def generate_import_graph_document(
                         "is_test": is_test,
                         "size_bytes": stat.st_size
                     }
+                else:
+                    # Update placeholder node
+                    nodes[node_id]["size_bytes"] = stat.st_size
 
                 # Find imports
                 for node in ast.walk(tree):
@@ -118,18 +121,7 @@ def generate_import_graph_document(
                             dst_module = alias.name
                             dst_id = _get_module_id(dst_module)
 
-                            # Add dst node if it doesn't exist
-                            if dst_id not in nodes:
-                                nodes[dst_id] = {
-                                    "node_id": dst_id,
-                                    "kind": "external",
-                                    "path": "",
-                                    "repo": "",
-                                    "language": "python",
-                                    "layer": "unknown",
-                                    "is_test": False,
-                                    "size_bytes": 0
-                                }
+                            destinations = [dst_module]
 
                             evidence: Evidence = {
                                 "source_path": rel_path,
@@ -138,59 +130,118 @@ def generate_import_graph_document(
                                 evidence["start_line"] = node.lineno
                                 evidence["end_line"] = getattr(node, 'end_lineno', node.lineno)
 
-                            edges.append({
-                                "src": node_id,
-                                "dst": dst_id,
-                                "edge_type": "import",
-                                "evidence_level": "S1",
-                                "evidence": evidence
-                            })
+                            for dest in destinations:
+                                dst_id = _get_module_id(dest)
+                                if dst_id not in nodes:
+                                    nodes[dst_id] = {
+                                        "node_id": dst_id,
+                                        "kind": "external",
+                                        "path": "",
+                                        "repo": "",
+                                        "language": "python",
+                                        "layer": "unknown",
+                                        "is_test": False,
+                                        "size_bytes": 0
+                                    }
+                                edges.append({
+                                    "src": node_id,
+                                    "dst": dst_id,
+                                    "edge_type": "import",
+                                    "evidence_level": "S1",
+                                    "evidence": evidence
+                                })
 
                     elif isinstance(node, ast.ImportFrom):
-                        # For relative imports (node.level > 0), we prefix dots for relative imports.
-                        if node.module is not None:
-                            dst_module = node.module
-                            if node.level > 0:
-                                dst_module = "." * node.level + dst_module
-                        else:
-                            # It's an import like `from . import b`, so the module names are in names
-                            if node.level > 0:
-                                dst_module = "." * node.level
-                            else:
-                                continue # Should not happen
-
-                        # If we have a single module resolution, let's treat it as dst.
-                        # For `from . import b, c`, the names list contains b and c.
-                        # For `from os import path`, module is 'os'.
-                        # Let's collect destinations:
                         destinations = []
-                        if node.module is not None:
-                            destinations.append(dst_module)
+                        is_relative = node.level > 0
+
+                        if is_relative:
+                            # Relative imports
+                            if node.module is not None:
+                                current_dir = file_path.parent
+                                for _ in range(node.level - 1):
+                                    current_dir = current_dir.parent
+
+                                # Try resolving to a file if alias is not '*'
+                                for alias in node.names:
+                                    if alias.name == "*":
+                                        continue
+
+                                    # Target could be current_dir / module_dir / alias.name.py
+                                    # Or target could be current_dir / module.py (and alias is just something inside)
+                                    # We try module_dir / alias.name.py first
+                                    module_parts = node.module.split('.')
+
+                                    target_dir = current_dir
+                                    for part in module_parts:
+                                        target_dir = target_dir / part
+
+                                    target_file = target_dir / f"{alias.name}.py"
+                                    if target_file.is_file():
+                                        destinations.append(f"file:{target_file.relative_to(repo_root).as_posix()}")
+                                    elif (current_dir / f"{module_parts[0]}.py").is_file():
+                                        # e.g., from .b import bar where b is b.py
+                                        destinations.append(f"file:{(current_dir / f'{module_parts[0]}.py').relative_to(repo_root).as_posix()}")
+                                    else:
+                                        # Fallback to string module representations
+                                        dest_mod = "." * node.level + node.module
+                                        destinations.append(f"module:{dest_mod}")
+                                        destinations.append(f"module:{dest_mod}.{alias.name}")
+                            else:
+                                # from . import b
+                                current_dir = file_path.parent
+                                for _ in range(node.level - 1):
+                                    current_dir = current_dir.parent
+
+                                for alias in node.names:
+                                    target_file = current_dir / f"{alias.name}.py"
+                                    if target_file.is_file():
+                                        destinations.append(f"file:{target_file.relative_to(repo_root).as_posix()}")
+                                    else:
+                                        destinations.append(f"module:{'.' * node.level}{alias.name}")
                         else:
-                            for alias in node.names:
-                                destinations.append(dst_module + alias.name)
+                            # Absolute ImportFrom (e.g., from os import path)
+                            if node.module is not None:
+                                destinations.append(f"module:{node.module}")
+                                for alias in node.names:
+                                    if alias.name != "*":
+                                        destinations.append(f"module:{node.module}.{alias.name}")
+
+                        evidence: Evidence = {
+                            "source_path": rel_path,
+                        }
+                        if hasattr(node, 'lineno'):
+                            evidence["start_line"] = node.lineno
+                            evidence["end_line"] = getattr(node, 'end_lineno', node.lineno)
 
                         for dest in destinations:
-                            dst_id = _get_module_id(dest)
-
-                            if dst_id not in nodes:
-                                nodes[dst_id] = {
-                                    "node_id": dst_id,
-                                    "kind": "external",
-                                    "path": "",
-                                    "repo": "",
-                                    "language": "python",
-                                    "layer": "unknown",
-                                    "is_test": False,
-                                    "size_bytes": 0
-                                }
-
-                            evidence: Evidence = {
-                                "source_path": rel_path,
-                            }
-                            if hasattr(node, 'lineno'):
-                                evidence["start_line"] = node.lineno
-                                evidence["end_line"] = getattr(node, 'end_lineno', node.lineno)
+                            if dest.startswith("file:"):
+                                dst_id = dest
+                                # if it's a file but not in nodes, we can add a placeholder, it will be filled when visited
+                                if dst_id not in nodes:
+                                    nodes[dst_id] = {
+                                        "node_id": dst_id,
+                                        "kind": "file",
+                                        "path": dest[5:],
+                                        "repo": "",
+                                        "language": "python",
+                                        "layer": "unknown",
+                                        "is_test": _is_test_file(dest[5:]),
+                                        "size_bytes": 0 # placeholder
+                                    }
+                            else:
+                                dst_id = dest
+                                if dst_id not in nodes:
+                                    nodes[dst_id] = {
+                                        "node_id": dst_id,
+                                        "kind": "external",
+                                        "path": "",
+                                        "repo": "",
+                                        "language": "python",
+                                        "layer": "unknown",
+                                        "is_test": False,
+                                        "size_bytes": 0
+                                    }
 
                             edges.append({
                                 "src": node_id,
@@ -202,7 +253,15 @@ def generate_import_graph_document(
 
     # Determinism: sort nodes and edges
     sorted_nodes = sorted(nodes.values(), key=lambda n: n["node_id"])
-    sorted_edges = sorted(edges, key=lambda e: (e["src"], e["dst"], e["evidence"].get("start_line", 0)))
+
+    # Deduplicate edges
+    unique_edges = {}
+    for e in edges:
+        key = (e["src"], e["dst"], e["evidence"].get("start_line", 0))
+        if key not in unique_edges:
+            unique_edges[key] = e
+
+    sorted_edges = sorted(unique_edges.values(), key=lambda e: (e["src"], e["dst"], e["evidence"].get("start_line", 0)))
 
     # Coverage
     unknown_layer_count = sum(1 for n in sorted_nodes if n.get("layer") == "unknown")
@@ -227,7 +286,7 @@ def generate_import_graph_document(
         "version": "1.0",
         "run_id": run_id,
         "canonical_dump_index_sha256": canonical_dump_index_sha256,
-        "generated_at": datetime.now(timezone.utc).isoformat()[:19] + "Z",
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "granularity": "file",
         "nodes": sorted_nodes,
         "edges": sorted_edges,

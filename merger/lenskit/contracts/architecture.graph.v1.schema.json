@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "lenskit/schema/architecture.graph.v1.schema.json",
+  "$id": "urn:lenskit:schema:architecture.graph.v1.schema.json",
   "title": "Architecture Graph (architecture.graph v1)",
   "type": "object",
   "additionalProperties": false,

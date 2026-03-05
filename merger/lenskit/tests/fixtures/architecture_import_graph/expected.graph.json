@@ -1,0 +1,209 @@
+{
+  "kind": "lenskit.architecture.graph",
+  "version": "1.0",
+  "run_id": "123",
+  "canonical_dump_index_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "generated_at": "2024-01-01T00:00:00Z",
+  "granularity": "file",
+  "nodes": [
+    {
+      "node_id": "file:a.py",
+      "kind": "file",
+      "path": "a.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 102
+    },
+    {
+      "node_id": "file:b.py",
+      "kind": "file",
+      "path": "b.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 48
+    },
+    {
+      "node_id": "module:json",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:logging",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:os",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:os.path",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:sys",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:typing",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:typing.List",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    }
+  ],
+  "edges": [
+    {
+      "src": "file:a.py",
+      "dst": "file:b.py",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "a.py",
+        "start_line": 3,
+        "end_line": 3
+      }
+    },
+    {
+      "src": "file:a.py",
+      "dst": "module:os",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "a.py",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "src": "file:a.py",
+      "dst": "module:os",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "a.py",
+        "start_line": 4,
+        "end_line": 4
+      }
+    },
+    {
+      "src": "file:a.py",
+      "dst": "module:os.path",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "a.py",
+        "start_line": 4,
+        "end_line": 4
+      }
+    },
+    {
+      "src": "file:a.py",
+      "dst": "module:sys",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "a.py",
+        "start_line": 2,
+        "end_line": 2
+      }
+    },
+    {
+      "src": "file:a.py",
+      "dst": "module:typing",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "a.py",
+        "start_line": 5,
+        "end_line": 5
+      }
+    },
+    {
+      "src": "file:a.py",
+      "dst": "module:typing.List",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "a.py",
+        "start_line": 5,
+        "end_line": 5
+      }
+    },
+    {
+      "src": "file:b.py",
+      "dst": "module:json",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "b.py",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "src": "file:b.py",
+      "dst": "module:logging",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "b.py",
+        "start_line": 2,
+        "end_line": 2
+      }
+    }
+  ],
+  "coverage": {
+    "files_seen": 2,
+    "files_parsed": 2,
+    "edge_counts_by_type": {
+      "import": 9
+    },
+    "unknown_layer_share": 1.0
+  }
+}

@@ -66,8 +66,9 @@ def main(args: Optional[List[str]] = None) -> int:
     # Architecture command
     architecture_parser = subparsers.add_parser("architecture", help="Extract architecture views")
     architecture_parser.add_argument("--repo", default=".", help="Path to repository root")
-    architecture_parser.add_argument("--entrypoints", action="store_true", help="Extract entrypoints")
-    architecture_parser.add_argument("--import-graph", action="store_true", help="Extract Python import graph")
+    architecture_group = architecture_parser.add_mutually_exclusive_group(required=True)
+    architecture_group.add_argument("--entrypoints", action="store_true", help="Extract entrypoints")
+    architecture_group.add_argument("--import-graph", action="store_true", help="Extract Python import graph")
 
     # Atlas command
     atlas_parser = subparsers.add_parser("atlas", help="Atlas filesystem crawler")
