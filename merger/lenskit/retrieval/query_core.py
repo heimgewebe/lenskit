@@ -2,12 +2,17 @@ import sqlite3
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+WHY_ZERO_TOKENS = "tokens too restrictive"
+WHY_ZERO_FILTERS = "filters too restrictive"
+WHY_ZERO_NONE = "no results"
+
 def execute_query(
     index_path: Path,
     query_text: str,
     k: int = 10,
     filters: Optional[Dict[str, Optional[str]]] = None,
-    embedding_policy: Optional[Dict[str, Any]] = None
+    embedding_policy: Optional[Dict[str, Any]] = None,
+    explain: bool = False
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -178,6 +183,23 @@ def execute_query(
         }
         if fts_query_str is not None:
             out["fts_query"] = fts_query_str
+
+        if explain:
+            explain_block = {}
+            explain_block["fts_query"] = fts_query_str if fts_query_str is not None else ""
+            explain_block["filters"] = {k: v for k, v in (filters or {}).items() if v}
+            if len(results) == 0:
+                if fts_query_str is not None:
+                    explain_block["why_zero"] = WHY_ZERO_TOKENS
+                elif explain_block["filters"]:
+                    explain_block["why_zero"] = WHY_ZERO_FILTERS
+                else:
+                    explain_block["why_zero"] = WHY_ZERO_NONE
+            else:
+                # extract top-k scoring from the hits
+                # we just need a summary of scores
+                explain_block["top_k_scoring"] = [{"chunk_id": r["chunk_id"], "score": r["score"]} for r in results[:k]]
+            out["explain"] = explain_block
 
         return out
 

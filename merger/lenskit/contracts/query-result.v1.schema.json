@@ -48,6 +48,11 @@
       "minimum": 0,
       "description": "The number of results returned."
     },
+    "explain": {
+      "type": "object",
+      "description": "Diagnostic explanation of the query execution and ranking. Diagnostic, best-effort; structure may evolve; consumers must ignore unknown keys.",
+      "additionalProperties": true
+    },
     "results": {
       "type": "array",
       "description": "The list of matched items.",

@@ -24,6 +24,7 @@ def mini_index(tmp_path):
     dump_path.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
 
     index_db.build_index(dump_path, chunk_path, db_path)
+
     return db_path
 
 def test_query_metadata_filter(mini_index):
@@ -125,6 +126,25 @@ def test_query_semantic_markers(mini_index):
     assert semantic_diag["provider"] == "api"
     assert semantic_diag["model_name"] == "test-model"
 
+def test_query_explain(mini_index):
+    res = query_core.execute_query(mini_index, query_text="hello", k=10, explain=True)
+    assert "explain" in res
+    explain = res["explain"]
+    assert "fts_query" in explain
+    assert explain["fts_query"] == "hello"
+    assert "top_k_scoring" in explain
+    assert len(explain["top_k_scoring"]) == 1
+    assert explain["top_k_scoring"][0]["chunk_id"] == "c1"
+
+def test_query_explain_zero_hits(mini_index):
+    res = query_core.execute_query(mini_index, query_text="zebra", k=10, filters={"layer": "core"}, explain=True)
+    assert "explain" in res
+    explain = res["explain"]
+    assert "fts_query" in explain
+    assert explain["filters"]["layer"] == "core"
+    assert "why_zero" in explain
+    assert explain["why_zero"] == query_core.WHY_ZERO_TOKENS
+
 def test_query_semantic_fallback_fail(mini_index):
     policy = {
         "model_name": "test-model",
@@ -180,3 +200,63 @@ def test_query_unable_to_use_bm25_handling(mini_index, monkeypatch):
         query_core.execute_query(mini_index, query_text="foo", k=10)
 
     assert "SQLite FTS5 auxiliary function 'bm25' missing" in str(excinfo.value)
+
+def test_explain_json_stable_order(mini_index):
+    """
+    Golden Test: Ensure Explain JSON output has a stable prefix order (fts_query, filters) and required keys present.
+    Dictionaries in Python 3.7+ maintain insertion order. We enforce the required schema fields
+    to ensure the output matches expected 'Golden' prefix ordering.
+    """
+    res = query_core.execute_query(
+        index_path=mini_index,
+        query_text="hello",
+        k=5,
+        filters={"layer": "core"},
+        explain=True
+    )
+
+    assert "explain" in res
+    explain = res["explain"]
+
+    actual_keys = list(explain.keys())
+
+    assert actual_keys[:2] == ["fts_query", "filters"], f"Prefix order mismatch: {actual_keys[:2]} != ['fts_query', 'filters']"
+    assert "top_k_scoring" in actual_keys, "Missing 'top_k_scoring'"
+
+    # For zero results
+    res_zero = query_core.execute_query(
+        index_path=mini_index,
+        query_text="zebra",
+        k=5,
+        filters={"layer": "core"},
+        explain=True
+    )
+
+    explain_zero = res_zero["explain"]
+    actual_zero_keys = list(explain_zero.keys())
+
+    assert actual_zero_keys[:2] == ["fts_query", "filters"], f"Prefix order mismatch: {actual_zero_keys[:2]} != ['fts_query', 'filters']"
+    assert "why_zero" in actual_zero_keys, "Missing 'why_zero'"
+
+def test_cmd_query_json_emit(mini_index, capsys):
+    from merger.lenskit.cli import cmd_query
+    import argparse
+
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=10,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=True
+    )
+    ret = cmd_query.run_query(args)
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert captured.err == "", f"Expected empty stderr, got: {captured.err}"
+    parsed = json.loads(captured.out)
+    assert isinstance(parsed, dict)
+    assert "results" in parsed
+    assert "explain" in parsed
