@@ -224,7 +224,8 @@ def execute_query(
         elif "no such function: bm25" in msg or "unable to use function bm25" in msg:
             raise RuntimeError("SQLite FTS5 auxiliary function 'bm25' missing.") from e
         elif "syntax error" in msg:
-            raise RuntimeError(f"FTS syntax error in query: '{query_text}'. Try simpler terms or quoting.") from e
+            routed_query = fts_query_str if fts_query_str is not None else ""
+            raise RuntimeError(f"FTS syntax error. original='{query_text}', routed='{routed_query}'") from e
         else:
             raise RuntimeError(f"Database error executing query: {e}") from e
     finally:

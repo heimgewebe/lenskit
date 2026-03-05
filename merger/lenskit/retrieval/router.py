@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 STOP_VERBS = {
     "show", "find", "get", "where", "how", "what", "is", "are", "does", "do",
@@ -44,10 +44,13 @@ def route_query(query_text: str, overmatch_guard: bool = False) -> Dict[str, Any
 
     # 1. Intent Extraction
     detected_intent = "unknown"
+    best_pos = len(tokens) + 1
+
     for intent, triggers in INTENT_TRIGGERS.items():
-        if any(t in tokens for t in triggers):
-            detected_intent = intent
-            break
+        for idx, token in enumerate(tokens):
+            if token in triggers and idx < best_pos:
+                best_pos = idx
+                detected_intent = intent
 
     # 2. Stop-Verb Removal
     filtered_tokens = [t for t in tokens if t not in STOP_VERBS]
@@ -59,15 +62,23 @@ def route_query(query_text: str, overmatch_guard: bool = False) -> Dict[str, Any
     fts_parts = []
     synonyms_used = set()
 
+    FTS_RESERVED = {"and", "or", "not", "near"}
+
+    def safe_token(t: str) -> str:
+        if t.lower() in FTS_RESERVED:
+            return f'"{t}"'
+        return t
+
     for token in filtered_tokens:
         if not overmatch_guard and token in SYNONYMS:
             expansions = [token] + SYNONYMS[token]
             synonyms_used.update(SYNONYMS[token])
             # Construct OR group, e.g., (index OR indexing OR build_index)
-            or_group = " OR ".join(expansions)
+            safe_expansions = [safe_token(e) for e in expansions]
+            or_group = " OR ".join(safe_expansions)
             fts_parts.append(f"({or_group})")
         else:
-            fts_parts.append(token)
+            fts_parts.append(safe_token(token))
 
     # Join the FTS parts
     fts_query = " AND ".join(fts_parts)

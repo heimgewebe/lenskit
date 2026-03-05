@@ -27,10 +27,26 @@ def test_route_query_intent_extraction():
     assert "cli" in res["fts_query"]
 
     res2 = route_query("show me the auth layer")
-    assert res2["intent"] == "architecture" # "layer" triggers architecture, wait, "auth" is security. "auth layer" - "auth" (security) comes before "layer" (architecture)? Let's check intent iteration order.
-    # Python dict iteration order for intent extraction.
-    # Security has auth.
-    assert res2["intent"] in ["security", "architecture"]
+    # "auth" (security) comes before "layer" (architecture)
+    assert res2["intent"] == "security"
+
+    res3 = route_query("what is the architecture of the auth service")
+    # "architecture" comes before "auth"
+    assert res3["intent"] == "architecture"
+
+def test_route_query_fts_escaping():
+    # 'and' and 'or' are reserved in FTS5
+    res = route_query("find auth or config")
+    # 'find' is stop verb
+    # 'auth' -> expanded
+    # 'or' -> should be "or"
+    # 'config' -> expanded
+    assert '"or"' in res["fts_query"]
+    assert " OR " in res["fts_query"] # The synonym separator OR should still exist, but not quoted
+
+    # check that we indeed have the exact phrase for token "or" escaped
+    # Should look roughly like: (auth OR authentication...) AND "or" AND (config OR ...)
+    assert 'AND "or" AND' in res["fts_query"]
 
 def test_route_query_synonym_expansion():
     res = route_query("database settings")
