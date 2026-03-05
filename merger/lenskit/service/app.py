@@ -718,6 +718,10 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     if not hub:
         raise HTTPException(status_code=400, detail="Hub not configured")
 
+    # Validation
+    if request.max_file_size is not None and request.max_file_size <= 0:
+        raise HTTPException(status_code=400, detail="max_file_size must be a positive integer or null.")
+
     # Defaults for effective params
     effective_max_depth = request.max_depth
     effective_max_entries = request.max_entries
