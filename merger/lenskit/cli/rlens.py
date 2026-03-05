@@ -70,6 +70,11 @@ def main():
     atlas_scan_parser.add_argument("--depth", type=int, default=6, help="Maximum depth to scan")
     atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
 
+    # Architecture command
+    arch_parser = subparsers.add_parser("architecture", help="Extract architectural views of a repository")
+    arch_parser.add_argument("repo", nargs="?", default=".", help="The repository path to scan (default: current directory)")
+    arch_parser.add_argument("--entrypoints", action="store_true", help="Extract python entrypoints as JSON")
+
     # Server mode (default when no subcommands provided)
     parser.add_argument("--host", default=os.environ.get("RLENS_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=_get_port())
@@ -92,6 +97,10 @@ def main():
         else:
             parser.parse_args(["atlas", "--help"])
             sys.exit(0)
+
+    if args.command == "architecture":
+        from . import cmd_architecture
+        sys.exit(cmd_architecture.run_architecture_cmd(args))
 
     # 1. Validate Hub Path
     if not args.hub:
