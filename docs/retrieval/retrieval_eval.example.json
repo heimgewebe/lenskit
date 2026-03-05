@@ -2,11 +2,31 @@
   "metrics": {
     "total_queries": 15,
     "hits": 12,
-    "recall@10": 80.0
+    "stale_flag": false,
+    "recall@10": 80.0,
+    "zero_hit_ratio": 0.4,
+    "categories": {
+      "architecture": {
+        "total_queries": 5,
+        "hits": 4,
+        "recall@10": 80.0
+      },
+      "feature": {
+        "total_queries": 5,
+        "hits": 4,
+        "recall@10": 80.0
+      },
+      "uncategorized": {
+        "total_queries": 5,
+        "hits": 4,
+        "recall@10": 80.0
+      }
+    }
   },
   "details": [
     {
       "query": "index",
+      "category": "architecture",
       "filters": {},
       "expected": [
         "index_db.py",
@@ -21,6 +41,7 @@
     },
     {
       "query": "merge",
+      "category": "feature",
       "filters": {},
       "expected": [
         "merge.py",
@@ -36,6 +57,7 @@
     },
     {
       "query": "chunk",
+      "category": "architecture",
       "filters": {},
       "expected": ["chunker.py", "Chunker"],
       "is_relevant": true,
@@ -45,6 +67,7 @@
     },
     {
       "query": "cli",
+      "category": "feature",
       "filters": {"layer": "cli"},
       "expected": ["argparse", "main.py", "cli/"],
       "is_relevant": true,
@@ -54,6 +77,7 @@
     },
     {
       "query": "test",
+      "category": "uncategorized",
       "filters": {"layer": "test"},
       "expected": ["conftest.py", "fixtures/"],
       "is_relevant": true,
@@ -63,6 +87,7 @@
     },
     {
       "query": "find auth logic",
+      "category": "architecture",
       "filters": {},
       "expected": ["auth.py", "login"],
       "is_relevant": false,
@@ -73,6 +98,7 @@
     },
     {
       "query": "find database schema",
+      "category": "feature",
       "filters": {},
       "expected": ["models.py", "schema.sql"],
       "is_relevant": false,
@@ -83,6 +109,7 @@
     },
     {
       "query": "find api routes",
+      "category": "architecture",
       "filters": {},
       "expected": ["routes.py", "urls.py", "@app.get"],
       "is_relevant": false,
@@ -93,6 +120,7 @@
     },
     {
       "query": "find error handling",
+      "category": "uncategorized",
       "filters": {},
       "expected": ["exceptions.py", "error_handler"],
       "is_relevant": true,
@@ -102,6 +130,7 @@
     },
     {
       "query": "find logging setup",
+      "category": "feature",
       "filters": {},
       "expected": ["logging.config", "structlog"],
       "is_relevant": false,
@@ -112,6 +141,7 @@
     },
     {
       "query": "find user model",
+      "category": "architecture",
       "filters": {},
       "expected": ["class User"],
       "is_relevant": false,
@@ -122,6 +152,7 @@
     },
     {
       "query": "find config parsing",
+      "category": "feature",
       "filters": {},
       "expected": ["config.py", "settings.py"],
       "is_relevant": true,
@@ -131,6 +162,7 @@
     },
     {
       "query": "find rate limiting",
+      "category": "uncategorized",
       "filters": {},
       "expected": ["ratelimit"],
       "is_relevant": false,
@@ -141,6 +173,7 @@
     },
     {
       "query": "find dependency definition",
+      "category": "uncategorized",
       "filters": {},
       "expected": ["requirements.txt", "pyproject.toml"],
       "is_relevant": true,
@@ -150,6 +183,7 @@
     },
     {
       "query": "find docker configuration",
+      "category": "uncategorized",
       "filters": {},
       "expected": ["Dockerfile"],
       "is_relevant": true,

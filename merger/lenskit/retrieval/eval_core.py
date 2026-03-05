@@ -22,6 +22,7 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
             for item in data:
                 queries.append({
                     "query": item.get("query", ""),
+                    "category": item.get("category"),
                     "expected_paths": item.get("expected_patterns", []),
                     "filters": item.get("filters", {}),
                     "accept_criteria": item.get("accept_criteria", {})
@@ -45,6 +46,7 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
                 queries.append(current_query)
             current_query = {
                 "query": m_title.group(1),
+                "category": None,
                 "expected_paths": [],
                 "filters": {},
                 "accept_criteria": {}
@@ -59,6 +61,11 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         if re.match(r"^\*?Expected:?\*?", clean_line, re.IGNORECASE):
             expected_terms = re.findall(r"`([^`]+)`", line)
             current_query["expected_paths"].extend(expected_terms)
+
+        m_category = re.match(r"^\*?Category:?\*?\s*(.+)$", clean_line, re.IGNORECASE)
+        if m_category:
+            current_query["category"] = m_category.group(1).strip()
+            continue
 
         if re.match(r"^\*?Filter:?\*?", clean_line, re.IGNORECASE):
             parts = clean_line.split(":", 1)
@@ -98,13 +105,21 @@ def do_eval(
         print("-" * 60)
 
     hits_at_k = 0
+    zero_hit_count = 0
     total_queries = len(gold_queries)
     results_detail = []
+    category_stats: Dict[str, Dict[str, int]] = {}
 
     for q in gold_queries:
         q_text = q["query"]
+        category = q.get("category")
         filters = q["filters"]
         expected = q["expected_paths"]
+
+        cat_key = category if category else "uncategorized"
+        if cat_key not in category_stats:
+            category_stats[cat_key] = {"total_queries": 0, "hits": 0}
+        category_stats[cat_key]["total_queries"] += 1
 
         try:
             res = execute_query(
@@ -132,8 +147,12 @@ def do_eval(
                 if is_relevant:
                     break
 
+            if res["count"] == 0:
+                zero_hit_count += 1
+
             if is_relevant:
                 hits_at_k += 1
+                category_stats[cat_key]["hits"] += 1
 
             if not is_json_mode:
                 rel_mark = "✅" if is_relevant else "❌"
@@ -143,6 +162,7 @@ def do_eval(
 
             detail = {
                 "query": q_text,
+                "category": category,
                 "filters": filters,
                 "expected": expected,
                 "is_relevant": is_relevant,
@@ -161,8 +181,10 @@ def do_eval(
                 disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
                 print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
 
+            zero_hit_count += 1
             results_detail.append({
                 "query": q_text,
+                "category": category,
                 "filters": filters,
                 "expected": expected,
                 "is_relevant": False,
@@ -177,10 +199,19 @@ def do_eval(
             })
 
     recall_at_k = (hits_at_k / total_queries) * 100.0 if total_queries > 0 else 0.0
+    zero_hit_ratio = zero_hit_count / total_queries if total_queries > 0 else 0.0
+
+    for cat_data in category_stats.values():
+        c_total = cat_data["total_queries"]
+        c_hits = cat_data["hits"]
+        cat_data[f"recall@{k}"] = (c_hits / c_total) * 100.0 if c_total > 0 else 0.0
 
     if not is_json_mode:
         print("-" * 60)
         print(f"Recall@{k}: {recall_at_k:.1f}% ({hits_at_k}/{total_queries})")
+        print(f"0-Hits Ratio: {zero_hit_ratio:.2f} ({zero_hit_count}/{total_queries})")
+        for cat, stats in category_stats.items():
+            print(f"  {cat} Recall@{k}: {stats[f'recall@{k}']:.1f}% ({stats['hits']}/{stats['total_queries']})")
         print("-" * 60)
 
     out = {
@@ -188,7 +219,9 @@ def do_eval(
             f"recall@{k}": recall_at_k,
             "total_queries": total_queries,
             "hits": hits_at_k,
-            "stale_flag": is_stale
+            "stale_flag": is_stale,
+            "zero_hit_ratio": zero_hit_ratio,
+            "categories": category_stats
         },
         "details": results_detail
     }
