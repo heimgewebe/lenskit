@@ -137,12 +137,14 @@ class AtlasRequest(BaseModel):
 
 class AtlasArtifact(BaseModel):
     id: str
+    status: Literal["running", "completed", "failed"] = "completed"
     created_at: str
     hub: str
     root_scanned: str
     paths: Dict[str, str] # {"json": "...", "md": "..."}
     stats: Dict[str, Any] # Summary stats
     effective: Optional[AtlasEffective] = None # Effective parameters (max_depth, etc)
+    error: Optional[str] = None # Generic error message if failed
 
 class Artifact(BaseModel):
     id: str

@@ -1364,81 +1364,167 @@ async function startAtlasJob(e) {
     }
 }
 
+let _atlasPollingTimeout = null;
+
 async function loadAtlasArtifacts() {
     const list = document.getElementById('atlasList');
-    list.innerHTML = '<div class="text-gray-500 italic">Loading...</div>';
+    if (!list.innerHTML || list.innerHTML.includes('No atlas artifacts')) {
+        list.innerHTML = '<div class="text-gray-500 italic">Loading...</div>';
+    }
 
     try {
-        // We only have 'latest' endpoint for now or we could list all files in merges dir via fs list?
-        // But app.py has /api/atlas/latest.
-        // Let's use /api/atlas/latest to show the current map.
-        // Or if we want a list, we need an endpoint.
-        // The instruction B3 said: GET /api/atlas/latest.
-        // But UI shows "Atlas Results".
-
-        const res = await apiFetch(`${API_BASE}/atlas/latest`);
+        const res = await apiFetch(`${API_BASE}/atlas`);
         if (res.status === 404) {
              list.innerHTML = '<div class="text-gray-500 italic">No atlas artifacts found.</div>';
              return;
         }
         if (!res.ok) throw new Error("Failed to load atlas");
 
-        const art = await res.json();
+        const artifacts = await res.json();
+
+        if (artifacts.length === 0) {
+            list.innerHTML = '<div class="text-gray-500 italic">No atlas artifacts found.</div>';
+            return;
+        }
 
         list.innerHTML = '';
 
-        const div = document.createElement('div');
-        div.className = "bg-gray-900 p-2 rounded border border-gray-700 flex flex-col";
+        let anyRunning = false;
 
-        const date = new Date(art.created_at).toLocaleString();
+        artifacts.forEach(art => {
+            const div = document.createElement('div');
+            div.className = "bg-gray-900 p-2 rounded border border-gray-700 flex flex-col mb-2";
 
-        // Show Stats if available
-        let statsHtml = '';
-        if (art.stats && art.stats.total_files) {
-            const mb = (art.stats.total_bytes / (1024*1024)).toFixed(2);
-            statsHtml = `
-                <div class="mt-2 text-xs grid grid-cols-2 gap-2 text-gray-400">
-                    <div>Files: <span class="text-white">${art.stats.total_files}</span></div>
-                    <div>Dirs: <span class="text-white">${art.stats.total_dirs}</span></div>
-                    <div>Size: <span class="text-white">${mb} MB</span></div>
-                    <div>Duration: <span class="text-white">${art.stats.duration_seconds.toFixed(2)}s</span></div>
-                </div>
-            `;
-        }
+            const date = new Date(art.created_at).toLocaleString();
 
-        // Observability: Show effective limits if available
-        let limitsHtml = '';
-        if (art.effective) {
-            limitsHtml = `
-                <div class="text-[10px] text-gray-500 mt-1">
-                    Limits: Depth=${art.effective.max_depth}, Cap=${art.effective.max_entries}
-                </div>
-            `;
-        }
+            const headerDiv = document.createElement('div');
+            headerDiv.className = "flex justify-between items-start";
 
-        div.innerHTML = `
-            <div class="flex justify-between items-start">
-                <span class="font-bold text-green-400">${art.id}</span>
-                <span class="text-xs text-gray-500">${date}</span>
-            </div>
-            <div class="text-xs text-gray-300 font-mono bg-gray-800 p-1 rounded mt-1 truncate" title="${art.root_scanned}">
-                Root: ${art.root_scanned}
-            </div>
-            ${limitsHtml}
-            ${statsHtml}
-            <div class="flex flex-wrap gap-2 text-xs mt-3 border-t border-gray-800 pt-2">
-                 <button data-dl="${API_BASE}/atlas/${art.id}/download?key=json" data-name="${art.paths.json}" class="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400">Download JSON</button>
-                 <button data-dl="${API_BASE}/atlas/${art.id}/download?key=md" data-name="${art.paths.md}" class="bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400">Download Report</button>
-            </div>
-        `;
-        list.appendChild(div);
+            const titleSpan = document.createElement('span');
+            titleSpan.className = "font-bold text-green-400";
+            titleSpan.textContent = art.id;
 
-        // Wire buttons
-        div.querySelectorAll('button[data-dl]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                downloadWithAuth(btn.getAttribute('data-dl'), btn.getAttribute('data-name'));
-            });
+            if (art.status === 'running') {
+                const badge = document.createElement('span');
+                badge.className = "text-yellow-400 animate-pulse text-xs font-bold ml-2";
+                badge.textContent = "RUNNING";
+                titleSpan.appendChild(badge);
+                anyRunning = true;
+            } else if (art.status === 'failed') {
+                const badge = document.createElement('span');
+                badge.className = "text-red-500 text-xs font-bold ml-2";
+                badge.textContent = "FAILED";
+                titleSpan.appendChild(badge);
+            }
+
+            const dateSpan = document.createElement('span');
+            dateSpan.className = "text-xs text-gray-500";
+            dateSpan.textContent = date;
+
+            headerDiv.appendChild(titleSpan);
+            headerDiv.appendChild(dateSpan);
+            div.appendChild(headerDiv);
+
+            const rootDiv = document.createElement('div');
+            rootDiv.className = "text-xs text-gray-300 font-mono bg-gray-800 p-1 rounded mt-1 truncate";
+            rootDiv.title = art.root_scanned;
+            rootDiv.textContent = `Root: ${art.root_scanned}`;
+            div.appendChild(rootDiv);
+
+            if (art.effective) {
+                const limitsDiv = document.createElement('div');
+                limitsDiv.className = "text-[10px] text-gray-500 mt-1";
+                limitsDiv.textContent = `Limits: Depth=${art.effective.max_depth}, Cap=${art.effective.max_entries}`;
+                div.appendChild(limitsDiv);
+            }
+
+            if (art.stats && art.stats.total_files !== undefined) {
+                const mb = (art.stats.total_bytes / (1024*1024)).toFixed(2);
+                const statsDiv = document.createElement('div');
+                statsDiv.className = "mt-2 text-xs grid grid-cols-2 gap-2 text-gray-400";
+
+                const filesDiv = document.createElement('div');
+                filesDiv.textContent = 'Files: ';
+                const filesSpan = document.createElement('span');
+                filesSpan.className = "text-white";
+                filesSpan.textContent = art.stats.total_files;
+                filesDiv.appendChild(filesSpan);
+                statsDiv.appendChild(filesDiv);
+
+                const dirsDiv = document.createElement('div');
+                dirsDiv.textContent = 'Dirs: ';
+                const dirsSpan = document.createElement('span');
+                dirsSpan.className = "text-white";
+                dirsSpan.textContent = art.stats.total_dirs;
+                dirsDiv.appendChild(dirsSpan);
+                statsDiv.appendChild(dirsDiv);
+
+                const sizeDiv = document.createElement('div');
+                sizeDiv.textContent = 'Size: ';
+                const sizeSpan = document.createElement('span');
+                sizeSpan.className = "text-white";
+                sizeSpan.textContent = `${mb} MB`;
+                sizeDiv.appendChild(sizeSpan);
+                statsDiv.appendChild(sizeDiv);
+
+                const durationDiv = document.createElement('div');
+                durationDiv.textContent = 'Duration: ';
+                const durationSpan = document.createElement('span');
+                durationSpan.className = "text-white";
+                durationSpan.textContent = `${art.stats.duration_seconds.toFixed(2)}s`;
+                durationDiv.appendChild(durationSpan);
+                statsDiv.appendChild(durationDiv);
+
+                div.appendChild(statsDiv);
+            }
+
+            if (art.status === 'completed') {
+                const dlDiv = document.createElement('div');
+                dlDiv.className = "flex flex-wrap gap-2 text-xs mt-3 border-t border-gray-800 pt-2";
+
+                const btnJson = document.createElement('button');
+                btnJson.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400";
+                btnJson.textContent = "Download JSON";
+                btnJson.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=json`;
+                btnJson.dataset.name = art.paths.json;
+                btnJson.addEventListener('click', () => downloadWithAuth(btnJson.dataset.dl, btnJson.dataset.name));
+
+                const btnMd = document.createElement('button');
+                btnMd.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400";
+                btnMd.textContent = "Download Report";
+                btnMd.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=md`;
+                btnMd.dataset.name = art.paths.md;
+                btnMd.addEventListener('click', () => downloadWithAuth(btnMd.dataset.dl, btnMd.dataset.name));
+
+                dlDiv.appendChild(btnJson);
+                dlDiv.appendChild(btnMd);
+                div.appendChild(dlDiv);
+            } else if (art.status === 'failed') {
+                const errDiv = document.createElement('div');
+                errDiv.className = "text-xs text-red-400 mt-2 p-2 bg-red-900/30 rounded border border-red-800/50 break-words";
+                errDiv.textContent = art.error || "Atlas scan failed. See server logs for details.";
+                div.appendChild(errDiv);
+            }
+
+            list.appendChild(div);
         });
+
+        if (_atlasPollingTimeout) {
+            clearTimeout(_atlasPollingTimeout);
+            _atlasPollingTimeout = null;
+        }
+
+        if (anyRunning) {
+            _atlasPollingTimeout = setTimeout(() => {
+                // Only poll if tab is active to save resources
+                if (!document.getElementById('layout-atlas').classList.contains('hidden')) {
+                    loadAtlasArtifacts();
+                } else {
+                    // Will be fetched next time tab is switched to
+                    _atlasPollingTimeout = null;
+                }
+            }, 3000);
+        }
 
     } catch (e) {
         list.innerHTML = `<div class="text-gray-500 italic">Error: ${e.message}</div>`;
