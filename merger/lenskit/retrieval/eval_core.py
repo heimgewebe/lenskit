@@ -149,8 +149,7 @@ def do_eval(
             }
             if hit_why is not None:
                 detail["why"] = hit_why
-            if "explain" in res:
-                detail["explain"] = res["explain"]
+            detail["explain"] = res.get("explain", {"filters": filters, "why_fail": "missing explain from query execution"})
 
             results_detail.append(detail)
 

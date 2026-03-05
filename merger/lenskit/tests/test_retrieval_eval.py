@@ -276,3 +276,31 @@ def test_run_eval_invalid_threshold_fails(mini_index_for_eval, tmp_path, capsys)
     assert ret_code == 1
     captured = capsys.readouterr()
     assert "Error: Invalid recall_at_5 threshold (80.0). accept_criteria must use a ratio between 0.0 and 1.0." in captured.err
+
+def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path, capsys, monkeypatch):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {
+            "query": "login",
+            "expected_patterns": ["login.py"],
+            "accept_criteria": {"recall_at_5": 0.5}
+        }
+    ]), encoding="utf-8")
+    class Args:
+        index = str(mini_index_for_eval)
+        queries = str(queries_json)
+        k = 5
+        emit = "json"
+        stale_policy = "ignore"
+        embedding_policy = None
+
+    def mock_execute(*args, **kwargs):
+        raise RuntimeError("Mock DB Crash")
+    monkeypatch.setattr(eval_core, "execute_query", mock_execute)
+
+    cmd_eval.run_eval(Args())
+    captured = capsys.readouterr()
+    detail = json.loads(captured.out)["details"][0]
+    assert detail["error"] == "Mock DB Crash"
+    assert "explain" in detail
+    assert detail["explain"]["why_fail"] == "query execution failed"
