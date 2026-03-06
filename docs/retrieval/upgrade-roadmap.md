@@ -340,13 +340,13 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 ### PR 3b: Import-Graph v1 (P1)
 *(Minimaler maschinenlesbarer Kern S1)*
 **Deliverables:**
-- [ ] `architecture.graph.v1` schema file (path TBD; see Open Questions).
-- [ ] Generator: Python-Imports via AST (Edges: `import`, Evidence S1, line-refs).
-- [ ] `coverage` vollständig (inklusive `files_parsed / files_seen`) + Warnungen bei low coverage.
+- [x] `architecture.graph.v1` schema file (path TBD; see Open Questions).
+- [x] Generator: Python-Imports via AST (Edges: `import`, Evidence S1, line-refs).
+- [x] `coverage` vollständig (inklusive `files_parsed / files_seen`) + Warnungen bei low coverage.
 
 **Stop-Kriterium:**
-- [ ] Determinismus: Sortierte Nodes/Edges.
-- [ ] Golden Test: Mini Fixture Project erzeugt exakten Graph Output.
+- [x] Determinismus: Sortierte Nodes/Edges.
+- [x] Golden Test: Mini Fixture Project erzeugt exakten Graph Output.
 
 ### PR 4: graph_index compile + graph-aware rerank (P2)
 **Deliverables:**

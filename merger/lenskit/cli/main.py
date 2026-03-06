@@ -63,6 +63,13 @@ def main(args: Optional[List[str]] = None) -> int:
     # Verify command (placeholder)
     verify_parser = subparsers.add_parser("verify", help="Verify artifacts or bundles")
 
+    # Architecture command
+    architecture_parser = subparsers.add_parser("architecture", help="Extract architecture views")
+    architecture_parser.add_argument("--repo", default=".", help="Path to repository root")
+    architecture_group = architecture_parser.add_mutually_exclusive_group(required=True)
+    architecture_group.add_argument("--entrypoints", action="store_true", help="Extract entrypoints")
+    architecture_group.add_argument("--import-graph", action="store_true", help="Extract Python import graph")
+
     # Atlas command
     atlas_parser = subparsers.add_parser("atlas", help="Atlas filesystem crawler")
     atlas_subparsers = atlas_parser.add_subparsers(dest="atlas_cmd", required=True, help="Atlas commands")
@@ -99,6 +106,9 @@ def main(args: Optional[List[str]] = None) -> int:
     elif parsed_args.command == "verify":
         print("Verify command placeholder. Use pr-schau-verify for now.")
         return 1
+    elif parsed_args.command == "architecture":
+        from . import cmd_architecture
+        return cmd_architecture.run_architecture_cmd(parsed_args)
     elif parsed_args.command == "atlas":
         if parsed_args.atlas_cmd == "scan":
             from . import cmd_atlas
