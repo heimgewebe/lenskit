@@ -1,3 +1,15 @@
+"""
+Extracts a Python import graph via static AST analysis.
+
+Resolver Boundaries (S1 MVP):
+- This artifact is S1 (static heuristic) and does not represent runtime causality.
+- Relative import resolution is an MVP heuristic and might not resolve complex edge cases.
+- Absolute ImportFrom edges intentionally generate edges to both the base module and the submodule.
+- Targets that cannot be safely resolved locally remain as modular/external string representations.
+- Star imports (`*`) are not semantically expanded.
+- `repo` and `layer` attributes are currently placeholders or minimal.
+"""
+
 import ast
 import os
 import logging

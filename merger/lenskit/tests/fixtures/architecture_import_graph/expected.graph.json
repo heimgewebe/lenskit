@@ -1,7 +1,7 @@
 {
   "kind": "lenskit.architecture.graph",
   "version": "1.0",
-  "run_id": "123",
+  "run_id": "test_run_123",
   "canonical_dump_index_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "generated_at": "2024-01-01T00:00:00Z",
   "granularity": "file",
@@ -25,6 +25,96 @@
       "layer": "unknown",
       "is_test": false,
       "size_bytes": 48
+    },
+    {
+      "node_id": "file:c.py",
+      "kind": "file",
+      "path": "c.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 44
+    },
+    {
+      "node_id": "file:pkg/__init__.py",
+      "kind": "file",
+      "path": "pkg/__init__.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 51
+    },
+    {
+      "node_id": "file:pkg/nested/__init__.py",
+      "kind": "file",
+      "path": "pkg/nested/__init__.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "file:pkg/nested/m.py",
+      "kind": "file",
+      "path": "pkg/nested/m.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 53
+    },
+    {
+      "node_id": "file:pkg/submodule.py",
+      "kind": "file",
+      "path": "pkg/submodule.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 20
+    },
+    {
+      "node_id": "file:sub/__init__.py",
+      "kind": "file",
+      "path": "sub/__init__.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 17
+    },
+    {
+      "node_id": "file:sub/x.py",
+      "kind": "file",
+      "path": "sub/x.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 18
+    },
+    {
+      "node_id": "file:test_c.py",
+      "kind": "file",
+      "path": "test_c.py",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": true,
+      "size_bytes": 9
+    },
+    {
+      "node_id": "module:c",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
     },
     {
       "node_id": "module:json",
@@ -58,6 +148,36 @@
     },
     {
       "node_id": "module:os.path",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:pkg",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:pkg.submodule",
+      "kind": "external",
+      "path": "",
+      "repo": "",
+      "language": "python",
+      "layer": "unknown",
+      "is_test": false,
+      "size_bytes": 0
+    },
+    {
+      "node_id": "module:sub",
       "kind": "external",
       "path": "",
       "repo": "",
@@ -196,13 +316,112 @@
         "start_line": 2,
         "end_line": 2
       }
+    },
+    {
+      "src": "file:c.py",
+      "dst": "module:pkg",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "c.py",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "src": "file:c.py",
+      "dst": "module:pkg.submodule",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "c.py",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "src": "file:c.py",
+      "dst": "module:sub",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "c.py",
+        "start_line": 2,
+        "end_line": 2
+      }
+    },
+    {
+      "src": "file:pkg/__init__.py",
+      "dst": "file:pkg/submodule.py",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "pkg/__init__.py",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "src": "file:pkg/__init__.py",
+      "dst": "file:pkg/submodule.py",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "pkg/__init__.py",
+        "start_line": 2,
+        "end_line": 2
+      }
+    },
+    {
+      "src": "file:pkg/nested/m.py",
+      "dst": "file:pkg/submodule.py",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "pkg/nested/m.py",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "src": "file:pkg/nested/m.py",
+      "dst": "file:pkg/submodule.py",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "pkg/nested/m.py",
+        "start_line": 2,
+        "end_line": 2
+      }
+    },
+    {
+      "src": "file:sub/__init__.py",
+      "dst": "file:sub/x.py",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "sub/__init__.py",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "src": "file:test_c.py",
+      "dst": "module:c",
+      "edge_type": "import",
+      "evidence_level": "S1",
+      "evidence": {
+        "source_path": "test_c.py",
+        "start_line": 1,
+        "end_line": 1
+      }
     }
   ],
   "coverage": {
-    "files_seen": 2,
-    "files_parsed": 2,
+    "files_seen": 10,
+    "files_parsed": 10,
     "edge_counts_by_type": {
-      "import": 9
+      "import": 18
     },
     "unknown_layer_share": 1.0
   }
