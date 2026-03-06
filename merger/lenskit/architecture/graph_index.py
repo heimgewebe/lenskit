@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, Set, List
+from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,21 @@ def compile_graph_index(graph_path: Path, entrypoints_path: Path) -> Dict[str, A
                 queue.append(neighbor)
 
     for node_id in adjacency.keys():
-        index["distances"][node_id] = distances.get(node_id, -1)
+        dist = distances.get(node_id, -1)
+        index["distances"][node_id] = dist
+        # If node_id is something like "file:src/main.py", we are already fine.
+        # But if the node has a path, and it's not strictly 'file:<path>',
+        # let's inject a guaranteed 'file:<path>' mapping to bridge the consumer.
+        path = None
+        for n in graph.get("nodes", []):
+            if n["node_id"] == node_id:
+                path = n.get("path")
+                break
+
+        if path:
+            file_key = f"file:{path}"
+            if file_key != node_id:
+                index["distances"][file_key] = dist
 
     reachable = sum(1 for d in index["distances"].values() if d != -1)
     unreachable = len(adjacency) - reachable

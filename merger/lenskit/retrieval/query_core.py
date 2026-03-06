@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 from .router import route_query
 
@@ -149,7 +149,9 @@ def execute_query(
             }
 
         graph_index = None
-        if graph_index_path and graph_index_path.exists():
+        if graph_index_path:
+            if not graph_index_path.exists():
+                raise RuntimeError(f"Explicitly provided graph index file does not exist: {graph_index_path}")
             try:
                 with graph_index_path.open() as f:
                     graph_index = json.load(f)
