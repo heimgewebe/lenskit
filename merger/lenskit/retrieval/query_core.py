@@ -153,8 +153,8 @@ def execute_query(
             try:
                 with graph_index_path.open() as f:
                     graph_index = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                raise RuntimeError(f"Invalid graph index JSON at {graph_index_path}: {e}") from e
 
         if not graph_weights:
             graph_weights = {"w_bm25": 0.65, "w_graph": 0.20, "w_entry": 0.15}

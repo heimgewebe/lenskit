@@ -338,7 +338,7 @@ def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path,
         embedding_policy = None
 
     def mock_execute(*args, **kwargs):
-        raise RuntimeError("Mock DB Crash")
+        raise Exception("Mock DB Crash")
     monkeypatch.setattr(eval_core, "execute_query", mock_execute)
 
     cmd_eval.run_eval(Args())
