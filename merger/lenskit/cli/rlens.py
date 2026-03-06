@@ -59,6 +59,8 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # Atlas command
+    # NOTE: These Atlas CLI definitions are duplicated in cli/main.py.
+    # Keep them in sync to prevent drift.
     atlas_parser = subparsers.add_parser("atlas", help="Atlas filesystem crawler")
     atlas_subparsers = atlas_parser.add_subparsers(dest="atlas_cmd", required=True, help="Atlas commands")
     atlas_scan_parser = atlas_subparsers.add_parser("scan", help="Scan a filesystem path")

@@ -892,20 +892,20 @@ async function loadArtifacts() {
             }
 
             // Other parts
+            const ARTIFACT_LABELS = {
+                chunk_index: { label: "Chunks", color: "text-yellow-400" },
+                dump_index: { label: "Dump Index", color: "text-purple-400" },
+                sqlite_index: { label: "SQLite", color: "text-cyan-400" },
+                retrieval_eval: { label: "Eval", color: "text-orange-400" },
+                derived_manifest: { label: "Derived Manifest", color: "text-teal-400" },
+                bundle_manifest: { label: "Bundle Manifest", color: "text-pink-400" }
+            };
+
             for (const [key, val] of Object.entries(art.paths)) {
                 if (key !== 'json' && key !== 'md' && key !== 'canonical_md' && key !== 'index_json') {
-                    if (key === 'chunk_index') {
-                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-yellow-400 hover:underline text-xs">Chunks</button>`);
-                    } else if (key === 'dump_index') {
-                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-purple-400 hover:underline text-xs">Dump Index</button>`);
-                    } else if (key === 'sqlite_index') {
-                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-cyan-400 hover:underline text-xs">SQLite</button>`);
-                    } else if (key === 'retrieval_eval') {
-                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-orange-400 hover:underline text-xs">Eval</button>`);
-                    } else if (key === 'derived_manifest') {
-                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-teal-400 hover:underline text-xs">Derived Manifest</button>`);
-                    } else if (key === 'bundle_manifest') {
-                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-pink-400 hover:underline text-xs">Bundle Manifest</button>`);
+                    if (ARTIFACT_LABELS[key]) {
+                        const { label, color } = ARTIFACT_LABELS[key];
+                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="${color} hover:underline text-xs">${label}</button>`);
                     } else if (key.startsWith('md_part')) {
                          links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-400 hover:underline text-xs">Part ${key.split('_').pop()}</button>`);
                     } else if (key.startsWith('other_')) {

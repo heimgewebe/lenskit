@@ -321,23 +321,19 @@ class JobRunner:
             if artifacts_obj.canonical_md:
                 path_map["md"] = artifacts_obj.canonical_md.name
 
-            if artifacts_obj.chunk_index:
-                path_map["chunk_index"] = artifacts_obj.chunk_index.name
+            ARTIFACT_PATH_FIELDS = {
+                "chunk_index": "chunk_index",
+                "dump_index": "dump_index",
+                "sqlite_index": "sqlite_index",
+                "retrieval_eval": "retrieval_eval",
+                "derived_manifest": "derived_manifest",
+                "bundle_manifest": "bundle_manifest",
+            }
 
-            if artifacts_obj.dump_index:
-                path_map["dump_index"] = artifacts_obj.dump_index.name
-
-            if artifacts_obj.sqlite_index:
-                path_map["sqlite_index"] = artifacts_obj.sqlite_index.name
-
-            if artifacts_obj.retrieval_eval:
-                path_map["retrieval_eval"] = artifacts_obj.retrieval_eval.name
-
-            if artifacts_obj.derived_manifest:
-                path_map["derived_manifest"] = artifacts_obj.derived_manifest.name
-
-            if artifacts_obj.bundle_manifest:
-                path_map["bundle_manifest"] = artifacts_obj.bundle_manifest.name
+            for attr, key in ARTIFACT_PATH_FIELDS.items():
+                value = getattr(artifacts_obj, attr, None)
+                if value:
+                    path_map[key] = value.name
 
             for i, p in enumerate(artifacts_obj.md_parts):
                 path_map[f"md_part_{i+1}"] = p.name
