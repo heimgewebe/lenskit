@@ -877,21 +877,39 @@ async function loadArtifacts() {
 
             let links = [];
 
-            // Handle known keys explicitly, then others
-            // Primary JSON
-            if (art.paths.json) {
-                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=json" data-name="${art.paths.json}" class="text-green-400 hover:underline">JSON</button>`);
+            // Primary JSON (fallback to legacy index_json)
+            const primaryJsonPath = art.paths.json || art.paths.index_json;
+            const primaryJsonKey = art.paths.json ? 'json' : 'index_json';
+            if (primaryJsonPath) {
+                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${primaryJsonKey}" data-name="${primaryJsonPath}" class="text-green-400 hover:underline">JSON</button>`);
             }
-            // Canonical MD
-            if (art.paths.md) {
-                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=md" data-name="${art.paths.md}" class="text-blue-400 hover:underline">Markdown</button>`);
+
+            // Canonical MD (fallback to legacy canonical_md)
+            const primaryMdPath = art.paths.md || art.paths.canonical_md;
+            const primaryMdKey = art.paths.md ? 'md' : 'canonical_md';
+            if (primaryMdPath) {
+                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${primaryMdKey}" data-name="${primaryMdPath}" class="text-blue-400 hover:underline">Markdown</button>`);
             }
+
             // Other parts
             for (const [key, val] of Object.entries(art.paths)) {
                 if (key !== 'json' && key !== 'md' && key !== 'canonical_md' && key !== 'index_json') {
-                    // Try to be smart about parts
-                    if (key.startsWith('md_part')) {
+                    if (key === 'chunk_index') {
+                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-yellow-400 hover:underline text-xs">Chunks</button>`);
+                    } else if (key === 'dump_index') {
+                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-purple-400 hover:underline text-xs">Dump Index</button>`);
+                    } else if (key === 'sqlite_index') {
+                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-cyan-400 hover:underline text-xs">SQLite</button>`);
+                    } else if (key === 'retrieval_eval') {
+                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-orange-400 hover:underline text-xs">Eval</button>`);
+                    } else if (key === 'derived_manifest') {
+                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-teal-400 hover:underline text-xs">Derived Manifest</button>`);
+                    } else if (key === 'bundle_manifest') {
+                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-pink-400 hover:underline text-xs">Bundle Manifest</button>`);
+                    } else if (key.startsWith('md_part')) {
                          links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-400 hover:underline text-xs">Part ${key.split('_').pop()}</button>`);
+                    } else if (key.startsWith('other_')) {
+                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-300 hover:underline text-xs">Extra ${key.split('_').pop()}</button>`);
                     }
                 }
             }
@@ -1482,22 +1500,36 @@ async function loadAtlasArtifacts() {
                 const dlDiv = document.createElement('div');
                 dlDiv.className = "flex flex-wrap gap-2 text-xs mt-3 border-t border-gray-800 pt-2";
 
-                const btnJson = document.createElement('button');
-                btnJson.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400";
-                btnJson.textContent = "Download JSON";
-                btnJson.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=json`;
-                btnJson.dataset.name = art.paths.json;
-                btnJson.addEventListener('click', () => downloadWithAuth(btnJson.dataset.dl, btnJson.dataset.name));
+                if (art.paths.json) {
+                    const btnJson = document.createElement('button');
+                    btnJson.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400";
+                    btnJson.textContent = "Download JSON";
+                    btnJson.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=json`;
+                    btnJson.dataset.name = art.paths.json;
+                    btnJson.addEventListener('click', () => downloadWithAuth(btnJson.dataset.dl, btnJson.dataset.name));
+                    dlDiv.appendChild(btnJson);
+                }
 
-                const btnMd = document.createElement('button');
-                btnMd.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400";
-                btnMd.textContent = "Download Report";
-                btnMd.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=md`;
-                btnMd.dataset.name = art.paths.md;
-                btnMd.addEventListener('click', () => downloadWithAuth(btnMd.dataset.dl, btnMd.dataset.name));
+                if (art.paths.md) {
+                    const btnMd = document.createElement('button');
+                    btnMd.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400";
+                    btnMd.textContent = "Download Report";
+                    btnMd.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=md`;
+                    btnMd.dataset.name = art.paths.md;
+                    btnMd.addEventListener('click', () => downloadWithAuth(btnMd.dataset.dl, btnMd.dataset.name));
+                    dlDiv.appendChild(btnMd);
+                }
 
-                dlDiv.appendChild(btnJson);
-                dlDiv.appendChild(btnMd);
+                if (art.paths.inventory) {
+                    const btnInv = document.createElement('button');
+                    btnInv.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-yellow-400";
+                    btnInv.textContent = "Download Inventory";
+                    btnInv.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=inventory`;
+                    btnInv.dataset.name = art.paths.inventory;
+                    btnInv.addEventListener('click', () => downloadWithAuth(btnInv.dataset.dl, btnInv.dataset.name));
+                    dlDiv.appendChild(btnInv);
+                }
+
                 div.appendChild(dlDiv);
             } else if (art.status === 'failed') {
                 const errDiv = document.createElement('div');

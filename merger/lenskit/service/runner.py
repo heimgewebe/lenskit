@@ -321,8 +321,30 @@ class JobRunner:
             if artifacts_obj.canonical_md:
                 path_map["md"] = artifacts_obj.canonical_md.name
 
+            if artifacts_obj.chunk_index:
+                path_map["chunk_index"] = artifacts_obj.chunk_index.name
+
+            if artifacts_obj.dump_index:
+                path_map["dump_index"] = artifacts_obj.dump_index.name
+
+            if artifacts_obj.sqlite_index:
+                path_map["sqlite_index"] = artifacts_obj.sqlite_index.name
+
+            if artifacts_obj.retrieval_eval:
+                path_map["retrieval_eval"] = artifacts_obj.retrieval_eval.name
+
+            if artifacts_obj.derived_manifest:
+                path_map["derived_manifest"] = artifacts_obj.derived_manifest.name
+
+            if artifacts_obj.bundle_manifest:
+                path_map["bundle_manifest"] = artifacts_obj.bundle_manifest.name
+
             for i, p in enumerate(artifacts_obj.md_parts):
                 path_map[f"md_part_{i+1}"] = p.name
+
+            if artifacts_obj.other:
+                for i, p in enumerate(artifacts_obj.other):
+                    path_map[f"other_{i+1}"] = p.name
 
             artifact_id = str(uuid.uuid4())
 
