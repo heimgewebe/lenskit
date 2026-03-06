@@ -127,10 +127,23 @@ def test_chunk_jsonl_fields():
     d["artifact_type"] = sem_meta["artifact_type"]
     d["concepts"] = sem_meta["concepts"]
 
+    # Simulate range ref injection
+    d["content_range_ref"] = {
+        "artifact_role": "canonical_md",
+        "repo_id": "r1",
+        "file_path": "lenskit_merge.md",
+        "start_byte": 0,
+        "end_byte": 10,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": d.get("sha256", "0"*64)
+    }
+
     assert "section" in d
     assert "layer" in d
     assert "artifact_type" in d
     assert "concepts" in d
+    assert "content_range_ref" in d
     assert d["section"] == "test"
     assert d["layer"] == "core"
     assert d["artifact_type"] == "code"

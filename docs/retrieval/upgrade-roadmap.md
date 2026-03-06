@@ -361,12 +361,12 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 
 ### PR 5: range_ref (Proof-Carrying Retrieval) (P1/P2)
 **Deliverables:**
-- [ ] `chunk_index.jsonl` optional erweitert um `content_range_ref` (bundle-konsistent).
-- [ ] Query Results können `range_ref` ausgeben.
-- [ ] Roundtrip-Test: Top-Result → `range_get` → extrahierter Text matcht Hash.
+- [x] `chunk_index.jsonl` optional erweitert um `content_range_ref` (bundle-konsistent).
+- [x] Query Results können `range_ref` ausgeben.
+- [x] Roundtrip-Test: Top-Result → `range_get` → extrahierter Text matcht Hash.
 
 **Stop-Kriterium:**
-- [ ] Eine Retrieval-Antwort ist belegbar (nicht nur plausibel).
+- [x] Eine Retrieval-Antwort ist belegbar (nicht nur plausibel).
 
 ---
 

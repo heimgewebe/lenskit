@@ -61,7 +61,7 @@ def execute_query(
             base_sql = f"""
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type,
+                    c.layer, c.artifact_type, c.content_range_ref,
                     {scoring_expr} as score
                 FROM chunks_fts
                 JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
@@ -79,7 +79,7 @@ def execute_query(
             base_sql = """
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type,
+                    c.layer, c.artifact_type, c.content_range_ref,
                     0 as score
                 FROM chunks c
             """
@@ -242,11 +242,16 @@ def execute_query(
             if graph_index:
                 hit["why_list"] = why_list
 
-            # NOTE: We do not currently emit a `range_ref` here because `r["path"]` is a repo-internal
-            # path, whereas the `file_path` field in a `range_ref` must deterministically match the
-            # artifact path listed in the manifest. Emitting it here would create semantically
-            # invalid references. Once the indexing pipeline provides the precise bundle artifact
-            # path for each chunk, this can be re-enabled.
+            ref_str = None
+            try:
+                ref_str = r["content_range_ref"]
+            except IndexError:
+                pass
+            if ref_str:
+                try:
+                    hit["range_ref"] = json.loads(ref_str)
+                except Exception:
+                    pass
 
             results.append(hit)
 
