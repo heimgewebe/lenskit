@@ -57,7 +57,7 @@ const context = {
             });
             Object.defineProperty(el, 'outerHTML', {
                 get: function() {
-                    const attrs = Object.entries(this.dataset).map(([k, v]) => `data-${k}="${v.replace(/"/g, '&quot;')}"`).join(' ');
+                    const attrs = Object.entries(this.dataset).map(([k, v]) => `data-${k}="${String(v).replace(/"/g, '&quot;')}"`).join(' ');
                     // Important: Simulate the browser's DOM escaping for textContent
                     const text = (this.textContent || '')
                         .replace(/&/g, '&amp;')
@@ -198,6 +198,23 @@ async function runTest() {
         // Correct
     } else {
          console.error("FAIL: Double quote key not correctly rendered");
+         process.exit(1);
+    }
+
+    // Check single quotes
+    if (html.includes('data-dl="/api/artifacts/1/download?key=foo%27bar"')) {
+        // Correct
+    } else {
+         console.error("FAIL: Single quote key not correctly encoded in URL");
+         console.error(html);
+         process.exit(1);
+    }
+
+    // Check script tags (angle brackets) in URL
+    if (html.includes('data-dl="/api/artifacts/1/download?key=%3Cscript%3Ealert(1)%3C%2Fscript%3E"')) {
+        // Correctly encoded
+    } else {
+         console.error("FAIL: Script tag key not correctly encoded in URL");
          process.exit(1);
     }
 

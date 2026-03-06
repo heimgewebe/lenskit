@@ -853,6 +853,7 @@ function pickerSelect() {
 
 function createArtifactDownloadButton({ url, filename, label, className }) {
     const btn = document.createElement('button');
+    btn.type = 'button';
     btn.className = className;
     btn.textContent = label;
     btn.dataset.dl = url;
@@ -900,12 +901,15 @@ async function loadArtifacts() {
 
             let linkElements = [];
 
+            // Ensure fully safe encoding, specifically targeting single quotes which encodeURIComponent misses
+            const safeEncode = (k) => encodeURIComponent(k).replace(/'/g, "%27");
+
             // Primary JSON (fallback to legacy index_json)
             const primaryJsonPath = art.paths.json || art.paths.index_json;
             const primaryJsonKey = art.paths.json ? 'json' : 'index_json';
             if (primaryJsonPath) {
                 linkElements.push(createArtifactDownloadButton({
-                    url: `${API_BASE}/artifacts/${art.id}/download?key=${primaryJsonKey}`,
+                    url: `${API_BASE}/artifacts/${art.id}/download?key=${safeEncode(primaryJsonKey)}`,
                     filename: primaryJsonPath,
                     label: 'JSON',
                     className: 'text-green-400 hover:underline'
@@ -917,7 +921,7 @@ async function loadArtifacts() {
             const primaryMdKey = art.paths.md ? 'md' : 'canonical_md';
             if (primaryMdPath) {
                 linkElements.push(createArtifactDownloadButton({
-                    url: `${API_BASE}/artifacts/${art.id}/download?key=${primaryMdKey}`,
+                    url: `${API_BASE}/artifacts/${art.id}/download?key=${safeEncode(primaryMdKey)}`,
                     filename: primaryMdPath,
                     label: 'Markdown',
                     className: 'text-blue-400 hover:underline'
@@ -930,21 +934,21 @@ async function loadArtifacts() {
                     if (ARTIFACT_LABELS[key]) {
                         const { label, color } = ARTIFACT_LABELS[key];
                         linkElements.push(createArtifactDownloadButton({
-                            url: `${API_BASE}/artifacts/${art.id}/download?key=${key}`,
+                            url: `${API_BASE}/artifacts/${art.id}/download?key=${safeEncode(key)}`,
                             filename: val,
                             label: label,
                             className: `${color} hover:underline text-xs`
                         }));
                     } else if (key.startsWith('md_part')) {
                          linkElements.push(createArtifactDownloadButton({
-                             url: `${API_BASE}/artifacts/${art.id}/download?key=${key}`,
+                             url: `${API_BASE}/artifacts/${art.id}/download?key=${safeEncode(key)}`,
                              filename: val,
                              label: `Part ${key.split('_').pop()}`,
                              className: 'text-gray-400 hover:underline text-xs'
                          }));
                     } else if (key.startsWith('other_')) {
                          linkElements.push(createArtifactDownloadButton({
-                             url: `${API_BASE}/artifacts/${art.id}/download?key=${key}`,
+                             url: `${API_BASE}/artifacts/${art.id}/download?key=${safeEncode(key)}`,
                              filename: val,
                              label: `Extra ${key.split('_').pop()}`,
                              className: 'text-gray-300 hover:underline text-xs'
@@ -952,7 +956,7 @@ async function loadArtifacts() {
                     } else {
                          // Fallback for any other key not explicitly modeled, so users can still download it
                          linkElements.push(createArtifactDownloadButton({
-                             url: `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(key)}`,
+                             url: `${API_BASE}/artifacts/${art.id}/download?key=${safeEncode(key)}`,
                              filename: val,
                              label: formatArtifactFallbackLabel(key),
                              className: 'text-gray-200 hover:underline text-xs'
