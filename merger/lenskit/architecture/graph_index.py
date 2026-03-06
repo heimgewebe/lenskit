@@ -27,10 +27,12 @@ def compile_graph_index(graph_path: Path, entrypoints_path: Path) -> Dict[str, A
 
     adjacency = {}
     nodes_by_path = {}
+    node_meta_by_id = {}
 
     for n in graph.get("nodes", []):
         node_id = n["node_id"]
         adjacency[node_id] = []
+        node_meta_by_id[node_id] = n
         path = n.get("path")
         if path:
             nodes_by_path[path] = node_id
@@ -68,25 +70,25 @@ def compile_graph_index(graph_path: Path, entrypoints_path: Path) -> Dict[str, A
                 distances[neighbor] = current_dist + 1
                 queue.append(neighbor)
 
+    # Calculate reachable and unreachable metrics based only on real graph nodes
+    reachable_nodes = sum(1 for node_id in adjacency.keys() if distances.get(node_id, -1) != -1)
+    unreachable_nodes = len(adjacency) - reachable_nodes
+
+    # Populate output dictionary
     for node_id in adjacency.keys():
         dist = distances.get(node_id, -1)
         index["distances"][node_id] = dist
-        # If node_id is something like "file:src/main.py", we are already fine.
-        # But if the node has a path, and it's not strictly 'file:<path>',
-        # let's inject a guaranteed 'file:<path>' mapping to bridge the consumer.
-        path = None
-        for n in graph.get("nodes", []):
-            if n["node_id"] == node_id:
-                path = n.get("path")
-                break
 
+        # Inject an alias 'file:<path>' mapped to the same distance if it differs from node_id.
+        # This bridges the format between the generic architecture graph and the query_core consumer.
+        path = node_meta_by_id.get(node_id, {}).get("path")
         if path:
             file_key = f"file:{path}"
             if file_key != node_id:
                 index["distances"][file_key] = dist
 
-    reachable = sum(1 for d in index["distances"].values() if d != -1)
-    unreachable = len(adjacency) - reachable
+    reachable = reachable_nodes
+    unreachable = unreachable_nodes
 
     index["metrics"]["nodes_reachable"] = reachable
     index["metrics"]["unreachable_nodes"] = unreachable
