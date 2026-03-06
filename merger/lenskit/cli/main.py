@@ -71,6 +71,8 @@ def main(args: Optional[List[str]] = None) -> int:
     architecture_group.add_argument("--import-graph", action="store_true", help="Extract Python import graph")
 
     # Atlas command
+    # NOTE: These Atlas CLI definitions are duplicated in cli/rlens.py.
+    # Keep them in sync to prevent drift.
     atlas_parser = subparsers.add_parser("atlas", help="Atlas filesystem crawler")
     atlas_subparsers = atlas_parser.add_subparsers(dest="atlas_cmd", required=True, help="Atlas commands")
     atlas_scan_parser = atlas_subparsers.add_parser("scan", help="Scan a filesystem path")

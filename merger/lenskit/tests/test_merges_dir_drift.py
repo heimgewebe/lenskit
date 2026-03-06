@@ -92,11 +92,74 @@ def test_runner_resolves_and_creates_relative_merges_dir(temp_hub):
 
     # D. Check Artifact.merges_dir is absolute and correct
     assert art.merges_dir == str(expected_abs_path)
-    assert Path(art.merges_dir).is_absolute()
 
     # E. Check Artifact.params.merges_dir (Request object was updated in memory)
     # Note: JobStore saves the updated request object
     assert art.params.merges_dir == str(expected_abs_path)
+
+
+def test_runner_artifact_path_mapping(temp_hub):
+    """
+    Test that artifact properties defined in ARTIFACT_PATH_FIELDS,
+    along with canonical and iterable fields, correctly map into
+    the artifact.paths dictionary.
+    """
+    store = JobStore(temp_hub)
+    runner = JobRunner(store)
+
+    req = JobRequest(
+        hub=str(temp_hub),
+        repos=["repoA"]
+    )
+    job = Job.create(req)
+    job.hub_resolved = str(temp_hub)
+    store.add_job(job)
+
+    with patch("merger.lenskit.service.runner.write_reports_v2") as mock_write, \
+         patch("merger.lenskit.service.runner.scan_repo") as mock_scan:
+
+        mock_scan.return_value = {}
+
+        mock_artifacts = MagicMock()
+        mock_artifacts.get_all_paths.return_value = [Path("dummy.md")]
+
+        # canonical fields
+        mock_artifacts.index_json = Path("index.json")
+        mock_artifacts.canonical_md = Path("canonical.md")
+
+        # fields in ARTIFACT_PATH_FIELDS
+        mock_artifacts.chunk_index = Path("chunk.jsonl")
+        mock_artifacts.dump_index = Path("dump.json")
+        mock_artifacts.sqlite_index = Path("sqlite.db")
+        mock_artifacts.retrieval_eval = Path("eval.json")
+        mock_artifacts.derived_manifest = Path("manifest.json")
+        mock_artifacts.bundle_manifest = Path("bundle.json")
+
+        # iterables
+        mock_artifacts.md_parts = [Path("part1.md"), Path("part2.md")]
+        mock_artifacts.other = [Path("other_A.txt"), Path("other_B.txt")]
+
+        mock_write.return_value = mock_artifacts
+
+        runner._run_job(job.id)
+
+    updated_job = store.get_job(job.id)
+    art = store.get_artifact(updated_job.artifact_ids[0])
+
+    assert art.paths["json"] == "index.json"
+    assert art.paths["md"] == "canonical.md"
+    assert art.paths["chunk_index"] == "chunk.jsonl"
+    assert art.paths["dump_index"] == "dump.json"
+    assert art.paths["sqlite_index"] == "sqlite.db"
+    assert art.paths["retrieval_eval"] == "eval.json"
+    assert art.paths["derived_manifest"] == "manifest.json"
+    assert art.paths["bundle_manifest"] == "bundle.json"
+
+    assert art.paths["md_part_1"] == "part1.md"
+    assert art.paths["md_part_2"] == "part2.md"
+
+    assert art.paths["other_1"] == "other_A.txt"
+    assert art.paths["other_2"] == "other_B.txt"
 
 
 def test_download_artifact_uses_persisted_merges_dir(temp_hub):
