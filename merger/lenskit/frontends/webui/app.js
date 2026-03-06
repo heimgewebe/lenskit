@@ -910,6 +910,9 @@ async function loadArtifacts() {
                          links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-400 hover:underline text-xs">Part ${key.split('_').pop()}</button>`);
                     } else if (key.startsWith('other_')) {
                          links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-300 hover:underline text-xs">Extra ${key.split('_').pop()}</button>`);
+                    } else {
+                         // Fallback for any other key not explicitly modeled, so users can still download it
+                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-200 hover:underline text-xs">${key}</button>`);
                     }
                 }
             }
@@ -1528,6 +1531,16 @@ async function loadAtlasArtifacts() {
                     btnInv.dataset.name = art.paths.inventory;
                     btnInv.addEventListener('click', () => downloadWithAuth(btnInv.dataset.dl, btnInv.dataset.name));
                     dlDiv.appendChild(btnInv);
+                }
+
+                if (art.paths.dirs_inventory) {
+                    const btnDirsInv = document.createElement('button');
+                    btnDirsInv.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-orange-400";
+                    btnDirsInv.textContent = "Download Dirs Inventory";
+                    btnDirsInv.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=dirs_inventory`;
+                    btnDirsInv.dataset.name = art.paths.dirs_inventory;
+                    btnDirsInv.addEventListener('click', () => downloadWithAuth(btnDirsInv.dataset.dl, btnDirsInv.dataset.name));
+                    dlDiv.appendChild(btnDirsInv);
                 }
 
                 div.appendChild(dlDiv);
