@@ -1100,8 +1100,8 @@ def get_latest_atlas():
 
     dirs_inv_file = latest_file.with_suffix(".dirs_inventory.jsonl")
     if dirs_inv_file.name.startswith(scan_id):
-         if dirs_inv_file.exists():
-             paths["dirs_inventory"] = dirs_inv_file.name
+        if dirs_inv_file.exists():
+            paths["dirs_inventory"] = dirs_inv_file.name
 
     created_at = datetime.fromtimestamp(latest_file.stat().st_mtime, timezone.utc).isoformat()
     if "created_at" in data:
