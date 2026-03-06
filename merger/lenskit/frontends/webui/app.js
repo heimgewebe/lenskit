@@ -916,8 +916,12 @@ async function loadArtifacts() {
                          links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-300 hover:underline text-xs">Extra ${key.split('_').pop()}</button>`);
                     } else {
                          // Fallback for any other key not explicitly modeled, so users can still download it
-                         const fallbackLabel = formatArtifactFallbackLabel(key);
-                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-200 hover:underline text-xs">${fallbackLabel}</button>`);
+                         const fallbackBtn = document.createElement('button');
+                         fallbackBtn.dataset.dl = `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(key)}`;
+                         fallbackBtn.dataset.name = val;
+                         fallbackBtn.className = "text-gray-200 hover:underline text-xs";
+                         fallbackBtn.textContent = formatArtifactFallbackLabel(key);
+                         links.push(fallbackBtn.outerHTML);
                     }
                 }
             }
