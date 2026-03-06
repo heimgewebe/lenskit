@@ -822,6 +822,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     json_filename = f"{scan_id}.json"
     md_filename = f"{scan_id}.md"
     inventory_filename = f"{scan_id}.inventory.jsonl" # Default name
+    dirs_inventory_filename = f"{scan_id}.dirs_inventory.jsonl"
 
     # Write initial "running" state
     initial_state = {
@@ -870,6 +871,8 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
             # We will generate inventory file ALWAYS.
 
+            dirs_inventory_path = merges_dir / dirs_inventory_filename
+
             scanner = AtlasScanner(
                 root=scan_root,
                 max_depth=effective_max_depth,
@@ -879,7 +882,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 no_default_excludes=request.no_default_excludes,
                 max_file_size=request.max_file_size
             )
-            result = scanner.scan(inventory_file=inventory_path)
+            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path)
 
             # Merge with initial state to preserve required fields, then update status
             result["status"] = "completed"
@@ -907,7 +910,12 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     background_tasks.add_task(run_scan_and_save)
 
     # Update response object to include inventory path
-    paths = {"json": json_filename, "md": md_filename, "inventory": inventory_filename}
+    paths = {
+        "json": json_filename,
+        "md": md_filename,
+        "inventory": inventory_filename,
+        "dirs_inventory": dirs_inventory_filename,
+    }
 
     return AtlasArtifact(
         id=scan_id,
@@ -1012,6 +1020,11 @@ def list_atlas():
             if inv_file.exists():
                 paths["inventory"] = inv_file.name
 
+        dirs_inv_file = file.with_suffix(".dirs_inventory.jsonl")
+        if dirs_inv_file.name.startswith(scan_id):
+            if dirs_inv_file.exists():
+                paths["dirs_inventory"] = dirs_inv_file.name
+
         created_at = datetime.fromtimestamp(file.stat().st_mtime, timezone.utc).isoformat()
         if "created_at" in data:
             created_at = data["created_at"]
@@ -1085,6 +1098,11 @@ def get_latest_atlas():
          if inv_file.exists():
              paths["inventory"] = inv_file.name
 
+    dirs_inv_file = latest_file.with_suffix(".dirs_inventory.jsonl")
+    if dirs_inv_file.name.startswith(scan_id):
+        if dirs_inv_file.exists():
+            paths["dirs_inventory"] = dirs_inv_file.name
+
     created_at = datetime.fromtimestamp(latest_file.stat().st_mtime, timezone.utc).isoformat()
     if "created_at" in data:
         created_at = data["created_at"]
@@ -1106,8 +1124,8 @@ def download_atlas(id: str, key: str = "md"):
     if not re.fullmatch(r"atlas-\d+", (id or "").strip()):
         raise HTTPException(status_code=400, detail="Invalid atlas id format")
 
-    if key not in ("json", "md", "inventory"):
-        raise HTTPException(status_code=400, detail="Invalid key. Use 'json', 'md', or 'inventory'.")
+    if key not in ("json", "md", "inventory", "dirs_inventory"):
+        raise HTTPException(status_code=400, detail="Invalid key. Use 'json', 'md', 'inventory', or 'dirs_inventory'.")
 
     if not state.hub:
         raise HTTPException(status_code=400, detail="Hub not configured")
@@ -1121,7 +1139,7 @@ def download_atlas(id: str, key: str = "md"):
     candidates = {}
 
     # Map key to extension
-    ext_map = {"json": ".json", "md": ".md", "inventory": ".inventory.jsonl"}
+    ext_map = {"json": ".json", "md": ".md", "inventory": ".inventory.jsonl", "dirs_inventory": ".dirs_inventory.jsonl"}
     ext = ext_map[key]
 
     # Glob pattern needs to match suffix carefully

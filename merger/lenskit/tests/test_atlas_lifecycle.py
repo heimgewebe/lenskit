@@ -32,6 +32,9 @@ def lifecycle_client(tmp_path: Path):
         "stats": {"total_files": 1}
     }
     (merges / "atlas-2000.json").write_text(json.dumps(completed_data), encoding="utf-8")
+    (merges / "atlas-2000.md").write_text("# Report", encoding="utf-8")
+    (merges / "atlas-2000.inventory.jsonl").write_text('{"rel_path": "file1.txt"}', encoding="utf-8")
+    (merges / "atlas-2000.dirs_inventory.jsonl").write_text('{"rel_path": "dir1"}', encoding="utf-8")
 
     # Newest: Running
     running_data = {
@@ -73,6 +76,8 @@ def test_list_all_artifacts(lifecycle_client: TestClient):
 
     assert data[1]["id"] == "atlas-2000"
     assert data[1]["status"] == "completed"
+    assert "dirs_inventory" in data[1]["paths"]
+    assert data[1]["paths"]["dirs_inventory"] == "atlas-2000.dirs_inventory.jsonl"
 
     assert data[2]["id"] == "atlas-1000"
     assert data[2]["status"] == "failed"
@@ -87,6 +92,18 @@ def test_get_latest_artifact_ignores_running_and_failed(lifecycle_client: TestCl
     # Must skip 'atlas-3000' (running) and return 'atlas-2000' (completed)
     assert data["id"] == "atlas-2000"
     assert data["status"] == "completed"
+    assert "dirs_inventory" in data["paths"]
+    assert data["paths"]["dirs_inventory"] == "atlas-2000.dirs_inventory.jsonl"
+
+def test_download_dirs_inventory(lifecycle_client: TestClient):
+    response = lifecycle_client.get("/api/atlas/atlas-2000/download?key=dirs_inventory")
+    assert response.status_code == 200
+    assert response.text == '{"rel_path": "dir1"}'
+
+    # check that content-disposition exists and matches the expected filename pattern roughly
+    # the client just returns the file response, starlette adds disposition if filename provided
+    cd = response.headers.get("content-disposition", "")
+    assert "atlas-2000.dirs_inventory.jsonl" in cd
 
 def test_get_latest_artifact_404_if_none_completed(tmp_path: Path):
     # Setup hub with NO completed artifacts
