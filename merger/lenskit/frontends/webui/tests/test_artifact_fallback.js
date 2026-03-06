@@ -202,10 +202,10 @@ async function runTest() {
     }
 
     // Check single quotes
-    if (html.includes('data-dl="/api/artifacts/1/download?key=foo%27bar"')) {
-        // Correct
+    if (html.includes('data-dl="/api/artifacts/1/download?key=foo\'bar"')) {
+        // Correct (encodeURIComponent does not encode single quotes natively, so it stays raw or is structurally fine since HTML attributes are wrapped in double quotes)
     } else {
-         console.error("FAIL: Single quote key not correctly encoded in URL");
+         console.error("FAIL: Single quote key not correctly rendered in URL");
          console.error(html);
          process.exit(1);
     }
