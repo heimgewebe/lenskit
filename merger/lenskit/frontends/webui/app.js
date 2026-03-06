@@ -851,6 +851,10 @@ function pickerSelect() {
     applyPickerSelection();
 }
 
+function formatArtifactFallbackLabel(key) {
+    return key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+}
+
 const ARTIFACT_LABELS = {
     chunk_index: { label: "Chunks", color: "text-yellow-400" },
     dump_index: { label: "Dump Index", color: "text-purple-400" },
@@ -912,7 +916,8 @@ async function loadArtifacts() {
                          links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-300 hover:underline text-xs">Extra ${key.split('_').pop()}</button>`);
                     } else {
                          // Fallback for any other key not explicitly modeled, so users can still download it
-                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-200 hover:underline text-xs">${key}</button>`);
+                         const fallbackLabel = formatArtifactFallbackLabel(key);
+                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-200 hover:underline text-xs">${fallbackLabel}</button>`);
                     }
                 }
             }
