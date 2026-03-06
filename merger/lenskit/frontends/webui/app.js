@@ -877,15 +877,20 @@ async function loadArtifacts() {
 
             let links = [];
 
-            // Handle known keys explicitly, then others
-            // Primary JSON
-            if (art.paths.json) {
-                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=json" data-name="${art.paths.json}" class="text-green-400 hover:underline">JSON</button>`);
+            // Primary JSON (fallback to legacy index_json)
+            const primaryJsonPath = art.paths.json || art.paths.index_json;
+            const primaryJsonKey = art.paths.json ? 'json' : 'index_json';
+            if (primaryJsonPath) {
+                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${primaryJsonKey}" data-name="${primaryJsonPath}" class="text-green-400 hover:underline">JSON</button>`);
             }
-            // Canonical MD
-            if (art.paths.md) {
-                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=md" data-name="${art.paths.md}" class="text-blue-400 hover:underline">Markdown</button>`);
+
+            // Canonical MD (fallback to legacy canonical_md)
+            const primaryMdPath = art.paths.md || art.paths.canonical_md;
+            const primaryMdKey = art.paths.md ? 'md' : 'canonical_md';
+            if (primaryMdPath) {
+                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${primaryMdKey}" data-name="${primaryMdPath}" class="text-blue-400 hover:underline">Markdown</button>`);
             }
+
             // Other parts
             for (const [key, val] of Object.entries(art.paths)) {
                 if (key !== 'json' && key !== 'md' && key !== 'canonical_md' && key !== 'index_json') {
@@ -903,6 +908,8 @@ async function loadArtifacts() {
                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-pink-400 hover:underline text-xs">Bundle Manifest</button>`);
                     } else if (key.startsWith('md_part')) {
                          links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-400 hover:underline text-xs">Part ${key.split('_').pop()}</button>`);
+                    } else if (key.startsWith('other_')) {
+                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-300 hover:underline text-xs">Extra ${key.split('_').pop()}</button>`);
                     }
                 }
             }

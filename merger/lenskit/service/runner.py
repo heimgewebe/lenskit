@@ -342,6 +342,10 @@ class JobRunner:
             for i, p in enumerate(artifacts_obj.md_parts):
                 path_map[f"md_part_{i+1}"] = p.name
 
+            if artifacts_obj.other:
+                for i, p in enumerate(artifacts_obj.other):
+                    path_map[f"other_{i+1}"] = p.name
+
             artifact_id = str(uuid.uuid4())
 
             art = Artifact(
