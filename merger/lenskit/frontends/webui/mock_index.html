@@ -1,0 +1,43 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Artifacts</title>
+</head>
+<body>
+    <input type="text" id="authToken" value="mock-token">
+    <input type="text" id="hubPath" value="">
+    <div id="verLabel"></div>
+    <div id="originLabel"></div>
+    <div id="artifactList"></div>
+    <script src="app.js"></script>
+    <script>
+        // Override apiFetch AFTER app.js loads
+        window.apiFetch = async (url) => {
+            if (url.includes('/artifacts')) {
+                return {
+                    ok: true, status: 200, json: async () => [{
+                        id: '12345',
+                        created_at: new Date().toISOString(),
+                        repos: ['repoA', 'repoB'],
+                        params: { level: 'info', mode: 'fast' },
+                        paths: {
+                            json: 'output.json',
+                            md: 'report.md',
+                            chunk_index: 'chunks.json',
+                            sqlite_index: 'db.sqlite3',
+                            unknown_artifact: 'mystery.bin',
+                            '<script>alert(1)<\/script>': 'malicious.bin',
+                            'foo&bar': 'amp.bin',
+                            'foo"bar': 'quote.bin',
+                            "foo'bar": 'squote.bin'
+                        }
+                    }]
+                };
+            }
+            return { ok: true, status: 200, json: async () => ({}) };
+        };
+        setTimeout(() => loadArtifacts(), 500);
+    </script>
+</body>
+</html>
