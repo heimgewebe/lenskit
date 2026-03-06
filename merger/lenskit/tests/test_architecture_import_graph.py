@@ -19,6 +19,9 @@ def test_import_graph_generator():
     jsonschema.validate(instance=doc, schema=schema)
 
     # 2. Assert values against Golden Snapshot
+    # Maintainer note: To update the snapshot locally, temporarily write `doc` to `expected_path`
+    # (e.g., `with open(expected_path, "w") as f: json.dump(doc, f, indent=2)`)
+    # and ensure `doc["generated_at"]` and `run_id` are masked correctly before saving.
     expected_path = Path(__file__).parent / "fixtures" / "architecture_import_graph" / "expected.graph.json"
     with open(expected_path, "r", encoding="utf-8") as f:
         expected = json.load(f)
