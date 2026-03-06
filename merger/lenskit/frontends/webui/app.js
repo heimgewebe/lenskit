@@ -851,6 +851,15 @@ function pickerSelect() {
     applyPickerSelection();
 }
 
+const ARTIFACT_LABELS = {
+    chunk_index: { label: "Chunks", color: "text-yellow-400" },
+    dump_index: { label: "Dump Index", color: "text-purple-400" },
+    sqlite_index: { label: "SQLite", color: "text-cyan-400" },
+    retrieval_eval: { label: "Eval", color: "text-orange-400" },
+    derived_manifest: { label: "Derived Manifest", color: "text-teal-400" },
+    bundle_manifest: { label: "Bundle Manifest", color: "text-pink-400" }
+};
+
 async function loadArtifacts() {
     const list = document.getElementById('artifactList');
     list.innerHTML = '<div class="text-gray-500 italic">Loading...</div>';
@@ -892,15 +901,6 @@ async function loadArtifacts() {
             }
 
             // Other parts
-            const ARTIFACT_LABELS = {
-                chunk_index: { label: "Chunks", color: "text-yellow-400" },
-                dump_index: { label: "Dump Index", color: "text-purple-400" },
-                sqlite_index: { label: "SQLite", color: "text-cyan-400" },
-                retrieval_eval: { label: "Eval", color: "text-orange-400" },
-                derived_manifest: { label: "Derived Manifest", color: "text-teal-400" },
-                bundle_manifest: { label: "Bundle Manifest", color: "text-pink-400" }
-            };
-
             for (const [key, val] of Object.entries(art.paths)) {
                 if (key !== 'json' && key !== 'md' && key !== 'canonical_md' && key !== 'index_json') {
                     if (ARTIFACT_LABELS[key]) {

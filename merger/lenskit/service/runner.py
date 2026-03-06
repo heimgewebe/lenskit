@@ -79,6 +79,15 @@ def _parse_extras_csv(extras_csv: str) -> ExtrasConfig:
             setattr(config, item, True)
     return config
 
+ARTIFACT_PATH_FIELDS = {
+    "chunk_index": "chunk_index",
+    "dump_index": "dump_index",
+    "sqlite_index": "sqlite_index",
+    "retrieval_eval": "retrieval_eval",
+    "derived_manifest": "derived_manifest",
+    "bundle_manifest": "bundle_manifest",
+}
+
 class JobRunner:
     def __init__(self, job_store: JobStore, max_workers: int = 1):
         self.job_store = job_store
@@ -320,15 +329,6 @@ class JobRunner:
 
             if artifacts_obj.canonical_md:
                 path_map["md"] = artifacts_obj.canonical_md.name
-
-            ARTIFACT_PATH_FIELDS = {
-                "chunk_index": "chunk_index",
-                "dump_index": "dump_index",
-                "sqlite_index": "sqlite_index",
-                "retrieval_eval": "retrieval_eval",
-                "derived_manifest": "derived_manifest",
-                "bundle_manifest": "bundle_manifest",
-            }
 
             for attr, key in ARTIFACT_PATH_FIELDS.items():
                 value = getattr(artifacts_obj, attr, None)

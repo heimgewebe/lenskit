@@ -100,8 +100,9 @@ def test_runner_resolves_and_creates_relative_merges_dir(temp_hub):
 
 def test_runner_artifact_path_mapping(temp_hub):
     """
-    Test that artifact properties defined in ARTIFACT_PATH_FIELDS
-    and legacy fallback logic correctly map into the paths dictionary.
+    Test that artifact properties defined in ARTIFACT_PATH_FIELDS,
+    along with canonical and iterable fields, correctly map into
+    the artifact.paths dictionary.
     """
     store = JobStore(temp_hub)
     runner = JobRunner(store)
