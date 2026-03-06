@@ -851,6 +851,17 @@ function pickerSelect() {
     applyPickerSelection();
 }
 
+function createArtifactDownloadButton({ url, filename, label, className }) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = className;
+    btn.textContent = label;
+    btn.dataset.dl = url;
+    if (filename) btn.dataset.name = filename;
+    btn.addEventListener('click', () => downloadWithAuth(btn.dataset.dl, btn.dataset.name || 'artifact'));
+    return btn;
+}
+
 function formatArtifactFallbackLabel(key) {
     return key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
 }
@@ -888,20 +899,30 @@ async function loadArtifacts() {
             const date = new Date(art.created_at).toLocaleString();
             const repos = art.repos.length > 3 ? `${art.repos.slice(0,3).join(', ')} +${art.repos.length-3}` : art.repos.join(', ');
 
-            let links = [];
+            let linkElements = [];
 
             // Primary JSON (fallback to legacy index_json)
             const primaryJsonPath = art.paths.json || art.paths.index_json;
             const primaryJsonKey = art.paths.json ? 'json' : 'index_json';
             if (primaryJsonPath) {
-                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${primaryJsonKey}" data-name="${primaryJsonPath}" class="text-green-400 hover:underline">JSON</button>`);
+                linkElements.push(createArtifactDownloadButton({
+                    url: `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(primaryJsonKey)}`,
+                    filename: primaryJsonPath,
+                    label: 'JSON',
+                    className: 'text-green-400 hover:underline'
+                }));
             }
 
             // Canonical MD (fallback to legacy canonical_md)
             const primaryMdPath = art.paths.md || art.paths.canonical_md;
             const primaryMdKey = art.paths.md ? 'md' : 'canonical_md';
             if (primaryMdPath) {
-                links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${primaryMdKey}" data-name="${primaryMdPath}" class="text-blue-400 hover:underline">Markdown</button>`);
+                linkElements.push(createArtifactDownloadButton({
+                    url: `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(primaryMdKey)}`,
+                    filename: primaryMdPath,
+                    label: 'Markdown',
+                    className: 'text-blue-400 hover:underline'
+                }));
             }
 
             // Other parts
@@ -909,19 +930,34 @@ async function loadArtifacts() {
                 if (key !== 'json' && key !== 'md' && key !== 'canonical_md' && key !== 'index_json') {
                     if (ARTIFACT_LABELS[key]) {
                         const { label, color } = ARTIFACT_LABELS[key];
-                        links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="${color} hover:underline text-xs">${label}</button>`);
+                        linkElements.push(createArtifactDownloadButton({
+                            url: `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(key)}`,
+                            filename: val,
+                            label: label,
+                            className: `${color} hover:underline text-xs`
+                        }));
                     } else if (key.startsWith('md_part')) {
-                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-400 hover:underline text-xs">Part ${key.split('_').pop()}</button>`);
+                         linkElements.push(createArtifactDownloadButton({
+                             url: `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(key)}`,
+                             filename: val,
+                             label: `Part ${key.split('_').pop()}`,
+                             className: 'text-gray-400 hover:underline text-xs'
+                         }));
                     } else if (key.startsWith('other_')) {
-                         links.push(`<button data-dl="${API_BASE}/artifacts/${art.id}/download?key=${key}" data-name="${val}" class="text-gray-300 hover:underline text-xs">Extra ${key.split('_').pop()}</button>`);
+                         linkElements.push(createArtifactDownloadButton({
+                             url: `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(key)}`,
+                             filename: val,
+                             label: `Extra ${key.split('_').pop()}`,
+                             className: 'text-gray-300 hover:underline text-xs'
+                         }));
                     } else {
                          // Fallback for any other key not explicitly modeled, so users can still download it
-                         const fallbackBtn = document.createElement('button');
-                         fallbackBtn.dataset.dl = `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(key)}`;
-                         fallbackBtn.dataset.name = val;
-                         fallbackBtn.className = "text-gray-200 hover:underline text-xs";
-                         fallbackBtn.textContent = formatArtifactFallbackLabel(key);
-                         links.push(fallbackBtn.outerHTML);
+                         linkElements.push(createArtifactDownloadButton({
+                             url: `${API_BASE}/artifacts/${art.id}/download?key=${encodeURIComponent(key)}`,
+                             filename: val,
+                             label: formatArtifactFallbackLabel(key),
+                             className: 'text-gray-200 hover:underline text-xs'
+                         }));
                     }
                 }
             }
@@ -932,30 +968,26 @@ async function loadArtifacts() {
                     <span class="text-xs text-gray-500">${date}</span>
                 </div>
                 <div class="text-xs text-gray-400 truncate mb-1" title="${art.repos.join(', ')}">${repos || 'All Repos'}</div>
-                <div class="flex flex-wrap gap-2 text-xs mt-1">
-                    ${links.join(' <span class="text-gray-600">|</span> ')}
-                </div>
+                <div class="links-container flex flex-wrap gap-2 text-xs mt-1"></div>
             `;
+
+            const linksContainer = div.querySelector('.links-container');
+            linkElements.forEach((btn, index) => {
+                linksContainer.appendChild(btn);
+                if (index < linkElements.length - 1) {
+                    const separator = document.createElement('span');
+                    separator.className = 'text-gray-600';
+                    separator.textContent = '|';
+                    linksContainer.appendChild(separator);
+                }
+            });
+
             list.appendChild(div);
         });
 
     } catch (e) {
         list.innerHTML = '<div class="text-red-500">Error loading artifacts.</div>';
     }
-
-    // Wire download buttons
-    list.querySelectorAll('button[data-dl]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            try {
-                const url = btn.getAttribute('data-dl');
-                const name = btn.getAttribute('data-name') || 'artifact';
-                // Use the updated function for secure downloads
-                await downloadWithAuth(url, name);
-            } catch (e) {
-                alert(e.message);
-            }
-        });
-    });
 }
 
 async function startJob(e) {
@@ -1513,43 +1545,39 @@ async function loadAtlasArtifacts() {
                 dlDiv.className = "flex flex-wrap gap-2 text-xs mt-3 border-t border-gray-800 pt-2";
 
                 if (art.paths.json) {
-                    const btnJson = document.createElement('button');
-                    btnJson.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400";
-                    btnJson.textContent = "Download JSON";
-                    btnJson.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=json`;
-                    btnJson.dataset.name = art.paths.json;
-                    btnJson.addEventListener('click', () => downloadWithAuth(btnJson.dataset.dl, btnJson.dataset.name));
-                    dlDiv.appendChild(btnJson);
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=json`,
+                        filename: art.paths.json,
+                        label: 'Download JSON',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-green-400'
+                    }));
                 }
 
                 if (art.paths.md) {
-                    const btnMd = document.createElement('button');
-                    btnMd.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400";
-                    btnMd.textContent = "Download Report";
-                    btnMd.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=md`;
-                    btnMd.dataset.name = art.paths.md;
-                    btnMd.addEventListener('click', () => downloadWithAuth(btnMd.dataset.dl, btnMd.dataset.name));
-                    dlDiv.appendChild(btnMd);
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=md`,
+                        filename: art.paths.md,
+                        label: 'Download Report',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-400'
+                    }));
                 }
 
                 if (art.paths.inventory) {
-                    const btnInv = document.createElement('button');
-                    btnInv.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-yellow-400";
-                    btnInv.textContent = "Download Inventory";
-                    btnInv.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=inventory`;
-                    btnInv.dataset.name = art.paths.inventory;
-                    btnInv.addEventListener('click', () => downloadWithAuth(btnInv.dataset.dl, btnInv.dataset.name));
-                    dlDiv.appendChild(btnInv);
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=inventory`,
+                        filename: art.paths.inventory,
+                        label: 'Download Inventory',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-yellow-400'
+                    }));
                 }
 
                 if (art.paths.dirs_inventory) {
-                    const btnDirsInv = document.createElement('button');
-                    btnDirsInv.className = "bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-orange-400";
-                    btnDirsInv.textContent = "Download Dirs Inventory";
-                    btnDirsInv.dataset.dl = `${API_BASE}/atlas/${art.id}/download?key=dirs_inventory`;
-                    btnDirsInv.dataset.name = art.paths.dirs_inventory;
-                    btnDirsInv.addEventListener('click', () => downloadWithAuth(btnDirsInv.dataset.dl, btnDirsInv.dataset.name));
-                    dlDiv.appendChild(btnDirsInv);
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=dirs_inventory`,
+                        filename: art.paths.dirs_inventory,
+                        label: 'Download Dirs Inventory',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-orange-400'
+                    }));
                 }
 
                 div.appendChild(dlDiv);

@@ -28,17 +28,48 @@ const context = {
                 textContent: '',
                 appendChild: function(c) { this.children.push(c); },
                 addEventListener: () => {},
-                querySelectorAll: () => []
+                querySelectorAll: () => [],
+                querySelector: function(selector) {
+                    if (selector === '.links-container' && this.className.includes('links-container')) {
+                        return this;
+                    }
+                    for (const child of this.children) {
+                        if (child.className && child.className.includes('links-container') && selector === '.links-container') {
+                            return child;
+                        }
+                    }
+                    return null;
+                }
             };
+            Object.defineProperty(el, 'innerHTML', {
+                set: function(val) {
+                    this._innerHTML = val;
+                    // very naive parser to mock the links-container for querySelector
+                    if (val.includes('links-container')) {
+                        const linksContainer = context.document.createElement('div');
+                        linksContainer.className = 'links-container flex flex-wrap gap-2 text-xs mt-1';
+                        this.children.push(linksContainer);
+                    }
+                },
+                get: function() {
+                    return this._innerHTML || '';
+                }
+            });
             Object.defineProperty(el, 'outerHTML', {
                 get: function() {
-                    const attrs = Object.entries(this.dataset).map(([k, v]) => `data-${k}="${v.replace(/"/g, '&quot;')}"`).join(' ');
+                    const attrs = Object.entries(this.dataset).map(([k, v]) => `data-${k}="${String(v).replace(/"/g, '&quot;')}"`).join(' ');
                     // Important: Simulate the browser's DOM escaping for textContent
                     const text = (this.textContent || '')
                         .replace(/&/g, '&amp;')
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;');
-                    return `<${this.tagName} class="${this.className}" ${attrs}>${text}</${this.tagName}>`;
+
+                    let inner = text;
+                    if (this.children.length > 0) {
+                         inner += this.children.map(c => c.outerHTML).join('');
+                    }
+
+                    return `<${this.tagName} class="${this.className}" ${attrs}>${inner}</${this.tagName}>`;
                 }
             });
             return el;
@@ -93,7 +124,10 @@ const context = {
                         chunk_index: 'chunk.json',
                         foo_bar: 'b.bin',
                         custom_bundle_x: 'c.zip',
-                        '<script>alert(1)</script>': 'malicious.bin'
+                        '<script>alert(1)</script>': 'malicious.bin',
+                        'foo&bar': 'amp.bin',
+                        'foo"bar': 'quote.bin',
+                        "foo'bar": 'squote.bin'
                     }
                 }]
             };
@@ -129,10 +163,18 @@ async function runTest() {
         process.exit(1);
     }
 
-    const html = global.artifactListEl.children[0].innerHTML;
+    const containerDiv = global.artifactListEl.children[0];
+    const linksContainer = containerDiv.children.find(c => c.className.includes('links-container'));
+
+    if (!linksContainer) {
+         console.error("FAIL: Links container not found");
+         process.exit(1);
+    }
+
+    const html = linksContainer.outerHTML;
 
     if (!html.includes('data-dl="/api/artifacts/1/download?key=foo_bar"')) {
-        console.error("FAIL: Should render foo_bar button correctly in outerHTML");
+        console.error("FAIL: Should render foo_bar button correctly in links container");
         process.exit(1);
     }
 
@@ -141,6 +183,39 @@ async function runTest() {
         console.error("FAIL: Unescaped malicious key found in HTML!");
         console.error(html);
         process.exit(1);
+    }
+
+    // Check ampersand
+    if (html.includes('data-dl="/api/artifacts/1/download?key=foo%26bar"')) {
+        // It correctly URI encoded the key
+    } else {
+         console.error("FAIL: Ampersand key not correctly rendered");
+         process.exit(1);
+    }
+
+    // Check quotes
+    if (html.includes('data-dl="/api/artifacts/1/download?key=foo%22bar"')) {
+        // Correct
+    } else {
+         console.error("FAIL: Double quote key not correctly rendered");
+         process.exit(1);
+    }
+
+    // Check single quotes
+    if (html.includes('data-dl="/api/artifacts/1/download?key=foo\'bar"')) {
+        // Correct (encodeURIComponent does not encode single quotes natively, so it stays raw or is structurally fine since HTML attributes are wrapped in double quotes)
+    } else {
+         console.error("FAIL: Single quote key not correctly rendered in URL");
+         console.error(html);
+         process.exit(1);
+    }
+
+    // Check script tags (angle brackets) in URL
+    if (html.includes('data-dl="/api/artifacts/1/download?key=%3Cscript%3Ealert(1)%3C%2Fscript%3E"')) {
+        // Correctly encoded
+    } else {
+         console.error("FAIL: Script tag key not correctly encoded in URL");
+         process.exit(1);
     }
 
     console.log("PASS: loadArtifacts fallback rendering works perfectly and safely!");
