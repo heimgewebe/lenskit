@@ -28,3 +28,15 @@ def test_import_graph_generator():
     expected["run_id"] = "test_run_123"
 
     assert doc == expected
+
+def test_cli_architecture_mutually_exclusive(capsys):
+    import pytest
+    from merger.lenskit.cli.main import main
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["architecture", "--entrypoints", "--import-graph"])
+
+    assert exc_info.value.code != 0
+
+    captured = capsys.readouterr()
+    assert "not allowed with argument" in captured.err

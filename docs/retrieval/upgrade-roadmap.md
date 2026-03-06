@@ -343,10 +343,11 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 - [x] `architecture.graph.v1` schema file (path TBD; see Open Questions).
 - [x] Generator: Python-Imports via AST (Edges: `import`, Evidence S1, line-refs).
 - [x] `coverage` vollständig (inklusive `files_parsed / files_seen`) + Warnungen bei low coverage.
+- [x] Resolver-Grenzen dokumentiert: S1 MVP ist rein statisch, Relative/Star-Imports bleiben heuristisch/unexpandiert.
 
 **Stop-Kriterium:**
 - [x] Determinismus: Sortierte Nodes/Edges.
-- [x] Golden Test: Mini Fixture Project erzeugt exakten Graph Output.
+- [x] Golden Test: Mini Fixture Project erzeugt exakten Graph Output inkl. dokumentierter Edge-Cases.
 
 ### PR 4: graph_index compile + graph-aware rerank (P2)
 **Deliverables:**
