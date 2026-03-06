@@ -193,9 +193,10 @@ def do_eval(
                 "filters": filters,
                 "expected": expected,
                 "is_relevant": False,
-                "hit_path": f"error: {str(e)}",
+                "hit_path": None,
                 "found_count": 0,
                 "top_results": [],
+                "error": str(e),
                 "why": {"why_fail": WHY_FAIL_QUERY_EXECUTION},
                 "explain": {"filters": filters, "why_fail": WHY_FAIL_QUERY_EXECUTION}
             })

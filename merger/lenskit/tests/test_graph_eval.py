@@ -73,9 +73,6 @@ def test_invalid_graph_index_raises(eval_env, capsys):
     )
 
     ret = cmd_eval.run_eval(args)
-    # The eval_core catches generic Exceptions in query mapping but wait, execute_query is called.
-    # If execute_query raises RuntimeError, does do_eval catch it?
-    # Actually do_eval raises or catches it. Let's see the output.
     assert ret == 1
     captured = capsys.readouterr()
     assert "Invalid graph index JSON" in captured.err

@@ -344,8 +344,6 @@ def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path,
     cmd_eval.run_eval(Args())
     captured = capsys.readouterr()
     detail = json.loads(captured.out)["details"][0]
-    # The output from the test failure format puts "error: Mock DB Crash" in `hit_path`
-    # Let's adjust to check the actual returned structure cleanly.
-    assert "Mock DB Crash" in detail["hit_path"]
+    assert detail["error"] == "Mock DB Crash"
     assert "explain" in detail
     assert detail["explain"]["why_fail"] == eval_core.WHY_FAIL_QUERY_EXECUTION
