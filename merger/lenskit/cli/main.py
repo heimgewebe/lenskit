@@ -38,6 +38,9 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--embedding-policy", help="Path to embedding-policy.v1 JSON policy instance (requests semantic pipeline; currently candidate overfetch only)")
     query_parser.add_argument("--explain", action="store_true", help="Include diagnostic explain block in query results")
     query_parser.add_argument("--overmatch-guard", action="store_true", help="Disable synonym OR-expansion in router")
+    query_parser.add_argument("--graph-index", help="Path to graph_index.json to enable graph-aware reranking")
+    query_parser.add_argument("--graph-weights", help='JSON string of graph weights (e.g. \'{"w_bm25": 0.65}\')')
+    query_parser.add_argument("--test-penalty", type=float, default=0.75, help="Score penalty multiplier for test files")
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")
@@ -47,6 +50,8 @@ def main(args: Optional[List[str]] = None) -> int:
     eval_parser.add_argument("--emit", choices=["text", "json"], default="text", help="Output format")
     eval_parser.add_argument("--stale-policy", choices=["warn", "fail", "ignore"], default="fail", help="Policy for handling stale indices")
     eval_parser.add_argument("--embedding-policy", help="Path to embedding-policy.v1 JSON policy instance (requests semantic pipeline; currently candidate overfetch only)")
+    eval_parser.add_argument("--graph-index", help="Path to graph_index.json to enable graph-aware reranking")
+    eval_parser.add_argument("--graph-weights", help='JSON string of graph weights (e.g. \'{"w_bm25": 0.65}\')')
 
     # Range command
     range_parser = subparsers.add_parser("range", help="Range operations")
@@ -69,6 +74,9 @@ def main(args: Optional[List[str]] = None) -> int:
     architecture_group = architecture_parser.add_mutually_exclusive_group(required=True)
     architecture_group.add_argument("--entrypoints", action="store_true", help="Extract entrypoints")
     architecture_group.add_argument("--import-graph", action="store_true", help="Extract Python import graph")
+    architecture_group.add_argument("--graph-index", action="store_true", help="Compile graph index from entrypoints and import graph")
+    architecture_parser.add_argument("--graph-in", help="Path to architecture.graph.json")
+    architecture_parser.add_argument("--entrypoints-in", help="Path to entrypoints.json")
 
     # Atlas command
     atlas_parser = subparsers.add_parser("atlas", help="Atlas filesystem crawler")

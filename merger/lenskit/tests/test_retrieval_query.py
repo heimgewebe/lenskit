@@ -250,7 +250,10 @@ def test_cmd_query_json_emit(mini_index, capsys):
         emit="json",
         stale_policy="ignore",
         embedding_policy=None,
-        explain=True
+        explain=True,
+        graph_index=None,
+        graph_weights=None,
+        test_penalty=0.75
     )
     ret = cmd_query.run_query(args)
     assert ret == 0

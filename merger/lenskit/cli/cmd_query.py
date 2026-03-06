@@ -38,6 +38,14 @@ def run_query(args: argparse.Namespace) -> int:
             return 1
 
     try:
+        graph_weights_dict = None
+        if getattr(args, "graph_weights", None):
+            try:
+                graph_weights_dict = json.loads(args.graph_weights)
+            except json.JSONDecodeError:
+                print("Error: Invalid JSON for --graph-weights", file=sys.stderr)
+                return 1
+
         result = execute_query(
             index_path=index_path,
             query_text=args.q,
@@ -45,7 +53,10 @@ def run_query(args: argparse.Namespace) -> int:
             filters=applied_filters,
             embedding_policy=policy_instance,
             explain=getattr(args, "explain", False),
-            overmatch_guard=getattr(args, "overmatch_guard", False)
+            overmatch_guard=getattr(args, "overmatch_guard", False),
+            graph_index_path=Path(args.graph_index) if getattr(args, "graph_index", None) else None,
+            graph_weights=graph_weights_dict,
+            test_penalty=getattr(args, "test_penalty", 0.75)
         )
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)

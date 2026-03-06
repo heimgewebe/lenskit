@@ -43,6 +43,15 @@ def run_architecture_cmd(args: argparse.Namespace) -> int:
 
         print(json.dumps(doc, indent=2))
         return 0
+    elif getattr(args, "graph_index", False):
+        if not getattr(args, "graph_in", None) or not getattr(args, "entrypoints_in", None):
+            print("Error: --graph-index requires --graph-in and --entrypoints-in", file=sys.stderr)
+            return 1
+
+        from ..architecture.graph_index import compile_graph_index
+        idx = compile_graph_index(Path(args.graph_in), Path(args.entrypoints_in))
+        print(json.dumps(idx, indent=2))
+        return 0
     else:
         print("Error: You must specify an architecture view to extract (e.g., --entrypoints, --import-graph).", file=sys.stderr)
         return 1

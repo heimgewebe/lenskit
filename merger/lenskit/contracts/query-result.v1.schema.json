@@ -40,7 +40,10 @@
       "type": "object",
       "description": "The filters applied during the query.",
       "additionalProperties": {
-        "type": ["string", "null"]
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "count": {
@@ -133,6 +136,15 @@
                 "additionalProperties": true,
                 "description": "Optional diagnostics information."
               }
+            }
+          },
+          "final_score": {
+            "type": "number"
+          },
+          "why_list": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
