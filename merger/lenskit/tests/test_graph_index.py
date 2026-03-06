@@ -34,3 +34,8 @@ def test_compile_graph_index(tmp_path):
     assert idx["distances"]["ep1"] == 0
     assert idx["distances"]["util"] == 1
     assert idx["distances"]["unreach"] == -1
+
+    # Assert alias keys injection is working correctly
+    assert idx["distances"]["file:main.py"] == 0
+    assert idx["distances"]["file:util.py"] == 1
+    assert idx["distances"]["file:unreach.py"] == -1
