@@ -302,50 +302,68 @@ def test_cmd_query_json_emit(mini_index, capsys):
     assert "results" in parsed
     assert "explain" in parsed
 
-def test_query_semantic_reranking(mini_index):
+def test_query_semantic_reranking(mini_index, monkeypatch):
+    # Create a mock semantic model that produces deterministic vectors
+    class MockSemanticModel:
+        def encode(self, texts):
+            # If input is string, make it list-like for uniform processing
+            is_single = isinstance(texts, str)
+            if is_single: texts = [texts]
+
+            embeddings = []
+            for t in texts:
+                t = t.lower()
+                # Determine mock vectors based on content to force order
+                if "test_main" in t:
+                    embeddings.append([1.0, 0.0])
+                elif "print" in t:
+                    embeddings.append([0.0, 1.0])
+                elif t == "def":
+                    # query returns [1.0, 0.0], matching test_main best
+                    embeddings.append([1.0, 0.0])
+                else:
+                    embeddings.append([0.5, 0.5])
+
+            return embeddings[0] if is_single else embeddings
+
+    def mock_get_semantic_model(name):
+        return MockSemanticModel()
+
+    monkeypatch.setattr("merger.lenskit.retrieval.query_core._get_semantic_model", mock_get_semantic_model)
+
     policy = {
-        "model_name": "all-MiniLM-L6-v2",
+        "model_name": "mock-model",
         "provider": "local",
         "fallback_behavior": "fail",
         "similarity_metric": "cosine",
-        "dimensions": 384
+        "dimensions": 2
     }
 
-    # Both main and test have 'def'
-    # Without semantics
+    # Baseline: both matches have 'def'. The SQLite query will return them in DB order.
     res_base = query_core.execute_query(mini_index, query_text="def", k=2, explain=True)
     assert res_base["count"] == 2
+    base_order = [h["path"] for h in res_base["results"]]
 
-    # Check baseline order (usually lexical ties resolve by some DB order)
-    base_top_path = res_base["results"][0]["path"]
+    # We query "def", which matches both chunks lexically.
+    # The mock semantic model encodes "def" as [1.0, 0.0].
+    # It encodes the content of "tests/test_main.py" (containing "test_main") as [1.0, 0.0].
+    # It encodes the content of "src/main.py" (containing "print") as [0.0, 1.0].
+    # This forces the semantic similarity to be 1.0 for test_main and 0.0 for main,
+    # effectively reranking test_main to the top regardless of baseline DB tie-breaking.
 
-    # With semantics: "printing something to the console" is semantically closer to "print('hello world')" in src/main.py
-    # We use "def printing" to ensure FTS finds them both (they both have 'def'). FTS will OR them.
-    # We want to prove semantics changed the ranking. If they both tie, semantic will give main.py a much higher score.
-
-    # To prove a ranking delta, we query "def". FTS finds both.
-    # BM25 scores them both equally.
-    # We will rerank using semantics on "assert".
-    # Wait, we must query "assert" to get semantic matches, but "assert" only exists in one document.
-    # FTS will filter the other document out.
-    # We want FTS to return BOTH documents, and then semantics re-ranks them.
-    # FTS finds both with "def". Let's query "def main".
-
-    res_sem = query_core.execute_query(mini_index, query_text="def main", k=2, embedding_policy=policy, explain=True)
+    res_sem = query_core.execute_query(mini_index, query_text="def", k=2, embedding_policy=policy, explain=True)
 
     assert res_sem["count"] == 2
-    top_hit_sem = res_sem["results"][0]
+    top_hit = res_sem["results"][0]
+    second_hit = res_sem["results"][1]
 
-    # Semantic scoring for "def main" should bring test_main.py to the top over main.py
-    # because they both match, but we don't know which is closer to "def main" semantically.
-    # Let's just assert that semantic score changes final order or that semantic scores are present.
-    assert "semantic_score" in top_hit_sem["why"]["rank_features"]
+    # Assert deterministic ranking delta
+    assert top_hit["path"] == "tests/test_main.py"
+    assert second_hit["path"] == "src/main.py"
 
-    # Let's ensure semantic ordering is preserved deterministically
-    second_hit_sem = res_sem["results"][1]
-    assert top_hit_sem["why"]["rank_features"]["semantic_score"] >= second_hit_sem["why"]["rank_features"]["semantic_score"]
+    # Assert presence of required metrics in explain/why block
+    assert "semantic_score" in top_hit["why"]["rank_features"]
+    assert "original_bm25" in top_hit["why"]["rank_features"]
 
-    # Check that rank_features include semantic_score
-    rank_features = top_hit_sem["why"]["rank_features"]
-    assert "semantic_score" in rank_features
-    assert "original_bm25" in rank_features
+    # Assert semantic score logic is correctly calculated by the mock fallback
+    assert top_hit["why"]["rank_features"]["semantic_score"] > second_hit["why"]["rank_features"]["semantic_score"]

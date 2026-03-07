@@ -69,7 +69,7 @@ def execute_query(
             base_sql = f"""
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref,
+                    c.layer, c.artifact_type, c.content_range_ref, chunks_fts.content,
                     {scoring_expr} as score
                 FROM chunks_fts
                 JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
@@ -87,7 +87,7 @@ def execute_query(
             base_sql = """
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref,
+                    c.layer, c.artifact_type, c.content_range_ref, '' as content,
                     0 as score
                 FROM chunks c
             """
@@ -147,7 +147,33 @@ def execute_query(
         if semantic_enabled:
             engine_type += "+semantic_requested"
             provider = embedding_policy.get("provider", "local")
-            if provider == "local":
+            metric = embedding_policy.get("similarity_metric", "cosine")
+
+            if provider != "local":
+                if fallback == "fail":
+                    raise RuntimeError(f"Semantic re-ranking provider '{provider}' is not yet implemented (fallback_behavior=fail).")
+                else:
+                    base_diagnostics["semantic"] = {
+                        "enabled": False,
+                        "error": f"Provider '{provider}' not implemented",
+                        "fallback_behavior": fallback,
+                        "candidate_k": fetch_k,
+                        "provider": provider,
+                        "model_name": embedding_policy.get("model_name")
+                    }
+            elif metric != "cosine":
+                if fallback == "fail":
+                    raise RuntimeError(f"Semantic re-ranking metric '{metric}' is not supported (fallback_behavior=fail).")
+                else:
+                    base_diagnostics["semantic"] = {
+                        "enabled": False,
+                        "error": f"Metric '{metric}' not supported",
+                        "fallback_behavior": fallback,
+                        "candidate_k": fetch_k,
+                        "provider": provider,
+                        "model_name": embedding_policy.get("model_name")
+                    }
+            else:
                 try:
                     model_name = embedding_policy.get("model_name", "all-MiniLM-L6-v2")
                     semantic_model = _get_semantic_model(model_name)
@@ -176,18 +202,6 @@ def execute_query(
                             "error": str(e),
                             "fallback_behavior": fallback
                         }
-            else:
-                if fallback == "fail":
-                    raise RuntimeError(f"Semantic re-ranking provider '{provider}' is not yet implemented (fallback_behavior=fail).")
-                else:
-                    base_diagnostics["semantic"] = {
-                        "enabled": False,
-                        "error": f"Provider '{provider}' not implemented",
-                        "fallback_behavior": fallback,
-                        "candidate_k": fetch_k,
-                        "provider": provider,
-                        "model_name": embedding_policy.get("model_name")
-                    }
 
         graph_index = None
         if graph_index_path:
@@ -263,6 +277,13 @@ def execute_query(
                 score_pre = (w_b * rank_features["bm25_norm"]) + (w_g * graph_proximity) + (w_e * entrypoint_boost)
                 final_score = score_pre * current_penalty
 
+            # Read content safely; defaults to empty string if missing or null.
+            try:
+                hit_content = r["content"]
+                if not hit_content: hit_content = ""
+            except Exception:
+                hit_content = ""
+
             hit = {
                 "chunk_id": r["chunk_id"],
                 "repo_id": r["repo_id"],
@@ -273,6 +294,7 @@ def execute_query(
                 "layer": r["layer"],
                 "type": r["artifact_type"],
                 "sha256": r["content_sha256"],
+                "content": hit_content, # Temporarily mapped for semantic reranker
                 "why": {
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
@@ -297,37 +319,33 @@ def execute_query(
             results.append(hit)
 
         if semantic_model:
-            # Re-rank results using sentence-transformers
+            # Re-rank results using semantic model
             try:
-                from sentence_transformers import util
+                # Use a lightweight dot product/cosine calculation if the model is mocked for tests,
+                # or import standard util if it's the real sentence_transformers.
                 query_emb = semantic_model.encode(query_text)
-                # Compute embeddings for candidates. Fallback to empty string if content is missing.
-                candidate_texts = []
-                for hit in results:
-                    # In this retrieval flow, 'content' is part of the FTS query result if requested,
-                    # but our select includes `c.content` which we mapped earlier, except we didn't include it in `results`.
-                    # Let's read `content` from the sqlite row if needed, but since we mapped rows to `results` earlier
-                    # we should attach 'content' to the hit temporarily or fetch it.
-                    # Wait, the SQL query does `SELECT c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.content, c.layer, c.artifact_type, c.content_sha256, c.content_range_ref`
-                    # The `results` dict doesn't have `content`. We need to fetch it from the original rows.
-                    pass
 
-                # Wait, I'll need to zip rows and results to access content.
-                # Since results and rows have the same order before any sorting.
-                chunk_contents = []
-                for r in rows:
+                # Extract candidate texts directly from mapped results
+                candidate_texts = [hit["content"] for hit in results]
+
+                if candidate_texts:
+                    doc_embs = semantic_model.encode(candidate_texts)
+
                     try:
-                        content = r["content"]
-                        if not content: content = ""
-                        chunk_contents.append(content)
-                    except Exception:
-                        chunk_contents.append("")
+                        from sentence_transformers import util
+                        cosine_scores = util.cos_sim(query_emb, doc_embs)[0]
+                    except ImportError:
+                        # Fallback for mocked models in tests
+                        import numpy as np
+                        q = np.array(query_emb)
+                        d = np.array(doc_embs)
+                        q_norm = np.linalg.norm(q)
+                        d_norm = np.linalg.norm(d, axis=1)
+                        q_norm = q_norm if q_norm > 0 else 1.0
+                        d_norm = np.where(d_norm > 0, d_norm, 1.0)
+                        cosine_scores = np.dot(d, q) / (d_norm * q_norm)
 
-                if chunk_contents:
-                    doc_embs = semantic_model.encode(chunk_contents)
-                    cosine_scores = util.cos_sim(query_emb, doc_embs)[0]
                     for i, hit in enumerate(results):
-                        # Replace score with semantic score
                         old_score = hit.get("score", 0)
                         hit["score"] = float(cosine_scores[i])
                         hit["final_score"] = float(cosine_scores[i])
@@ -341,6 +359,10 @@ def execute_query(
                     base_diagnostics["semantic"]["error"] = f"Encoding failed: {e}"
                     base_diagnostics["semantic"]["enabled"] = False
                     semantic_model = None
+
+        # Clean up temporary content fields
+        for hit in results:
+            hit.pop("content", None)
 
         # Sort results deterministically to avoid random tie flips.
         results.sort(key=lambda x: (-x.get("final_score", 0), x["path"]))
