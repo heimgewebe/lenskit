@@ -157,8 +157,9 @@ def test_query_semantic_markers(mini_index):
     hit = res["results"][0]
     assert "diagnostics" in hit["why"]
     semantic_diag = hit["why"]["diagnostics"]["semantic"]
-    assert semantic_diag["enabled"] is True
+    assert semantic_diag["enabled"] is False
     assert semantic_diag["fallback_behavior"] == "ignore"
+    assert "not implemented" in semantic_diag["error"]
     assert semantic_diag["candidate_k"] == 50  # Overfetch logic triggers
     assert semantic_diag["provider"] == "api"
     assert semantic_diag["model_name"] == "test-model"
@@ -194,7 +195,7 @@ def test_query_semantic_fallback_fail(mini_index):
     with pytest.raises(RuntimeError) as excinfo:
         query_core.execute_query(mini_index, query_text="def", k=2, embedding_policy=policy)
 
-    assert "Semantic re-ranking is not yet implemented (fallback_behavior=fail)" in str(excinfo.value)
+    assert "Semantic re-ranking provider 'api' is not yet implemented (fallback_behavior=fail)" in str(excinfo.value)
 
 
 def _make_mock_conn(err_msg: str):
@@ -300,3 +301,73 @@ def test_cmd_query_json_emit(mini_index, capsys):
     assert isinstance(parsed, dict)
     assert "results" in parsed
     assert "explain" in parsed
+
+def test_query_semantic_reranking(mini_index, monkeypatch):
+    # Create a mock semantic model that produces deterministic vectors
+    class MockSemanticModel:
+        def encode(self, texts):
+            # If input is string, make it list-like for uniform processing
+            is_single = isinstance(texts, str)
+            if is_single: texts = [texts]
+
+            embeddings = []
+            for t in texts:
+                t = t.lower()
+                # Determine mock vectors based on content to force order
+                if "test_main" in t:
+                    embeddings.append([1.0, 0.0])
+                elif "print" in t:
+                    embeddings.append([0.0, 1.0])
+                elif t == "def":
+                    # query returns [1.0, 0.0], matching test_main best
+                    embeddings.append([1.0, 0.0])
+                else:
+                    embeddings.append([0.5, 0.5])
+
+            return embeddings[0] if is_single else embeddings
+
+    def mock_get_semantic_model(name):
+        return MockSemanticModel()
+
+    monkeypatch.setattr("merger.lenskit.retrieval.query_core._get_semantic_model", mock_get_semantic_model)
+
+    policy = {
+        "model_name": "mock-model",
+        "provider": "local",
+        "fallback_behavior": "fail",
+        "similarity_metric": "cosine",
+        "dimensions": 2
+    }
+
+    # Baseline: both matches have 'def'. The SQLite query will return them in DB order.
+    res_base = query_core.execute_query(mini_index, query_text="def", k=2, explain=True)
+    assert res_base["count"] == 2
+    base_order = [h["path"] for h in res_base["results"]]
+
+    # We query "def", which matches both chunks lexically.
+    # The mock semantic model encodes "def" as [1.0, 0.0].
+    # It encodes the content of "tests/test_main.py" (containing "test_main") as [1.0, 0.0].
+    # It encodes the content of "src/main.py" (containing "print") as [0.0, 1.0].
+    # This forces the semantic similarity to be 1.0 for test_main and 0.0 for main,
+    # effectively reranking test_main to the top regardless of baseline DB tie-breaking.
+
+    res_sem = query_core.execute_query(mini_index, query_text="def", k=2, embedding_policy=policy, explain=True)
+
+    assert res_sem["count"] == 2
+    sem_order = [h["path"] for h in res_sem["results"]]
+    top_hit = res_sem["results"][0]
+    second_hit = res_sem["results"][1]
+
+    # Explicitly assert that the semantic reranking altered the order compared to baseline.
+    assert base_order != sem_order, "Semantic reranking failed to change the baseline FTS DB order."
+
+    # Assert deterministic ranking outcome
+    assert top_hit["path"] == "tests/test_main.py"
+    assert second_hit["path"] == "src/main.py"
+
+    # Assert presence of required metrics in explain/why block
+    assert "semantic_score" in top_hit["why"]["rank_features"]
+    assert "original_bm25" in top_hit["why"]["rank_features"]
+
+    # Assert semantic score logic is correctly calculated by the mock fallback
+    assert top_hit["why"]["rank_features"]["semantic_score"] > second_hit["why"]["rank_features"]["semantic_score"]

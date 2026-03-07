@@ -9,6 +9,14 @@ WHY_ZERO_TOKENS = "tokens too restrictive"
 WHY_ZERO_FILTERS = "filters too restrictive"
 WHY_ZERO_NONE = "no results"
 
+_MODEL_CACHE = {}
+
+def _get_semantic_model(model_name: str):
+    if model_name not in _MODEL_CACHE:
+        from sentence_transformers import SentenceTransformer
+        _MODEL_CACHE[model_name] = SentenceTransformer(model_name)
+    return _MODEL_CACHE[model_name]
+
 def execute_query(
     index_path: Path,
     query_text: str,
@@ -61,7 +69,7 @@ def execute_query(
             base_sql = f"""
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref,
+                    c.layer, c.artifact_type, c.content_range_ref, chunks_fts.content,
                     {scoring_expr} as score
                 FROM chunks_fts
                 JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
@@ -79,7 +87,7 @@ def execute_query(
             base_sql = """
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref,
+                    c.layer, c.artifact_type, c.content_range_ref, '' as content,
                     0 as score
                 FROM chunks c
             """
@@ -135,18 +143,68 @@ def execute_query(
         fallback = embedding_policy.get("fallback_behavior", "ignore") if semantic_enabled else "ignore"
 
         base_diagnostics = {}
+        semantic_model = None
         if semantic_enabled:
+            # Note on F1b implementation limits:
+            # Currently only `provider=local` and `similarity_metric=cosine` are actively implemented.
+            # Other parameters like `dimensions` are structurally present but not actively validated here yet.
             engine_type += "+semantic_requested"
-            if fallback == "fail":
-                raise RuntimeError("Semantic re-ranking is not yet implemented (fallback_behavior=fail).")
+            provider = embedding_policy.get("provider", "local")
+            metric = embedding_policy.get("similarity_metric", "cosine")
 
-            base_diagnostics["semantic"] = {
-                "enabled": True,
-                "fallback_behavior": fallback,
-                "candidate_k": fetch_k,
-                "provider": embedding_policy.get("provider"),
-                "model_name": embedding_policy.get("model_name")
-            }
+            if provider != "local":
+                if fallback == "fail":
+                    raise RuntimeError(f"Semantic re-ranking provider '{provider}' is not yet implemented (fallback_behavior=fail).")
+                else:
+                    base_diagnostics["semantic"] = {
+                        "enabled": False,
+                        "error": f"Provider '{provider}' not implemented",
+                        "fallback_behavior": fallback,
+                        "candidate_k": fetch_k,
+                        "provider": provider,
+                        "model_name": embedding_policy.get("model_name")
+                    }
+            elif metric != "cosine":
+                if fallback == "fail":
+                    raise RuntimeError(f"Semantic re-ranking metric '{metric}' is not supported (fallback_behavior=fail).")
+                else:
+                    base_diagnostics["semantic"] = {
+                        "enabled": False,
+                        "error": f"Metric '{metric}' not supported",
+                        "fallback_behavior": fallback,
+                        "candidate_k": fetch_k,
+                        "provider": provider,
+                        "model_name": embedding_policy.get("model_name")
+                    }
+            else:
+                try:
+                    model_name = embedding_policy.get("model_name", "all-MiniLM-L6-v2")
+                    semantic_model = _get_semantic_model(model_name)
+                    base_diagnostics["semantic"] = {
+                        "enabled": True,
+                        "fallback_behavior": fallback,
+                        "candidate_k": fetch_k,
+                        "provider": provider,
+                        "model_name": model_name
+                    }
+                except ImportError as e:
+                    if fallback == "fail":
+                        raise RuntimeError(f"Semantic re-ranking provider '{provider}' requires sentence-transformers (fallback_behavior=fail).") from e
+                    else:
+                        base_diagnostics["semantic"] = {
+                            "enabled": False,
+                            "error": "sentence-transformers not installed",
+                            "fallback_behavior": fallback
+                        }
+                except Exception as e:
+                    if fallback == "fail":
+                        raise RuntimeError(f"Semantic re-ranking failed to load model (fallback_behavior=fail): {e}") from e
+                    else:
+                        base_diagnostics["semantic"] = {
+                            "enabled": False,
+                            "error": str(e),
+                            "fallback_behavior": fallback
+                        }
 
         graph_index = None
         if graph_index_path:
@@ -222,6 +280,12 @@ def execute_query(
                 score_pre = (w_b * rank_features["bm25_norm"]) + (w_g * graph_proximity) + (w_e * entrypoint_boost)
                 final_score = score_pre * current_penalty
 
+            # Read content consistently; since we explicitly project 'content' in both SQL branches,
+            # it should be present. We simply normalise None or falsy values to an empty string.
+            hit_content = r["content"]
+            if not hit_content:
+                hit_content = ""
+
             hit = {
                 "chunk_id": r["chunk_id"],
                 "repo_id": r["repo_id"],
@@ -232,6 +296,7 @@ def execute_query(
                 "layer": r["layer"],
                 "type": r["artifact_type"],
                 "sha256": r["content_sha256"],
+                "content": hit_content, # Temporarily mapped for semantic reranker
                 "why": {
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
@@ -255,15 +320,55 @@ def execute_query(
 
             results.append(hit)
 
+        if semantic_model:
+            # Re-rank results using semantic model
+            try:
+                # Use a lightweight dot product/cosine calculation if the model is mocked for tests,
+                # or import standard util if it's the real sentence_transformers.
+                query_emb = semantic_model.encode(query_text)
+
+                # Extract candidate texts directly from mapped results
+                candidate_texts = [hit["content"] for hit in results]
+
+                if candidate_texts:
+                    doc_embs = semantic_model.encode(candidate_texts)
+
+                    try:
+                        from sentence_transformers import util
+                        cosine_scores = util.cos_sim(query_emb, doc_embs)[0]
+                    except ImportError:
+                        # Fallback for mocked models in tests
+                        import numpy as np
+                        q = np.array(query_emb)
+                        d = np.array(doc_embs)
+                        q_norm = np.linalg.norm(q)
+                        d_norm = np.linalg.norm(d, axis=1)
+                        q_norm = q_norm if q_norm > 0 else 1.0
+                        d_norm = np.where(d_norm > 0, d_norm, 1.0)
+                        cosine_scores = np.dot(d, q) / (d_norm * q_norm)
+
+                    for i, hit in enumerate(results):
+                        old_score = hit.get("score", 0)
+                        hit["score"] = float(cosine_scores[i])
+                        hit["final_score"] = float(cosine_scores[i])
+                        hit["why"]["rank_features"] = hit["why"].get("rank_features", {})
+                        hit["why"]["rank_features"]["semantic_score"] = float(cosine_scores[i])
+                        hit["why"]["rank_features"]["original_bm25"] = old_score
+            except Exception as e:
+                if fallback == "fail":
+                    raise RuntimeError(f"Semantic re-ranking failed during encoding (fallback_behavior=fail): {e}") from e
+                else:
+                    base_diagnostics["semantic"]["error"] = f"Encoding failed: {e}"
+                    base_diagnostics["semantic"]["enabled"] = False
+                    semantic_model = None
+
+        # Clean up temporary content fields
+        for hit in results:
+            hit.pop("content", None)
+
         # Sort results deterministically to avoid random tie flips.
         results.sort(key=lambda x: (-x.get("final_score", 0), x["path"]))
         results = results[:k]
-
-        if embedding_policy:
-            # We don't implement actual re-ranking yet, just candidate overfetch
-            # and truncation to verify pipeline wiring.
-            # Real embeddings would be implemented in a subsequent phase.
-            results = results[:k]
 
         out = {
             "query": query_text,
