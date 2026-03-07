@@ -31,7 +31,29 @@ def run_eval(args: argparse.Namespace) -> int:
             print(f"Error: {e}", file=sys.stderr)
             return 1
 
-    out = do_eval(index_path, queries_path, args.k, is_json_mode, is_stale, policy_instance)
+    graph_weights_dict = None
+    if getattr(args, "graph_weights", None):
+        try:
+            graph_weights_dict = json.loads(args.graph_weights)
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON for --graph-weights", file=sys.stderr)
+            return 1
+
+    try:
+        out = do_eval(
+            index_path,
+            queries_path,
+            args.k,
+            is_json_mode,
+            is_stale,
+            policy_instance,
+            graph_index_path=Path(args.graph_index) if getattr(args, "graph_index", None) else None,
+            graph_weights=graph_weights_dict
+        )
+    except RuntimeError as e:
+        print(f"Error during eval: {e}", file=sys.stderr)
+        return 1
+
     if out is None:
         return 1
 

@@ -86,7 +86,9 @@ def do_eval(
     k: int,
     is_json_mode: bool = False,
     is_stale: bool = False,
-    embedding_policy: Optional[Dict[str, Any]] = None
+    embedding_policy: Optional[Dict[str, Any]] = None,
+    graph_index_path: Optional[Path] = None,
+    graph_weights: Optional[Dict[str, float]] = None
 ) -> Optional[Dict[str, Any]]:
     try:
         gold_queries = parse_gold_queries(queries_path)
@@ -128,7 +130,9 @@ def do_eval(
                 k=k,
                 filters=filters,
                 embedding_policy=embedding_policy,
-                explain=True
+                explain=True,
+                graph_index_path=graph_index_path,
+                graph_weights=graph_weights
             )
 
             is_relevant = False
@@ -175,6 +179,27 @@ def do_eval(
             detail["explain"] = res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
 
             results_detail.append(detail)
+
+        except RuntimeError as e:
+            if "Invalid graph index JSON" in str(e) or "Explicitly provided graph index file does not exist" in str(e):
+                raise e
+            if not is_json_mode:
+                disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
+                print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
+
+            results_detail.append({
+                "query": q_text,
+                "category": cat_key,
+                "filters": filters,
+                "expected": expected,
+                "is_relevant": False,
+                "hit_path": None,
+                "found_count": 0,
+                "top_results": [],
+                "error": str(e),
+                "why": {"why_fail": WHY_FAIL_QUERY_EXECUTION},
+                "explain": {"filters": filters, "why_fail": WHY_FAIL_QUERY_EXECUTION}
+            })
 
         except Exception as e:
             if not is_json_mode:
