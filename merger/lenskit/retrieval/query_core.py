@@ -232,7 +232,9 @@ def execute_query(
         max_bm25_score = max(bm25_scores) if bm25_scores else 1.0
         if max_bm25_score == 0: max_bm25_score = 1.0
 
+        candidate_texts = []
         for idx, r in enumerate(rows):
+            candidate_texts.append(r["content"] or "")
             matched_terms = [query_text] if query_text else [query_mode]
             filter_pass = [key for key, v in filters.items() if v]
 
@@ -280,12 +282,6 @@ def execute_query(
                 score_pre = (w_b * rank_features["bm25_norm"]) + (w_g * graph_proximity) + (w_e * entrypoint_boost)
                 final_score = score_pre * current_penalty
 
-            # Read content consistently; since we explicitly project 'content' in both SQL branches,
-            # it should be present. We simply normalise None or falsy values to an empty string.
-            hit_content = r["content"]
-            if not hit_content:
-                hit_content = ""
-
             hit = {
                 "chunk_id": r["chunk_id"],
                 "repo_id": r["repo_id"],
@@ -296,7 +292,6 @@ def execute_query(
                 "layer": r["layer"],
                 "type": r["artifact_type"],
                 "sha256": r["content_sha256"],
-                "content": hit_content, # Temporarily mapped for semantic reranker
                 "why": {
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
@@ -326,12 +321,17 @@ def execute_query(
                 # Use a lightweight dot product/cosine calculation if the model is mocked for tests,
                 # or import standard util if it's the real sentence_transformers.
                 query_emb = semantic_model.encode(query_text)
-
-                # Extract candidate texts directly from mapped results
-                candidate_texts = [hit["content"] for hit in results]
+                if isinstance(query_emb, list):
+                    import numpy as np
+                    query_emb = np.array(query_emb)
+                if len(query_emb.shape) == 2 and query_emb.shape[0] == 1:
+                    query_emb = query_emb.flatten()
 
                 if candidate_texts:
                     doc_embs = semantic_model.encode(candidate_texts)
+                    if isinstance(doc_embs, list):
+                        import numpy as np
+                        doc_embs = np.array(doc_embs)
 
                     try:
                         from sentence_transformers import util
@@ -361,10 +361,6 @@ def execute_query(
                     base_diagnostics["semantic"]["error"] = f"Encoding failed: {e}"
                     base_diagnostics["semantic"]["enabled"] = False
                     semantic_model = None
-
-        # Clean up temporary content fields
-        for hit in results:
-            hit.pop("content", None)
 
         # Sort results deterministically to avoid random tie flips.
         results.sort(key=lambda x: (-x.get("final_score", 0), x["path"]))
