@@ -113,6 +113,11 @@ Weitere technische Details zu den Upgrade-Phasen, Contract-Skizzen und PR-Blaupa
 - [ ] **F1b) Semantik Re-Ranker (Model Integration)**
     - Eval: improvement delta vs non-semantic.
     - **Stop-Kriterium:** Messbare Verbesserung (improvement delta) ohne neue Failure-Klasse.
+    - F1b Implementation Scope:
+      - provider: local
+      - similarity metric: cosine
+      - optional dependency: sentence-transformers
+      - dimensions currently not validated
 
 ## Empfohlene Reihenfolge (nächste Aktionen)
 - [x] A1/A2 Bundle Manifest + Rollen-Enum

@@ -232,7 +232,11 @@ def execute_query(
         max_bm25_score = max(bm25_scores) if bm25_scores else 1.0
         if max_bm25_score == 0: max_bm25_score = 1.0
 
+        # candidate_texts is built eagerly to keep row/result alignment simple.
+        # fetch_k is small, so overhead is negligible.
+        candidate_texts = []
         for idx, r in enumerate(rows):
+            candidate_texts.append(r["content"] or "")
             matched_terms = [query_text] if query_text else [query_mode]
             filter_pass = [key for key, v in filters.items() if v]
 
@@ -280,12 +284,6 @@ def execute_query(
                 score_pre = (w_b * rank_features["bm25_norm"]) + (w_g * graph_proximity) + (w_e * entrypoint_boost)
                 final_score = score_pre * current_penalty
 
-            # Read content consistently; since we explicitly project 'content' in both SQL branches,
-            # it should be present. We simply normalise None or falsy values to an empty string.
-            hit_content = r["content"]
-            if not hit_content:
-                hit_content = ""
-
             hit = {
                 "chunk_id": r["chunk_id"],
                 "repo_id": r["repo_id"],
@@ -296,7 +294,6 @@ def execute_query(
                 "layer": r["layer"],
                 "type": r["artifact_type"],
                 "sha256": r["content_sha256"],
-                "content": hit_content, # Temporarily mapped for semantic reranker
                 "why": {
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
@@ -326,26 +323,49 @@ def execute_query(
                 # Use a lightweight dot product/cosine calculation if the model is mocked for tests,
                 # or import standard util if it's the real sentence_transformers.
                 query_emb = semantic_model.encode(query_text)
-
-                # Extract candidate texts directly from mapped results
-                candidate_texts = [hit["content"] for hit in results]
+                if isinstance(query_emb, list):
+                    try:
+                        import numpy as np
+                        query_emb = np.array(query_emb)
+                    except ImportError:
+                        pass
+                if hasattr(query_emb, "shape") and len(query_emb.shape) == 2 and query_emb.shape[0] == 1:
+                    query_emb = query_emb.flatten()
 
                 if candidate_texts:
                     doc_embs = semantic_model.encode(candidate_texts)
+                    if isinstance(doc_embs, list):
+                        try:
+                            import numpy as np
+                            doc_embs = np.array(doc_embs)
+                        except ImportError:
+                            pass
 
                     try:
                         from sentence_transformers import util
                         cosine_scores = util.cos_sim(query_emb, doc_embs)[0]
                     except ImportError:
                         # Fallback for mocked models in tests
-                        import numpy as np
-                        q = np.array(query_emb)
-                        d = np.array(doc_embs)
-                        q_norm = np.linalg.norm(q)
-                        d_norm = np.linalg.norm(d, axis=1)
-                        q_norm = q_norm if q_norm > 0 else 1.0
-                        d_norm = np.where(d_norm > 0, d_norm, 1.0)
-                        cosine_scores = np.dot(d, q) / (d_norm * q_norm)
+                        try:
+                            import numpy as np
+                            q = np.array(query_emb)
+                            d = np.array(doc_embs)
+                            q_norm = np.linalg.norm(q)
+                            d_norm = np.linalg.norm(d, axis=1)
+                            q_norm = q_norm if q_norm > 0 else 1.0
+                            d_norm = np.where(d_norm > 0, d_norm, 1.0)
+                            cosine_scores = np.dot(d, q) / (d_norm * q_norm)
+                        except ImportError:
+                            import math
+                            def _dot(a, b): return sum(x * y for x, y in zip(a, b))
+                            def _norm(a): return math.sqrt(sum(x * x for x in a))
+
+                            q = query_emb
+                            q_n = _norm(q) or 1.0
+                            cosine_scores = []
+                            for d in doc_embs:
+                                d_n = _norm(d) or 1.0
+                                cosine_scores.append(_dot(q, d) / (q_n * d_n))
 
                     for i, hit in enumerate(results):
                         old_score = hit.get("score", 0)
@@ -361,10 +381,6 @@ def execute_query(
                     base_diagnostics["semantic"]["error"] = f"Encoding failed: {e}"
                     base_diagnostics["semantic"]["enabled"] = False
                     semantic_model = None
-
-        # Clean up temporary content fields
-        for hit in results:
-            hit.pop("content", None)
 
         # Sort results deterministically to avoid random tie flips.
         results.sort(key=lambda x: (-x.get("final_score", 0), x["path"]))
