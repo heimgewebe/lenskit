@@ -145,6 +145,9 @@ def execute_query(
         base_diagnostics = {}
         semantic_model = None
         if semantic_enabled:
+            # Note on F1b implementation limits:
+            # Currently only `provider=local` and `similarity_metric=cosine` are actively implemented.
+            # Other parameters like `dimensions` are structurally present but not actively validated here yet.
             engine_type += "+semantic_requested"
             provider = embedding_policy.get("provider", "local")
             metric = embedding_policy.get("similarity_metric", "cosine")
@@ -277,11 +280,10 @@ def execute_query(
                 score_pre = (w_b * rank_features["bm25_norm"]) + (w_g * graph_proximity) + (w_e * entrypoint_boost)
                 final_score = score_pre * current_penalty
 
-            # Read content safely; defaults to empty string if missing or null.
-            try:
-                hit_content = r["content"]
-                if not hit_content: hit_content = ""
-            except Exception:
+            # Read content consistently; since we explicitly project 'content' in both SQL branches,
+            # it should be present. We simply normalise None or falsy values to an empty string.
+            hit_content = r["content"]
+            if not hit_content:
                 hit_content = ""
 
             hit = {

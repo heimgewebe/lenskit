@@ -354,10 +354,14 @@ def test_query_semantic_reranking(mini_index, monkeypatch):
     res_sem = query_core.execute_query(mini_index, query_text="def", k=2, embedding_policy=policy, explain=True)
 
     assert res_sem["count"] == 2
+    sem_order = [h["path"] for h in res_sem["results"]]
     top_hit = res_sem["results"][0]
     second_hit = res_sem["results"][1]
 
-    # Assert deterministic ranking delta
+    # Explicitly assert that the semantic reranking altered the order compared to baseline.
+    assert base_order != sem_order, "Semantic reranking failed to change the baseline FTS DB order."
+
+    # Assert deterministic ranking outcome
     assert top_hit["path"] == "tests/test_main.py"
     assert second_hit["path"] == "src/main.py"
 
