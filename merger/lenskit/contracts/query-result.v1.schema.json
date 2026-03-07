@@ -100,7 +100,46 @@
           },
           "range_ref": {
             "type": "object",
-            "description": "Optional deterministic range reference."
+            "description": "Optional deterministic range reference.",
+            "additionalProperties": false,
+            "required": [
+              "artifact_role",
+              "repo_id",
+              "file_path",
+              "start_byte",
+              "end_byte",
+              "content_sha256"
+            ],
+            "properties": {
+              "artifact_role": {
+                "type": "string"
+              },
+              "repo_id": {
+                "type": "string"
+              },
+              "file_path": {
+                "type": "string"
+              },
+              "start_byte": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end_byte": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "start_line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "end_line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "content_sha256": {
+                "type": "string"
+              }
+            }
           },
           "why": {
             "type": "object",
