@@ -181,7 +181,7 @@ def do_eval(
             results_detail.append(detail)
 
         except RuntimeError as e:
-            if "Invalid graph index JSON" in str(e):
+            if "Invalid graph index JSON" in str(e) or "Explicitly provided graph index file does not exist" in str(e):
                 raise e
             if not is_json_mode:
                 disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text

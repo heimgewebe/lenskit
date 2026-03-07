@@ -76,3 +76,22 @@ def test_invalid_graph_index_raises(eval_env, capsys):
     assert ret == 1
     captured = capsys.readouterr()
     assert "Invalid graph index JSON" in captured.err
+
+def test_missing_graph_index_raises(eval_env, capsys):
+    missing_graph = eval_env["graph_index"].parent / "does_not_exist.json"
+
+    args = argparse.Namespace(
+        index=str(eval_env["db"]),
+        queries=str(eval_env["queries"]),
+        k=10,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        graph_index=str(missing_graph),
+        graph_weights=None
+    )
+
+    ret = cmd_eval.run_eval(args)
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "Explicitly provided graph index file does not exist" in captured.err
