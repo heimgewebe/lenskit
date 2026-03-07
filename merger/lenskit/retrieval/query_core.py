@@ -232,6 +232,8 @@ def execute_query(
         max_bm25_score = max(bm25_scores) if bm25_scores else 1.0
         if max_bm25_score == 0: max_bm25_score = 1.0
 
+        # candidate_texts is built eagerly to keep row/result alignment simple.
+        # fetch_k is small, so overhead is negligible.
         candidate_texts = []
         for idx, r in enumerate(rows):
             candidate_texts.append(r["content"] or "")
@@ -322,30 +324,48 @@ def execute_query(
                 # or import standard util if it's the real sentence_transformers.
                 query_emb = semantic_model.encode(query_text)
                 if isinstance(query_emb, list):
-                    import numpy as np
-                    query_emb = np.array(query_emb)
-                if len(query_emb.shape) == 2 and query_emb.shape[0] == 1:
+                    try:
+                        import numpy as np
+                        query_emb = np.array(query_emb)
+                    except ImportError:
+                        pass
+                if hasattr(query_emb, "shape") and len(query_emb.shape) == 2 and query_emb.shape[0] == 1:
                     query_emb = query_emb.flatten()
 
                 if candidate_texts:
                     doc_embs = semantic_model.encode(candidate_texts)
                     if isinstance(doc_embs, list):
-                        import numpy as np
-                        doc_embs = np.array(doc_embs)
+                        try:
+                            import numpy as np
+                            doc_embs = np.array(doc_embs)
+                        except ImportError:
+                            pass
 
                     try:
                         from sentence_transformers import util
                         cosine_scores = util.cos_sim(query_emb, doc_embs)[0]
                     except ImportError:
                         # Fallback for mocked models in tests
-                        import numpy as np
-                        q = np.array(query_emb)
-                        d = np.array(doc_embs)
-                        q_norm = np.linalg.norm(q)
-                        d_norm = np.linalg.norm(d, axis=1)
-                        q_norm = q_norm if q_norm > 0 else 1.0
-                        d_norm = np.where(d_norm > 0, d_norm, 1.0)
-                        cosine_scores = np.dot(d, q) / (d_norm * q_norm)
+                        try:
+                            import numpy as np
+                            q = np.array(query_emb)
+                            d = np.array(doc_embs)
+                            q_norm = np.linalg.norm(q)
+                            d_norm = np.linalg.norm(d, axis=1)
+                            q_norm = q_norm if q_norm > 0 else 1.0
+                            d_norm = np.where(d_norm > 0, d_norm, 1.0)
+                            cosine_scores = np.dot(d, q) / (d_norm * q_norm)
+                        except ImportError:
+                            import math
+                            def _dot(a, b): return sum(x * y for x, y in zip(a, b))
+                            def _norm(a): return math.sqrt(sum(x * x for x in a))
+
+                            q = query_emb
+                            q_n = _norm(q) or 1.0
+                            cosine_scores = []
+                            for d in doc_embs:
+                                d_n = _norm(d) or 1.0
+                                cosine_scores.append(_dot(q, d) / (q_n * d_n))
 
                     for i, hit in enumerate(results):
                         old_score = hit.get("score", 0)
