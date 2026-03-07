@@ -367,7 +367,7 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 - [x] Roundtrip-Test: Top-Result → `range_get` → extrahierter Text matcht Hash.
 
 **Stop-Kriterium:**
-- [x] Eine Retrieval-Antwort ist belegbar (nicht nur plausibel).
+- [x] Retrieval-Antworten mit vorhandenem `range_ref` sind belegbar (nicht nur plausibel).
 
 ---
 
