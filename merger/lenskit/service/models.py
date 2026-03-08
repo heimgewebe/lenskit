@@ -125,8 +125,9 @@ class AtlasRequest(BaseModel):
 
     # Deprecated legacy fields:
     # These fields are no longer mapped or respected by the `resolve_atlas_root`
-    # server logic. They remain in the schema *only* temporarily to prevent immediate
-    # validation crashes for outdated clients, but are explicitly marked for removal.
+    # server logic. They remain temporarily in the schema as inert compatibility
+    # remnants during the request-shape transition. Requests lacking the canonical
+    # `root_kind` will fail validation (422) regardless of these fields.
     root_id: Optional[str] = None
     root: Optional[str] = None
 

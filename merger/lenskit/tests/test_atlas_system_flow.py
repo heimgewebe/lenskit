@@ -72,6 +72,19 @@ def test_atlas_missing_root_422(mock_state):
     # Pydantic validation fails because root_kind is required
     assert response.status_code == 422
 
+def test_atlas_legacy_only_422(mock_state):
+    """
+    Verify that providing only deprecated legacy fields (e.g. root_id)
+    fails validation because root_kind is required.
+    """
+    payload = {
+        "root_id": "system",
+        "max_depth": 1
+    }
+
+    response = client.post("/api/atlas", json=payload)
+    assert response.status_code == 422
+
 def test_atlas_missing_root_value_400(mock_state):
     """
     Verify that missing root_value when root_kind="preset" returns 400
