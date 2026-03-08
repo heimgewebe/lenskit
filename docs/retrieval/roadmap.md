@@ -53,21 +53,21 @@ Ein lokaler semantischer Reranker ergänzt den BM25-Kandidatenpfad optional als 
 `BM25/FTS -> candidate set -> semantic rerank -> final ranking`
 
 **Deliverables:**
-- [ ] Lokaler semantischer Modellzugang ist integriert.
-- [ ] Optional Dependency Pfad ist sauber dokumentiert.
-- [ ] Nur unterstützte Konfigurationen (`provider=local`, `similarity_metric=cosine`) werden akzeptiert; Rest liefert Fehler/Fallback.
-- [ ] Candidate-Texte für semantisches Reranking werden korrekt aus dem SQL-Pfad bezogen.
-- [ ] Semantische Scores werden deterministisch in `final_score` überführt.
-- [ ] Explain-/Diagnostics-Payload zeigt semantische Beteiligung an.
+- [x] Lokaler semantischer Modellzugang ist integriert.
+- [x] Optional Dependency Pfad ist sauber dokumentiert.
+- [x] Nur unterstützte Konfigurationen (`provider=local`, `similarity_metric=cosine`) werden akzeptiert; Rest liefert Fehler/Fallback.
+- [x] Candidate-Texte für semantisches Reranking werden korrekt aus dem SQL-Pfad bezogen.
+- [x] Semantische Scores werden deterministisch in `final_score` überführt.
+- [x] Explain-/Diagnostics-Payload zeigt semantische Beteiligung an.
 
 **Nicht-Ziele:**
 - Keine Produktivverdrahtung mit semantAH.
 - Keine Multi-Provider-Orchestrierung.
 
 **Stop-Kriterien:**
-- [ ] Lokaler semantischer Reranker läuft deterministisch.
-- [ ] Fehlende optionale Dependency erzeugt keine neue Failure-Klasse im Basispfad.
-- [ ] Kein leerer Candidate-Text-Bug im semantischen Pfad.
+- [x] Lokaler semantischer Reranker läuft deterministisch.
+- [x] Fehlende optionale Dependency erzeugt keine neue Failure-Klasse im Basispfad.
+- [x] Kein leerer Candidate-Text-Bug im semantischen Pfad.
 
 ### 2.2 F1b Eval Delta
 
@@ -116,7 +116,7 @@ Topologische Metadaten (Graph) werden als reproduzierbares Artefakt erzeugt und 
 ## 3. Operative Abarbeitungsreihenfolge
 
 Diese Reihenfolge ist operativ bindend:
-1. [ ] F1b Semantic Reranker Runtime
+1. [x] F1b Semantic Reranker Runtime
 2. [x] F1b Eval Delta
 3. [ ] Range_ref Propagation
 4. [ ] Graph Index Artifact + Runtime Consistency
