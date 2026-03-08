@@ -50,7 +50,8 @@ class AtlasScanner:
 
     def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,
                  exclude_globs: List[str] = None, inventory_strict: bool = False,
-                 no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024):
+                 no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024,
+                 snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None):
         self.root = root
         self.max_depth = max_depth
         self.max_entries = max_entries
@@ -59,6 +60,8 @@ class AtlasScanner:
         if max_file_size is not None and max_file_size <= 0:
             raise ValueError("max_file_size must be a positive integer or None.")
         self.max_file_size = max_file_size
+        self.snapshot_id = snapshot_id
+        self.compare_to_snapshot_id = compare_to_snapshot_id
 
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
@@ -82,6 +85,11 @@ class AtlasScanner:
             "extensions": {},
             "top_dirs": [],  # List of {"path": str, "bytes": int}
             "repo_nodes": [], # List of paths that look like git repos
+            # Placeholders for higher-level processing or specific scan modes
+            "workspaces": [],
+            "hotspots": {},
+            "topology": {},
+            "delta": {},
             "active_excludes": self.exclude_globs,
             "truncated": {
                 "max_entries": self.max_entries,
@@ -185,7 +193,7 @@ class AtlasScanner:
             return True
         return False
 
-    def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optional[Path] = None) -> Dict[str, Any]:
+    def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optional[Path] = None, previous_inventory_file: Optional[Path] = None) -> Dict[str, Any]:
         """
         Scans the directory structure.
 
@@ -374,6 +382,64 @@ class AtlasScanner:
 
         sorted_dirs = sorted(recursive_sizes.items(), key=lambda x: x[1], reverse=True)
         self.stats["top_dirs"] = [{"path": p, "bytes": s} for p, s in sorted_dirs[:50]]
+
+
+        # Snapshot Output Structure
+        if self.snapshot_id:
+             self.stats["snapshot"] = {
+                 "snapshot_id": self.snapshot_id,
+                 "created_at": self.stats["end_time"],
+                 "root_descriptor": str(self.root),
+                 "file_count": self.stats["total_files"],
+                 "directory_count": self.stats["total_dirs"],
+                 "workspace_count": len(self.stats.get("workspaces", []))
+             }
+
+        # Calculate Delta if requested
+        if self.compare_to_snapshot_id:
+            if not previous_inventory_file or not previous_inventory_file.exists():
+                logger.warning("Delta requested but previous inventory missing; skipping delta")
+            elif not inventory_file or not inventory_file.exists():
+                logger.warning("Delta requested but current inventory missing; skipping delta")
+            else:
+                delta = {
+                    "compare_to_snapshot_id": self.compare_to_snapshot_id,
+                    "new_files": [],
+                    "removed_files": [],
+                    "changed_files": []
+                }
+                try:
+                    prev_inv = {}
+                    with previous_inventory_file.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            entry = json.loads(line)
+                            prev_inv[entry["rel_path"]] = entry
+
+                    curr_inv = {}
+                    with inventory_file.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            entry = json.loads(line)
+                            curr_inv[entry["rel_path"]] = entry
+
+                    for path, curr_entry in curr_inv.items():
+                        if path not in prev_inv:
+                            delta["new_files"].append(path)
+                        elif prev_inv[path]["size_bytes"] != curr_entry["size_bytes"] or prev_inv[path]["mtime"] != curr_entry["mtime"]:
+                            delta["changed_files"].append(path)
+
+                    for path in prev_inv:
+                        if path not in curr_inv:
+                            delta["removed_files"].append(path)
+
+                    delta["new_files"].sort()
+                    delta["changed_files"].sort()
+                    delta["removed_files"].sort()
+
+                except Exception as e:
+                    logger.exception("Failed to calculate delta")
+                    delta["error"] = str(e)
+
+                self.stats["delta"] = delta
 
         # Add inventory metadata to stats if file was generated
         if inventory_file:
