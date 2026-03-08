@@ -116,7 +116,7 @@ Topologische Metadaten (Graph) werden als reproduzierbares Artefakt erzeugt und 
 ## 3. Operative Abarbeitungsreihenfolge
 
 Diese Reihenfolge ist operativ bindend:
-1. [x] F1b Semantic Reranker Runtime
+1. [ ] F1b Semantic Reranker Runtime
 2. [x] F1b Eval Delta
 3. [ ] Range_ref Propagation
 4. [ ] Graph Index Artifact + Runtime Consistency
