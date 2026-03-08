@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Dict, Any
 
@@ -30,9 +32,6 @@ def write_mode_placeholders(planned_outputs: Dict[str, str], result_stats: Dict[
     Writes placeholder JSON artifacts for structural modes (topology, content, workspace)
     and hotspot artifacts to the given output directory.
     """
-    import tempfile
-    import os
-
     def _write_json_atomic(file_path: Path, data: dict):
         # We write atomically like app.py does but locally
         dir_path = file_path.parent
@@ -40,7 +39,9 @@ def write_mode_placeholders(planned_outputs: Dict[str, str], result_stats: Dict[
         fd, temp_path = tempfile.mkstemp(dir=str(dir_path), prefix=f".tmp_{file_path.name}")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f)
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
             os.replace(temp_path, str(file_path))
         except Exception:
             if os.path.exists(temp_path):

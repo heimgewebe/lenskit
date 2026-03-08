@@ -31,6 +31,7 @@ from ..adapters.security import (
 from ..adapters.filesystem import resolve_fs_path, list_allowed_roots, issue_fs_token
 from ..adapters.atlas import AtlasScanner, render_atlas_md
 from ..adapters.metarepo import sync_from_metarepo
+from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_placeholders
 from ..adapters import sources as sources_refresh
 from ..adapters import diagnostics as diagnostics_rebuild
 
@@ -801,8 +802,6 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     effective_max_depth = request.max_depth
     effective_max_entries = request.max_entries
     effective_excludes = (request.exclude_globs or []).copy()
-
-    from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_placeholders
 
     # Resolve scan root using the new central resolver
     try:
