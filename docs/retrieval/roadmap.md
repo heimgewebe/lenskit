@@ -1,163 +1,253 @@
-# Retrieval Project Roadmap
+# Lenskit Retrieval Roadmap
 
-Tracking the evolution of lenskit retrieval from basic artifacts to an intelligent "Retrieval OS".
+## Dialektische Einordnung
 
-## Scope dieses PRs
-*Dieser PR ändert nur Dokumentation: Vision + Upgrade-Roadmap. Keine Code-Änderungen, keine neuen CI-Gates oder echten Contract-Dateien werden in diesem PR eingeführt.*
-*Folge-PRs: Contracts/Schemas als Dateien + Validatoren.*
+### These
+Eine Restliste soll operative Klarheit schaffen: Welche PR kommt als nächstes, mit welchem Stop-Kriterium, anhand welcher Artefakte prüfbar.
 
-*(TODO: Align document language with repository conventions. Falls Englisch Pflicht ist, wird diese Roadmap in einem Folge-PR übersetzt. German draft for speed; follow-up PR will translate while preserving meaning.)*
+### Antithese
+Die aktuelle Liste mischt drei Kategorien:
+1. reale Implementationsarbeit
+2. strategische Phasen
+3. offene Architekturfragen
 
-## Vision
-**Mach Lenskit zur Repository-Kognition-Engine mit minimalem, hartem Maschinenvertrag:**
-Lenskit produziert bereits kanonische, deterministische Artefakte (Markdown, JSON, Retrieval-Index) mit maschinenlesbarer Provenienz. Um epistemische Blindheit zu vermeiden, wird Lenskit um ein **mehrschichtiges, evidenzmarkiertes Architekturmodell** erweitert:
+Das erzeugt ein klassisches Planungsproblem: Agents beginnen plötzlich „Fragen“ zu implementieren.
 
-- **Truth Layer** (Dump + Chunks + Reading Policy)
-- **Index Layer** (SQLite + Eval + optional Graph-Index)
-- **Interface Layer** (Query/Eval JSON + Explain + Staleness/Provenance)
+### Synthese
+Eine ideale Restliste trennt strikt:
+- **ACTIVE WORK**
+- **DEFERRED WORK**
+- **ARCHITECTURE QUESTIONS**
 
-Die Architektur-Sichten sind strikt nach Evidenz gegliedert:
-- **S0 (belegt):** Struktur, Entrypoints, deklarative Abhängigkeiten, Artefakt-/Contract-Flüsse.
-- **S1 (hoch plausibel):** Import-Graph, CLI-Kommandokette, statische Wiring-Heuristiken.
-- **S2 (spekulativ):** Laufzeitpfade/Hotspots (nur mit Logs/Tracing).
-
-## Upgrade Roadmap (Phasen P0-P5)
-
-| Phase | Kernziel | Haupt-Risiko |
-|---|---|---|
-| P0 | Retrieval „ehrlich & debugbar“ (Explain, Query Router, Eval v2) | Overmatching / falsche Sicherheit |
-| P1 | **G0 Graph-Index**: Python Import-Graph + Entrypoints + Evidenzlabel | Scheinpräzision, Tests verzerren |
-| P2 | Graph-aware Scoring: BM25 + Nähe + Entrypoint-Dist + Test-Penalty | Tuning/Tradeoffs |
-| P3 | Contracts/Flows-Atlas (Alternative Achse) + CI/Drift Regeln | Governance-Overhead |
-| P4 | Multi-Lang Parsing (Tree-sitter) + Symbol-Index v2 | Parser-Wartung |
-| P5 | Call-Graph/CPG v2 (S2) | falsch-positive Pfade |
-
-Weitere technische Details zu den Upgrade-Phasen, Contract-Skizzen und PR-Blaupausen finden sich in [upgrade-roadmap.md](upgrade-roadmap.md).
-
-## Blueprint Status (Lenskit vNext)
-
-### Phase A — Maschinenvertrag schließen (Contracts + Artefaktgraph)
-**Ziel:** Ein Agent kann ohne Ratespiel alle Artefakte finden und korrekt interpretieren.
-
-- [x] **A1) „Bundle Manifest“ als Root of Navigation**
-    - Neuer Contract: `bundle-manifest.v1`
-    - Enthält: `run_id`, `created_at`, `generator` (inkl. `config_sha256`, `version`)
-    - `artifacts[]`: required: `role`, `path`, `content_type`, `bytes`, `sha256`, und conditional `contract` objekt (`id`, `version`)
-    - `links`: `canonical_dump_index_sha256`, `derived_from` (Graphkanten)
-    - `capabilities`: z.B. `fts5_bm25=true/false`, `redaction=true/false`
-    - Prinzip: Ein Einstiegspunkt, der alles beschreibt. Keine Directory-Heuristiken.
-    - **Stop-Kriterium:** Agent findet aus einer Datei alle relevanten Artefakte. Deterministische Interpretation erfolgt über das role-Enum sowie referenzierte Contracts für strukturierte Daten.
-
-- [x] **A2) Eindeutige Rollenliste (Taxonomie)**
-    - Definiere eine feste Rollenliste (Enum) für: `canonical_md`, `index_sidecar_json`, `chunk_index_jsonl`, `dump_index_json`, `sqlite_index`, `retrieval_eval_json`, `derived_manifest_json`, `delta_json` (falls vorhanden)
-    - Verhindert Drift („role“-Strings sind sonst Spaghetti).
-    - **Stop-Kriterium:** Role ist nie frei-textig, sondern enum-validiert.
-
-### Phase B — Range-Resolver als Maschinendienst (Zitierbarkeit)
-**Ziel:** Maschinen holen Content exakt per Range, ohne Markdown parsen zu „müssen“.
-
-- [x] **B1) Standardisiere „Range Identity“**
-    - Contract: `range-ref.v1`
-    - Felder: `artifact_role` (oder `artifact_path`), `repo_id`, `path`, `start_byte`, `end_byte`, `start_line`, `end_line`, `content_sha256` (Hash des exakt referenzierten Ausschnitts, empfohlen: Hash des Chunk-Inhalts).
-
-- [x] **B2) CLI/Lib: `lenskit range get`**
-    - `lenskit range get --manifest bundle.manifest.json --ref <range-ref.json>`
-    - Ausgabe: exact bytes + optional line-context, optional JSON: `{text, sha256, bytes, lines, provenance}`
-    - **Stop-Kriterium:** Ein Agent kann jeden Treffer mit `range get` reproduzierbar ausgeben und zitieren.
-
-### Phase C — Query/Eval Interface perfektionieren (Explainability + Gates)
-**Ziel:** Treffer sind nicht nur da, sondern erklärbar und testbar.
-
-- [x] **C1) `query_result.v1` (maschinenlesbares Explain)**
-    - Erweitere Query-JSON um standardisierte Explainability: `query`, `filters`, `k`, `engine`, `applied_filters`
-    - `results[]` mit: `range_ref` (nicht nur range-string), `score`, `why`: `matched_terms` (aus FTS), `filter_pass` (welche Filter aktiv waren), `rank_features` (z.B. bm25, tie-breaker), Optional: `diagnostics` (fts_available, stale_index, etc.)
-    - **Stop-Kriterium:** „Warum ist das Ergebnis da?“ ist maschinenlesbar beantwortbar.
-
-- [x] **C2) Gold Queries als Gate (nicht nur Doku)**
-    - `docs/retrieval/queries.md` bleibt human-friendly.
-    - Zusätzlich: `docs/retrieval/queries.v1.json` (Query, expected_patterns, filters, accept_criteria).
-    - Eval schreibt: `recall@k`, `per_query`: hit/miss + hit_path + why + stale_flag.
-    - **Stop-Kriterium:** CI kann ein klares Pass/Fail aussprechen (z.B. recall@10 >= 0.8).
-
-### Phase D — Index Lifecycle: Validity & Staleness als First-Class
-**Ziel:** Maschinen sollen nicht „aus Versehen“ stale Indizes nutzen.
-
-- [x] **D1) Index Meta Table + Manifest Validity**
-    - In SQLite `index_meta`: `canonical_dump_index_sha256`, `config_sha256`, `created_at`, `lenskit_version`.
-    - In derived manifest: `canonical_dump_index_sha256`, zusätzlich `config_sha256`.
-
-- [x] **D2) Stale-Policy (konfigurierbar)**
-    - `--stale-policy warn|fail|ignore`
-    - Default für Agents: `fail` (damit sie nicht still falsch arbeiten).
-    - **Stop-Kriterium:** Stale Index kann nicht unbemerkt genutzt werden.
-
-### Phase E — PR-Verstehen als eigener Entry (ohne Symbolik, v1)
-**Ziel:** PR-Usecase bedienbar machen, ohne gleich Symbolgraph zu bauen.
-
-- [x] **E1) `pr-schau-delta.v1` minimal operational**
-    - `changed_files[]` + `hunks` optional.
-    - Zusätzlich: `affected_chunk_ids[]` oder `affected_range_refs[]` (Mapping durch Chunk/Range-Overlap ist optional in v1 und kann anfangs leer sein).
-
-- [x] **E2) CLI: `lenskit pr-explain`**
-    - Gibt aus: changed files, top related chunks per file (context), suspicious patterns (secrets, auth, migrations) nur lexikalisch als heuristische Flags (klar markiert).
-    - **Stop-Kriterium:** Agent kann PR-Kontext automatisch laden.
-
-### Phase F — (bewusst später) Semantik als Re-Ranker
-**Ziel:** Nur nachdem A–E stabil sind.
-
-- [x] **F1a) Semantik Re-Ranker (Plumbing)**
-    - `candidate` (Top-50) → `rerank` (Top-10) Plumbing (semantic request marker, candidate overfetch, diagnostics, fail/ignore enforcement).
-    - `embedding-policy.v1` Validation und CLI-Wiring.
-    - **Stop-Kriterium:** `fallback_behavior` ist enforced (ignore/fail). Pipeline ist fehlerfrei vorbereitet, aber noch ohne echtes ML-Modell.
-
-- [ ] **F1b) Semantik Re-Ranker (Model Integration)**
-    - Eval: improvement delta vs non-semantic.
-    - **Stop-Kriterium:** Messbare Verbesserung (improvement delta) ohne neue Failure-Klasse.
-    - F1b Implementation Scope:
-      - provider: local
-      - similarity metric: cosine
-      - optional dependency: sentence-transformers
-      - dimensions currently not validated
-
-## Empfohlene Reihenfolge (nächste Aktionen)
-- [x] A1/A2 Bundle Manifest + Rollen-Enum
-- [x] B1/B2 Range-Resolver
-- [x] C1/C2 Explain + Gold-Query JSON + CI Gate
-- [x] D1/D2 Stale fail-policy
-- [x] E1/E2 PR explain (ohne Symbolik)
-- [ ] F später
+Damit wird die Roadmap operational statt narrativ.
 
 ---
 
-## Historischer Verlauf (abgeschlossene Phasen)
+## Statusgrundlage (Dump)
 
-### Phase 0: Invarianten & Zielmetriken
-- [x] **Goal:** Reproducibility & Forensics
-- [x] **Artifacts:**
-    - `docs/retrieval/queries.md` (Gold Queries)
-    - `dump_index.json` (Canonical Entry Point)
-    - Deterministic chunk IDs (in `chunk_index.jsonl`)
+Das Bundle enthält aktuell u. a.:
+- canonical dump
+- chunk index
+- dump index
+- derived index
+- sqlite BM25 index
+- architecture summary
 
-### Phase 1: Artefakt-Schicht (Wahrheit + Navigation)
-- [x] **Goal:** Agent can navigate without heuristics.
-- [x] **Implemented:**
-    - `chunk_index.jsonl` with deterministic fields.
-    - `dump_index.json` linking all artifacts.
-    - Reading Policy sentinels in MD and JSON.
-    - JSON Sidecar with `features` list.
+Die Architekturübersicht bestätigt die Module:
+- chunker
+- merge
+- extractor
+- range_resolver
 
-### Phase 2: Lexikalische Retrieval-Schicht (FTS)
-- [x] **Goal:** Explainable, fast search.
-- [x] **Implemented:**
-    - **CLI:** `lenskit index` & `lenskit query`.
-    - **Engine:** SQLite FTS5 (`chunks_fts` virtual table).
-    - **Scoring:** `bm25` (standard, explainable).
-    - **Docs:** `docs/retrieval/recipes.md`.
-    - **Safety:** Stale index detection via hash linkage.
-- [x] **Implemented (v1):** eval runner via `lenskit eval` with JSON output.
-    - **Schema:** `merger/lenskit/contracts/retrieval-eval.v1.schema.json`
-    - **Tests:** `test_retrieval_eval.py`
+Wichtige Artefakte fehlen dagegen:
+- `graph_index.json`
+- `embedding_index`
+- `symbol_index`
+- `call_graph`
 
-## Current Milestones (Legacy)
-- **Status:** Phase 2 Complete (FTS + Query + Eval Schema).
-- **Evaluation:** First benchmark run completed against `merger` self-scan. Recall@10 is 20.0% (3/15 hits) with relevant hits for `index`, `merge`, and `cli`. Low recall is expected as the Gold Queries set includes generic targets (auth, db, docker) not present in the current repository scope.
+---
+
+## REST-LISTE (OPERATIV)
+
+### A — Retrieval Evolution (AKTIVE ARBEIT)
+
+#### F1b Semantic Reranker (Model Integration)
+**Ziel:** Semantisches Ranking als zweite Retrievalphase.
+
+**Pipeline:**
+`BM25 → candidate set → semantic rerank → final ranking`
+
+**Scope:**
+- provider: local
+- model: sentence-transformers
+- metric: cosine similarity
+- dependency: optional
+
+**Implementationsaufgaben:**
+
+**1️⃣ Model Loader**
+- Datei: `merger/lenskit/retrieval/semantic.py`
+- Funktionen:
+  - `load_model()`
+  - `embed_query()`
+  - `embed_chunks()`
+
+**2️⃣ Embedding Cache**
+- Ziel: keine Embedding-Neuberechnung pro Query
+- Artefakt: `embedding_index.json`
+- Struktur:
+  ```json
+  {
+    "chunk_id": "...",
+    "embedding": [...]
+  }
+  ```
+
+**3️⃣ Semantic Rerank**
+- Pipeline:
+  - `candidates = bm25_top_k(query)`
+  - `reranked = cosine_similarity(query_embedding, chunk_embeddings)`
+
+**4️⃣ Integration Retrieval Pipeline**
+- Datei: `retrieval/query.py`
+- Feature Flag: `semantic_rerank_enabled`
+- Fallback: BM25 only
+
+**Stop-Kriterien:**
+- measurable improvement vs BM25
+- keine neue Failure-Klasse
+- deterministisches Ranking
+- Pipeline fallback stabil
+
+---
+
+### B — Generator Improvements
+
+#### PR: Range_ref bundle propagation
+
+**Aktueller Zustand:** Range refs existieren nur im Retrieval-Layer.
+**Fehlt:** bundle-level provenance tracking
+**Problem:** Bundles verlieren Byte-Mapping.
+
+**Ziel:** Chunk-Artefakte behalten Herkunft.
+```text
+bundle
+ └ source_file
+     └ start_byte
+     └ end_byte
+```
+
+**Änderung:**
+- Datei: `generate_chunk_artifacts()`
+- Neue Felder: `source_file`, `start_byte`, `end_byte`, `content_sha256`
+
+**Stop-Kriterium:**
+- Query result enthält: `range_ref`, das exakt auf Bundle-Bytes zeigt.
+
+---
+
+### C — Index Erweiterungen
+
+#### Graph Index Artifact
+**Fehlt derzeit im Bundle.**
+
+**Ziel:** `graph_index.json`
+**Struktur:**
+```json
+{
+  "nodes": [],
+  "edges": [],
+  "entrypoints": [],
+  "distance_map": {}
+}
+```
+
+**Nutzen (Reranking Features):**
+- distance_to_entrypoint
+- test_penalty
+- dependency_score
+
+**Generator:**
+- Datei: `scripts/graph/build_graph_index.py`
+
+**Stop-Kriterium:**
+- Bundle enthält: `graph_index.json`
+
+---
+
+## DEFERRED PHASES (NICHT AKTIV)
+
+### P3 — Contracts / Flows Atlas
+- **Artefakt:** `contracts_graph.json`
+- **Nutzen:** dependency topology, schema flow tracing
+
+### P4 — Tree-sitter Parsing
+- **Ziel:** language agnostic AST extraction
+- **Artefakt:** `symbol_index.json`
+
+### P5 — Call Graph / CPG
+- **Artefakt:** `call_graph.json`
+- **Nutzen:** execution flow retrieval, security reasoning
+
+---
+
+## ARCHITEKTURFRAGEN (NOCH NICHT IMPLEMENTIEREN)
+
+**Contracts Pfad**
+- **Frage:** Wo liegen retrieval schemas?
+- **Optionen:** `contracts/`, `schemas/`, `retrieval/schemas/`
+
+**Schema Discovery**
+- **Frage:** `*.schema.json` vs `*.json`
+
+**Artifact Role Naming**
+- **Frage:** `architecture_graph_json` vs `graph_index_json`
+
+**Chunk Index Erweiterung**
+- **Neue Felder:** `symbol_name`, `node_id`, `test_penalty`
+- **Risiko:** Schema strictness.
+
+---
+
+## Empfohlene PR-Reihenfolge
+
+- **PR 6:** Semantic Reranker (F1b)
+- **PR 7:** Range-ref propagation
+- **PR 8:** Graph Index artifact
+- **Danach:** P3 → P4 → P5
+
+---
+
+## Risikoanalyse
+
+**Technisch**
+- *Embedding Integration:* Risiko memory growth, index size
+
+**Architektur**
+- *Range_ref Tracking:* Risiko generator refactor
+
+**Organisatorisch**
+- *Graph Index:* Risiko Reranker coupling
+
+---
+
+## Alternative Denkachse
+
+Statt Roadmap-Tasks: **Artefakt-Gap-Analyse**
+
+**Sollte existieren:**
+- `graph_index.json`
+- `symbol_index.json`
+- `call_graph.json`
+- `embedding_index.json`
+
+**Existiert:**
+- `chunk_index`
+- `sqlite_index`
+
+**Differenz = nächste PRs.**
+
+---
+
+**Unsicherheitsgrad:** 0.16
+*Grund:*
+- Codepipeline nicht komplett sichtbar
+- Graph-Rerank evtl runtime-only
+
+**Interpolationsgrad:** 0.14
+*Annahmen:*
+- typische Retrieval Architektur
+- Embedding Cache Design
+
+---
+
+## Essenz
+
+Die ideale Restliste besteht aus nur drei echten Arbeiten:
+1. **PR6** semantic reranker
+2. **PR7** range_ref propagation
+3. **PR8** graph_index artifact
+
+Alles andere ist Future Phase oder Architecture Question.
+
+*Zum Schluss eine kleine Beobachtung aus der Praxis: Die meisten Software-Roadmaps scheitern nicht an fehlendem Code – sondern daran, dass niemand mehr weiß, welche Kästchen eigentlich noch echt sind.*
