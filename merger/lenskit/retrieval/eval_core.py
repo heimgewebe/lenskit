@@ -109,10 +109,8 @@ def evaluate_single_run(
 
     for idx, r in enumerate(res["results"]):
         hit_path = r["path"]
-        match_found = False
         for exp in expected:
             if exp in hit_path:
-                match_found = True
                 if not is_relevant:
                     is_relevant = True
                     top_match = hit_path
@@ -183,11 +181,16 @@ def do_eval(
             )
 
             s_rel, s_match, s_why, s_paths, s_count, s_rr, s_res = False, "-", None, [], 0, 0.0, {}
+            sem_error_str = None
             if compare_mode:
-                # Semantic run
-                s_rel, s_match, s_why, s_paths, s_count, s_rr, s_res = evaluate_single_run(
-                    q_text, filters, expected, index_path, k, embedding_policy, graph_index_path, graph_weights
-                )
+                try:
+                    # Semantic run
+                    s_rel, s_match, s_why, s_paths, s_count, s_rr, s_res = evaluate_single_run(
+                        q_text, filters, expected, index_path, k, embedding_policy, graph_index_path, graph_weights
+                    )
+                except Exception as e:
+                    sem_error_str = str(e)
+                    s_res = {"explain": {"filters": filters, "why_fail": WHY_FAIL_QUERY_EXECUTION}}
 
             if b_count == 0 and (not compare_mode or s_count == 0):
                 zero_hit_count += 1
@@ -211,7 +214,10 @@ def do_eval(
                     b_disp_match = (b_match[:15] + "..") if len(b_match) > 15 else b_match
                     s_disp_match = (s_match[:15] + "..") if len(s_match) > 15 else s_match
                     b_str = f"{b_rr:.2f} / {b_disp_match}" if b_rel else f"0.00 / ❌"
-                    s_str = f"{s_rr:.2f} / {s_disp_match}" if s_rel else f"0.00 / ❌"
+                    if sem_error_str:
+                        s_str = f"ERR / ❌"
+                    else:
+                        s_str = f"{s_rr:.2f} / {s_disp_match}" if s_rel else f"0.00 / ❌"
                     print(f"{disp_q:<35} | {b_str:<25} | {s_str:<25}")
                 else:
                     rel_mark = "✅" if b_rel else "❌"
@@ -250,6 +256,8 @@ def do_eval(
                     "rr": s_rr,
                     "explain": s_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
                 }
+                if sem_error_str:
+                    detail["semantic"]["error"] = sem_error_str
                 detail["delta_rr"] = s_rr - b_rr
                 # Overwrite backwards-compatible base fields with semantic ones if we're evaluating semantic overall
                 detail["is_relevant"] = s_rel
@@ -260,6 +268,8 @@ def do_eval(
                 detail["explain"] = s_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
                 if s_why is not None:
                     detail["why"] = s_why
+                if sem_error_str:
+                    detail["error"] = f"Semantic Run Error: {sem_error_str}"
 
             results_detail.append(detail)
 

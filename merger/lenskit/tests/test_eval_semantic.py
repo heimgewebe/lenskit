@@ -1,9 +1,7 @@
 import json
-from pathlib import Path
 import pytest
 
 from merger.lenskit.cli import cmd_eval
-from merger.lenskit.retrieval import eval_core
 from merger.lenskit.retrieval import index_db
 
 @pytest.fixture
@@ -72,10 +70,8 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
                     embeddings.append([0.5, 0.5])
 
             if is_single:
-                import numpy as np
-                return np.array(embeddings[0])
-            import numpy as np
-            return np.array(embeddings)
+                return embeddings[0]
+            return embeddings
 
     def mock_get_semantic_model(name):
         return MockSemanticModel()
@@ -115,9 +111,12 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
     # Semantic delta logic assertions
     assert metrics["baseline_hits"] >= 0
     assert metrics["semantic_hits"] >= 0
-    assert metrics["delta_mrr"] > -2.0 # Check existence and typability
 
-    # In details, verify it emits both baseline and semantic keys
+    # Assert exact arithmetic relationships
+    assert metrics["delta_mrr"] == metrics["semantic_MRR"] - metrics["baseline_MRR"]
+    assert metrics["delta_recall"] == metrics["semantic_recall@5"] - metrics["baseline_recall@5"]
+
+    # In details, verify it emits both baseline and semantic keys and verify delta calculation
     details = output["details"]
     assert len(details) == 2
     for d in details:
@@ -127,3 +126,4 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
 
         assert "rr" in d["baseline"]
         assert "rr" in d["semantic"]
+        assert d["delta_rr"] == d["semantic"]["rr"] - d["baseline"]["rr"]
