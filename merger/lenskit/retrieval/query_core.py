@@ -66,10 +66,16 @@ def execute_query(
 
             scoring_expr = "bm25(chunks_fts)"
 
+            # Check if source_file exists in schema to support backwards compatibility
+            # If not, we don't query it.
+            cursor = conn.execute("PRAGMA table_info(chunks)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            source_file_col = "c.source_file, " if "source_file" in columns else ""
+
             base_sql = f"""
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref, chunks_fts.content,
+                    c.layer, c.artifact_type, c.content_range_ref, {source_file_col}chunks_fts.content,
                     {scoring_expr} as score
                 FROM chunks_fts
                 JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
@@ -84,10 +90,14 @@ def execute_query(
             order_clause = "ORDER BY score ASC, c.repo_id ASC, c.path ASC, c.start_line ASC"
         else:
             # Metadata only query
-            base_sql = """
+            cursor = conn.execute("PRAGMA table_info(chunks)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            source_file_col = "c.source_file, " if "source_file" in columns else ""
+
+            base_sql = f"""
                 SELECT
                     c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref, '' as content,
+                    c.layer, c.artifact_type, c.content_range_ref, {source_file_col}'' as content,
                     0 as score
                 FROM chunks c
             """
@@ -313,6 +323,30 @@ def execute_query(
                 try:
                     hit["range_ref"] = json.loads(ref_str)
                 except Exception:
+                    pass
+            else:
+                # Derive range_ref pointing to the original source file via the Hub Workspace
+                # This is explicitly a fallback ("source_backed derivation") and not a full bundle-level provenance.
+                # Try to get the columns; SQLite returns None if column is queried but value is NULL.
+                # It raises IndexError if column is not queried.
+                try:
+                    source_file = r["source_file"]
+                    start_byte = r["start_byte"]
+                    end_byte = r["end_byte"]
+                    content_sha256 = r["content_sha256"]
+
+                    if source_file and start_byte is not None and end_byte is not None and content_sha256:
+                        hit["derived_range_ref"] = {
+                            "artifact_role": "source_file",
+                            "repo_id": hit["repo_id"],
+                            "file_path": source_file,
+                            "start_byte": start_byte,
+                            "end_byte": end_byte,
+                            "start_line": r["start_line"],
+                            "end_line": r["end_line"],
+                            "content_sha256": content_sha256
+                        }
+                except IndexError:
                     pass
 
             results.append(hit)

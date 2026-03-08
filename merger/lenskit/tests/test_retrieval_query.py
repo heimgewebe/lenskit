@@ -89,16 +89,26 @@ def test_query_json_structure(mini_index):
     assert hit["why"]["filter_pass"] == ["layer"]
     assert "bm25" in hit["why"]["rank_features"]
 
-    # Query hitting chunk without range_ref should not emit it
+    # Explicit range_ref should only exist if explicitly stored (it's not here)
     assert "range_ref" not in hit
+
+    # Because `mini_index` creates the SQLite index using `build_index` which sets defaults
+    # for missing values (start_byte=0, end_byte=0) and source_file falls back to path,
+    # the fallback source derivation logic in query_core WILL trigger successfully.
+    # Therefore, we EXPECT `derived_range_ref` to be present.
+    assert "derived_range_ref" in hit
+    assert hit["derived_range_ref"]["artifact_role"] == "source_file"
+    assert hit["derived_range_ref"]["file_path"] == "src/main.py"
 
     res2 = query_core.execute_query(mini_index, query_text="test_main", k=5)
     assert len(res2["results"]) == 1
     assert "range_ref" not in res2["results"][0]
+    assert "derived_range_ref" in res2["results"][0]
 
     res3 = query_core.execute_query(mini_index, query_text="Readme", k=5)
     assert len(res3["results"]) == 1
     assert "range_ref" not in res3["results"][0]
+    assert "derived_range_ref" in res3["results"][0]
 
 def test_query_range_ref(tmp_path):
     from merger.lenskit.retrieval import index_db
@@ -123,7 +133,8 @@ def test_query_range_ref(tmp_path):
         {
             "chunk_id": "c1", "repo_id": "r1", "path": "src/main.py", "content": "def main(): print('hello')",
             "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1",
-            "content_range_ref": ref_obj
+            "content_range_ref": ref_obj,
+            "start_byte": 0, "end_byte": 10, "source_file": "src/main.py"
         }
     ]
     with chunk_path.open("w", encoding="utf-8") as f:
