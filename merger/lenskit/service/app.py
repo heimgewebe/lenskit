@@ -9,6 +9,7 @@ import os
 import asyncio
 import json
 import time
+from pydantic import BaseModel
 import ipaddress
 import logging
 import re
@@ -721,6 +722,63 @@ def download_artifact(id: str, key: str = "md"):
 
 # Atlas API
 
+class ResolvedAtlasRoot(BaseModel):
+    scan_root: Path
+    root_kind: str
+    is_internal_abs_path: bool
+
+def resolve_atlas_root(request: AtlasRequest, hub_dir: Path, merges_dir: Optional[Path]) -> ResolvedAtlasRoot:
+    """
+    Central resolver for Atlas roots.
+    Translates the formalized root model (preset | token | abs_path) into a safe, absolute Path.
+    """
+    # Fallback to map legacy request fields if root_kind is missing
+    # (Since root_kind is now required by the schema, this is mostly for completeness)
+    root_kind = request.root_kind
+    root_value = request.root_value
+
+    if root_kind == "token":
+        if not request.root_token:
+            raise HTTPException(status_code=400, detail="root_token is required when root_kind='token'")
+        trusted = resolve_fs_path(hub=hub_dir, merges_dir=merges_dir, token=request.root_token)
+        return ResolvedAtlasRoot(scan_root=trusted.path, root_kind="token", is_internal_abs_path=False)
+
+    elif root_kind == "preset":
+        preset = root_value
+        if not preset:
+            raise HTTPException(status_code=400, detail="root_value is required when root_kind='preset'")
+        if preset not in ("hub", "merges", "system"):
+            raise HTTPException(status_code=400, detail=f"Invalid preset: {preset}")
+
+        trusted = resolve_fs_path(hub=hub_dir, merges_dir=merges_dir, root_id=preset, rel_path="")
+        return ResolvedAtlasRoot(scan_root=trusted.path, root_kind="preset", is_internal_abs_path=False)
+
+    elif root_kind == "abs_path":
+        abs_path_str = root_value
+        if not abs_path_str:
+            raise HTTPException(status_code=400, detail="root_value is required when root_kind='abs_path'")
+
+        try:
+            if "\x00" in abs_path_str:
+                raise ValueError("Invalid characters in path")
+
+            raw_path = os.path.expanduser(abs_path_str)
+            norm_path = os.path.normpath(raw_path)
+
+            if not os.path.isabs(norm_path) and not norm_path.startswith(('/', '\\')):
+                raise ValueError("Path must be absolute")
+
+            p = Path(norm_path)
+            if any(part == ".." for part in p.parts):
+                raise ValueError("Path traversal not allowed")
+
+            return ResolvedAtlasRoot(scan_root=p, root_kind="abs_path", is_internal_abs_path=True)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid absolute path for root_kind='abs_path'")
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid root_kind: {root_kind}")
+
 @app.post("/api/atlas", response_model=AtlasArtifact, dependencies=[Depends(verify_token)])
 async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks):
     # Determine root to scan
@@ -737,76 +795,33 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     effective_max_entries = request.max_entries
     effective_excludes = (request.exclude_globs or []).copy()
 
-    # Resolve scan root
+    # Resolve scan root using the new central resolver
     try:
-        # Canonical: token-based root selection (no user path expressions)
-        if request.root_token:
-            trusted = resolve_fs_path(
-                hub=hub,
-                merges_dir=state.merges_dir,
-                token=request.root_token,
-            )
-            scan_root = trusted.path
-        else:
-            # Transitional: root_id only (known ids)
-            # STRICT: No silent fallback to "hub". User must be explicit.
-            if not request.root_id:
-                raise HTTPException(status_code=400, detail="Missing root directory (provide root_token or root_id)")
+        resolved = resolve_atlas_root(request, hub, state.merges_dir)
+        scan_root = resolved.scan_root
 
-            root_id = request.root_id
-            if root_id not in ("hub", "merges", "system"):
-                try:
-                    # Explicit sanitization to satisfy CodeQL
-                    if "\x00" in root_id:
-                        raise ValueError("Invalid characters in path")
+        # System Guardrails
+        if resolved.root_kind == "preset" and request.root_value == "system":
+            # Enforce safer defaults (Depth/Limit)
+            if effective_max_depth > 6:
+                effective_max_depth = 6
 
-                    raw_path = os.path.expanduser(root_id)
-                    norm_path = os.path.normpath(raw_path)
+            if effective_max_entries > 200000:
+                effective_max_entries = 200000
 
-                    if not os.path.isabs(norm_path) and not norm_path.startswith(('/', '\\')):
-                        raise ValueError("Path must be absolute")
+            # Enforce strict excludes for system root
+            # Includes Linux/Pop!_OS standard paths + generic secrets
+            hard_excludes = [
+                "**/.ssh/**", "**/.gnupg/**", "**/.password-store/**",
+                "**/.aws/**", "**/.kube/**",
+                "**/.mozilla/**", "**/.config/google-chrome/**", "**/.config/chromium/**",
+                "**/.local/share/keyrings/**",
+                "**/Keychain/**", "**/Safari/**"
+            ]
 
-                    p = Path(norm_path)
-                    if any(part == ".." for part in p.parts):
-                        raise ValueError("Path traversal not allowed")
-
-                    # We avoid .resolve() because it triggers CodeQL path-injection on user input.
-                    # 'p' is already an absolute path and stripped of traverses.
-                    scan_root = p
-                except Exception:
-                    # Strict rejection of raw paths for Atlas to satisfy CodeQL
-                    raise HTTPException(status_code=400, detail="Invalid root directory identifier")
-            else:
-                trusted = resolve_fs_path(
-                    hub=hub,
-                    merges_dir=state.merges_dir,
-                    root_id=root_id,
-                    rel_path="",
-                )
-                scan_root = trusted.path
-
-            # System Guardrails
-            if root_id == "system":
-                # Enforce safer defaults (Depth/Limit)
-                if effective_max_depth > 6:
-                    effective_max_depth = 6
-
-                if effective_max_entries > 200000:
-                    effective_max_entries = 200000
-
-                # Enforce strict excludes for system root
-                # Includes Linux/Pop!_OS standard paths + generic secrets
-                hard_excludes = [
-                    "**/.ssh/**", "**/.gnupg/**", "**/.password-store/**",
-                    "**/.aws/**", "**/.kube/**",
-                    "**/.mozilla/**", "**/.config/google-chrome/**", "**/.config/chromium/**",
-                    "**/.local/share/keyrings/**",
-                    "**/Keychain/**", "**/Safari/**"
-                ]
-
-                for ex in hard_excludes:
-                    if ex not in effective_excludes:
-                        effective_excludes.append(ex)
+            for ex in hard_excludes:
+                if ex not in effective_excludes:
+                    effective_excludes.append(ex)
 
     except HTTPException as e:
          raise e
@@ -878,7 +893,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 max_depth=effective_max_depth,
                 max_entries=effective_max_entries,
                 exclude_globs=effective_excludes,
-                inventory_strict=False, # Default safe. Can be exposed later.
+                inventory_strict=request.inventory_strict,
                 no_default_excludes=request.no_default_excludes,
                 max_file_size=request.max_file_size
             )

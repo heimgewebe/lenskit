@@ -117,15 +117,16 @@ class AtlasEffective(BaseModel):
     exclude_globs: List[str]
 
 class AtlasRequest(BaseModel):
-    # Canonical: token from FS picker (opaque, HMAC-signed by server).
-    # This avoids user-controlled path expressions and satisfies CodeQL.
+    # The new formal root model for internal use:
+    root_kind: Literal["preset", "token", "abs_path"]
+    root_value: Optional[str] = None
     root_token: Optional[str] = None
+    inventory_strict: bool = True
 
-    # Transitional: allow selecting a known root id ("hub" | "merges" | "system").
-    # NOTE: Do NOT accept arbitrary paths here; use root_token instead.
+    # Deprecated fields, to be removed or ignored
     root_id: Optional[str] = None
+    root: Optional[str] = None
 
-    root: Optional[str] = None  # Deprecated.
     max_depth: int = 6
     max_entries: int = 200000
     exclude_globs: Optional[List[str]] = None

@@ -13,27 +13,31 @@ function assert(condition, message) {
 
 // Test 1: "hub" without token
 let payload = buildAtlasPayload("hub", undefined, "6", "200000", "");
-assert(payload.root_id === "hub", "root_id should be 'hub'");
+assert(payload.root_kind === "preset", "root_kind should be 'preset'");
+assert(payload.root_value === "hub", "root_value should be 'hub'");
 assert(payload.root_token === null, "root_token should be null");
 
 // Test 2: "HUB " (case insensitive and trim)
 payload = buildAtlasPayload("HUB ", null, 6, 200000, "");
-assert(payload.root_id === "hub", "root_id should be 'hub' after trim and lowercase");
+assert(payload.root_kind === "preset", "root_kind should be 'preset' after trim and lowercase");
+assert(payload.root_value === "hub", "root_value should be 'hub'");
 
-// Test 3: "home" maps to "system"
-payload = buildAtlasPayload("home", "some_token", 6, 200000, "");
-assert(payload.root_id === "system", "root_id should map 'home' to 'system'");
-assert(payload.root_token === null, "explicit ID should override token");
+// Test 3: "home" no longer maps to "system" (it's parsed as abs_path)
+payload = buildAtlasPayload("home", null, 6, 200000, "");
+assert(payload.root_kind === "abs_path", "root_kind should be 'abs_path' for unknown text");
+assert(payload.root_value === "home", "root_value should be 'home'");
 
 // Test 4: raw path with token (picker)
 payload = buildAtlasPayload("/path/to/my/folder", "abc-123-token", 6, 200000, "");
-assert(payload.root_id === null, "root_id should be null for raw paths");
-assert(payload.root_token === "abc-123-token", "root_token should be preserved for raw paths");
+assert(payload.root_kind === "token", "root_kind should be 'token' for picker paths");
+assert(payload.root_value === null, "root_value should be null for token");
+assert(payload.root_token === "abc-123-token", "root_token should be preserved");
 
-// Test 5: raw path without token (manual typing unsupported)
+// Test 5: raw path without token (manual typing supported as abs_path)
 payload = buildAtlasPayload("/path/to/my/folder", null, 6, 200000, "");
-assert(payload.root_id === null, "root_id should be null for raw paths without token");
-assert(payload.root_token === null, "root_token should be null for raw paths without token");
+assert(payload.root_kind === "abs_path", "root_kind should be 'abs_path' for manual raw paths");
+assert(payload.root_value === "/path/to/my/folder", "root_value should be the path");
+assert(payload.root_token === null, "root_token should be null");
 
 // Test 6: limit and depth parses correctly
 payload = buildAtlasPayload("hub", null, "10", "50000", "glob1, glob2");
@@ -41,6 +45,7 @@ assert(payload.max_depth === 10, "max_depth parsed correctly");
 assert(payload.max_entries === 50000, "max_entries parsed correctly");
 assert(payload.exclude_globs.length === 2, "exclude_globs parsed correctly");
 assert(payload.exclude_globs[0] === "glob1" && payload.exclude_globs[1] === "glob2", "exclude_globs trimmed correctly");
+assert(payload.inventory_strict === true, "inventory_strict should be true");
 
 if (failed > 0) {
     console.error(`\n${failed} tests failed!`);
