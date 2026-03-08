@@ -178,3 +178,59 @@ def test_schema_validation_passes(manifest_env):
     ref_invalid_sha["content_sha256"] = ""
     with pytest.raises(ValueError, match="range_ref failed schema"):
         resolve_range_ref(manifest_env["manifest_path"], ref_invalid_sha)
+
+def test_source_file_path_traversal_prevention(tmp_path):
+    hub_path = tmp_path / "hub"
+    hub_path.mkdir()
+
+    # Safe repo
+    repo_dir = hub_path / "r1"
+    repo_dir.mkdir()
+
+    # Secret repo we want to attack
+    secret_dir = hub_path / "r1-secrets"
+    secret_dir.mkdir()
+    secret_file = secret_dir / "key.txt"
+    secret_file.write_bytes(b"SUPER_SECRET")
+
+    merges_dir = hub_path / "merges"
+    run_dir = merges_dir / "test-run"
+    run_dir.mkdir(parents=True)
+    manifest_path = run_dir / "bundle.manifest.json"
+
+    manifest_data = {
+        "kind": "repolens.bundle.manifest",
+        "run_id": "test-run",
+        "artifacts": []
+    }
+    manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    # Attacker tries to break out of r1 to r1-secrets
+    ref_malicious_sibling = {
+        "artifact_role": "source_file",
+        "repo_id": "r1",
+        "file_path": "../r1-secrets/key.txt",
+        "start_byte": 0,
+        "end_byte": 12,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": "a" * 64  # Doesn't matter, should fail before this
+    }
+
+    with pytest.raises(ValueError, match="attempts to escape the repository directory"):
+        resolve_range_ref(manifest_path, ref_malicious_sibling)
+
+    # Attacker tries an absolute path
+    ref_malicious_absolute = {
+        "artifact_role": "source_file",
+        "repo_id": "r1",
+        "file_path": "/etc/passwd",
+        "start_byte": 0,
+        "end_byte": 10,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": "a" * 64
+    }
+
+    with pytest.raises(ValueError, match="file_path must be a relative path"):
+        resolve_range_ref(manifest_path, ref_malicious_absolute)

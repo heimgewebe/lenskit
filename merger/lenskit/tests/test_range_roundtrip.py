@@ -119,6 +119,7 @@ def test_derived_range_roundtrip_fallback(tmp_path):
             "layer": "core", "artifact_type": "code", "content_sha256": expected_sha256,
             "source_file": "code.md"
             # NOTE: We DO NOT provide content_range_ref here. We expect the query to derive derived_range_ref!
+            # `source_file` is injected here explicitly to test the DB populator and the new fallback path.
         }
     ]
     with chunk_path.open("w", encoding="utf-8") as f:

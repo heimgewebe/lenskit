@@ -92,23 +92,19 @@ def test_query_json_structure(mini_index):
     # Explicit range_ref should only exist if explicitly stored (it's not here)
     assert "range_ref" not in hit
 
-    # Because `mini_index` creates the SQLite index using `build_index` which sets defaults
-    # for missing values (start_byte=0, end_byte=0) and source_file falls back to path,
-    # the fallback source derivation logic in query_core WILL trigger successfully.
-    # Therefore, we EXPECT `derived_range_ref` to be present.
-    assert "derived_range_ref" in hit
-    assert hit["derived_range_ref"]["artifact_role"] == "source_file"
-    assert hit["derived_range_ref"]["file_path"] == "src/main.py"
+    # Because `mini_index` uses chunks without genuine byte ranges, the DB defaults to start_byte=0, end_byte=0.
+    # Since end_byte is not > start_byte, the query_core logic correctly refuses to emit derived_range_ref.
+    assert "derived_range_ref" not in hit
 
     res2 = query_core.execute_query(mini_index, query_text="test_main", k=5)
     assert len(res2["results"]) == 1
     assert "range_ref" not in res2["results"][0]
-    assert "derived_range_ref" in res2["results"][0]
+    assert "derived_range_ref" not in res2["results"][0]
 
     res3 = query_core.execute_query(mini_index, query_text="Readme", k=5)
     assert len(res3["results"]) == 1
     assert "range_ref" not in res3["results"][0]
-    assert "derived_range_ref" in res3["results"][0]
+    assert "derived_range_ref" not in res3["results"][0]
 
 def test_query_range_ref(tmp_path):
     from merger.lenskit.retrieval import index_db

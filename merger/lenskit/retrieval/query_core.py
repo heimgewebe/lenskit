@@ -335,7 +335,7 @@ def execute_query(
                     end_byte = r["end_byte"]
                     content_sha256 = r["content_sha256"]
 
-                    if source_file and start_byte is not None and end_byte is not None and content_sha256:
+                    if source_file and start_byte is not None and end_byte is not None and end_byte > start_byte and content_sha256:
                         hit["derived_range_ref"] = {
                             "artifact_role": "source_file",
                             "repo_id": hit["repo_id"],

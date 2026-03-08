@@ -52,7 +52,18 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
         if not target_path_str:
             raise ValueError("file_path is required when resolving a source_file range_ref")
 
-        target_path = hub_path / repo_id / target_path_str
+        # Path Traversal Protection
+        if Path(target_path_str).is_absolute():
+            raise ValueError("file_path must be a relative path")
+
+        base_repo_path = (hub_path / repo_id).resolve()
+        target_path = (base_repo_path / target_path_str).resolve()
+
+        try:
+            target_path.relative_to(base_repo_path)
+        except ValueError:
+            raise ValueError(f"file_path '{target_path_str}' attempts to escape the repository directory")
+
     else:
         # Try resolving via bundle manifest format
         if manifest.get("kind") == "repolens.bundle.manifest":
