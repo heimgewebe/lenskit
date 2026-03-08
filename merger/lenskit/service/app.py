@@ -1057,16 +1057,27 @@ def list_atlas():
         scan_id = file.stem # atlas-123456
 
         # Construct paths
-        paths = {"json": file.name, "md": file.with_suffix(".md").name}
-        inv_file = file.with_suffix(".inventory.jsonl")
-        if inv_file.name.startswith(scan_id): # Ensure it matches ID
-            if inv_file.exists():
-                paths["inventory"] = inv_file.name
+        paths = {"json": file.name}
 
-        dirs_inv_file = file.with_suffix(".dirs_inventory.jsonl")
-        if dirs_inv_file.name.startswith(scan_id):
-            if dirs_inv_file.exists():
-                paths["dirs_inventory"] = dirs_inv_file.name
+        possible_suffixes = {
+            "md": ".summary.md",
+            "inventory": ".inventory.jsonl",
+            "dirs_inventory": ".dirs.jsonl",
+            "topology": ".topology.json",
+            "content": ".content.json",
+            "workspaces": ".workspaces.json",
+            "hotspots": ".hotspots.json",
+            # Legacy fallbacks
+            "md_legacy": ".md",
+            "dirs_legacy": ".dirs_inventory.jsonl"
+        }
+
+        for key, suffix in possible_suffixes.items():
+            candidate = file.with_name(f"{scan_id}{suffix}")
+            if candidate.exists():
+                mapped_key = "md" if key == "md_legacy" else ("dirs_inventory" if key == "dirs_legacy" else key)
+                if mapped_key not in paths:
+                    paths[mapped_key] = candidate.name
 
         created_at = datetime.fromtimestamp(file.stat().st_mtime, timezone.utc).isoformat()
         if "created_at" in data:
@@ -1133,18 +1144,27 @@ def get_latest_atlas():
     scan_id = latest_file.stem # atlas-123456
 
     # Construct paths
-    paths = {"json": latest_file.name, "md": latest_file.with_suffix(".md").name}
-    inv_file = latest_file.with_suffix(".inventory.jsonl")
-    if inv_file.name.startswith(scan_id): # Ensure it matches ID (it does by construction)
-         # Check existence? Usually assumed.
-         # Actually check if it exists to avoid 404 links
-         if inv_file.exists():
-             paths["inventory"] = inv_file.name
+    paths = {"json": latest_file.name}
 
-    dirs_inv_file = latest_file.with_suffix(".dirs_inventory.jsonl")
-    if dirs_inv_file.name.startswith(scan_id):
-        if dirs_inv_file.exists():
-            paths["dirs_inventory"] = dirs_inv_file.name
+    possible_suffixes = {
+        "md": ".summary.md",
+        "inventory": ".inventory.jsonl",
+        "dirs_inventory": ".dirs.jsonl",
+        "topology": ".topology.json",
+        "content": ".content.json",
+        "workspaces": ".workspaces.json",
+        "hotspots": ".hotspots.json",
+        # Legacy fallbacks
+        "md_legacy": ".md",
+        "dirs_legacy": ".dirs_inventory.jsonl"
+    }
+
+    for key, suffix in possible_suffixes.items():
+        candidate = latest_file.with_name(f"{scan_id}{suffix}")
+        if candidate.exists():
+            mapped_key = "md" if key == "md_legacy" else ("dirs_inventory" if key == "dirs_legacy" else key)
+            if mapped_key not in paths:
+                paths[mapped_key] = candidate.name
 
     created_at = datetime.fromtimestamp(latest_file.stat().st_mtime, timezone.utc).isoformat()
     if "created_at" in data:
@@ -1167,8 +1187,9 @@ def download_atlas(id: str, key: str = "md"):
     if not re.fullmatch(r"atlas-\d+", (id or "").strip()):
         raise HTTPException(status_code=400, detail="Invalid atlas id format")
 
-    if key not in ("json", "md", "inventory", "dirs_inventory"):
-        raise HTTPException(status_code=400, detail="Invalid key. Use 'json', 'md', 'inventory', or 'dirs_inventory'.")
+    allowed_keys = ("json", "md", "inventory", "dirs_inventory", "topology", "content", "workspaces", "hotspots")
+    if key not in allowed_keys:
+        raise HTTPException(status_code=400, detail=f"Invalid key. Use one of {allowed_keys}.")
 
     if not state.hub:
         raise HTTPException(status_code=400, detail="Hub not configured")
@@ -1181,32 +1202,33 @@ def download_atlas(id: str, key: str = "md"):
     # Enumerate allowed files and then select by id.
     candidates = {}
 
-    # Map key to extension
-    ext_map = {"json": ".json", "md": ".md", "inventory": ".inventory.jsonl", "dirs_inventory": ".dirs_inventory.jsonl"}
-    ext = ext_map[key]
+    # Map key to extension, supporting new planner names and legacy fallbacks
+    ext_map = {
+        "json": [".json"],
+        "md": [".summary.md", ".md"],
+        "inventory": [".inventory.jsonl"],
+        "dirs_inventory": [".dirs.jsonl", ".dirs_inventory.jsonl"],
+        "topology": [".topology.json"],
+        "content": [".content.json"],
+        "workspaces": [".workspaces.json"],
+        "hotspots": [".hotspots.json"]
+    }
+    exts = ext_map[key]
 
     # Glob pattern needs to match suffix carefully
-    # atlas-*.json covers .inventory.jsonl? No.
-    # Globbing: atlas-*{ext}
+    for ext in exts:
+        for p in merges_dir.glob(f"atlas-*{ext}"):
+            try:
+                rp = p.resolve()
+                rp.relative_to(merges_dir)  # containment even under symlinks
+            except Exception:
+                continue
 
-    for p in merges_dir.glob(f"atlas-*{ext}"):
-        try:
-            rp = p.resolve()
-            rp.relative_to(merges_dir)  # containment even under symlinks
-        except Exception:
-            continue
-
-        # ID extraction:
-        # atlas-123.json -> atlas-123
-        # atlas-123.inventory.jsonl -> atlas-123 ?
-        # stem of .inventory.jsonl is .inventory ? No.
-        # pathlib stem logic:
-        # p = atlas-123.inventory.jsonl -> stem = atlas-123.inventory
-        # So p.stem != id.
-
-        # Robust ID matching:
-        if p.name.startswith(id + "."):
-             candidates[id] = rp
+            # Robust ID matching:
+            if p.name.startswith(id + "."):
+                 # if multiple extensions match, the first one found wins
+                 if id not in candidates:
+                     candidates[id] = rp
 
     file_path = candidates.get(id)
     if not file_path:
