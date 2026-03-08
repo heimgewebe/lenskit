@@ -13,7 +13,7 @@
       "properties": {
         "MRR": {
           "type": "number",
-          "description": "Mean Reciprocal Rank for the overall evaluation run.",
+          "description": "Mean Reciprocal Rank for the overall evaluation run. When running in compare mode with semantic reranking, this equals the semantic_MRR.",
           "minimum": 0,
           "maximum": 1
         },
@@ -127,7 +127,7 @@
       "patternProperties": {
         "^recall@\\d+$": {
           "type": "number",
-          "description": "Recall at K, strictly represented as a percentage (0.0 to 100.0). Note: accept_criteria in queries JSON uses a ratio (0.0 to 1.0).",
+          "description": "Recall at K, strictly represented as a percentage (0.0 to 100.0). Note: accept_criteria in queries JSON uses a ratio (0.0 to 1.0). When running in compare mode with semantic reranking, this equals the semantic_recall@K.",
           "minimum": 0,
           "maximum": 100
         },
