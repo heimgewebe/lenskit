@@ -36,7 +36,8 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             max_entries=args.limit,
             exclude_globs=exclude_globs if exclude_globs else None,
             no_default_excludes=args.no_default_excludes,
-            max_file_size=max_file_size
+            max_file_size=max_file_size,
+            enable_content_stats=(args.mode == "content")
         )
 
         # Import output planner (for DRY)

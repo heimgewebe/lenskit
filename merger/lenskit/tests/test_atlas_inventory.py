@@ -15,7 +15,7 @@ def test_atlas_inventory_includes_all_titles(tmp_path):
 
     inventory_file = tmp_path / "atlas.inventory.jsonl"
 
-    scanner = AtlasScanner(tmp_path, inventory_strict=False)
+    scanner = AtlasScanner(tmp_path, inventory_strict=False, enable_content_stats=True)
     scanner.scan(inventory_file=inventory_file)
 
     assert inventory_file.exists()

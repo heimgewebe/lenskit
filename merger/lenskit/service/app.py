@@ -879,7 +879,8 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 exclude_globs=effective_excludes,
                 inventory_strict=request.inventory_strict,
                 no_default_excludes=request.no_default_excludes,
-                max_file_size=request.max_file_size
+                max_file_size=request.max_file_size,
+                enable_content_stats=(request.scan_mode == "content")
             )
             result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path)
 

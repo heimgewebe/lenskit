@@ -52,7 +52,8 @@ class AtlasScanner:
     def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,
                  exclude_globs: List[str] = None, inventory_strict: bool = False,
                  no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024,
-                 snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None):
+                 snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
+                 enable_content_stats: bool = False):
         self.root = root
         self.max_depth = max_depth
         self.max_entries = max_entries
@@ -63,6 +64,7 @@ class AtlasScanner:
         self.max_file_size = max_file_size
         self.snapshot_id = snapshot_id
         self.compare_to_snapshot_id = compare_to_snapshot_id
+        self.enable_content_stats = enable_content_stats
 
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
@@ -257,7 +259,9 @@ class AtlasScanner:
                     continue
 
                 # Check for .git to mark repo node
+                has_git = False
                 if ".git" in dirs:
+                    has_git = True
                     self.stats["repo_nodes"].append(rel_path_str)
                     # Don't recurse into .git
                     dirs.remove(".git")
@@ -265,7 +269,11 @@ class AtlasScanner:
                 # Detect workspace signals
                 workspace_signals = []
                 workspace_kind = "unknown"
-                for sig in [".git", ".ai-context.yml", "pyproject.toml", "requirements.txt", "package.json", "compose.yml", "docker-compose.yml", "README.md"]:
+
+                if has_git:
+                    workspace_signals.append(".git")
+
+                for sig in [".ai-context.yml", "pyproject.toml", "requirements.txt", "package.json", "compose.yml", "docker-compose.yml", "README.md"]:
                     if sig in dirs or sig in files:
                         workspace_signals.append(sig)
 
@@ -293,7 +301,10 @@ class AtlasScanner:
                         confidence = max(confidence, 0.9)
 
                     # Simple hash for deterministic ID
-                    h = hashlib.md5(rel_path_str.encode('utf-8')).hexdigest()[:8]
+                    try:
+                        h = hashlib.md5(rel_path_str.encode('utf-8'), usedforsecurity=False).hexdigest()[:8]
+                    except TypeError:
+                        h = hashlib.md5(rel_path_str.encode('utf-8')).hexdigest()[:8]  # nosec B303
                     workspace_id = f"ws_{h}"
                     self.stats["workspaces"].append({
                         "workspace_id": workspace_id,
@@ -340,7 +351,7 @@ class AtlasScanner:
 
                 dir_file_counts[rel_path_str] = len(kept_files)
                 dir_depths[rel_path_str] = depth
-                dir_signal_counts[rel_path_str] = len(workspace_signals) if 'workspace_signals' in locals() else 0
+                dir_signal_counts[rel_path_str] = len(workspace_signals)
 
                 # Directory Inventory
                 if dirs_inv_f:
@@ -389,14 +400,16 @@ class AtlasScanner:
 
                         dir_bytes += size
 
-                        is_txt = is_probably_text(f_path, size)
-                        if is_txt:
-                            text_files_count += 1
-                        else:
-                            binary_files_count += 1
+                        is_txt = None
+                        if self.enable_content_stats:
+                            is_txt = is_probably_text(f_path, size)
+                            if is_txt:
+                                text_files_count += 1
+                            else:
+                                binary_files_count += 1
 
-                        if size > 10 * 1024 * 1024: # 10MB
-                            large_files.append({"path": f_rel, "size": size})
+                            if size > 10 * 1024 * 1024: # 10MB
+                                large_files.append({"path": f_rel, "size": size})
 
                         # Inventory Output
                         if inv_f:
@@ -407,9 +420,10 @@ class AtlasScanner:
                                 "ext": ext,
                                 "size_bytes": size,
                                 "mtime": datetime.fromtimestamp(mtime, timezone.utc).isoformat().replace('+00:00', 'Z'),
-                                "is_text": is_txt,
                                 "is_symlink": is_sym
                             }
+                            if is_txt is not None:
+                                entry["is_text"] = is_txt
                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                     except OSError:
@@ -475,7 +489,6 @@ class AtlasScanner:
         }
 
         # Topology tree construction
-        tree = []
         # We only need a reduced topology, so we can pass the nodes directly or build a fast hierarchy.
         # Nodes are passed so `planner.py` can serialize it efficiently without writing the entire inventory.
         self.stats["topology"] = {
