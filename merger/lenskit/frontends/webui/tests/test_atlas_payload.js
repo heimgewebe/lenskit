@@ -51,6 +51,11 @@ assert(payload.max_entries === 50000, "max_entries parsed correctly");
 assert(payload.exclude_globs.length === 2, "exclude_globs parsed correctly");
 assert(payload.exclude_globs[0] === "glob1" && payload.exclude_globs[1] === "glob2", "exclude_globs trimmed correctly");
 assert(payload.inventory_strict === true, "inventory_strict should be true");
+assert(payload.scan_mode === "inventory", "scan_mode defaults to inventory");
+
+// Test 7: scan_mode passes through
+payload = buildAtlasPayload("hub", null, "10", "50000", "", "workspace");
+assert(payload.scan_mode === "workspace", "scan_mode correctly assigned to workspace");
 
 if (failed > 0) {
     console.error(`\n${failed} tests failed!`);

@@ -1343,7 +1343,8 @@ async function startAtlasJob(e) {
         token: rootToken || null,
         depth: document.getElementById('atlasDepth').value,
         limit: document.getElementById('atlasLimit').value,
-        excludes: document.getElementById('atlasExcludes').value
+        excludes: document.getElementById('atlasExcludes').value,
+        scanMode: document.getElementById('atlasMode') ? document.getElementById('atlasMode').value : 'inventory'
     };
     localStorage.setItem(ATLAS_CONFIG_KEY, JSON.stringify(config));
 
@@ -1360,7 +1361,8 @@ async function startAtlasJob(e) {
         config.token,
         config.depth,
         config.limit,
-        config.excludes
+        config.excludes,
+        config.scanMode
     );
 
     if (payload.root_kind === "invalid") {
@@ -1577,6 +1579,42 @@ async function loadAtlasArtifacts() {
                         filename: art.paths.dirs_inventory,
                         label: 'Download Dirs Inventory',
                         className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-orange-400'
+                    }));
+                }
+
+                if (art.paths.topology) {
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=topology`,
+                        filename: art.paths.topology,
+                        label: 'Download Topology',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-purple-400'
+                    }));
+                }
+
+                if (art.paths.content) {
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=content`,
+                        filename: art.paths.content,
+                        label: 'Download Content JSON',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-teal-400'
+                    }));
+                }
+
+                if (art.paths.workspaces) {
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=workspaces`,
+                        filename: art.paths.workspaces,
+                        label: 'Download Workspaces',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-indigo-400'
+                    }));
+                }
+
+                if (art.paths.hotspots) {
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=hotspots`,
+                        filename: art.paths.hotspots,
+                        label: 'Download Hotspots',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-pink-400'
                     }));
                 }
 

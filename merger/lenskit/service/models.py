@@ -122,6 +122,7 @@ class AtlasRequest(BaseModel):
     root_value: Optional[str] = None
     root_token: Optional[str] = None
     inventory_strict: bool = True
+    scan_mode: Literal["inventory", "topology", "content", "workspace"] = "inventory"
 
     # Deprecated legacy fields:
     # These fields are no longer mapped or respected by the `resolve_atlas_root`
