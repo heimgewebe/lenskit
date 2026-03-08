@@ -1,268 +1,120 @@
 # Lenskit Retrieval Roadmap
 
-## Dialektische Einordnung
+## Zweck und Zielbild
 
-### These
-Eine Restliste soll operative Klarheit schaffen: Welche PR kommt als nächstes, mit welchem Stop-Kriterium, anhand welcher Artefakte prüfbar. Das sinnvollste F1b-Upgrade ist ein kleines, lokales Lenskit-Upgrade mit optionaler semantischer Schicht. Die Roadmap definiert F1b als Model Integration mit lokalem Provider, Cosine-Ähnlichkeit, optionaler sentence-transformers-Abhängigkeit und noch nicht validierten dimensions.
+Dieses Dokument ist das kanonische Steuerdokument für die Retrieval-Architektur in Lenskit. Es definiert die Entwicklungsrichtung, grenzt aktive Arbeitspakete von künftigen Phasen ab und legt klare Stop-Kriterien fest.
 
-### Antithese
-Die aktuelle Liste mischt reale Implementationsarbeit, strategische Phasen und offene Architekturfragen. Man könnte F1b auch direkt an semantAH andocken, weil semantAH bereits einen Dienst für indexing and semantic search hat und Embeddings/Beobachtung sauber modelliert.
-
-### Synthese
-Eine ideale Restliste trennt strikt:
-- **ACTIVE WORK**
-- **DEFERRED WORK**
-- **ARCHITECTURE QUESTIONS**
-
-Implementiere F1b jetzt in Lenskit selbst (lokaler Reranker jetzt), aber so, dass ein späterer semantAH-Adapter trivial bleibt (Backend-Auslagerung später). Das ist der beste Kompromiss zwischen Fortschritt und Architekturhygiene. Damit wird die Roadmap operational statt narrativ.
+**Zielbild:**
+Lenskit operiert als deterministisches Retrieval-System mit einer robusten lexikalischen Basis (BM25/FTS) und einer optionalen semantischen Zweitphase. Zentral sind dabei nachvollziehbare Provenienz, maschinenlesbare Explain-Blöcke und reproduzierbares Evaluierungsverhalten. Lenskit bleibt primär lokal und robust ("Lenskit-first"); Backend-Auslagerungen (wie an semantAH) sind spätere, kompatible Erweiterungspfade ("semantAH-ready").
 
 ---
 
-## Statusgrundlage (Dump)
+## Aktive Arbeit
 
-Das Bundle enthält aktuell u. a.:
-- canonical dump
-- chunk index
-- dump index
-- derived index
-- sqlite BM25 index
-- architecture summary
+### 1. F1b Semantic Reranker Runtime
 
-Die Architekturübersicht bestätigt die Module:
-- chunker
-- merge
-- extractor
-- range_resolver
+**Ziel:**
+Einführung eines lokalen semantischen Rankings als optionale zweite Retrievalphase auf Basis der BM25-Kandidaten.
 
-Wichtige Artefakte fehlen dagegen:
-- `graph_index.json`
-- `embedding_index`
-- `symbol_index`
-- `call_graph`
+**Deliverables:**
+- Model Loader (`merger/lenskit/retrieval/semantic.py`) für lokales `sentence-transformers` Setup.
+- Embedding Cache (`embedding_index.json`) zur Vermeidung von Neuberechnungen pro Query.
+- Integration in `retrieval/query.py`: `candidates = bm25_top_k(query) → reranked = cosine_similarity`.
+- Explain-/Diagnostics-Pfad für semantische Scores und Fallbacks.
 
----
-
-## REST-LISTE (OPERATIV)
-
-### A — Retrieval Evolution (AKTIVE ARBEIT)
-
-#### F1b Semantic Reranker (Model Integration)
-**Ziel:** Semantisches Ranking als zweite Retrievalphase. Lenskit bleibt zuständig für BM25/FTS-Kandidaten, Filter, Explain-Block, deterministische Ergebnisform und Eval. F1b ergänzt ein optionales semantisches Reranking auf Top-K mit sauberen Fallbacks und messbarer Delta-Evaluation (keine neue Failure-Klasse im Basispfad).
-
-**Pipeline:**
-`BM25 → candidate set → semantic rerank → final ranking`
-
-**Scope:**
-- provider: local
-- model: sentence-transformers
-- metric: cosine similarity
-- dependency: optional
-
-**Implementationsaufgaben:**
-
-**1️⃣ Model Loader**
-- Datei: `merger/lenskit/retrieval/semantic.py`
-- Funktionen:
-  - `load_model()`
-  - `embed_query()`
-  - `embed_chunks()`
-
-**2️⃣ Embedding Cache**
-- Ziel: keine Embedding-Neuberechnung pro Query
-- Artefakt: `embedding_index.json`
-- Struktur:
-  ```json
-  {
-    "chunk_id": "...",
-    "embedding": [...]
-  }
-  ```
-
-**3️⃣ Semantic Rerank**
-- Pipeline:
-  - `candidates = bm25_top_k(query)`
-  - `reranked = cosine_similarity(query_embedding, chunk_embeddings)`
-
-**4️⃣ Integration Retrieval Pipeline**
-- Datei: `retrieval/query.py`
-- Feature Flag: `semantic_rerank_enabled`
-- Fallback: BM25 only
-
-**Stop-Kriterien:**
-- measurable improvement vs BM25
-- keine neue Failure-Klasse
-- deterministisches Ranking
-- Pipeline fallback stabil
-
----
-
-### B — Generator Improvements
-
-#### PR: Range_ref bundle propagation
-
-**Aktueller Zustand:** Range refs existieren nur im Retrieval-Layer.
-**Fehlt:** bundle-level provenance tracking
-**Problem:** Bundles verlieren Byte-Mapping.
-
-**Ziel:** Chunk-Artefakte behalten Herkunft.
-```text
-bundle
- └ source_file
-     └ start_byte
-     └ end_byte
-```
-
-**Änderung:**
-- Datei: `generate_chunk_artifacts()`
-- Neue Felder: `source_file`, `start_byte`, `end_byte`, `content_sha256`
+**Nicht-Ziel:**
+- Produktivverdrahtung mit semantAH.
+- Multi-provider Orchestrierung.
+- Vollausbau der Dimensions-Validierung.
+- Schaffung neuer großer Artefaktfamilien ohne unmittelbaren Reranking-Nutzen.
 
 **Stop-Kriterium:**
-- Query result enthält: `range_ref`, das exakt auf Bundle-Bytes zeigt.
+- Semantischer Reranker läuft lokal mit deterministischem Verhalten.
+- Saubere Fallbacks bei fehlender (optionaler) Dependency greifen ohne neue Failure-Klasse.
 
----
+### 2. F1b Eval Delta
 
-### C — Index Erweiterungen
+**Ziel:**
+Erweiterung der Evaluierung zur Messbarmachung der Reranker-Qualität.
 
-#### Graph Index Artifact
-**Fehlt derzeit im Bundle.**
+**Deliverables:**
+- Vergleichsmodus für `lenskit eval` (baseline: BM25-only vs. semantic: BM25 + semantic rerank).
+- Metriken-Output: `recall@k` (baseline/semantic), `MRR` (baseline/semantic), `delta_recall`, `delta_mrr`.
+- Testfall mit deterministischem Mock-Reranker.
 
-**Ziel:** `graph_index.json`
-**Struktur:**
-```json
-{
-  "nodes": [],
-  "edges": [],
-  "entrypoints": [],
-  "distance_map": {}
-}
-```
-
-**Nutzen (Reranking Features):**
-- distance_to_entrypoint
-- test_penalty
-- dependency_score
-
-**Generator:**
-- Datei: `scripts/graph/build_graph_index.py`
+**Nicht-Ziel:**
+- Komplexe CI/CD Integration oder Dashboarding.
 
 **Stop-Kriterium:**
-- Bundle enthält: `graph_index.json`
+- Messbare Verbesserung (`delta_mrr > 0` oder `delta_recall@k > 0`) gegen die Baseline ist nachweisbar.
+
+### 3. Range_ref Propagation
+
+**Ziel:**
+Chunk-Artefakte behalten ihre exakte Herkunft auf Bundle-Ebene (Byte-Mapping).
+
+**Deliverables:**
+- Erweiterung von `generate_chunk_artifacts()` um `source_file`, `start_byte`, `end_byte` und `content_sha256`.
+
+**Nicht-Ziel:**
+- Komplettes Refactoring der Dump-Architektur.
+
+**Stop-Kriterium:**
+- Query-Resultate enthalten eine `range_ref`, die exakt und verifizierbar auf die Bundle-Bytes zeigt.
+
+### 4. Graph Index Artifact
+
+**Ziel:**
+Bereitstellung topologischer Metadaten für zukünftige Reranking-Features (z. B. Distanz zu Entrypoints).
+
+**Deliverables:**
+- Generator-Script (`scripts/graph/build_graph_index.py`).
+- JSON-Artefakt `graph_index.json` mit Nodes, Edges, Entrypoints und Distance-Map.
+
+**Nicht-Ziel:**
+- Sofortige Integration in die Query-Scoring-Logik (Reranking auf Basis des Graphen folgt später).
+
+**Stop-Kriterium:**
+- Das Bundle enthält reproduzierbar eine valide `graph_index.json`.
 
 ---
 
-## 3-Stufiges F1b-Upgrade
+## Spätere Phasen (Deferred Phases)
 
-### Stufe 1 — Produktionsfähiger lokaler Semantic Reranker (PR A)
-**Jetzt umsetzen.**
-- **Was:** In `query_core.execute_query(...)`:
-  1. BM25/FTS liefert `fetch_k = max(k, 50)` Kandidaten.
-  2. Nur wenn `embedding_policy` (provider=local, similarity_metric=cosine) gesetzt ist: Candidate-Text aus SQL holen, Embeddings erzeugen, Cosine-Score berechnen, `final_score` deterministisch überschreiben.
-- **Wie:** Optional dependency via `requirements-semantic.txt`.
-- **Regeln:** SQL-Projektion sauber (kein leerer String-Bug), keine harte NumPy-Abhängigkeit im Basis-Setup, Konfigurationsgrenzen explizit validieren, Explain-Block konsistent ausbauen.
+Diese Phasen sind architektonisch relevant, aber aktuell nicht in der Umsetzung.
 
-### Stufe 2 — Eval-Upgrade mit Improvement Delta (PR B)
-**Direkt danach.**
-- **Was:** `lenskit eval` bekommt einen Vergleichsmodus (baseline vs. semantic)
-- **Output:** `recall@k` (baseline/semantic), `MRR` (baseline/semantic), `delta_recall`, `delta_mrr`, failed queries.
-- **Stop-Kriterium:** `delta_mrr > 0` oder `delta_recall@k > 0`, keine neuen Failure-Klassen, saubere Fallbacks bei fehlender Dependency.
-
-### Stufe 3 — Adapter-Vorbereitung für semantAH (PR C)
-**Noch nicht jetzt produktiv verdrahten.**
-- **Was:** `embedding_policy.provider` abstrahieren (`local` bleibt Default, `semantah_http` als Slot vorbereiten). Keine Cross-Repo-Kopplung für den F1b-Abschluss.
+- **P3 — Contracts / Flows Atlas:** Generierung von `contracts_graph.json` für Dependency Topology und Schema Flow Tracing.
+- **P4 — Tree-sitter Parsing:** Sprachagnostische AST-Extraktion für einen `symbol_index.json`.
+- **P5 — Call Graph / CPG:** Generierung von `call_graph.json` für Execution Flow Retrieval und Security Reasoning.
 
 ---
 
-## DEFERRED PHASES (NICHT AKTIV)
+## Offene Architekturfragen
 
-### P3 — Contracts / Flows Atlas
-- **Artefakt:** `contracts_graph.json`
-- **Nutzen:** dependency topology, schema flow tracing
+Diese Fragen müssen vor dem Beginn der späteren Phasen geklärt werden, blockieren aber die aktive Arbeit nicht.
 
-### P4 — Tree-sitter Parsing
-- **Ziel:** language agnostic AST extraction
-- **Artefakt:** `symbol_index.json`
-
-### P5 — Call Graph / CPG
-- **Artefakt:** `call_graph.json`
-- **Nutzen:** execution flow retrieval, security reasoning
+- **Contracts Pfad:** Wo liegen Retrieval-Schemas dauerhaft (`contracts/`, `schemas/`, oder `retrieval/schemas/`)?
+- **Schema Discovery:** Welche Dateinamenskonvention (`*.schema.json` vs. `*.json`) wird vom Validator genutzt?
+- **Artifact Role Naming:** Wie wird die Namenskonvention zwischen `architecture_graph_json` und `graph_index_json` konsolidiert?
+- **Chunk Index Erweiterung:** Sind neue Felder wie `symbol_name` oder `node_id` schema-kompatibel (Strict-Type Checks)?
 
 ---
 
-## ARCHITEKTURFRAGEN (NOCH NICHT IMPLEMENTIEREN)
+## Empfohlene Reihenfolge
 
-**Contracts Pfad**
-- **Frage:** Wo liegen retrieval schemas?
-- **Optionen:** `contracts/`, `schemas/`, `retrieval/schemas/`
+Die Umsetzung der aktiven Arbeit erfolgt thematisch:
+1. F1b runtime (Lokaler Reranker)
+2. F1b eval (Delta-Messung)
+3. range_ref propagation
+4. graph_index artifact
 
-**Schema Discovery**
-- **Frage:** `*.schema.json` vs `*.json`
-
-**Artifact Role Naming**
-- **Frage:** `architecture_graph_json` vs `graph_index_json`
-
-**Chunk Index Erweiterung**
-- **Neue Felder:** `symbol_name`, `node_id`, `test_penalty`
-- **Risiko:** Schema strictness.
+*Backend-Auslagerungen (z. B. semantAH-Adapter) oder verteilte Architekturen sind spätere, kompatible Erweiterungspfade, die erst nach Abschluss dieser Kette evaluiert werden.*
 
 ---
 
-## Empfohlene PR-Reihenfolge
+## Risiken und Leitplanken
 
-- **PR 6 / PR A:** F1b Runtime stabilisieren (Lokaler Reranker)
-- **PR 6b / PR B:** Eval-Delta ergänzen
-- **PR 7:** Range-ref propagation
-- **PR 8:** Graph Index artifact
-- **Danach:** semantAH Adapter (PR C), P3 → P4 → P5
-
----
-
-## Risikoanalyse
-
-**Technisch**
-- *Embedding Integration:* Risiko memory growth, index size
-- *Test-Risiko:* echte Modelle in CI machen alles langsam und fragil
-
-**Architektur**
-- *Range_ref Tracking:* Risiko generator refactor
-- *Qualitätsrisiko:* semantische Scores ohne Baseline-Vergleich wirken klüger, ohne es zu sein
-
-**Organisatorisch**
-- *Graph Index:* Risiko Reranker coupling
-- *Drift-Risiko:* Modellwechsel ohne sichtbare Revision erschwert Vergleich über Zeit
-
----
-
-## Alternative Denkachse
-
-Statt Roadmap-Tasks: **Artefakt-Gap-Analyse**
-
-**Sollte existieren:**
-- `graph_index.json`
-- `symbol_index.json`
-- `call_graph.json`
-- `embedding_index.json`
-
-**Existiert:**
-- `chunk_index`
-- `sqlite_index`
-
-**Differenz = nächste PRs.**
-
----
-
-**Unsicherheitsgrad:** 0.16
-*Grund:* Codepipeline nicht komplett sichtbar, Graph-Rerank evtl runtime-only.
-
-**Interpolationsgrad:** 0.19
-*Annahmen:* Beste Upgrade-Reihenfolge abgeleitet aus Roadmap, semantAH-Rolle und PR-Mustern.
-
----
-
-## Essenz
-
-Die ideale Restliste besteht aus drei Kernarbeiten:
-1. **PR6** semantic reranker (Lenskit-first: Runtime fertigbauen + separater Eval-Delta PR)
-2. **PR7** range_ref propagation
-3. **PR8** graph_index artifact
-
-Alles andere ist Future Phase oder Architecture Question. Hebel: F1b lokal sauber fertigbauen, statt sofort systemübergreifend zu verknoten (Lenskit-first, semantAH-ready).
+- **Embedding Integration:** Speicherwachstum (Memory Growth) und Indexgröße müssen beim lokalen Reranking kontrolliert bleiben.
+- **Test-Stabilität:** Echte ML-Modelle in der CI sind zu vermeiden; stattdessen auf deterministische Mocks setzen.
+- **Qualitätssicherung:** Semantische Scores dürfen ohne Baseline-Vergleich (Eval Delta) nicht als "Verbesserung" deklariert werden.
+- **Architektur-Drift:** Modellwechsel ohne explizite Revisionsverwaltung zerstören die zeitliche Vergleichbarkeit der Retrieval-Güte.
