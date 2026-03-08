@@ -40,7 +40,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         )
 
         # Import output planner (for DRY)
-        from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_placeholders
+        from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 
         base_name = f"atlas_scan_{scan_root.name if scan_root.name else 'root'}"
         scan_id = base_name
@@ -65,8 +65,8 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         with open(out_md, "w", encoding="utf-8") as f:
             f.write(md_content)
 
-        # Additional placeholders for structural mode contract
-        write_mode_placeholders(planned_outputs, result, Path("."))
+        # Additional structural outputs
+        write_mode_outputs(planned_outputs, result, Path("."))
 
         print(f"Done. Outputs generated for mode '{args.mode}':")
         for k, v in planned_outputs.items():

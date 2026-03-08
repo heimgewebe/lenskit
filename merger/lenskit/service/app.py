@@ -31,7 +31,7 @@ from ..adapters.security import (
 from ..adapters.filesystem import resolve_fs_path, list_allowed_roots, issue_fs_token
 from ..adapters.atlas import AtlasScanner, render_atlas_md
 from ..adapters.metarepo import sync_from_metarepo
-from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_placeholders
+from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 from ..adapters import sources as sources_refresh
 from ..adapters import diagnostics as diagnostics_rebuild
 
@@ -889,7 +889,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             result["effective"] = initial_state["effective"]
 
             # Additional structural JSONs for new modes
-            write_mode_placeholders(planned_outputs, result, merges_dir)
+            write_mode_outputs(planned_outputs, result, merges_dir)
 
             # Save JSON Stats (core internal metadata)
             _write_json_atomic(merges_dir / json_filename, result)

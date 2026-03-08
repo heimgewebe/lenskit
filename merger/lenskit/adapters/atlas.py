@@ -2,6 +2,7 @@ import os
 import logging
 import time
 import json
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Pattern, Union, Tuple
 from datetime import datetime, timezone
@@ -85,8 +86,8 @@ class AtlasScanner:
             "extensions": {},
             "top_dirs": [],  # List of {"path": str, "bytes": int}
             "repo_nodes": [], # List of paths that look like git repos
+            "workspaces": [], # List of {"workspace_id": str, "root_path": str, ...}
             # Placeholders for higher-level processing or specific scan modes
-            "workspaces": [],
             "hotspots": {},
             "topology": {},
             "delta": {},
@@ -219,6 +220,15 @@ class AtlasScanner:
             logger.error(f"Failed to open inventory files: {e}")
 
         dir_sizes = {} # path -> size
+        dir_file_counts = {}
+        dir_depths = {}
+        dir_signal_counts = {}
+        large_files = []
+        text_files_count = 0
+        binary_files_count = 0
+
+        # For topology we keep track of nodes
+        topology_nodes = {}
 
         try:
             for root, dirs, files in os.walk(self.root, topdown=True, followlinks=False):
@@ -252,6 +262,48 @@ class AtlasScanner:
                     # Don't recurse into .git
                     dirs.remove(".git")
 
+                # Detect workspace signals
+                workspace_signals = []
+                workspace_kind = "unknown"
+                for sig in [".git", ".ai-context.yml", "pyproject.toml", "requirements.txt", "package.json", "compose.yml", "docker-compose.yml", "README.md"]:
+                    if sig in dirs or sig in files:
+                        workspace_signals.append(sig)
+
+                # Check for .wgx/ (can be a directory)
+                if ".wgx" in dirs:
+                    workspace_signals.append(".wgx")
+
+                if workspace_signals:
+                    if ".git" in workspace_signals:
+                        workspace_kind = "git_repo"
+                    elif "package.json" in workspace_signals:
+                        workspace_kind = "node_project"
+                    elif "pyproject.toml" in workspace_signals or "requirements.txt" in workspace_signals:
+                        workspace_kind = "python_project"
+                    elif "compose.yml" in workspace_signals or "docker-compose.yml" in workspace_signals:
+                        workspace_kind = "compose_stack"
+                    elif len(workspace_signals) == 1 and workspace_signals[0] == "README.md":
+                        workspace_kind = "docs_space"
+                    else:
+                        workspace_kind = "mixed_workspace"
+
+                    # confidence heuristic: more signals = higher confidence
+                    confidence = min(len(workspace_signals) * 0.25, 1.0)
+                    if ".git" in workspace_signals or ".ai-context.yml" in workspace_signals:
+                        confidence = max(confidence, 0.9)
+
+                    # Simple hash for deterministic ID
+                    h = hashlib.md5(rel_path_str.encode('utf-8')).hexdigest()[:8]
+                    workspace_id = f"ws_{h}"
+                    self.stats["workspaces"].append({
+                        "workspace_id": workspace_id,
+                        "root_path": rel_path_str,
+                        "workspace_kind": workspace_kind,
+                        "signals": workspace_signals,
+                        "confidence": round(confidence, 2),
+                        "tags": [workspace_kind]
+                    })
+
                 # Pre-calculate prefix for children
                 prefix = "" if rel_path_str == "." else rel_path_str + "/"
 
@@ -278,6 +330,17 @@ class AtlasScanner:
 
                     if not self._is_excluded(f_rel):
                         kept_files.append((f, f_rel))
+
+                # Track for topology
+                topology_nodes[rel_path_str] = {
+                    "path": rel_path_str,
+                    "depth": depth,
+                    "dirs": [prefix + d for d in dirs]
+                }
+
+                dir_file_counts[rel_path_str] = len(kept_files)
+                dir_depths[rel_path_str] = depth
+                dir_signal_counts[rel_path_str] = len(workspace_signals) if 'workspace_signals' in locals() else 0
 
                 # Directory Inventory
                 if dirs_inv_f:
@@ -326,9 +389,17 @@ class AtlasScanner:
 
                         dir_bytes += size
 
+                        is_txt = is_probably_text(f_path, size)
+                        if is_txt:
+                            text_files_count += 1
+                        else:
+                            binary_files_count += 1
+
+                        if size > 10 * 1024 * 1024: # 10MB
+                            large_files.append({"path": f_rel, "size": size})
+
                         # Inventory Output
                         if inv_f:
-                            is_txt = is_probably_text(f_path, size)
                             # Use reused relative path string
                             entry = {
                                 "rel_path": f_rel,
@@ -383,6 +454,34 @@ class AtlasScanner:
         sorted_dirs = sorted(recursive_sizes.items(), key=lambda x: x[1], reverse=True)
         self.stats["top_dirs"] = [{"path": p, "bytes": s} for p, s in sorted_dirs[:50]]
 
+        # Enhanced Hotspots
+        highest_file_density = sorted(dir_file_counts.items(), key=lambda x: x[1], reverse=True)[:50]
+        deepest_paths = sorted(dir_depths.items(), key=lambda x: x[1], reverse=True)[:50]
+        highest_signal_density = sorted(dir_signal_counts.items(), key=lambda x: x[1], reverse=True)[:50]
+
+        self.stats["hotspots"] = {
+            "top_dirs": self.stats["top_dirs"],
+            "highest_file_density": [{"path": p, "count": c} for p, c in highest_file_density if c > 0],
+            "deepest_paths": [{"path": p, "depth": d} for p, d in deepest_paths],
+            "highest_signal_density": [{"path": p, "signals": s} for p, s in highest_signal_density if s > 0]
+        }
+
+        # Enhanced Content Metadata
+        self.stats["content"] = {
+            "text_files_count": text_files_count,
+            "binary_files_count": binary_files_count,
+            "large_files": sorted(large_files, key=lambda x: x["size"], reverse=True)[:100],
+            "extensions": dict(sorted(self.stats["extensions"].items(), key=lambda x: x[1], reverse=True)[:50])
+        }
+
+        # Topology tree construction
+        tree = []
+        # We only need a reduced topology, so we can pass the nodes directly or build a fast hierarchy.
+        # Nodes are passed so `planner.py` can serialize it efficiently without writing the entire inventory.
+        self.stats["topology"] = {
+            "root_path": str(self.root),
+            "nodes": topology_nodes
+        }
 
         # Snapshot Output Structure
         if self.snapshot_id:
