@@ -2,7 +2,7 @@ import re
 import sys
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from .query_core import execute_query
 
@@ -80,6 +80,51 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
 
     return queries
 
+def evaluate_single_run(
+    q_text: str,
+    filters: Dict[str, str],
+    expected: List[str],
+    index_path: Path,
+    k: int,
+    embedding_policy: Optional[Dict[str, Any]],
+    graph_index_path: Optional[Path],
+    graph_weights: Optional[Dict[str, float]]
+) -> Tuple[bool, str, Optional[Dict[str, Any]], List[str], int, float, Dict[str, Any]]:
+    res = execute_query(
+        index_path=index_path,
+        query_text=q_text,
+        k=k,
+        filters=filters,
+        embedding_policy=embedding_policy,
+        explain=True,
+        graph_index_path=graph_index_path,
+        graph_weights=graph_weights
+    )
+
+    is_relevant = False
+    top_match = "-"
+    hit_why = None
+    found_paths = [r["path"] for r in res["results"]]
+    rr = 0.0
+
+    for idx, r in enumerate(res["results"]):
+        hit_path = r["path"]
+        match_found = False
+        for exp in expected:
+            if exp in hit_path:
+                match_found = True
+                if not is_relevant:
+                    is_relevant = True
+                    top_match = hit_path
+                    hit_why = r.get("why")
+                    rr = 1.0 / (idx + 1)
+                break
+        if is_relevant:
+            break
+
+    return is_relevant, top_match, hit_why, found_paths, res["count"], rr, res
+
+
 def do_eval(
     index_path: Path,
     queries_path: Path,
@@ -100,13 +145,21 @@ def do_eval(
         print("No queries found in input file.", file=sys.stderr)
         return None
 
+    compare_mode = embedding_policy is not None
+
     if not is_json_mode:
         print(f"Running Eval on {len(gold_queries)} queries against {index_path.name}...")
-        print("-" * 60)
-        print(f"{'Query':<40} | {'Found':<5} | {'Rel?':<4} | {'Top-1 Match':<30}")
-        print("-" * 60)
+        print("-" * 80 if compare_mode else "-" * 60)
+        if compare_mode:
+            print(f"{'Query':<35} | {'Base (RR / Match)':<25} | {'Sem (RR / Match)':<25}")
+        else:
+            print(f"{'Query':<40} | {'Found':<5} | {'Rel?':<4} | {'Top-1 Match':<30}")
+        print("-" * 80 if compare_mode else "-" * 60)
 
-    hits_at_k = 0
+    base_hits_at_k = 0
+    base_mrr_sum = 0.0
+    sem_hits_at_k = 0
+    sem_mrr_sum = 0.0
     zero_hit_count = 0
     total_queries = len(gold_queries)
     results_detail = []
@@ -120,63 +173,93 @@ def do_eval(
 
         cat_key = category if category else "uncategorized"
         if cat_key not in category_stats:
-            category_stats[cat_key] = {"total_queries": 0, "hits": 0}
+            category_stats[cat_key] = {"total_queries": 0, "base_hits": 0, "base_mrr_sum": 0.0, "sem_hits": 0, "sem_mrr_sum": 0.0}
         category_stats[cat_key]["total_queries"] += 1
 
         try:
-            res = execute_query(
-                index_path=index_path,
-                query_text=q_text,
-                k=k,
-                filters=filters,
-                embedding_policy=embedding_policy,
-                explain=True,
-                graph_index_path=graph_index_path,
-                graph_weights=graph_weights
+            # Baseline run (no embedding policy)
+            b_rel, b_match, b_why, b_paths, b_count, b_rr, b_res = evaluate_single_run(
+                q_text, filters, expected, index_path, k, None, graph_index_path, graph_weights
             )
 
-            is_relevant = False
-            top_match = "-"
-            hit_why = None
-            found_paths = [r["path"] for r in res["results"]]
+            s_rel, s_match, s_why, s_paths, s_count, s_rr, s_res = False, "-", None, [], 0, 0.0, {}
+            if compare_mode:
+                # Semantic run
+                s_rel, s_match, s_why, s_paths, s_count, s_rr, s_res = evaluate_single_run(
+                    q_text, filters, expected, index_path, k, embedding_policy, graph_index_path, graph_weights
+                )
 
-            for r in res["results"]:
-                hit_path = r["path"]
-                for exp in expected:
-                    if exp in hit_path:
-                        is_relevant = True
-                        top_match = hit_path
-                        hit_why = r.get("why")
-                        break
-                if is_relevant:
-                    break
-
-            if res["count"] == 0:
+            if b_count == 0 and (not compare_mode or s_count == 0):
                 zero_hit_count += 1
 
-            if is_relevant:
-                hits_at_k += 1
-                category_stats[cat_key]["hits"] += 1
+            if b_rel:
+                base_hits_at_k += 1
+                category_stats[cat_key]["base_hits"] += 1
+            base_mrr_sum += b_rr
+            category_stats[cat_key]["base_mrr_sum"] += b_rr
+
+            if compare_mode:
+                if s_rel:
+                    sem_hits_at_k += 1
+                    category_stats[cat_key]["sem_hits"] += 1
+                sem_mrr_sum += s_rr
+                category_stats[cat_key]["sem_mrr_sum"] += s_rr
 
             if not is_json_mode:
-                rel_mark = "✅" if is_relevant else "❌"
-                disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
-                disp_match = (top_match[:27] + "..") if len(top_match) > 27 else top_match
-                print(f"{disp_q:<40} | {res['count']:<5} | {rel_mark:<4} | {disp_match:<30}")
+                disp_q = (q_text[:32] + "..") if len(q_text) > 32 else q_text
+                if compare_mode:
+                    b_disp_match = (b_match[:15] + "..") if len(b_match) > 15 else b_match
+                    s_disp_match = (s_match[:15] + "..") if len(s_match) > 15 else s_match
+                    b_str = f"{b_rr:.2f} / {b_disp_match}" if b_rel else f"0.00 / ❌"
+                    s_str = f"{s_rr:.2f} / {s_disp_match}" if s_rel else f"0.00 / ❌"
+                    print(f"{disp_q:<35} | {b_str:<25} | {s_str:<25}")
+                else:
+                    rel_mark = "✅" if b_rel else "❌"
+                    disp_match = (b_match[:27] + "..") if len(b_match) > 27 else b_match
+                    print(f"{disp_q:<40} | {b_count:<5} | {rel_mark:<4} | {disp_match:<30}")
 
             detail = {
                 "query": q_text,
                 "category": cat_key,
                 "filters": filters,
                 "expected": expected,
-                "is_relevant": is_relevant,
-                "hit_path": top_match if is_relevant else None,
-                "found_count": res["count"],
-                "top_results": found_paths
+                "is_relevant": b_rel,
+                "hit_path": b_match if b_rel else None,
+                "found_count": b_count,
+                "top_results": b_paths,
+                "rr": b_rr,
+                "explain": b_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
             }
-            if hit_why is not None:
-                detail["why"] = hit_why
-            detail["explain"] = res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
+            if b_why is not None:
+                detail["why"] = b_why
+
+            if compare_mode:
+                detail["baseline"] = {
+                    "is_relevant": b_rel,
+                    "hit_path": b_match if b_rel else None,
+                    "found_count": b_count,
+                    "top_results": b_paths,
+                    "rr": b_rr,
+                    "explain": b_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
+                }
+                detail["semantic"] = {
+                    "is_relevant": s_rel,
+                    "hit_path": s_match if s_rel else None,
+                    "found_count": s_count,
+                    "top_results": s_paths,
+                    "rr": s_rr,
+                    "explain": s_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
+                }
+                detail["delta_rr"] = s_rr - b_rr
+                # Overwrite backwards-compatible base fields with semantic ones if we're evaluating semantic overall
+                detail["is_relevant"] = s_rel
+                detail["hit_path"] = s_match if s_rel else None
+                detail["found_count"] = s_count
+                detail["top_results"] = s_paths
+                detail["rr"] = s_rr
+                detail["explain"] = s_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
+                if s_why is not None:
+                    detail["why"] = s_why
 
             results_detail.append(detail)
 
@@ -184,8 +267,11 @@ def do_eval(
             if "Invalid graph index JSON" in str(e) or "Explicitly provided graph index file does not exist" in str(e):
                 raise e
             if not is_json_mode:
-                disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
-                print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
+                disp_q = (q_text[:32] + "..") if len(q_text) > 32 else q_text
+                if compare_mode:
+                    print(f"{disp_q:<35} | {'ERR':<25} | {'ERR':<25}", file=sys.stderr)
+                else:
+                    print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
 
             results_detail.append({
                 "query": q_text,
@@ -203,8 +289,11 @@ def do_eval(
 
         except Exception as e:
             if not is_json_mode:
-                disp_q = (q_text[:37] + "..") if len(q_text) > 37 else q_text
-                print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
+                disp_q = (q_text[:32] + "..") if len(q_text) > 32 else q_text
+                if compare_mode:
+                    print(f"{disp_q:<35} | {'ERR':<25} | {'ERR':<25}", file=sys.stderr)
+                else:
+                    print(f"{disp_q:<40} | {'ERR':<5} | ❌   | error: {str(e)[:23]}", file=sys.stderr)
 
             results_detail.append({
                 "query": q_text,
@@ -222,32 +311,55 @@ def do_eval(
                 }
             })
 
-    recall_at_k = (hits_at_k / total_queries) * 100.0 if total_queries > 0 else 0.0
+    base_recall_at_k = (base_hits_at_k / total_queries) * 100.0 if total_queries > 0 else 0.0
+    base_mrr = base_mrr_sum / total_queries if total_queries > 0 else 0.0
+
+    sem_recall_at_k = (sem_hits_at_k / total_queries) * 100.0 if total_queries > 0 else 0.0
+    sem_mrr = sem_mrr_sum / total_queries if total_queries > 0 else 0.0
+
     zero_hit_ratio = zero_hit_count / total_queries if total_queries > 0 else 0.0
 
     for cat_data in category_stats.values():
         c_total = cat_data["total_queries"]
-        c_hits = cat_data["hits"]
-        cat_data[f"recall@{k}"] = (c_hits / c_total) * 100.0 if c_total > 0 else 0.0
+        cat_data[f"recall@{k}"] = (cat_data["base_hits"] / c_total) * 100.0 if c_total > 0 else 0.0
+        cat_data["MRR"] = cat_data["base_mrr_sum"] / c_total if c_total > 0 else 0.0
+
+        if compare_mode:
+            cat_data[f"semantic_recall@{k}"] = (cat_data["sem_hits"] / c_total) * 100.0 if c_total > 0 else 0.0
+            cat_data["semantic_MRR"] = cat_data["sem_mrr_sum"] / c_total if c_total > 0 else 0.0
 
     if not is_json_mode:
-        print("-" * 60)
-        print(f"Recall@{k}: {recall_at_k:.1f}% ({hits_at_k}/{total_queries})")
+        print("-" * 80 if compare_mode else "-" * 60)
+        if compare_mode:
+            print(f"Base Recall@{k}: {base_recall_at_k:.1f}% ({base_hits_at_k}/{total_queries}) | Base MRR: {base_mrr:.3f}")
+            print(f"Sem  Recall@{k}: {sem_recall_at_k:.1f}% ({sem_hits_at_k}/{total_queries}) | Sem  MRR: {sem_mrr:.3f}")
+            print(f"Delta Recall@{k}: {(sem_recall_at_k - base_recall_at_k):+.1f}% | Delta MRR: {(sem_mrr - base_mrr):+.3f}")
+        else:
+            print(f"Recall@{k}: {base_recall_at_k:.1f}% ({base_hits_at_k}/{total_queries}) | MRR: {base_mrr:.3f}")
         print(f"0-Hits Ratio: {zero_hit_ratio:.2f} ({zero_hit_count}/{total_queries})")
-        for cat, stats in category_stats.items():
-            print(f"  {cat} Recall@{k}: {stats[f'recall@{k}']:.1f}% ({stats['hits']}/{stats['total_queries']})")
-        print("-" * 60)
+        print("-" * 80 if compare_mode else "-" * 60)
 
     out = {
         "metrics": {
-            f"recall@{k}": recall_at_k,
+            f"recall@{k}": sem_recall_at_k if compare_mode else base_recall_at_k,
+            f"baseline_recall@{k}": base_recall_at_k,
+            "MRR": sem_mrr if compare_mode else base_mrr,
+            "baseline_MRR": base_mrr,
             "total_queries": total_queries,
-            "hits": hits_at_k,
+            "hits": sem_hits_at_k if compare_mode else base_hits_at_k,
+            "baseline_hits": base_hits_at_k,
             "stale_flag": is_stale,
             "zero_hit_ratio": zero_hit_ratio,
             "categories": category_stats
         },
         "details": results_detail
     }
+
+    if compare_mode:
+        out["metrics"][f"semantic_recall@{k}"] = sem_recall_at_k
+        out["metrics"]["semantic_MRR"] = sem_mrr
+        out["metrics"]["semantic_hits"] = sem_hits_at_k
+        out["metrics"]["delta_recall"] = sem_recall_at_k - base_recall_at_k
+        out["metrics"]["delta_mrr"] = sem_mrr - base_mrr
 
     return out

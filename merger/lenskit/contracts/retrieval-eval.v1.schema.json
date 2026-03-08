@@ -11,6 +11,42 @@
       "description": "Aggregate metrics for the evaluation run.",
       "additionalProperties": false,
       "properties": {
+        "MRR": {
+          "type": "number",
+          "description": "Mean Reciprocal Rank for the overall evaluation run.",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "baseline_MRR": {
+          "type": "number",
+          "description": "Baseline Mean Reciprocal Rank without semantic reranking.",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "baseline_hits": {
+          "type": "integer",
+          "description": "Number of baseline hits without semantic reranking.",
+          "minimum": 0
+        },
+        "semantic_MRR": {
+          "type": "number",
+          "description": "Semantic Mean Reciprocal Rank.",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "semantic_hits": {
+          "type": "integer",
+          "description": "Number of semantic hits.",
+          "minimum": 0
+        },
+        "delta_recall": {
+          "type": "number",
+          "description": "Difference in recall (semantic minus baseline)."
+        },
+        "delta_mrr": {
+          "type": "number",
+          "description": "Difference in MRR (semantic minus baseline)."
+        },
         "total_queries": {
           "type": "integer",
           "description": "Total number of queries in the evaluation set.",
@@ -44,6 +80,32 @@
               "hits": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "MRR": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "base_hits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "base_mrr_sum": {
+                "type": "number",
+                "minimum": 0
+              },
+              "sem_hits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sem_mrr_sum": {
+                "type": "number",
+                "minimum": 0
+              },
+              "semantic_MRR": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
               }
             },
             "patternProperties": {
@@ -51,9 +113,14 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 100
+              },
+              "^semantic_recall@\\d+$": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
               }
             },
-            "required": ["total_queries", "hits"]
+            "required": ["total_queries"]
           }
         }
       },
@@ -61,6 +128,18 @@
         "^recall@\\d+$": {
           "type": "number",
           "description": "Recall at K, strictly represented as a percentage (0.0 to 100.0). Note: accept_criteria in queries JSON uses a ratio (0.0 to 1.0).",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "^baseline_recall@\\d+$": {
+          "type": "number",
+          "description": "Baseline Recall at K without semantic reranking.",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "^semantic_recall@\\d+$": {
+          "type": "number",
+          "description": "Semantic Recall at K.",
           "minimum": 0,
           "maximum": 100
         }

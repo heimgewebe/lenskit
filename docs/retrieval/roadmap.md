@@ -75,14 +75,14 @@ Ein lokaler semantischer Reranker ergänzt den BM25-Kandidatenpfad optional als 
 Der Nutzen des semantischen Rerankers wird gegen die BM25-Baseline messbar gemacht.
 
 **Deliverables:**
-- [ ] `lenskit eval` führt Baseline und Semantic-Modus vergleichend aus.
-- [ ] Output enthält getrennt: `recall@k` (baseline/semantic), `MRR` (baseline/semantic), `delta_recall`, `delta_mrr`.
-- [ ] Per-Query Vergleich ist sichtbar; Failure-Fälle werden explizit ausgewiesen.
-- [ ] Deterministischer Test mit Mock-Reranker existiert.
+- [x] `lenskit eval` führt Baseline und Semantic-Modus vergleichend aus.
+- [x] Output enthält getrennt: `recall@k` (baseline/semantic), `MRR` (baseline/semantic), `delta_recall`, `delta_mrr`.
+- [x] Per-Query Vergleich ist sichtbar; Failure-Fälle werden explizit ausgewiesen.
+- [x] Deterministischer Test mit Mock-Reranker existiert.
 
 **Stop-Kriterien:**
-- [ ] Improvement-Delta (`delta_mrr > 0` oder `delta_recall@k > 0`) ist maschinenlesbar nachweisbar.
-- [ ] Semantik verursacht keine neue Failure-Klasse gegenüber der Baseline in der Evaluierung.
+- [x] Improvement-Delta (`delta_mrr > 0` oder `delta_recall@k > 0`) ist maschinenlesbar nachweisbar.
+- [x] Semantik verursacht keine neue Failure-Klasse gegenüber der Baseline in der Evaluierung.
 
 ### 2.3 Range_ref Propagation
 
@@ -116,8 +116,8 @@ Topologische Metadaten (Graph) werden als reproduzierbares Artefakt erzeugt und 
 ## 3. Operative Abarbeitungsreihenfolge
 
 Diese Reihenfolge ist operativ bindend:
-1. [ ] F1b Semantic Reranker Runtime
-2. [ ] F1b Eval Delta
+1. [x] F1b Semantic Reranker Runtime
+2. [x] F1b Eval Delta
 3. [ ] Range_ref Propagation
 4. [ ] Graph Index Artifact + Runtime Consistency
 
