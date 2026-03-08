@@ -3,15 +3,10 @@
 ## Dialektische Einordnung
 
 ### These
-Eine Restliste soll operative Klarheit schaffen: Welche PR kommt als nächstes, mit welchem Stop-Kriterium, anhand welcher Artefakte prüfbar.
+Eine Restliste soll operative Klarheit schaffen: Welche PR kommt als nächstes, mit welchem Stop-Kriterium, anhand welcher Artefakte prüfbar. Das sinnvollste F1b-Upgrade ist ein kleines, lokales Lenskit-Upgrade mit optionaler semantischer Schicht. Die Roadmap definiert F1b als Model Integration mit lokalem Provider, Cosine-Ähnlichkeit, optionaler sentence-transformers-Abhängigkeit und noch nicht validierten dimensions.
 
 ### Antithese
-Die aktuelle Liste mischt drei Kategorien:
-1. reale Implementationsarbeit
-2. strategische Phasen
-3. offene Architekturfragen
-
-Das erzeugt ein klassisches Planungsproblem: Agents beginnen plötzlich „Fragen“ zu implementieren.
+Die aktuelle Liste mischt reale Implementationsarbeit, strategische Phasen und offene Architekturfragen. Man könnte F1b auch direkt an semantAH andocken, weil semantAH bereits einen Dienst für indexing and semantic search hat und Embeddings/Beobachtung sauber modelliert.
 
 ### Synthese
 Eine ideale Restliste trennt strikt:
@@ -19,7 +14,7 @@ Eine ideale Restliste trennt strikt:
 - **DEFERRED WORK**
 - **ARCHITECTURE QUESTIONS**
 
-Damit wird die Roadmap operational statt narrativ.
+Implementiere F1b jetzt in Lenskit selbst (lokaler Reranker jetzt), aber so, dass ein späterer semantAH-Adapter trivial bleibt (Backend-Auslagerung später). Das ist der beste Kompromiss zwischen Fortschritt und Architekturhygiene. Damit wird die Roadmap operational statt narrativ.
 
 ---
 
@@ -52,7 +47,7 @@ Wichtige Artefakte fehlen dagegen:
 ### A — Retrieval Evolution (AKTIVE ARBEIT)
 
 #### F1b Semantic Reranker (Model Integration)
-**Ziel:** Semantisches Ranking als zweite Retrievalphase.
+**Ziel:** Semantisches Ranking als zweite Retrievalphase. Lenskit bleibt zuständig für BM25/FTS-Kandidaten, Filter, Explain-Block, deterministische Ergebnisform und Eval. F1b ergänzt ein optionales semantisches Reranking auf Top-K mit sauberen Fallbacks und messbarer Delta-Evaluation (keine neue Failure-Klasse im Basispfad).
 
 **Pipeline:**
 `BM25 → candidate set → semantic rerank → final ranking`
@@ -155,6 +150,28 @@ bundle
 
 ---
 
+## 3-Stufiges F1b-Upgrade
+
+### Stufe 1 — Produktionsfähiger lokaler Semantic Reranker (PR A)
+**Jetzt umsetzen.**
+- **Was:** In `query_core.execute_query(...)`:
+  1. BM25/FTS liefert `fetch_k = max(k, 50)` Kandidaten.
+  2. Nur wenn `embedding_policy` (provider=local, similarity_metric=cosine) gesetzt ist: Candidate-Text aus SQL holen, Embeddings erzeugen, Cosine-Score berechnen, `final_score` deterministisch überschreiben.
+- **Wie:** Optional dependency via `requirements-semantic.txt`.
+- **Regeln:** SQL-Projektion sauber (kein leerer String-Bug), keine harte NumPy-Abhängigkeit im Basis-Setup, Konfigurationsgrenzen explizit validieren, Explain-Block konsistent ausbauen.
+
+### Stufe 2 — Eval-Upgrade mit Improvement Delta (PR B)
+**Direkt danach.**
+- **Was:** `lenskit eval` bekommt einen Vergleichsmodus (baseline vs. semantic)
+- **Output:** `recall@k` (baseline/semantic), `MRR` (baseline/semantic), `delta_recall`, `delta_mrr`, failed queries.
+- **Stop-Kriterium:** `delta_mrr > 0` oder `delta_recall@k > 0`, keine neuen Failure-Klassen, saubere Fallbacks bei fehlender Dependency.
+
+### Stufe 3 — Adapter-Vorbereitung für semantAH (PR C)
+**Noch nicht jetzt produktiv verdrahten.**
+- **Was:** `embedding_policy.provider` abstrahieren (`local` bleibt Default, `semantah_http` als Slot vorbereiten). Keine Cross-Repo-Kopplung für den F1b-Abschluss.
+
+---
+
 ## DEFERRED PHASES (NICHT AKTIV)
 
 ### P3 — Contracts / Flows Atlas
@@ -191,10 +208,11 @@ bundle
 
 ## Empfohlene PR-Reihenfolge
 
-- **PR 6:** Semantic Reranker (F1b)
+- **PR 6 / PR A:** F1b Runtime stabilisieren (Lokaler Reranker)
+- **PR 6b / PR B:** Eval-Delta ergänzen
 - **PR 7:** Range-ref propagation
 - **PR 8:** Graph Index artifact
-- **Danach:** P3 → P4 → P5
+- **Danach:** semantAH Adapter (PR C), P3 → P4 → P5
 
 ---
 
@@ -202,12 +220,15 @@ bundle
 
 **Technisch**
 - *Embedding Integration:* Risiko memory growth, index size
+- *Test-Risiko:* echte Modelle in CI machen alles langsam und fragil
 
 **Architektur**
 - *Range_ref Tracking:* Risiko generator refactor
+- *Qualitätsrisiko:* semantische Scores ohne Baseline-Vergleich wirken klüger, ohne es zu sein
 
 **Organisatorisch**
 - *Graph Index:* Risiko Reranker coupling
+- *Drift-Risiko:* Modellwechsel ohne sichtbare Revision erschwert Vergleich über Zeit
 
 ---
 
@@ -230,24 +251,18 @@ Statt Roadmap-Tasks: **Artefakt-Gap-Analyse**
 ---
 
 **Unsicherheitsgrad:** 0.16
-*Grund:*
-- Codepipeline nicht komplett sichtbar
-- Graph-Rerank evtl runtime-only
+*Grund:* Codepipeline nicht komplett sichtbar, Graph-Rerank evtl runtime-only.
 
-**Interpolationsgrad:** 0.14
-*Annahmen:*
-- typische Retrieval Architektur
-- Embedding Cache Design
+**Interpolationsgrad:** 0.19
+*Annahmen:* Beste Upgrade-Reihenfolge abgeleitet aus Roadmap, semantAH-Rolle und PR-Mustern.
 
 ---
 
 ## Essenz
 
-Die ideale Restliste besteht aus nur drei echten Arbeiten:
-1. **PR6** semantic reranker
+Die ideale Restliste besteht aus drei Kernarbeiten:
+1. **PR6** semantic reranker (Lenskit-first: Runtime fertigbauen + separater Eval-Delta PR)
 2. **PR7** range_ref propagation
 3. **PR8** graph_index artifact
 
-Alles andere ist Future Phase oder Architecture Question.
-
-*Zum Schluss eine kleine Beobachtung aus der Praxis: Die meisten Software-Roadmaps scheitern nicht an fehlendem Code – sondern daran, dass niemand mehr weiß, welche Kästchen eigentlich noch echt sind.*
+Alles andere ist Future Phase oder Architecture Question. Hebel: F1b lokal sauber fertigbauen, statt sofort systemübergreifend zu verknoten (Lenskit-first, semantAH-ready).
