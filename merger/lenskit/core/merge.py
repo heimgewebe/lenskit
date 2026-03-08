@@ -5028,6 +5028,7 @@ def write_reports_v2(
                 d["size_bytes"] = d["size"]
 
                 # Extended machine-readable fields (v2.4)
+                d["source_file"] = fi.rel_path.as_posix()
                 d["content_artifact"] = "merge_md"
                 d["content_range"] = {
                     "start_byte": d["start_byte"],

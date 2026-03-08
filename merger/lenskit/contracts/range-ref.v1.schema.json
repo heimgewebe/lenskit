@@ -27,7 +27,8 @@
         "retrieval_eval_json",
         "derived_manifest_json",
         "architecture_summary",
-        "delta_json"
+        "delta_json",
+        "source_file"
       ],
       "description": "Machine-readable enum role for this artifact."
     },
@@ -37,7 +38,7 @@
     },
     "file_path": {
       "type": "string",
-      "description": "Path to the artifact file as referenced by the bundle manifest (artifacts[].path)."
+      "description": "Path to the artifact file as referenced by the bundle manifest, or the relative path to the original source file if role is source_file."
     },
     "start_byte": {
       "type": "integer",

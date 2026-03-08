@@ -89,13 +89,16 @@ Der Nutzen des semantischen Rerankers wird gegen die BM25-Baseline messbar gemac
 **Ziel:**
 Die bereits vorhandene `range_ref`-Mechanik wird generatorseitig bis auf Bundle-/Byte-Ebene vollständig propagiert.
 
+**Hinweis zum Zwischenstand:**
+*Eine vollständige Bundle-Byte-Propagation ist komplex. Als Zwischenlösung wurde eine `source_file`-basierte Fallback-Provenienz implementiert (`derived_range_ref`), die auf die Workspace-Originaldateien zeigt. Dies trennt sauber zwischen belegt gespeichertem Bundle-Ref und deterministisch abgeleitetem Source-Fallback.*
+
 **Deliverables:**
-- [ ] Generator erweitert Chunk-Metadaten um `source_file`, `start_byte`, `end_byte` und `content_sha256`.
-- [ ] Query-Resultate können daraus konsistente, verifizierbare `range_ref`-Objekte ableiten.
-- [ ] Bundle-gegen-Resolver-Roundtrip ist reproduzierbar testbar.
+- [x] Generator erweitert Chunk-Metadaten um `source_file`, `start_byte`, `end_byte` und `content_sha256`.
+- [x] Query-Resultate können daraus konsistente, verifizierbare Fallback-Objekte (`derived_range_ref`) ableiten.
+- [x] Bundle-gegen-Resolver-Roundtrip ist reproduzierbar testbar (für Source-Fallback).
 
 **Stop-Kriterien:**
-- [ ] `range_ref` zeigt exakt und verifizierbar auf die generierten Bundle-Bytes.
+- [ ] `range_ref` zeigt exakt und verifizierbar auf die generierten Bundle-Bytes. *(Noch offen: Derzeitige Lösung ist ein Source-Backed-Fallback)*
 
 ### 2.4 Graph Index Artifact + Runtime Consistency
 

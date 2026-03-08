@@ -15,3 +15,4 @@ class ArtifactRole(str, Enum):
     DERIVED_MANIFEST_JSON = "derived_manifest_json"
     PR_DELTA_JSON = "delta_json"
     ARCHITECTURE_SUMMARY = "architecture_summary"
+    SOURCE_FILE = "source_file"

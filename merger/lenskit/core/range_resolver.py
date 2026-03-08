@@ -38,35 +38,62 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
 
     target_path_str = None
 
-    # Try resolving via bundle manifest format
-    if manifest.get("kind") == "repolens.bundle.manifest":
-        for artifact in manifest.get("artifacts", []):
-            if artifact.get("role") == role.value:
-                target_path_str = artifact.get("path")
-                break
-    # Try resolving via dump_index format
-    elif manifest.get("contract") == "dump-index":
-        artifacts = manifest.get("artifacts", {})
-        # O(1) resolution first
-        if role.value in artifacts and isinstance(artifacts[role.value], dict):
-            target_path_str = artifacts[role.value].get("path")
-        else:
-            # Fallback to iteration for older formats
-            for _, artifact in artifacts.items():
-                if isinstance(artifact, dict) and artifact.get("role") == role.value:
+    if role == ArtifactRole.SOURCE_FILE:
+        # Resolve directly against the hub workspace (assuming manifest is in hub/merges/run_id/)
+        # `manifest_path` is e.g. /hub/merges/test-run/bundle.manifest.json
+        # `manifest_path.parent` is /hub/merges/test-run
+        # `manifest_path.parent.parent` is /hub/merges
+        # `manifest_path.parent.parent.parent` is /hub
+        hub_path = manifest_path.parent.parent.parent
+        repo_id = ref.get("repo_id")
+        if not repo_id:
+            raise ValueError("repo_id is required when resolving a source_file range_ref")
+        target_path_str = ref.get("file_path")
+        if not target_path_str:
+            raise ValueError("file_path is required when resolving a source_file range_ref")
+
+        # Path Traversal Protection
+        if Path(target_path_str).is_absolute():
+            raise ValueError("file_path must be a relative path")
+
+        base_repo_path = (hub_path / repo_id).resolve()
+        target_path = (base_repo_path / target_path_str).resolve()
+
+        try:
+            target_path.relative_to(base_repo_path)
+        except ValueError:
+            raise ValueError(f"file_path '{target_path_str}' attempts to escape the repository directory")
+
+    else:
+        # Try resolving via bundle manifest format
+        if manifest.get("kind") == "repolens.bundle.manifest":
+            for artifact in manifest.get("artifacts", []):
+                if artifact.get("role") == role.value:
                     target_path_str = artifact.get("path")
                     break
-    else:
-        raise ValueError("Unsupported manifest format (must be bundle.manifest or dump_index)")
+        # Try resolving via dump_index format
+        elif manifest.get("contract") == "dump-index":
+            artifacts = manifest.get("artifacts", {})
+            # O(1) resolution first
+            if role.value in artifacts and isinstance(artifacts[role.value], dict):
+                target_path_str = artifacts[role.value].get("path")
+            else:
+                # Fallback to iteration for older formats
+                for _, artifact in artifacts.items():
+                    if isinstance(artifact, dict) and artifact.get("role") == role.value:
+                        target_path_str = artifact.get("path")
+                        break
+        else:
+            raise ValueError("Unsupported manifest format (must be bundle.manifest or dump_index)")
 
-    if not target_path_str:
-        raise ValueError(f"Artifact with role '{role_str}' not found in manifest")
+        if not target_path_str:
+            raise ValueError(f"Artifact with role '{role_str}' not found in manifest")
 
-    ref_file_path = ref.get("file_path")
-    if ref_file_path and ref_file_path != target_path_str:
-        raise ValueError(f"file_path mismatch: ref={ref_file_path} manifest={target_path_str}")
+        ref_file_path = ref.get("file_path")
+        if ref_file_path and ref_file_path != target_path_str:
+            raise ValueError(f"file_path mismatch: ref={ref_file_path} manifest={target_path_str}")
 
-    target_path = manifest_path.parent / target_path_str
+        target_path = manifest_path.parent / target_path_str
 
     if not target_path.exists():
         raise FileNotFoundError(f"Resolved artifact file not found: {target_path}")
