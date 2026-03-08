@@ -130,6 +130,10 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
     # In details, verify it emits both baseline and semantic keys and verify delta calculation
     details = output["details"]
     assert len(details) == 2
+
+    auth_detail = next(d for d in details if d["query"] == "auth")
+    test_main_detail = next(d for d in details if d["query"] == "test_main")
+
     for d in details:
         assert "baseline" in d
         assert "semantic" in d
@@ -138,6 +142,16 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
         assert "rr" in d["baseline"]
         assert "rr" in d["semantic"]
         assert d["delta_rr"] == pytest.approx(d["semantic"]["rr"] - d["baseline"]["rr"])
+
+    # Isolate precision check: "auth" query must explicitly have delta_rr > 0 because
+    # baseline lexical finds real_auth.py at a lower rank than the semantic reranker.
+    assert auth_detail["delta_rr"] > 0
+    assert auth_detail["semantic"]["rr"] > auth_detail["baseline"]["rr"]
+
+    # Isolate precision check: "test_main" should have no delta since baseline gets it at rank 1.
+    assert test_main_detail["delta_rr"] == pytest.approx(0.0)
+    assert test_main_detail["baseline"]["rr"] == pytest.approx(1.0)
+    assert test_main_detail["semantic"]["rr"] == pytest.approx(1.0)
 
 def test_eval_semantic_failure_isolation(mini_index_for_eval, tmp_path, capsys, monkeypatch):
     # Create queries.md
