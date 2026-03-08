@@ -21,7 +21,8 @@ def test_create_atlas_system_root(service_client):
     # Also test that defaults are respected/enforced (implicit)
 
     payload = {
-        "root_id": "system",
+        "root_kind": "preset",
+        "root_value": "system",
         "max_depth": 20, # Should be capped to 6
         "max_entries": 300000 # Should be capped to 200000
     }

@@ -27,6 +27,12 @@ Atlas is a filesystem exploration tool capable of scanning entire systems, disti
 
 Pseudo-filesystems and volatile paths (`/proc`, `/sys`, `/dev`, `/run`, etc.) are excluded by default to avoid recursion loops, device streams, and meaningless inventory entries. The merge pipeline remains completely unchanged by this feature.
 
+**Atlas Root Model:**
+Atlas employs a formalized root model internally, permitting execution against different types of targets without implicitly falling back or hiding behaviors. The `root_kind` in API requests must be one of:
+* `preset`: Used to refer to predefined, trusted directories like `hub`, `merges`, or `system` (user home).
+* `token`: Used with an opaque, server-signed token, primarily meant for file pickers and external integrations.
+* `abs_path`: Explicitly targets an absolute file system path (e.g., `/home/user/project`). This is an explicit internal mode. Traversal exploits (`..`) or relative paths are strictly rejected. Note that the WebUI catches invalid manual path inputs (like "home" instead of "/home") before creating an API request, preventing unnecessary Bad Requests.
+
 Example usage:
 
 ```bash

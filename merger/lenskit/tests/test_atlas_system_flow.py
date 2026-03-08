@@ -31,7 +31,7 @@ def mock_state():
 
 def test_atlas_system_root_mapping(mock_state):
     """
-    Verify that root_id="system" maps to Path.home() in the application logic.
+    Verify that root_kind="preset" with root_value="system" maps to Path.home() in the application logic.
     Note: This tests the mapping logic. The actual path security policy is mocked here
     to focus on the 'system' keyword handling.
     """
@@ -43,7 +43,8 @@ def test_atlas_system_root_mapping(mock_state):
             mock_render.return_value = "Mock MD"
 
             payload = {
-                "root_id": "system",
+                "root_kind": "preset",
+                "root_value": "system",
                 "max_depth": 1,
                 "max_entries": 100
             }
@@ -59,27 +60,93 @@ def test_atlas_system_root_mapping(mock_state):
             expected_home = str(Path.home().resolve())
             assert data["root_scanned"] == expected_home
 
-def test_atlas_missing_root_400(mock_state):
+def test_atlas_missing_root_422(mock_state):
     """
-    Verify that missing both root_id and root_token returns 400
+    Verify that missing root_kind or invalid schema returns 422
     """
     payload = {
         "max_depth": 1
     }
 
     response = client.post("/api/atlas", json=payload)
-    assert response.status_code == 400
-    assert "Missing root directory" in response.json()["detail"]
+    # Pydantic validation fails because root_kind is required
+    assert response.status_code == 422
 
-def test_atlas_invalid_root_id(mock_state):
+def test_atlas_legacy_only_422(mock_state):
     """
-    Verify that invalid root_id returns 400
+    Verify that providing only deprecated legacy fields (e.g. root_id)
+    fails validation because root_kind is required.
     """
     payload = {
-        "root_id": "invalid_root",
+        "root_id": "system",
+        "max_depth": 1
+    }
+
+    response = client.post("/api/atlas", json=payload)
+    assert response.status_code == 422
+
+def test_atlas_missing_root_value_400(mock_state):
+    """
+    Verify that missing root_value when root_kind="preset" returns 400
+    """
+    payload = {
+        "root_kind": "preset",
         "max_depth": 1
     }
 
     response = client.post("/api/atlas", json=payload)
     assert response.status_code == 400
-    assert "Invalid root directory identifier" in response.json()["detail"]
+    assert "root_value is required" in response.json()["detail"]
+
+def test_atlas_invalid_preset(mock_state):
+    """
+    Verify that invalid preset returns 400
+    """
+    payload = {
+        "root_kind": "preset",
+        "root_value": "invalid_root",
+        "max_depth": 1
+    }
+
+    response = client.post("/api/atlas", json=payload)
+    assert response.status_code == 400
+    assert "Invalid preset" in response.json()["detail"]
+
+def test_atlas_abs_path_success(mock_state):
+    """
+    Verify that absolute path works when root_kind="abs_path"
+    """
+    with patch("merger.lenskit.service.app.AtlasScanner") as MockScanner:
+        with patch("merger.lenskit.service.app.render_atlas_md") as mock_render:
+            mock_instance = MockScanner.return_value
+            abs_path = str(Path("/tmp").resolve())
+            mock_instance.scan.return_value = {"root": abs_path, "tree": {}}
+            mock_render.return_value = "Mock MD"
+
+            payload = {
+                "root_kind": "abs_path",
+                "root_value": abs_path,
+                "max_depth": 1,
+                "max_entries": 100
+            }
+
+            response = client.post("/api/atlas", json=payload)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["id"].startswith("atlas-")
+            assert data["root_scanned"] == abs_path
+
+def test_atlas_abs_path_relative_fails(mock_state):
+    """
+    Verify that relative paths fail when root_kind="abs_path"
+    """
+    payload = {
+        "root_kind": "abs_path",
+        "root_value": "relative/path/here",
+        "max_depth": 1
+    }
+
+    response = client.post("/api/atlas", json=payload)
+    assert response.status_code == 400
+    assert "Invalid absolute path" in response.json()["detail"]
