@@ -123,7 +123,10 @@ class AtlasRequest(BaseModel):
     root_token: Optional[str] = None
     inventory_strict: bool = True
 
-    # Deprecated fields, to be removed or ignored
+    # Deprecated legacy fields:
+    # These fields are no longer mapped or respected by the `resolve_atlas_root`
+    # server logic. They remain in the schema *only* temporarily to prevent immediate
+    # validation crashes for outdated clients, but are explicitly marked for removal.
     root_id: Optional[str] = None
     root: Optional[str] = None
 

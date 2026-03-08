@@ -732,8 +732,8 @@ def resolve_atlas_root(request: AtlasRequest, hub_dir: Path, merges_dir: Optiona
     Central resolver for Atlas roots.
     Translates the formalized root model (preset | token | abs_path) into a safe, absolute Path.
     """
-    # Fallback to map legacy request fields if root_kind is missing
-    # (Since root_kind is now required by the schema, this is mostly for completeness)
+    # Canonical model enforces explicit root_kind, root_value, and root_token.
+    # Deprecated legacy fields (root, root_id) are ignored here entirely.
     root_kind = request.root_kind
     root_value = request.root_value
 
@@ -774,9 +774,10 @@ def resolve_atlas_root(request: AtlasRequest, hub_dir: Path, merges_dir: Optiona
             if not p.is_absolute():
                 raise ValueError("Path must be absolute")
 
-            # Resolve after safety checks (expanduser may have resolved `~`)
-            # Note: We rely on Path logic rather than manual startswith.
-            return ResolvedAtlasRoot(scan_root=p.resolve(), root_kind="abs_path", is_internal_abs_path=True)
+            # Return the validated absolute path directly.
+            # We explicitly avoid p.resolve() here to maintain the exact user input structure,
+            # avoiding unnecessary symlink expansions that alter semantic intent.
+            return ResolvedAtlasRoot(scan_root=p, root_kind="abs_path", is_internal_abs_path=True)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid absolute path: {e}")
         except Exception:

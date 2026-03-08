@@ -24,6 +24,8 @@ function buildAtlasPayload(rootPath, rootToken, depth, limit, excludes) {
         payloadValue = cleanPath;
         payloadToken = null;
     } else {
+        // Purely frontend UI state. The API does not accept "invalid".
+        // The app.js layer must catch this and display a user error before submitting.
         rootKind = "invalid";
         payloadValue = cleanPath;
         payloadToken = null;
