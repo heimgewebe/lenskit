@@ -3,7 +3,7 @@
 Dieses Dokument ist das kanonische Steuerdokument für die Retrieval-Architektur in Lenskit. Es trennt abgeschlossene Grundlagen, aktive Arbeit, spätere Phasen und offene Architekturfragen. Jede aktive Einheit ist abhakbar und mit klaren Stop-Kriterien versehen.
 
 **Statusübersicht:**
-- **Basis abgeschlossen:** Lexikalisches Retrieval (BM25/FTS), Navigation, Range-Resolver-Fundament, Explain/Eval-Grundlagen.
+- **Basis abgeschlossen:** Lexikalisches Retrieval (BM25/FTS), Navigation, Range-/Provenienz-Basis, Explain/Eval-Grundlagen.
 - **Aktive Arbeitspakete:** 1. F1b Runtime, 2. F1b Eval Delta, 3. Range_ref Propagation, 4. Graph Index Artifact + Runtime Consistency.
 - **Spätere Phasen:** P3 (Contracts Atlas), P4 (Symbol Index), P5 (Call Graph).
 
@@ -61,8 +61,8 @@ Ein lokaler semantischer Reranker ergänzt den BM25-Kandidatenpfad optional als 
 - [ ] Explain-/Diagnostics-Payload zeigt semantische Beteiligung an.
 
 **Nicht-Ziele:**
-- [ ] Keine Produktivverdrahtung mit semantAH.
-- [ ] Keine Multi-Provider-Orchestrierung.
+- Keine Produktivverdrahtung mit semantAH.
+- Keine Multi-Provider-Orchestrierung.
 
 **Stop-Kriterien:**
 - [ ] Lokaler semantischer Reranker läuft deterministisch.
