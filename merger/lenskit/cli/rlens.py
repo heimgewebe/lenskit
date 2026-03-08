@@ -71,6 +71,7 @@ def main():
     atlas_scan_parser.add_argument("--no-max-file-size", action="store_true", help="Remove file size limits for the scan")
     atlas_scan_parser.add_argument("--depth", type=int, default=6, help="Maximum depth to scan")
     atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
+    atlas_scan_parser.add_argument("--mode", choices=["inventory", "topology", "content", "workspace"], default="inventory", help="The scan mode to execute")
 
     # Architecture command
     arch_parser = subparsers.add_parser("architecture", help="Extract architectural views of a repository")

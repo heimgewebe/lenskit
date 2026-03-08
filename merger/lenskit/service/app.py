@@ -786,6 +786,29 @@ def resolve_atlas_root(request: AtlasRequest, hub_dir: Path, merges_dir: Optiona
     else:
         raise HTTPException(status_code=400, detail=f"Invalid root_kind: {root_kind}")
 
+def plan_atlas_outputs(scan_mode: str, scan_id: str) -> Dict[str, str]:
+    """
+    Determines the set of artifacts to generate based on the scan mode.
+    Returns a mapping of logical artifact keys to their expected filenames.
+    """
+    outputs = {
+        "summary": f"{scan_id}.summary.md"
+    }
+
+    if scan_mode == "inventory":
+        outputs["inventory"] = f"{scan_id}.inventory.jsonl"
+        outputs["dirs"] = f"{scan_id}.dirs.jsonl"
+    elif scan_mode == "topology":
+        outputs["topology"] = f"{scan_id}.topology.json"
+    elif scan_mode == "content":
+        outputs["inventory"] = f"{scan_id}.inventory.jsonl"
+        outputs["content"] = f"{scan_id}.content.json"
+    elif scan_mode == "workspace":
+        outputs["workspaces"] = f"{scan_id}.workspaces.json"
+        outputs["hotspots"] = f"{scan_id}.hotspots.json"
+
+    return outputs
+
 @app.post("/api/atlas", response_model=AtlasArtifact, dependencies=[Depends(verify_token)])
 async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks):
     # Determine root to scan
@@ -842,9 +865,9 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
         merges_dir.mkdir(parents=True, exist_ok=True)
 
     json_filename = f"{scan_id}.json"
-    md_filename = f"{scan_id}.md"
-    inventory_filename = f"{scan_id}.inventory.jsonl" # Default name
-    dirs_inventory_filename = f"{scan_id}.dirs_inventory.jsonl"
+
+    # Get planned outputs
+    planned_outputs = plan_atlas_outputs(request.scan_mode, scan_id)
 
     # Write initial "running" state
     initial_state = {
@@ -863,37 +886,13 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     # Helper to run scan and save
     def run_scan_and_save():
         try:
-            # Inventory First: inventory_file is always passed now.
-            inventory_path = merges_dir / inventory_filename
+            inventory_path = None
+            if "inventory" in planned_outputs:
+                inventory_path = merges_dir / planned_outputs["inventory"]
 
-            # Use inventory_strict if configured?
-            # We don't have this in AtlasRequest yet (schema change).
-            # But the user said: "Inventur-Default: ... (z.B. nur .git und offensichtliche Virtualenvs), damit der Nutzer wirklich 'alles beim Namen' bekommt."
-            # and "Erlaube optional einen Modus 'inventur_strict=true'".
-            # We should pass inventory_file.
-            # And strict mode? If user didn't ask for specific excludes, maybe we should default to strict?
-            # Or expose it.
-            # Current instruction: "Default-Output is complete file list".
-            # The AtlasScanner default excludes are NOT strict (they include node_modules etc).
-            # To match the "Inventur" goal, we should probably set inventory_strict=True unless specified otherwise?
-            # But wait, inventory_strict=True means LESS excludes.
-            # So if we want "complete file list", we want strict mode.
-            # Let's check existing logic:
-            # inventory_strict=True -> only .git, .venv
-            # inventory_strict=False -> .git, node_modules, cache, etc.
-
-            # The requirement is "Primär-Output ist ein vollständiger Index".
-            # "node_modules" usually is noise.
-            # But "alles beim Namen" implies listing it.
-            # Let's enable strict mode if no explicit excludes are given?
-            # Or just pass inventory_file and let AtlasScanner defaults rule (which are SAFE/Clean).
-            # The prompt said: "Phase 0 Ziel: Inventur... Keine Top N...".
-            # It also said: "Default-Excludes dürfen existieren... Wichtig: Erlaube optional einen Modus 'inventur_strict=true'".
-            # So Strict is OPTIONAL.
-
-            # We will generate inventory file ALWAYS.
-
-            dirs_inventory_path = merges_dir / dirs_inventory_filename
+            dirs_inventory_path = None
+            if "dirs" in planned_outputs:
+                dirs_inventory_path = merges_dir / planned_outputs["dirs"]
 
             scanner = AtlasScanner(
                 root=scan_root,
@@ -911,12 +910,31 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             result["created_at"] = initial_state["created_at"]
             result["effective"] = initial_state["effective"]
 
-            # Save JSON Stats
+            # Additional structural JSONs for new modes
+            if "topology" in planned_outputs:
+                topology_path = merges_dir / planned_outputs["topology"]
+                _write_json_atomic(topology_path, {"mode": "topology", "status": "placeholder"})
+
+            if "content" in planned_outputs:
+                content_path = merges_dir / planned_outputs["content"]
+                _write_json_atomic(content_path, {"mode": "content", "status": "placeholder"})
+
+            if "workspaces" in planned_outputs:
+                workspaces_path = merges_dir / planned_outputs["workspaces"]
+                _write_json_atomic(workspaces_path, {"mode": "workspace", "status": "placeholder"})
+
+            if "hotspots" in planned_outputs:
+                hotspots_path = merges_dir / planned_outputs["hotspots"]
+                hotspots_data = {"top_dirs": result.get("stats", {}).get("top_dirs", [])}
+                _write_json_atomic(hotspots_path, hotspots_data)
+
+            # Save JSON Stats (core internal metadata)
             _write_json_atomic(merges_dir / json_filename, result)
 
-            # Render and Save MD
+            # Render and Save MD (Summary)
             md_content = render_atlas_md(result)
-            with open(merges_dir / md_filename, "w", encoding="utf-8") as f:
+            summary_path = merges_dir / planned_outputs["summary"]
+            with open(summary_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
 
             logger.info(f"Atlas scan completed: {scan_id}")
@@ -931,13 +949,16 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
     background_tasks.add_task(run_scan_and_save)
 
-    # Update response object to include inventory path
-    paths = {
-        "json": json_filename,
-        "md": md_filename,
-        "inventory": inventory_filename,
-        "dirs_inventory": dirs_inventory_filename,
-    }
+    # Build paths dict using planned outputs, plus internal json
+    paths = {"json": json_filename}
+    # For backward-compatibility mapped keys, and new keys
+    for k, v in planned_outputs.items():
+        if k == "summary":
+            paths["md"] = v
+        elif k == "dirs":
+            paths["dirs_inventory"] = v
+        else:
+            paths[k] = v
 
     return AtlasArtifact(
         id=scan_id,
@@ -1036,16 +1057,27 @@ def list_atlas():
         scan_id = file.stem # atlas-123456
 
         # Construct paths
-        paths = {"json": file.name, "md": file.with_suffix(".md").name}
-        inv_file = file.with_suffix(".inventory.jsonl")
-        if inv_file.name.startswith(scan_id): # Ensure it matches ID
-            if inv_file.exists():
-                paths["inventory"] = inv_file.name
+        paths = {"json": file.name}
 
-        dirs_inv_file = file.with_suffix(".dirs_inventory.jsonl")
-        if dirs_inv_file.name.startswith(scan_id):
-            if dirs_inv_file.exists():
-                paths["dirs_inventory"] = dirs_inv_file.name
+        possible_suffixes = {
+            "md": ".summary.md",
+            "inventory": ".inventory.jsonl",
+            "dirs_inventory": ".dirs.jsonl",
+            "topology": ".topology.json",
+            "content": ".content.json",
+            "workspaces": ".workspaces.json",
+            "hotspots": ".hotspots.json",
+            # Legacy fallbacks
+            "md_legacy": ".md",
+            "dirs_legacy": ".dirs_inventory.jsonl"
+        }
+
+        for key, suffix in possible_suffixes.items():
+            candidate = file.with_name(f"{scan_id}{suffix}")
+            if candidate.exists():
+                mapped_key = "md" if key == "md_legacy" else ("dirs_inventory" if key == "dirs_legacy" else key)
+                if mapped_key not in paths:
+                    paths[mapped_key] = candidate.name
 
         created_at = datetime.fromtimestamp(file.stat().st_mtime, timezone.utc).isoformat()
         if "created_at" in data:
@@ -1112,18 +1144,27 @@ def get_latest_atlas():
     scan_id = latest_file.stem # atlas-123456
 
     # Construct paths
-    paths = {"json": latest_file.name, "md": latest_file.with_suffix(".md").name}
-    inv_file = latest_file.with_suffix(".inventory.jsonl")
-    if inv_file.name.startswith(scan_id): # Ensure it matches ID (it does by construction)
-         # Check existence? Usually assumed.
-         # Actually check if it exists to avoid 404 links
-         if inv_file.exists():
-             paths["inventory"] = inv_file.name
+    paths = {"json": latest_file.name}
 
-    dirs_inv_file = latest_file.with_suffix(".dirs_inventory.jsonl")
-    if dirs_inv_file.name.startswith(scan_id):
-        if dirs_inv_file.exists():
-            paths["dirs_inventory"] = dirs_inv_file.name
+    possible_suffixes = {
+        "md": ".summary.md",
+        "inventory": ".inventory.jsonl",
+        "dirs_inventory": ".dirs.jsonl",
+        "topology": ".topology.json",
+        "content": ".content.json",
+        "workspaces": ".workspaces.json",
+        "hotspots": ".hotspots.json",
+        # Legacy fallbacks
+        "md_legacy": ".md",
+        "dirs_legacy": ".dirs_inventory.jsonl"
+    }
+
+    for key, suffix in possible_suffixes.items():
+        candidate = latest_file.with_name(f"{scan_id}{suffix}")
+        if candidate.exists():
+            mapped_key = "md" if key == "md_legacy" else ("dirs_inventory" if key == "dirs_legacy" else key)
+            if mapped_key not in paths:
+                paths[mapped_key] = candidate.name
 
     created_at = datetime.fromtimestamp(latest_file.stat().st_mtime, timezone.utc).isoformat()
     if "created_at" in data:
@@ -1146,8 +1187,9 @@ def download_atlas(id: str, key: str = "md"):
     if not re.fullmatch(r"atlas-\d+", (id or "").strip()):
         raise HTTPException(status_code=400, detail="Invalid atlas id format")
 
-    if key not in ("json", "md", "inventory", "dirs_inventory"):
-        raise HTTPException(status_code=400, detail="Invalid key. Use 'json', 'md', 'inventory', or 'dirs_inventory'.")
+    allowed_keys = ("json", "md", "inventory", "dirs_inventory", "topology", "content", "workspaces", "hotspots")
+    if key not in allowed_keys:
+        raise HTTPException(status_code=400, detail=f"Invalid key. Use one of {allowed_keys}.")
 
     if not state.hub:
         raise HTTPException(status_code=400, detail="Hub not configured")
@@ -1160,32 +1202,33 @@ def download_atlas(id: str, key: str = "md"):
     # Enumerate allowed files and then select by id.
     candidates = {}
 
-    # Map key to extension
-    ext_map = {"json": ".json", "md": ".md", "inventory": ".inventory.jsonl", "dirs_inventory": ".dirs_inventory.jsonl"}
-    ext = ext_map[key]
+    # Map key to extension, supporting new planner names and legacy fallbacks
+    ext_map = {
+        "json": [".json"],
+        "md": [".summary.md", ".md"],
+        "inventory": [".inventory.jsonl"],
+        "dirs_inventory": [".dirs.jsonl", ".dirs_inventory.jsonl"],
+        "topology": [".topology.json"],
+        "content": [".content.json"],
+        "workspaces": [".workspaces.json"],
+        "hotspots": [".hotspots.json"]
+    }
+    exts = ext_map[key]
 
     # Glob pattern needs to match suffix carefully
-    # atlas-*.json covers .inventory.jsonl? No.
-    # Globbing: atlas-*{ext}
+    for ext in exts:
+        for p in merges_dir.glob(f"atlas-*{ext}"):
+            try:
+                rp = p.resolve()
+                rp.relative_to(merges_dir)  # containment even under symlinks
+            except Exception:
+                continue
 
-    for p in merges_dir.glob(f"atlas-*{ext}"):
-        try:
-            rp = p.resolve()
-            rp.relative_to(merges_dir)  # containment even under symlinks
-        except Exception:
-            continue
-
-        # ID extraction:
-        # atlas-123.json -> atlas-123
-        # atlas-123.inventory.jsonl -> atlas-123 ?
-        # stem of .inventory.jsonl is .inventory ? No.
-        # pathlib stem logic:
-        # p = atlas-123.inventory.jsonl -> stem = atlas-123.inventory
-        # So p.stem != id.
-
-        # Robust ID matching:
-        if p.name.startswith(id + "."):
-             candidates[id] = rp
+            # Robust ID matching:
+            if p.name.startswith(id + "."):
+                 # if multiple extensions match, the first one found wins
+                 if id not in candidates:
+                     candidates[id] = rp
 
     file_path = candidates.get(id)
     if not file_path:

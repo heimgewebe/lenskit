@@ -23,7 +23,8 @@ def test_atlas_scan_root_allowed(service_client):
         mock_render.return_value = "Mock MD"
 
         payload = {
-            "root_id": "/",
+            "root_kind": "abs_path",
+            "root_value": "/",
             "max_depth": 1,
             "max_entries": 100
         }
@@ -50,7 +51,8 @@ def test_atlas_scan_home_allowed(service_client):
         mock_render.return_value = "Mock MD"
 
         payload = {
-            "root_id": "/home",
+            "root_kind": "abs_path",
+            "root_value": "/home",
             "max_depth": 1,
             "max_entries": 100
         }
@@ -156,3 +158,18 @@ def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
     # Check that scanner correctly added defaults internally
     assert len(scanner.exclude_globs) > original_len
     assert "proc/**" in scanner.exclude_globs
+
+def test_atlas_scan_mode_invalid(service_client):
+    client = service_client.client
+
+    payload = {
+        "root_kind": "abs_path",
+        "root_value": "/",
+        "max_depth": 1,
+        "max_entries": 100,
+        "scan_mode": "invalid_mode"
+    }
+
+    # Pydantic should reject invalid literal
+    response = client.post("/api/atlas", json=payload, headers=service_client.headers)
+    assert response.status_code == 422

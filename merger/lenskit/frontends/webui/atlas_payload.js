@@ -3,7 +3,7 @@
  * Isolated here for safer testability without DOM dependencies.
  */
 
-function buildAtlasPayload(rootPath, rootToken, depth, limit, excludes) {
+function buildAtlasPayload(rootPath, rootToken, depth, limit, excludes, scanMode = 'inventory') {
     let payloadToken = rootToken || null;
     let payloadValue = null;
     let rootKind = "abs_path";
@@ -38,7 +38,8 @@ function buildAtlasPayload(rootPath, rootToken, depth, limit, excludes) {
         max_depth: parseInt(depth, 10) || 6,
         max_entries: parseInt(limit, 10) || 200000,
         exclude_globs: excludes ? excludes.split(',').map(s => s.trim()).filter(Boolean) : [],
-        inventory_strict: true
+        inventory_strict: true,
+        scan_mode: scanMode
     };
 }
 

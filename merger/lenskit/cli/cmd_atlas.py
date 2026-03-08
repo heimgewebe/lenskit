@@ -39,28 +39,55 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             max_file_size=max_file_size
         )
 
-        # Determine output directory
-        # The prompt says "rlens atlas scan /" without specifying an output dir.
-        # It's an exploration tool. We can print to stdout or write to a default dir.
-        # "produce filesystem inventories while automatically skipping"
-        # We can just write it to current directory or print the stats.
-        out_json = Path(f"atlas_scan_{scan_root.name if scan_root.name else 'root'}.json")
+        # Import output planner (for DRY)
+        from merger.lenskit.service.app import plan_atlas_outputs
 
-        print(f"Scanning: {scan_root}")
+        base_name = f"atlas_scan_{scan_root.name if scan_root.name else 'root'}"
+        scan_id = base_name
+        planned_outputs = plan_atlas_outputs(args.mode, scan_id)
+
+        print(f"Scanning: {scan_root} (Mode: {args.mode})")
         print("This may take a while depending on the filesystem...")
 
-        result = scanner.scan()
+        inventory_path = Path(planned_outputs["inventory"]) if "inventory" in planned_outputs else None
+        dirs_path = Path(planned_outputs["dirs"]) if "dirs" in planned_outputs else None
 
+        result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_path)
+
+        # Write core stats JSON (always)
+        out_json = Path(f"{base_name}.json")
         with open(out_json, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
+        # Render summary MD
         md_content = render_atlas_md(result)
-        out_md = out_json.with_suffix(".md")
+        out_md = Path(planned_outputs["summary"])
         with open(out_md, "w", encoding="utf-8") as f:
             f.write(md_content)
 
-        print(f"Done. Scan stats written to {out_json} and {out_md}")
-        print(md_content)
+        # Additional placeholders for structural mode contract
+        if "topology" in planned_outputs:
+            with open(Path(planned_outputs["topology"]), "w", encoding="utf-8") as f:
+                json.dump({"mode": "topology", "status": "placeholder"}, f)
+
+        if "content" in planned_outputs:
+            with open(Path(planned_outputs["content"]), "w", encoding="utf-8") as f:
+                json.dump({"mode": "content", "status": "placeholder"}, f)
+
+        if "workspaces" in planned_outputs:
+            with open(Path(planned_outputs["workspaces"]), "w", encoding="utf-8") as f:
+                json.dump({"mode": "workspace", "status": "placeholder"}, f)
+
+        if "hotspots" in planned_outputs:
+            with open(Path(planned_outputs["hotspots"]), "w", encoding="utf-8") as f:
+                json.dump({"top_dirs": result.get("stats", {}).get("top_dirs", [])}, f)
+
+        print(f"Done. Outputs generated for mode '{args.mode}':")
+        for k, v in planned_outputs.items():
+            print(f" - {k}: {v}")
+        print(f" - stats: {out_json.name}")
+
+        print(f"\nSummary preview:\n{md_content}")
         return 0
     except Exception as e:
         print(f"Error during scan: {e}", file=sys.stderr)
