@@ -133,6 +133,16 @@ def do_eval(
     graph_index_path: Optional[Path] = None,
     graph_weights: Optional[Dict[str, float]] = None
 ) -> Optional[Dict[str, Any]]:
+    """
+    Executes a benchmark evaluation of the retrieval system against gold queries.
+
+    When `embedding_policy` is provided (Compare Mode):
+    - The system runs each query twice: once as a pure lexical baseline, and once utilizing the semantic reranker.
+    - If the semantic pipeline raises an exception (even if `fallback_behavior="fail"`),
+      the exception is trapped and isolated.
+    - The evaluation script will NOT abort. The lexical baseline data remains preserved,
+      and the semantic error string is explicitly logged within the `semantic.error` block of the JSON output.
+    """
     try:
         gold_queries = parse_gold_queries(queries_path)
     except Exception as e:
