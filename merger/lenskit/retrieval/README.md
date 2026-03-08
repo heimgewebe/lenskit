@@ -6,13 +6,14 @@ The local semantic re-ranking feature (F1b) is technically optional. To activate
 
 ### Installation
 
+# Run from the repository root.
 ```bash
-pip install -r requirements-semantic.txt
+pip install -r merger/lenskit/requirements-semantic.txt
 ```
 
 Or manually:
 ```bash
-pip install sentence-transformers>=2.0
+pip install "sentence-transformers>=2.0"
 ```
 
 ### Current F1b Limitations
