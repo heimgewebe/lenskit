@@ -40,7 +40,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         )
 
         # Import output planner (for DRY)
-        from merger.lenskit.service.app import plan_atlas_outputs
+        from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_placeholders
 
         base_name = f"atlas_scan_{scan_root.name if scan_root.name else 'root'}"
         scan_id = base_name
@@ -66,21 +66,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             f.write(md_content)
 
         # Additional placeholders for structural mode contract
-        if "topology" in planned_outputs:
-            with open(Path(planned_outputs["topology"]), "w", encoding="utf-8") as f:
-                json.dump({"mode": "topology", "status": "placeholder"}, f)
-
-        if "content" in planned_outputs:
-            with open(Path(planned_outputs["content"]), "w", encoding="utf-8") as f:
-                json.dump({"mode": "content", "status": "placeholder"}, f)
-
-        if "workspaces" in planned_outputs:
-            with open(Path(planned_outputs["workspaces"]), "w", encoding="utf-8") as f:
-                json.dump({"mode": "workspace", "status": "placeholder"}, f)
-
-        if "hotspots" in planned_outputs:
-            with open(Path(planned_outputs["hotspots"]), "w", encoding="utf-8") as f:
-                json.dump({"top_dirs": result.get("stats", {}).get("top_dirs", [])}, f)
+        write_mode_placeholders(planned_outputs, result, Path("."))
 
         print(f"Done. Outputs generated for mode '{args.mode}':")
         for k, v in planned_outputs.items():

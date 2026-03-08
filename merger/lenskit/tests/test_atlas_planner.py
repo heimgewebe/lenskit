@@ -1,4 +1,4 @@
-from merger.lenskit.service.app import plan_atlas_outputs
+from merger.lenskit.atlas.planner import plan_atlas_outputs
 
 def test_plan_atlas_outputs_inventory():
     plan = plan_atlas_outputs("inventory", "atlas-123")

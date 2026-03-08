@@ -786,29 +786,6 @@ def resolve_atlas_root(request: AtlasRequest, hub_dir: Path, merges_dir: Optiona
     else:
         raise HTTPException(status_code=400, detail=f"Invalid root_kind: {root_kind}")
 
-def plan_atlas_outputs(scan_mode: str, scan_id: str) -> Dict[str, str]:
-    """
-    Determines the set of artifacts to generate based on the scan mode.
-    Returns a mapping of logical artifact keys to their expected filenames.
-    """
-    outputs = {
-        "summary": f"{scan_id}.summary.md"
-    }
-
-    if scan_mode == "inventory":
-        outputs["inventory"] = f"{scan_id}.inventory.jsonl"
-        outputs["dirs"] = f"{scan_id}.dirs.jsonl"
-    elif scan_mode == "topology":
-        outputs["topology"] = f"{scan_id}.topology.json"
-    elif scan_mode == "content":
-        outputs["inventory"] = f"{scan_id}.inventory.jsonl"
-        outputs["content"] = f"{scan_id}.content.json"
-    elif scan_mode == "workspace":
-        outputs["workspaces"] = f"{scan_id}.workspaces.json"
-        outputs["hotspots"] = f"{scan_id}.hotspots.json"
-
-    return outputs
-
 @app.post("/api/atlas", response_model=AtlasArtifact, dependencies=[Depends(verify_token)])
 async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks):
     # Determine root to scan
@@ -824,6 +801,8 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     effective_max_depth = request.max_depth
     effective_max_entries = request.max_entries
     effective_excludes = (request.exclude_globs or []).copy()
+
+    from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_placeholders
 
     # Resolve scan root using the new central resolver
     try:
@@ -911,22 +890,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             result["effective"] = initial_state["effective"]
 
             # Additional structural JSONs for new modes
-            if "topology" in planned_outputs:
-                topology_path = merges_dir / planned_outputs["topology"]
-                _write_json_atomic(topology_path, {"mode": "topology", "status": "placeholder"})
-
-            if "content" in planned_outputs:
-                content_path = merges_dir / planned_outputs["content"]
-                _write_json_atomic(content_path, {"mode": "content", "status": "placeholder"})
-
-            if "workspaces" in planned_outputs:
-                workspaces_path = merges_dir / planned_outputs["workspaces"]
-                _write_json_atomic(workspaces_path, {"mode": "workspace", "status": "placeholder"})
-
-            if "hotspots" in planned_outputs:
-                hotspots_path = merges_dir / planned_outputs["hotspots"]
-                hotspots_data = {"top_dirs": result.get("stats", {}).get("top_dirs", [])}
-                _write_json_atomic(hotspots_path, hotspots_data)
+            write_mode_placeholders(planned_outputs, result, merges_dir)
 
             # Save JSON Stats (core internal metadata)
             _write_json_atomic(merges_dir / json_filename, result)
