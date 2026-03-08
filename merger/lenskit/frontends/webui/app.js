@@ -691,6 +691,10 @@ function restoreConfig() {
              if (atlasConfig.depth) document.getElementById('atlasDepth').value = atlasConfig.depth;
              if (atlasConfig.limit) document.getElementById('atlasLimit').value = atlasConfig.limit;
              if (atlasConfig.excludes) document.getElementById('atlasExcludes').value = atlasConfig.excludes;
+             if (atlasConfig.scanMode) {
+                 const modeEl = document.getElementById('atlasMode');
+                 if (modeEl) modeEl.value = atlasConfig.scanMode;
+             }
         }
 
     } catch (e) { console.error("Error restoring config", e); }

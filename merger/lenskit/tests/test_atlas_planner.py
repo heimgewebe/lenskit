@@ -1,5 +1,3 @@
-import pytest
-from pathlib import Path
 from merger.lenskit.service.app import plan_atlas_outputs
 
 def test_plan_atlas_outputs_inventory():
