@@ -763,16 +763,22 @@ def resolve_atlas_root(request: AtlasRequest, hub_dir: Path, merges_dir: Optiona
                 raise ValueError("Invalid characters in path")
 
             raw_path = os.path.expanduser(abs_path_str)
-            norm_path = os.path.normpath(raw_path)
+            p = Path(raw_path)
 
-            if not os.path.isabs(norm_path) and not norm_path.startswith(('/', '\\')):
-                raise ValueError("Path must be absolute")
-
-            p = Path(norm_path)
             if any(part == ".." for part in p.parts):
                 raise ValueError("Path traversal not allowed")
 
-            return ResolvedAtlasRoot(scan_root=p, root_kind="abs_path", is_internal_abs_path=True)
+            # Must be an absolute path
+            # We don't want to enforce Posix-only strictly if running on Windows,
+            # but we want to ensure it's structurally absolute via Path logic.
+            if not p.is_absolute():
+                raise ValueError("Path must be absolute")
+
+            # Resolve after safety checks (expanduser may have resolved `~`)
+            # Note: We rely on Path logic rather than manual startswith.
+            return ResolvedAtlasRoot(scan_root=p.resolve(), root_kind="abs_path", is_internal_abs_path=True)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid absolute path: {e}")
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid absolute path for root_kind='abs_path'")
 

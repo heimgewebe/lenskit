@@ -60,7 +60,7 @@ def test_atlas_system_root_mapping(mock_state):
             expected_home = str(Path.home().resolve())
             assert data["root_scanned"] == expected_home
 
-def test_atlas_missing_root_400(mock_state):
+def test_atlas_missing_root_422(mock_state):
     """
     Verify that missing root_kind or invalid schema returns 422
     """

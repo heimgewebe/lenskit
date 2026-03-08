@@ -17,10 +17,14 @@ function buildAtlasPayload(rootPath, rootToken, depth, limit, excludes) {
         payloadToken = null; // Presets ignore tokens
     } else if (payloadToken) {
         rootKind = "token";
-        payloadToken = payloadToken;
+        // payloadToken is already set
         payloadValue = null; // Use token only
-    } else if (cleanPath) {
+    } else if (cleanPath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(cleanPath)) {
         rootKind = "abs_path";
+        payloadValue = cleanPath;
+        payloadToken = null;
+    } else {
+        rootKind = "invalid";
         payloadValue = cleanPath;
         payloadToken = null;
     }

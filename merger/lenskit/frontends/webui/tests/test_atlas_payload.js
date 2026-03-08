@@ -22,20 +22,25 @@ payload = buildAtlasPayload("HUB ", null, 6, 200000, "");
 assert(payload.root_kind === "preset", "root_kind should be 'preset' after trim and lowercase");
 assert(payload.root_value === "hub", "root_value should be 'hub'");
 
-// Test 3: "home" no longer maps to "system" (it's parsed as abs_path)
+// Test 3: "home" without leading slash is considered invalid manual text
 payload = buildAtlasPayload("home", null, 6, 200000, "");
-assert(payload.root_kind === "abs_path", "root_kind should be 'abs_path' for unknown text");
+assert(payload.root_kind === "invalid", "root_kind should be 'invalid' for unknown non-absolute text");
 assert(payload.root_value === "home", "root_value should be 'home'");
 
-// Test 4: raw path with token (picker)
+// Test 4: absolute path "/home" maps to abs_path
+payload = buildAtlasPayload("/home", null, 6, 200000, "");
+assert(payload.root_kind === "abs_path", "root_kind should be 'abs_path' for absolute paths");
+assert(payload.root_value === "/home", "root_value should be '/home'");
+
+// Test 5: raw path with token (picker)
 payload = buildAtlasPayload("/path/to/my/folder", "abc-123-token", 6, 200000, "");
 assert(payload.root_kind === "token", "root_kind should be 'token' for picker paths");
 assert(payload.root_value === null, "root_value should be null for token");
 assert(payload.root_token === "abc-123-token", "root_token should be preserved");
 
-// Test 5: raw path without token (manual typing supported as abs_path)
+// Test 6: raw path without token (manual typing supported as abs_path)
 payload = buildAtlasPayload("/path/to/my/folder", null, 6, 200000, "");
-assert(payload.root_kind === "abs_path", "root_kind should be 'abs_path' for manual raw paths");
+assert(payload.root_kind === "abs_path", "root_kind should be 'abs_path' for manual absolute paths");
 assert(payload.root_value === "/path/to/my/folder", "root_value should be the path");
 assert(payload.root_token === null, "root_token should be null");
 
