@@ -48,7 +48,7 @@ def write_mode_outputs(planned_outputs: Dict[str, str], result_stats: Dict[str, 
                 os.unlink(temp_path)
             raise
 
-    stats = result_stats.get("stats", {})
+    stats = result_stats.get("stats") if isinstance(result_stats.get("stats"), dict) else result_stats
 
     if "topology" in planned_outputs:
         topology_path = output_dir / planned_outputs["topology"]

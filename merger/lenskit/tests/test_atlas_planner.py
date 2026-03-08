@@ -45,40 +45,40 @@ def test_write_mode_outputs(tmp_path: Path):
         "hotspots": "out.hotspots.json"
     }
 
+    # Pass the stats directly at the top level to model the possibility
+    # of an un-nested result (as per the code review scenario).
     result_stats = {
-        "stats": {
-            "top_dirs": [
-                {"path": "/src", "bytes": 1000},
-                {"path": "/docs", "bytes": 500}
-            ],
-            "workspaces": [
-                {
-                    "workspace_id": "ws_123",
-                    "root_path": "/src",
-                    "workspace_kind": "python_project",
-                    "signals": ["pyproject.toml"],
-                    "confidence": 0.5,
-                    "tags": ["python_project"]
-                }
-            ],
-            "topology": {
-                "root_path": "/",
-                "nodes": {
-                    "/src": {"path": "/src", "depth": 1, "dirs": []}
-                }
-            },
-            "content": {
-                "text_files_count": 10,
-                "binary_files_count": 2,
-                "large_files": [],
-                "extensions": {".py": 10}
-            },
-            "hotspots": {
-                "top_dirs": [{"path": "/src", "bytes": 1000}],
-                "highest_file_density": [{"path": "/src", "count": 12}],
-                "deepest_paths": [{"path": "/src", "depth": 1}],
-                "highest_signal_density": [{"path": "/src", "signals": 1}]
+        "top_dirs": [
+            {"path": "/src", "bytes": 1000},
+            {"path": "/docs", "bytes": 500}
+        ],
+        "workspaces": [
+            {
+                "workspace_id": "ws_123",
+                "root_path": "/src",
+                "workspace_kind": "python_project",
+                "signals": ["pyproject.toml"],
+                "confidence": 0.5,
+                "tags": ["python_project"]
             }
+        ],
+        "topology": {
+            "root_path": "/",
+            "nodes": {
+                "/src": {"path": "/src", "depth": 1, "dirs": []}
+            }
+        },
+        "content": {
+            "text_files_count": 10,
+            "binary_files_count": 2,
+            "large_files": [],
+            "extensions": {".py": 10}
+        },
+        "hotspots": {
+            "top_dirs": [{"path": "/src", "bytes": 1000}],
+            "highest_file_density": [{"path": "/src", "count": 12}],
+            "deepest_paths": [{"path": "/src", "depth": 1}],
+            "highest_signal_density": [{"path": "/src", "signals": 1}]
         }
     }
 
