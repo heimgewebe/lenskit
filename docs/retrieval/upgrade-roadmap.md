@@ -352,12 +352,12 @@ Strategie: Additiv statt brechend (neue Artefakte als roles, Feature Flags). Bei
 ### PR 4: graph_index compile + graph-aware rerank (P2)
 **Deliverables:**
 - [ ] `graph_index.json` (Adjacency + Entrypoint Distances + Metrics).
-- [ ] Retrieval: BM25 topN → Rerank (Distance/Entrypoint/Test-Penalty).
-- [ ] Explain: Final Score Breakdown + Features per Result.
+- [x] Retrieval: BM25 topN → Rerank (Distance/Entrypoint/Test-Penalty).
+- [x] Explain: Final Score Breakdown + Features per Result.
 
 **Stop-Kriterium:**
-- [ ] Rerank ist "feature-flagged" und bietet sauberen Fallback auf BM25.
-- [ ] Regression Test: Rerank deterministisch, keine Random Tie Flips.
+- [x] Rerank ist "feature-flagged" und bietet sauberen Fallback auf BM25.
+- [x] Regression Test: Rerank deterministisch, keine Random Tie Flips.
 
 ### PR 5: range_ref (Proof-Carrying Retrieval) (P1/P2)
 **Deliverables:**
