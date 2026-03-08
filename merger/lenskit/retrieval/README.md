@@ -20,5 +20,5 @@ pip install "sentence-transformers>=2.0"
 
 - `provider` is currently limited to `local` only.
 - `similarity_metric` is fixed to `cosine`.
-- `sentence-transformers` is optional, falling back to basic matching if not installed.
+- `sentence-transformers` is optional; without it, semantic reranking is unavailable and behavior follows the configured fallback policy.
 - `dimensions` configurations are not yet actively validated.
