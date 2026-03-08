@@ -1,16 +1,19 @@
 import json
-from pathlib import Path
-import pytest
 from merger.lenskit.core.merge import build_retrieval_derived_artifacts
 from merger.lenskit.core.constants import ArtifactRole
 
 def test_graph_bundle_integration_positive(tmp_path):
     """
-    Test that graph_index.json is generated and registered in derived_manifest.json
+    Test that graph_index.json is generated and registered in .derived_index.json
     when the prerequisite artifacts (architecture graph and entrypoints) exist.
     """
     hub_path = tmp_path / "hub"
     hub_path.mkdir()
+
+    # Create a dummy queries.md to prevent eval_core from falling back to the global repo file
+    docs_dir = hub_path / "docs" / "retrieval"
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "queries.md").write_text("1. **\"test query\"**\n   * *Expected:* `main.py`\n")
 
     # Setup dummy prereq files on disk
     base_path = tmp_path / "dummy_base"
@@ -75,7 +78,7 @@ def test_graph_bundle_integration_positive(tmp_path):
 def test_graph_bundle_integration_fallback(tmp_path):
     """
     Test that graph_index.json is NOT generated and the pipeline succeeds
-    when prerequisite artifacts are missing.
+    when prerequisite artifacts are missing, ensuring .derived_index.json is clean.
     """
     hub_path = tmp_path / "hub"
     hub_path.mkdir()

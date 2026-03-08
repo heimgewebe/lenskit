@@ -4708,39 +4708,40 @@ def generate_derived_manifest(base_name_func, run_id, dump_sha256, artifacts_map
     return out_path
 
 def build_retrieval_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
+    derived_paths = []
+    sqlite_index_path = None
+    eval_json_path = None
+
     try:
         from ..retrieval.index_db import build_index
         from ..retrieval.eval_core import do_eval
+
+        sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
+        try:
+            config_payload = {
+                "config_sha256": generator_info.get("config_sha256", ""),
+                "lenskit_version": generator_info.get("version", "unknown")
+            }
+            build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=config_payload)
+            derived_paths.append(sqlite_index_path)
+
+            # Evaluate
+            eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
+            queries_path = hub_path / "docs" / "retrieval" / "queries.md"
+            if not queries_path.exists():
+                queries_path = Path("docs/retrieval/queries.md")
+
+            if queries_path.exists():
+                eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
+                if eval_res:
+                    eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
+                    derived_paths.append(eval_json_path)
+        except Exception as e:
+            if debug:
+                print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
     except ImportError as e:
         if debug:
-            print(f"Skipping derived artifacts: retrieval modules not available ({e})", file=sys.stderr)
-        return []
-
-    derived_paths = []
-    sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
-    eval_json_path = None
-    try:
-        config_payload = {
-            "config_sha256": generator_info.get("config_sha256", ""),
-            "lenskit_version": generator_info.get("version", "unknown")
-        }
-        build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=config_payload)
-        derived_paths.append(sqlite_index_path)
-
-        # Evaluate
-        eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
-        queries_path = hub_path / "docs" / "retrieval" / "queries.md"
-        if not queries_path.exists():
-            queries_path = Path("docs/retrieval/queries.md")
-
-        if queries_path.exists():
-            eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
-            if eval_res:
-                eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
-                derived_paths.append(eval_json_path)
-    except Exception as e:
-        if debug:
-            print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
+            print(f"Skipping retrieval artifacts: retrieval modules not available ({e})", file=sys.stderr)
 
     # Generate Graph Index Artifact
     graph_index_path = None
