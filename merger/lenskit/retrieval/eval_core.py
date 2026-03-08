@@ -199,6 +199,9 @@ def do_eval(
                         q_text, filters, expected, index_path, k, embedding_policy, graph_index_path, graph_weights
                     )
                 except Exception as e:
+                    # We catch a broad Exception here intentionally. This guarantees that absolutely any
+                    # catastrophic failure in the semantic path (e.g. OOM, bad schema, model crash)
+                    # is perfectly isolated, ensuring the valid Baseline metrics remain intact for evaluation.
                     sem_error_str = str(e)
                     s_res = {"explain": {"filters": filters, "why_fail": WHY_FAIL_QUERY_EXECUTION}}
 
@@ -354,9 +357,15 @@ def do_eval(
             print(f"Base Recall@{k}: {base_recall_at_k:.1f}% ({base_hits_at_k}/{total_queries}) | Base MRR: {base_mrr:.3f}")
             print(f"Sem  Recall@{k}: {sem_recall_at_k:.1f}% ({sem_hits_at_k}/{total_queries}) | Sem  MRR: {sem_mrr:.3f}")
             print(f"Delta Recall@{k}: {(sem_recall_at_k - base_recall_at_k):+.1f}% | Delta MRR: {(sem_mrr - base_mrr):+.3f}")
+            print(f"0-Hits Ratio: {zero_hit_ratio:.2f} ({zero_hit_count}/{total_queries})")
+            for cat, stats in category_stats.items():
+                print(f"  {cat} Base Recall@{k}: {stats[f'recall@{k}']:.1f}% | Base MRR: {stats['MRR']:.3f}")
+                print(f"  {cat} Sem  Recall@{k}: {stats[f'semantic_recall@{k}']:.1f}% | Sem  MRR: {stats['semantic_MRR']:.3f}")
         else:
             print(f"Recall@{k}: {base_recall_at_k:.1f}% ({base_hits_at_k}/{total_queries}) | MRR: {base_mrr:.3f}")
-        print(f"0-Hits Ratio: {zero_hit_ratio:.2f} ({zero_hit_count}/{total_queries})")
+            print(f"0-Hits Ratio: {zero_hit_ratio:.2f} ({zero_hit_count}/{total_queries})")
+            for cat, stats in category_stats.items():
+                print(f"  {cat} Recall@{k}: {stats[f'recall@{k}']:.1f}% | MRR: {stats['MRR']:.3f}")
         print("-" * 80 if compare_mode else "-" * 60)
 
     out = {
