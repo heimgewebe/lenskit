@@ -6,7 +6,7 @@ The local semantic re-ranking feature (F1b) is technically optional. To activate
 
 ### Installation
 
-# Run from the repository root.
+**Run from the repository root.**
 ```bash
 pip install -r merger/lenskit/requirements-semantic.txt
 ```
