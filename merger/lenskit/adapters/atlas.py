@@ -85,6 +85,7 @@ class AtlasScanner:
             "extensions": {},
             "top_dirs": [],  # List of {"path": str, "bytes": int}
             "repo_nodes": [], # List of paths that look like git repos
+            # Placeholders for higher-level processing or specific scan modes
             "workspaces": [],
             "hotspots": {},
             "topology": {},
@@ -395,45 +396,50 @@ class AtlasScanner:
              }
 
         # Calculate Delta if requested
-        if self.compare_to_snapshot_id and previous_inventory_file and previous_inventory_file.exists():
-            delta = {
-                "compare_to_snapshot_id": self.compare_to_snapshot_id,
-                "new_files": [],
-                "removed_files": [],
-                "changed_files": []
-            }
-            try:
+        if self.compare_to_snapshot_id:
+            if not previous_inventory_file or not previous_inventory_file.exists():
+                logger.warning("Delta requested but previous inventory missing; skipping delta")
+            elif not inventory_file or not inventory_file.exists():
+                logger.warning("Delta requested but current inventory missing; skipping delta")
+            else:
+                delta = {
+                    "compare_to_snapshot_id": self.compare_to_snapshot_id,
+                    "new_files": [],
+                    "removed_files": [],
+                    "changed_files": []
+                }
+                try:
+                    prev_inv = {}
+                    with previous_inventory_file.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            entry = json.loads(line)
+                            prev_inv[entry["rel_path"]] = entry
 
-                prev_inv = {}
-                with previous_inventory_file.open("r", encoding="utf-8") as f:
-                    for line in f:
-                        entry = json.loads(line)
-                        prev_inv[entry["rel_path"]] = entry
-
-                curr_inv = {}
-                if inventory_file and inventory_file.exists():
+                    curr_inv = {}
                     with inventory_file.open("r", encoding="utf-8") as f:
                         for line in f:
                             entry = json.loads(line)
                             curr_inv[entry["rel_path"]] = entry
 
-                for path, curr_entry in curr_inv.items():
-                    if path not in prev_inv:
-                        delta["new_files"].append(path)
-                    elif prev_inv[path]["size_bytes"] != curr_entry["size_bytes"] or prev_inv[path]["mtime"] != curr_entry["mtime"]:
-                         delta["changed_files"].append(path)
+                    for path, curr_entry in curr_inv.items():
+                        if path not in prev_inv:
+                            delta["new_files"].append(path)
+                        elif prev_inv[path]["size_bytes"] != curr_entry["size_bytes"] or prev_inv[path]["mtime"] != curr_entry["mtime"]:
+                            delta["changed_files"].append(path)
 
-                for path in prev_inv:
-                    if path not in curr_inv:
-                         delta["removed_files"].append(path)
+                    for path in prev_inv:
+                        if path not in curr_inv:
+                            delta["removed_files"].append(path)
 
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to calculate delta: {e}")
-                delta["error"] = str(e)
+                    delta["new_files"].sort()
+                    delta["changed_files"].sort()
+                    delta["removed_files"].sort()
 
-            self.stats["delta"] = delta
+                except Exception as e:
+                    logger.exception("Failed to calculate delta")
+                    delta["error"] = str(e)
+
+                self.stats["delta"] = delta
 
         # Add inventory metadata to stats if file was generated
         if inventory_file:
