@@ -16,6 +16,8 @@ def mini_index_for_eval(tmp_path):
         {"chunk_id": "c1", "repo_id": "r1", "path": "src/auth/login.py", "content": "def login(): pass", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code"},
         {"chunk_id": "c2", "repo_id": "r1", "path": "src/config/settings.py", "content": "SECRET_KEY = 'xyz'", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code"},
         {"chunk_id": "c3", "repo_id": "r1", "path": "tests/test_main.py", "content": "def test_main(): pass", "start_line": 1, "end_line": 1, "layer": "test", "artifact_type": "code"},
+        {"chunk_id": "c4", "repo_id": "r1", "path": "src/auth/noise.py", "content": "def auth_manager(): pass", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code"},
+        {"chunk_id": "c5", "repo_id": "r1", "path": "src/auth/real_auth.py", "content": "class AuthenticationService: pass", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code"}
     ]
     with chunk_path.open("w", encoding="utf-8") as f:
         for c in chunk_data:
@@ -30,10 +32,12 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
 
     # Create queries.md
     queries_md = tmp_path / "eval_queries.md"
+    # Query "auth" will lexically match "auth_manager" and "real_auth" (via path src/auth) and "login.py"
+    # We want semantic to bump "real_auth.py" above "noise.py"
     queries_md.write_text("""
-1. **"login"**
+1. **"auth"**
    *Category:* feature
-   *Expected:* `login.py`
+   *Expected:* `real_auth.py`
 
 2. **"test_main"**
    *Category:* test
@@ -60,10 +64,14 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
             for t in texts:
                 t = t.lower()
                 # Determine mock vectors based on content to force order
-                if "test_main" in t:
+                if "auth" == t: # query
                     embeddings.append([1.0, 0.0])
-                elif "print" in t:
+                elif "authentication" in t: # matches real_auth.py content
+                    embeddings.append([1.0, 0.0])
+                elif "auth_manager" in t: # matches noise.py
                     embeddings.append([0.0, 1.0])
+                elif "test_main" in t:
+                    embeddings.append([1.0, 0.0])
                 elif "def" == t:
                     embeddings.append([1.0, 0.0])
                 else:
@@ -112,9 +120,12 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
     assert metrics["baseline_hits"] >= 0
     assert metrics["semantic_hits"] >= 0
 
-    # Assert exact arithmetic relationships
-    assert metrics["delta_mrr"] == metrics["semantic_MRR"] - metrics["baseline_MRR"]
-    assert metrics["delta_recall"] == metrics["semantic_recall@5"] - metrics["baseline_recall@5"]
+    # Assert exact arithmetic relationships using approx for floats
+    assert metrics["delta_mrr"] == pytest.approx(metrics["semantic_MRR"] - metrics["baseline_MRR"])
+    assert metrics["delta_recall"] == pytest.approx(metrics["semantic_recall@5"] - metrics["baseline_recall@5"])
+
+    # Assert genuine improvement! The test is set up so that the semantic model boosts the correct document
+    assert metrics["delta_mrr"] > 0
 
     # In details, verify it emits both baseline and semantic keys and verify delta calculation
     details = output["details"]
@@ -126,4 +137,78 @@ def test_eval_semantic_delta(mini_index_for_eval, tmp_path, capsys, monkeypatch)
 
         assert "rr" in d["baseline"]
         assert "rr" in d["semantic"]
-        assert d["delta_rr"] == d["semantic"]["rr"] - d["baseline"]["rr"]
+        assert d["delta_rr"] == pytest.approx(d["semantic"]["rr"] - d["baseline"]["rr"])
+
+def test_eval_semantic_failure_isolation(mini_index_for_eval, tmp_path, capsys, monkeypatch):
+    # Create queries.md
+    queries_md = tmp_path / "eval_queries.md"
+    queries_md.write_text("""
+1. **"test_main"**
+   *Category:* test
+   *Expected:* `test_main.py`
+""", encoding="utf-8")
+
+    # Create policy with strict fail behavior to trigger do_eval exception wrapper
+    policy_json = tmp_path / "policy.json"
+    policy_json.write_text(json.dumps({
+        "provider": "local",
+        "similarity_metric": "cosine",
+        "model_name": "crashing-model",
+        "dimensions": 384,
+        "fallback_behavior": "fail"
+    }), encoding="utf-8")
+
+    # Mock the model to throw an exception
+    class CrashingSemanticModel:
+        def encode(self, texts):
+            raise RuntimeError("The model crashed!")
+
+    def mock_get_semantic_model(name):
+        return CrashingSemanticModel()
+
+    monkeypatch.setattr("merger.lenskit.retrieval.query_core._get_semantic_model", mock_get_semantic_model)
+
+    # Mock args
+    class Args:
+        index = str(mini_index_for_eval)
+        queries = str(queries_md)
+        k = 5
+        emit = "json"
+        stale_policy = "ignore"
+        embedding_policy = str(policy_json)
+        graph_index = None
+        graph_weights = None
+
+    # Run Eval
+    ret_code = cmd_eval.run_eval(Args())
+    assert ret_code == 0
+
+    # Capture JSON output
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert "metrics" in output
+    metrics = output["metrics"]
+
+    # Assert isolation worked
+    # With fail policy, semantic execution bubbles exception and caught by do_eval,
+    # resulting in 0 semantic score/hit but preserves baseline.
+    assert metrics["baseline_hits"] == 1
+    assert metrics["semantic_hits"] == 0
+    assert metrics["baseline_MRR"] == pytest.approx(1.0)
+    assert metrics["semantic_MRR"] == pytest.approx(0.0)
+
+    # Assert errors properly logged
+    details = output["details"]
+    assert len(details) == 1
+    d = details[0]
+
+    assert "error" in d
+    assert "The model crashed!" in d["error"]
+    assert "semantic" in d
+    assert "error" in d["semantic"]
+    assert "The model crashed!" in d["semantic"]["error"]
+
+    # Assert baseline was preserved
+    assert d["baseline"]["is_relevant"] is True
+    assert d["baseline"]["rr"] == pytest.approx(1.0)
