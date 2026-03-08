@@ -35,7 +35,8 @@ def test_range_roundtrip(tmp_path):
     dump_path = tmp_path / "dump.json"
     chunk_path = tmp_path / "chunks.jsonl"
 
-    # Needs source_file to build the DB correctly now that the schema requires it
+    # source_file is included explicitly for test clarity; it is optional for indexing
+    # and helps keep stored-range and fallback-range scenarios easy to distinguish.
 
     ref_obj = {
         "artifact_role": "canonical_md",
