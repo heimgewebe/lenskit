@@ -27,9 +27,9 @@ def plan_atlas_outputs(scan_mode: str, scan_id: str) -> Dict[str, str]:
 
     return outputs
 
-def write_mode_placeholders(planned_outputs: Dict[str, str], result_stats: Dict[str, Any], output_dir: Path) -> None:
+def write_mode_outputs(planned_outputs: Dict[str, str], result_stats: Dict[str, Any], output_dir: Path) -> None:
     """
-    Writes placeholder JSON artifacts for structural modes (topology, content, workspace)
+    Writes actual JSON artifacts for structural modes (topology, content, workspace)
     and hotspot artifacts to the given output directory.
     """
     def _write_json_atomic(file_path: Path, data: dict):
@@ -48,19 +48,24 @@ def write_mode_placeholders(planned_outputs: Dict[str, str], result_stats: Dict[
                 os.unlink(temp_path)
             raise
 
+    stats = result_stats.get("stats") if isinstance(result_stats.get("stats"), dict) else result_stats
+
     if "topology" in planned_outputs:
         topology_path = output_dir / planned_outputs["topology"]
-        _write_json_atomic(topology_path, {"mode": "topology", "status": "placeholder"})
+        topology_data = stats.get("topology", {"root_path": ".", "nodes": {}})
+        _write_json_atomic(topology_path, topology_data)
 
     if "content" in planned_outputs:
         content_path = output_dir / planned_outputs["content"]
-        _write_json_atomic(content_path, {"mode": "content", "status": "placeholder"})
+        content_data = stats.get("content", {})
+        _write_json_atomic(content_path, content_data)
 
     if "workspaces" in planned_outputs:
         workspaces_path = output_dir / planned_outputs["workspaces"]
-        _write_json_atomic(workspaces_path, {"mode": "workspace", "status": "placeholder"})
+        workspaces_data = stats.get("workspaces", [])
+        _write_json_atomic(workspaces_path, workspaces_data)
 
     if "hotspots" in planned_outputs:
         hotspots_path = output_dir / planned_outputs["hotspots"]
-        hotspots_data = {"top_dirs": result_stats.get("stats", {}).get("top_dirs", [])}
+        hotspots_data = stats.get("hotspots", {"top_dirs": stats.get("top_dirs", [])})
         _write_json_atomic(hotspots_path, hotspots_data)
