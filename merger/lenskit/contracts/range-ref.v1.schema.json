@@ -28,6 +28,7 @@
         "derived_manifest_json",
         "architecture_summary",
         "delta_json",
+        "graph_index_json",
         "source_file"
       ],
       "description": "Machine-readable enum role for this artifact."
