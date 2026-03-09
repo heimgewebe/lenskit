@@ -131,17 +131,10 @@ async def test_stream_idle_timeout_path(lifecycle_env, monkeypatch):
     job.id = job_id
     state.job_store.add_job(job)
 
-    # Monkeypatch the wait_for timeout to a very small value to trigger it instantly
+    # Monkeypatch the idle timeout to a very small value to trigger it instantly
+    # without affecting the global asyncio.wait_for behavior
     import merger.lenskit.service.app
-    original_wait_for = asyncio.wait_for
-
-    async def mock_wait_for(aw, timeout):
-        # Always timeout instantly if it's the event wait
-        # We check by seeing if it's an Event.wait() coroutine, but a naive
-        # approach is just replacing it for the module and passing a small timeout.
-        return await original_wait_for(aw, timeout=0.01)
-
-    monkeypatch.setattr(merger.lenskit.service.app.asyncio, "wait_for", mock_wait_for)
+    monkeypatch.setattr(merger.lenskit.service.app, "SSE_IDLE_RECHECK_SEC", 0.01)
 
     lines_received = []
 
