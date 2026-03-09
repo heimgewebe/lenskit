@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 from merger.lenskit.core.merge import extract_file_offsets
 
@@ -79,6 +78,3 @@ def test_offset_parser_handles_marker_variations(tmp_path: Path):
     assert "FILE:test4" not in offsets
     assert "FILE:test5" in offsets
     assert offsets["FILE:test5"][0] == "f4.md"
-
-if __name__ == "__main__":
-    pytest.main([__file__])
