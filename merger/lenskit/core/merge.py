@@ -4779,6 +4779,43 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
         derived_paths.append(derived_manifest_path)
     return derived_paths
 
+
+def extract_file_offsets(md_paths: List[Path], debug: bool = False) -> Dict[str, Tuple[str, int]]:
+    offsets = {}
+    for md_path in md_paths:
+        if not md_path or not md_path.exists():
+            continue
+        try:
+            with md_path.open("rb") as f:
+                pos = 0
+                current_id = None
+
+                while True:
+                    line = f.readline()
+                    if not line:
+                        break
+
+                    line_len = len(line)
+                    line_str = line.decode("utf-8", errors="ignore")
+
+                    if "<!-- zone:begin" in line_str and "type=code" in line_str and "id=" in line_str:
+                        m = re.search(r'id="?([^ "]+)"?', line_str)
+                        if m:
+                            current_id = m.group(1)
+                    elif current_id and line_str.strip().startswith("```"):
+                        offsets[current_id] = (md_path.name, pos + line_len)
+                        current_id = None
+                    elif current_id and "<!-- zone:end" in line_str:
+                        if debug:
+                            print(f"warning: malformed zone marker in {md_path.name}")
+                        current_id = None
+
+                    pos += line_len
+        except Exception as e:
+            if debug:
+                print(f"Error extracting offsets from {md_path}: {e}")
+    return offsets
+
 def write_reports_v2(
     merges_dir: Path,
     hub: Path,
@@ -4991,22 +5028,7 @@ def write_reports_v2(
         out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         return out_path
 
-    def _extract_file_offsets(md_paths: List[Path]) -> Dict[str, Tuple[str, int]]:
-        offsets = {}
-        for md_path in md_paths:
-            if not md_path or not md_path.exists():
-                continue
-            try:
-                content = md_path.read_bytes()
-                # Handle both id=FILE:f_abc and id="FILE:f_abc", and handle \r?\n gracefully.
-                pattern = re.compile(rb'<!-- zone:begin type=code lang="[^"]*" id="?([^ "]+)"? -->\r?\n\r?\n`+[^\n]*\r?\n')
-                for match in pattern.finditer(content):
-                    fid = match.group(1).decode('utf-8')
-                    offsets[fid] = (md_path.name, match.end())
-            except Exception as e:
-                if debug:
-                    print(f"Error extracting offsets from {md_path}: {e}")
-        return offsets
+
 
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func, md_paths: Optional[List[Path]] = None):
@@ -5017,7 +5039,7 @@ def write_reports_v2(
         redactor = Redactor() if redact_secrets else None
 
         # Build offset map from all generated markdown parts
-        md_offsets = _extract_file_offsets(md_paths) if md_paths else {}
+        md_offsets = extract_file_offsets(md_paths, debug) if md_paths else {}
         canonical_md_name = md_paths[0].name if md_paths else None
 
         all_chunks = []
