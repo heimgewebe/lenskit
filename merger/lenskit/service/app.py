@@ -528,6 +528,8 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    loop = asyncio.get_running_loop()
+
     # Determine start index
     # Prioritize Last-Event-ID header if present
     start_idx = 0
@@ -541,45 +543,56 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
         start_idx = max(0, last_id)
 
     async def log_generator():
+        event = asyncio.Event()
+
+        def notify():
+            loop.call_soon_threadsafe(event.set)
+
         # last_idx here represents 'last_line_id' (1-based index)
         # 0 means "nothing sent yet"
         last_idx = start_idx
-        while True:
-            # Stop work if client disconnected (prevents zombie generators)
-            try:
-                if await request.is_disconnected():
-                    break
-            except Exception:
-                pass
 
-            # Read logs from file (async safe)
-            # Use abstracted provider to allow deterministic mocking in tests
-            # Optimized: read chunks using line skip (O(1) memory, preserves line-based semantics)
-            chunk_data = await run_in_threadpool(state.log_provider.read_log_chunk, job_id, last_idx)
+        state.job_store.subscribe_to_logs(job_id, notify)
+        try:
+            while True:
+                # Stop work if client disconnected (prevents zombie generators)
+                try:
+                    if await request.is_disconnected():
+                        break
+                except Exception:
+                    pass
 
-            if chunk_data:
-                for line, new_id in chunk_data:
-                    yield f"id: {new_id}\ndata: {line}\n\n"
-                    last_idx = new_id
-
-            # Check status for completion
-            current_job = await run_in_threadpool(state.job_store.get_job, job_id)
-            if not current_job:
-                break
-
-            if current_job.status in ["succeeded", "failed", "canceled"]:
-                # Ensure we sent everything
+                # Read logs from file (async safe)
+                # Use abstracted provider to allow deterministic mocking in tests
+                # Optimized: read chunks using line skip (O(1) memory, preserves line-based semantics)
                 chunk_data = await run_in_threadpool(state.log_provider.read_log_chunk, job_id, last_idx)
+
                 if chunk_data:
                     for line, new_id in chunk_data:
                         yield f"id: {new_id}\ndata: {line}\n\n"
                         last_idx = new_id
 
-                yield "event: end\ndata: end\n\n"
-                break
+                # Check status for completion
+                current_job = await run_in_threadpool(state.job_store.get_job, job_id)
+                if not current_job:
+                    break
 
-            # Throttle polling (avoid busy-loop CPU burn)
-            await asyncio.sleep(SSE_POLL_SEC)
+                if current_job.status in ["succeeded", "failed", "canceled"]:
+                    # Ensure we sent everything
+                    chunk_data = await run_in_threadpool(state.log_provider.read_log_chunk, job_id, last_idx)
+                    if chunk_data:
+                        for line, new_id in chunk_data:
+                            yield f"id: {new_id}\ndata: {line}\n\n"
+                            last_idx = new_id
+
+                    yield "event: end\ndata: end\n\n"
+                    break
+
+                # Wait for next event instead of polling
+                await event.wait()
+                event.clear()
+        finally:
+            state.job_store.unsubscribe_from_logs(job_id, notify)
 
     return StreamingResponse(log_generator(), media_type="text/event-stream")
 

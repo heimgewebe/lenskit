@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import os
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Callable
 from .models import Job, Artifact
 
 from merger.lenskit.core.merge import MERGES_DIR_NAME, get_merges_dir
@@ -27,6 +27,7 @@ class JobStore:
 
         self._jobs_cache: Dict[str, Job] = {}
         self._artifacts_cache: Dict[str, Artifact] = {}
+        self._log_subscribers: Dict[str, List[Callable[[], None]]] = collections.defaultdict(list)
 
         self._load()
 
@@ -67,16 +68,44 @@ class JobStore:
             self._jobs_cache[job.id] = job
             self._save_jobs()
 
+    def subscribe_to_logs(self, job_id: str, callback: Callable[[], None]):
+        with self._lock:
+            self._log_subscribers[job_id].append(callback)
+
+    def unsubscribe_from_logs(self, job_id: str, callback: Callable[[], None]):
+        with self._lock:
+            if job_id in self._log_subscribers:
+                try:
+                    self._log_subscribers[job_id].remove(callback)
+                except ValueError:
+                    pass
+                if not self._log_subscribers[job_id]:
+                    del self._log_subscribers[job_id]
+
+    def _notify_log_subscribers(self, job_id: str):
+        # Obtain a copy of callbacks under the lock to avoid modifying during iteration
+        with self._lock:
+            callbacks = list(self._log_subscribers.get(job_id, []))
+
+        # Invoke outside of the lock
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception as e:
+                logger.debug(f"Error in log subscriber callback for {job_id}: {e}")
+
     def update_job(self, job: Job):
         with self._lock:
             self._jobs_cache[job.id] = job
             self._save_jobs()
+        self._notify_log_subscribers(job.id)
 
     def append_log_line(self, job_id: str, line: str):
         with self._lock:
             p = self.logs_dir / f"{job_id}.log"
             with p.open("a", encoding="utf-8", errors="replace") as f:
                 f.write(line + "\n")
+        self._notify_log_subscribers(job_id)
 
     def read_log_lines(self, job_id: str) -> List[str]:
         with self._lock:
