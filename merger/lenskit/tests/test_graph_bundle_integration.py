@@ -13,7 +13,12 @@ def test_graph_bundle_integration_positive(tmp_path):
     # Create a dummy queries.md to prevent eval_core from falling back to the global repo file
     docs_dir = hub_path / "docs" / "retrieval"
     docs_dir.mkdir(parents=True)
-    (docs_dir / "queries.md").write_text("1. **\"test query\"**\n   * *Expected:* `main.py`\n")
+    (docs_dir / "queries.md").write_text(
+        '1. **"test query"**\n'
+        '   *Category:* smoke\n'
+        '   *Expected:* `main.py`\n',
+        encoding="utf-8",
+    )
 
     # Setup dummy prereq files on disk
     base_path = tmp_path / "dummy_base"
@@ -63,7 +68,7 @@ def test_graph_bundle_integration_positive(tmp_path):
     assert "distances" in graph_data
     assert "file:main.py" in graph_data["distances"]
 
-    # Assert registration in derived.manifest.json
+    # Assert registration in .derived_index.json
     derived_manifest_path = base_path.with_suffix(".derived_index.json")
     assert derived_manifest_path in derived_paths
     assert derived_manifest_path.exists(), "Derived manifest missing"
