@@ -1,5 +1,6 @@
 from pathlib import Path
 from merger.lenskit.core.merge import write_reports_v2, FileInfo
+from merger.lenskit.core.range_resolver import resolve_range_ref
 
 def test_range_propagation_to_canonical_md(tmp_path):
     hub_path = tmp_path / "hub"
@@ -37,8 +38,6 @@ def test_range_propagation_to_canonical_md(tmp_path):
         output_mode="dual"
     )
 
-    from merger.lenskit.core.range_resolver import resolve_range_ref
-
     import json
     chunks = []
     with res.chunk_index.open() as f:
@@ -53,15 +52,9 @@ def test_range_propagation_to_canonical_md(tmp_path):
     assert ref["artifact_role"] == "canonical_md"
     assert ref["file_path"] == res.canonical_md.name
 
-    # Let's actually verify the byte offsets in the canonical_md!
-    with res.canonical_md.open("rb") as f:
-        md_bytes = f.read()
-
-    start_byte = ref["start_byte"]
-    end_byte = ref["end_byte"]
-
-    extracted = md_bytes[start_byte:end_byte]
-    assert extracted.decode("utf-8") == "def hello():\n    pass\n"
+    # Use the official resolver to prove the contract is perfectly aligned with the manifest
+    resolved = resolve_range_ref(res.bundle_manifest, ref)
+    assert resolved["text"] == "def hello():\n    pass\n"
 
 def test_range_propagation_split_mode(tmp_path):
     hub_path = tmp_path / "hub"
@@ -143,4 +136,4 @@ def test_range_propagation_split_mode(tmp_path):
         else:
             # If it's not in the canonical part, it shouldn't have a content_range_ref
             # to prevent breaking the resolver.
-            pass
+            assert "content_range_ref" not in chunk, "Chunks outside canonical MD must not have a content_range_ref to avoid contract violations."

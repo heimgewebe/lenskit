@@ -98,7 +98,7 @@ Die bereits vorhandene `range_ref`-Mechanik wird generatorseitig bis auf Bundle-
 - [x] Bundle-gegen-Resolver-Roundtrip ist reproduzierbar testbar (für Source-Fallback).
 
 **Stop-Kriterien:**
-- [x] `range_ref` zeigt exakt und verifizierbar auf die generierten Bundle-Bytes. *(Hinweis: Im Multi-Part-Split-Mode zeigen spätere Parts weiterhin auf das Source-Backed-Fallback, da nur Part 1 das kanonische Artefakt ist)*
+- [x] Für das kanonische Bundle-Artefakt zeigt `range_ref` exakt und verifizierbar auf generierte Bundle-Bytes. *(Hinweis: Im Multi-Part-Split-Mode bleiben spätere Parts bewusst außerhalb dieses bundle-backed Contracts und nutzen keinen `content_range_ref`)*
 
 ### 2.4 Graph Index Artifact + Runtime Consistency
 
