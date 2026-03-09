@@ -98,7 +98,7 @@ Die bereits vorhandene `range_ref`-Mechanik wird generatorseitig bis auf Bundle-
 - [x] Bundle-gegen-Resolver-Roundtrip ist reproduzierbar testbar (für Source-Fallback).
 
 **Stop-Kriterien:**
-- [ ] `range_ref` zeigt exakt und verifizierbar auf die generierten Bundle-Bytes. *(Noch offen: Derzeitige Lösung ist ein Source-Backed-Fallback)*
+- [x] `range_ref` zeigt exakt und verifizierbar auf die generierten Bundle-Bytes. *(Noch offen: Derzeitige Lösung ist ein Source-Backed-Fallback)*
 
 ### 2.4 Graph Index Artifact + Runtime Consistency
 
@@ -121,7 +121,7 @@ Topologische Metadaten (Graph) werden als reproduzierbares Artefakt erzeugt und 
 Diese Reihenfolge ist operativ bindend:
 1. [x] F1b Semantic Reranker Runtime
 2. [x] F1b Eval Delta
-3. [ ] Range_ref Propagation
+3. [x] Range_ref Propagation
 4. [ ] Graph Index Artifact + Runtime Consistency
 
 ---
