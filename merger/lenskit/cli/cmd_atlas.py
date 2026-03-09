@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from merger.lenskit.adapters.atlas import AtlasScanner, render_atlas_md
+from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 
 def run_atlas_scan(args: argparse.Namespace) -> int:
     try:
@@ -39,9 +40,6 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             max_file_size=max_file_size,
             enable_content_stats=(args.mode == "content")
         )
-
-        # Import output planner (for DRY)
-        from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 
         base_name = f"atlas_scan_{scan_root.name if scan_root.name else 'root'}"
         scan_id = base_name
