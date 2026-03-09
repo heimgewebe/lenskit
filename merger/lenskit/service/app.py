@@ -101,8 +101,7 @@ async def access_denied_handler(request: Request, exc: AccessDeniedError):
 # GC Configuration
 GC_MAX_JOBS = int(os.getenv("RLENS_GC_MAX_JOBS", "100"))
 GC_MAX_AGE_HOURS = int(os.getenv("RLENS_GC_MAX_AGE_HOURS", "24"))
-# SSE polling (seconds)
-SSE_POLL_SEC = float(os.getenv("RLENS_SSE_POLL_SEC", "0.25"))
+# SSE Configuration
 SSE_IDLE_RECHECK_SEC = 5.0
 
 def _is_loopback_host(host: str) -> bool:
