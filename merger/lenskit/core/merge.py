@@ -4707,7 +4707,7 @@ def generate_derived_manifest(base_name_func, run_id, dump_sha256, artifacts_map
     out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
     return out_path
 
-def build_retrieval_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
+def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
     derived_paths = []
     sqlite_index_path = None
     eval_json_path = None
@@ -5426,7 +5426,7 @@ def write_reports_v2(
 
         if output_mode in ("retrieval", "dual") and chunk_path:
             # Build derived/transient retrieval artifacts AFTER dump_index is finalized
-            derived_paths = build_retrieval_derived_artifacts(
+            derived_paths = build_derived_artifacts(
                 dump_index_path, chunk_path, base_name_func, run_id, hub, generator_info, repo_names, debug
             )
             out_paths.extend(derived_paths)
@@ -5554,7 +5554,7 @@ def write_reports_v2(
 
             if output_mode in ("retrieval", "dual") and chunk_path:
                 # Build derived/transient retrieval artifacts AFTER dump_index is finalized
-                derived_paths = build_retrieval_derived_artifacts(
+                derived_paths = build_derived_artifacts(
                     dump_index_path, chunk_path, base_name_func, repo_run_id, hub, generator_info, [s_name], debug
                 )
                 out_paths.extend(derived_paths)

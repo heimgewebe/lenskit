@@ -1,5 +1,5 @@
 import json
-from merger.lenskit.core.merge import build_retrieval_derived_artifacts
+from merger.lenskit.core.merge import build_derived_artifacts
 from merger.lenskit.core.constants import ArtifactRole
 
 def test_graph_bundle_integration_positive(tmp_path):
@@ -45,7 +45,7 @@ def test_graph_bundle_integration_positive(tmp_path):
         return base_path
 
     # Call the isolated integration function
-    derived_paths = build_retrieval_derived_artifacts(
+    derived_paths = build_derived_artifacts(
         dump_index_path=dump_index_path,
         chunk_path=chunk_path,
         base_name_func=base_name_func,
@@ -111,7 +111,7 @@ def test_graph_bundle_integration_fallback(tmp_path):
         return base_path
 
     # Call the isolated integration function
-    derived_paths = build_retrieval_derived_artifacts(
+    derived_paths = build_derived_artifacts(
         dump_index_path=dump_index_path,
         chunk_path=chunk_path,
         base_name_func=base_name_func,
