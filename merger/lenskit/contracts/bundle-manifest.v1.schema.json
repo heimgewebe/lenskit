@@ -77,7 +77,8 @@
               "sqlite_index",
               "retrieval_eval_json",
               "derived_manifest_json",
-              "delta_json"
+              "delta_json",
+              "graph_index_json"
             ],
             "description": "Machine-readable enum role for this artifact."
           },
@@ -189,7 +190,8 @@
                   "enum": [
                     "index_sidecar_json",
                     "retrieval_eval_json",
-                    "delta_json"
+                    "delta_json",
+                    "graph_index_json"
                   ]
                 }
               },

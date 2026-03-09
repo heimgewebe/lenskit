@@ -4674,6 +4674,111 @@ def generate_json_sidecar(
     _validate_agent_json_dict(out, allow_empty_primary=True)
     return out
 
+# Helper for derived manifest
+def generate_derived_manifest(base_name_func, run_id, dump_sha256, artifacts_map, generator_info, repo_names):
+    out_path = base_name_func(part_suffix="").with_suffix(".derived_index.json")
+    artifacts_block = {}
+    for role, path in artifacts_map.items():
+        if path and path.exists():
+            name = path.name
+            ctype = "application/json" if name.endswith(".json") else "application/octet-stream"
+            entry = {
+                "path": name,
+                "role": role,
+                "content_type": ctype,
+                "bytes": path.stat().st_size,
+                "sha256": _compute_file_sha256(path)
+            }
+            artifacts_block[role] = entry
+
+    now_str = clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ')
+    data = {
+        "contract": "derived-index",
+        "contract_version": "v1",
+        "run_id": run_id,
+        "created_at": now_str,
+        "generated_at": now_str,
+        "canonical_dump_index_sha256": dump_sha256,
+        "config_sha256": generator_info.get("config_sha256", ""),
+        "generator": generator_info,
+        "repos": repo_names,
+        "artifacts": dict(sorted(artifacts_block.items()))
+    }
+    out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    return out_path
+
+def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
+    derived_paths = []
+    sqlite_index_path = None
+    eval_json_path = None
+
+    try:
+        from ..retrieval.index_db import build_index
+        from ..retrieval.eval_core import do_eval
+
+        sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
+        try:
+            config_payload = {
+                "config_sha256": generator_info.get("config_sha256", ""),
+                "lenskit_version": generator_info.get("version", "unknown")
+            }
+            build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=config_payload)
+            derived_paths.append(sqlite_index_path)
+
+            # Evaluate
+            eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
+            queries_path = hub_path / "docs" / "retrieval" / "queries.md"
+            if not queries_path.exists():
+                queries_path = Path("docs/retrieval/queries.md")
+
+            if queries_path.exists():
+                eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
+                if eval_res:
+                    eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
+                    derived_paths.append(eval_json_path)
+        except Exception as e:
+            if debug:
+                print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
+    except ImportError as e:
+        if debug:
+            print(f"Skipping retrieval artifacts: retrieval modules not available ({e})", file=sys.stderr)
+
+    # Generate Graph Index Artifact
+    graph_index_path = None
+    try:
+        from ..architecture.graph_index import compile_graph_index
+        arch_graph_path = base_name_func(part_suffix="").with_suffix(".architecture_graph.json")
+        entrypoints_path = base_name_func(part_suffix="").with_suffix(".entrypoints.json")
+
+        if arch_graph_path.exists() and entrypoints_path.exists():
+            graph_index_data = compile_graph_index(arch_graph_path, entrypoints_path)
+            graph_index_path = base_name_func(part_suffix="").with_suffix(".graph_index.json")
+            graph_index_path.write_text(json.dumps(graph_index_data, indent=2, sort_keys=True), encoding="utf-8")
+            derived_paths.append(graph_index_path)
+    except ImportError as e:
+        if debug:
+            print(f"Skipping graph index artifact: architecture module not available ({e})", file=sys.stderr)
+    except Exception as e:
+        if debug:
+            print(f"Error compiling graph index artifact: {e}", file=sys.stderr)
+
+    # Write Derived Manifest
+    derived_map = {}
+    if sqlite_index_path and sqlite_index_path.exists():
+        derived_map[ArtifactRole.SQLITE_INDEX.value] = sqlite_index_path
+    if eval_json_path and eval_json_path.exists():
+        derived_map[ArtifactRole.RETRIEVAL_EVAL_JSON.value] = eval_json_path
+    if graph_index_path and graph_index_path.exists():
+        derived_map[ArtifactRole.GRAPH_INDEX_JSON.value] = graph_index_path
+
+    if derived_map:
+        derived_manifest_path = generate_derived_manifest(
+            base_name_func, run_id, _compute_file_sha256(dump_index_path),
+            derived_map, generator_info, repo_names
+        )
+        derived_paths.append(derived_manifest_path)
+    return derived_paths
+
 def write_reports_v2(
     merges_dir: Path,
     hub: Path,
@@ -4885,89 +4990,6 @@ def write_reports_v2(
 
         out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         return out_path
-
-    # Helper for derived manifest
-    def generate_derived_manifest(base_name_func, run_id, dump_sha256, artifacts_map, generator_info, repo_names):
-        out_path = base_name_func(part_suffix="").with_suffix(".derived_index.json")
-        artifacts_block = {}
-        for role, path in artifacts_map.items():
-            if path and path.exists():
-                name = path.name
-                ctype = "application/json" if name.endswith(".json") else "application/octet-stream"
-                entry = {
-                    "path": name,
-                    "role": role,
-                    "content_type": ctype,
-                    "bytes": path.stat().st_size,
-                    "sha256": _compute_file_sha256(path)
-                }
-                artifacts_block[role] = entry
-
-        now_str = clock.now_utc().strftime('%Y-%m-%dT%H:%M:%SZ')
-        data = {
-            "contract": "derived-index",
-            "contract_version": "v1",
-            "run_id": run_id,
-            "created_at": now_str,
-            "generated_at": now_str,
-            "canonical_dump_index_sha256": dump_sha256,
-            "config_sha256": generator_info.get("config_sha256", ""),
-            "generator": generator_info,
-            "repos": repo_names,
-            "artifacts": dict(sorted(artifacts_block.items()))
-        }
-        out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-        return out_path
-
-    def build_retrieval_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
-        try:
-            from ..retrieval.index_db import build_index
-            from ..retrieval.eval_core import do_eval
-        except ImportError as e:
-            if debug:
-                print(f"Skipping derived artifacts: retrieval modules not available ({e})", file=sys.stderr)
-            return []
-
-        derived_paths = []
-        sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
-        eval_json_path = None
-        try:
-            config_payload = {
-                "config_sha256": generator_info.get("config_sha256", ""),
-                "lenskit_version": generator_info.get("version", "unknown")
-            }
-            build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=config_payload)
-            derived_paths.append(sqlite_index_path)
-
-            # Evaluate
-            eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
-            queries_path = hub_path / "docs" / "retrieval" / "queries.md"
-            if not queries_path.exists():
-                queries_path = Path("docs/retrieval/queries.md")
-
-            if queries_path.exists():
-                eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
-                if eval_res:
-                    eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
-                    derived_paths.append(eval_json_path)
-        except Exception as e:
-            if debug:
-                print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
-
-        # Write Derived Manifest
-        derived_map = {}
-        if sqlite_index_path and sqlite_index_path.exists():
-            derived_map[ArtifactRole.SQLITE_INDEX.value] = sqlite_index_path
-        if eval_json_path and eval_json_path.exists():
-            derived_map[ArtifactRole.RETRIEVAL_EVAL_JSON.value] = eval_json_path
-
-        if derived_map:
-            derived_manifest_path = generate_derived_manifest(
-                base_name_func, run_id, _compute_file_sha256(dump_index_path),
-                derived_map, generator_info, repo_names
-            )
-            derived_paths.append(derived_manifest_path)
-        return derived_paths
 
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func):
@@ -5404,7 +5426,7 @@ def write_reports_v2(
 
         if output_mode in ("retrieval", "dual") and chunk_path:
             # Build derived/transient retrieval artifacts AFTER dump_index is finalized
-            derived_paths = build_retrieval_derived_artifacts(
+            derived_paths = build_derived_artifacts(
                 dump_index_path, chunk_path, base_name_func, run_id, hub, generator_info, repo_names, debug
             )
             out_paths.extend(derived_paths)
@@ -5532,7 +5554,7 @@ def write_reports_v2(
 
             if output_mode in ("retrieval", "dual") and chunk_path:
                 # Build derived/transient retrieval artifacts AFTER dump_index is finalized
-                derived_paths = build_retrieval_derived_artifacts(
+                derived_paths = build_derived_artifacts(
                     dump_index_path, chunk_path, base_name_func, repo_run_id, hub, generator_info, [s_name], debug
                 )
                 out_paths.extend(derived_paths)
@@ -5554,6 +5576,7 @@ def write_reports_v2(
     # Extract specific derived artifacts
     sqlite_indices = sorted([p for p in out_paths if p.name.endswith(".index.sqlite")], key=lambda p: p.name)
     retrieval_evals = sorted([p for p in out_paths if p.name.endswith(".retrieval_eval.json")], key=lambda p: p.name)
+    graph_indices = sorted([p for p in out_paths if p.name.endswith(".graph_index.json")], key=lambda p: p.name)
     derived_manifests = sorted([p for p in out_paths if p.name.endswith(".derived_index.json")], key=lambda p: p.name)
 
     # Everything else goes to other_paths (but exclude the ones explicitly extracted)
@@ -5564,6 +5587,7 @@ def write_reports_v2(
         and p not in dump_indices
         and p not in sqlite_indices
         and p not in retrieval_evals
+        and p not in graph_indices
         and p not in derived_manifests
     ]
 
@@ -5643,6 +5667,7 @@ def write_reports_v2(
     CONTRACT_REGISTRY = {
         ArtifactRole.INDEX_SIDECAR_JSON: {"id": AGENT_CONTRACT_NAME, "version": AGENT_CONTRACT_VERSION},
         ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
+        ArtifactRole.GRAPH_INDEX_JSON: {"id": "architecture.graph_index", "version": "v1"},
         ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
         ArtifactRole.ARCHITECTURE_SUMMARY: {"id": "architecture-summary", "version": "v1"},
     }
@@ -5682,6 +5707,8 @@ def write_reports_v2(
         _add_artifact(sqlite_indices[-1], ArtifactRole.SQLITE_INDEX, "application/octet-stream")
     if retrieval_evals:
         _add_artifact(retrieval_evals[-1], ArtifactRole.RETRIEVAL_EVAL_JSON, "application/json")
+    if graph_indices:
+        _add_artifact(graph_indices[-1], ArtifactRole.GRAPH_INDEX_JSON, "application/json")
     if derived_manifests:
         _add_artifact(derived_manifests[-1], ArtifactRole.DERIVED_MANIFEST_JSON, "application/json")
 
