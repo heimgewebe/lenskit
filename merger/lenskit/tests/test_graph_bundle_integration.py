@@ -80,6 +80,82 @@ def test_graph_bundle_integration_positive(tmp_path):
     assert artifacts_map[ArtifactRole.GRAPH_INDEX_JSON.value]["path"] == graph_index_path.name
 
 
+def test_graph_in_bundle_manifest_positive(tmp_path, monkeypatch):
+    """
+    Tests that write_reports_v2 correctly bubbles the generated graph_index.json
+    up to the final bundle.manifest.json with correct contract schemas.
+    """
+    from merger.lenskit.core.merge import write_reports_v2, scan_repo, ExtrasConfig
+    from merger.lenskit.tests._test_constants import make_generator_info
+
+    repo_dir = tmp_path / "repo1"
+    repo_dir.mkdir()
+    (repo_dir / "main.py").write_text("import util\ndef main(): pass")
+
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    merges_dir = hub / "merges"
+    merges_dir.mkdir()
+
+    docs_dir = hub / "docs" / "retrieval"
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "queries.md").write_text("1. **\"test\"**\n   *Expected:* `main.py`\n")
+
+    repo_summary = scan_repo(repo_dir)
+    extras = ExtrasConfig.from_csv("architecture")[0]
+
+    import merger.lenskit.core.merge as merge_mod
+    original_make_output_filename = merge_mod.make_output_filename
+
+    captured_base_path = []
+
+    def mock_make_output_filename(*args, **kwargs):
+        path = original_make_output_filename(*args, **kwargs)
+        if not captured_base_path:
+            captured_base_path.append(path.with_suffix(""))
+            base = path.with_suffix("")
+
+            # Inject prerequisite files mid-flight so build_derived_artifacts finds them
+            arch_graph = {"nodes": [{"node_id": "file:main.py", "path": "main.py"}], "edges": []}
+            base.with_suffix(".architecture_graph.json").write_text(json.dumps(arch_graph))
+
+            entrypoints = {"entrypoints": [{"path": "main.py"}]}
+            base.with_suffix(".entrypoints.json").write_text(json.dumps(entrypoints))
+        return path
+
+    monkeypatch.setattr(merge_mod, "make_output_filename", mock_make_output_filename)
+
+    artifacts = write_reports_v2(
+        merges_dir=merges_dir,
+        hub=hub,
+        repo_summaries=[repo_summary],
+        detail="full",
+        mode="unified",
+        max_bytes=100000,
+        plan_only=False,
+        code_only=False,
+        split_size=0,
+        debug=True,
+        extras=extras,
+        output_mode="dual",
+        generator_info=make_generator_info()
+    )
+
+    manifest_path = artifacts.bundle_manifest
+    assert manifest_path and manifest_path.exists(), "Bundle manifest not generated"
+
+    data = json.loads(manifest_path.read_text())
+
+    graph_artifacts = [a for a in data.get("artifacts", []) if a.get("role") == ArtifactRole.GRAPH_INDEX_JSON.value]
+    assert len(graph_artifacts) == 1, "Graph index missing from final bundle manifest"
+
+    manifest_entry = graph_artifacts[0]
+    assert manifest_entry["path"].endswith(".graph_index.json")
+    assert manifest_entry["contract"]["id"] == "architecture.graph_index"
+    assert manifest_entry["contract"]["version"] == "v1"
+    assert manifest_entry["interpretation"]["mode"] == "contract"
+
+
 def test_graph_bundle_integration_fallback(tmp_path):
     """
     Test that graph_index.json is NOT generated and the pipeline succeeds
