@@ -5018,6 +5018,7 @@ def write_reports_v2(
 
         # Build offset map from all generated markdown parts
         md_offsets = _extract_file_offsets(md_paths) if md_paths else {}
+        canonical_md_name = md_paths[0].name if md_paths else None
 
         all_chunks = []
 
@@ -5080,18 +5081,21 @@ def write_reports_v2(
                 }
 
                 # V2.4 Range Ref Propagation: Point directly to the canonical_md bytes
+                # Contract Fix: The resolver only accepts the primary canonical_md artifact defined in the manifest.
+                # We strictly limit full bundle-backed refs to the first part.
                 if md_paths and fid in md_offsets:
                     md_file_name, md_start_byte = md_offsets[fid]
-                    d["content_range_ref"] = {
-                        "artifact_role": "canonical_md",
-                        "repo_id": fi.root_label,
-                        "file_path": md_file_name,
-                        "start_byte": md_start_byte + d["start_byte"],
-                        "end_byte": md_start_byte + d["end_byte"],
-                        "start_line": d["start_line"],
-                        "end_line": d["end_line"],
-                        "content_sha256": d["sha256"]
-                    }
+                    if md_file_name == canonical_md_name:
+                        d["content_range_ref"] = {
+                            "artifact_role": "canonical_md",
+                            "repo_id": fi.root_label,
+                            "file_path": md_file_name,
+                            "start_byte": md_start_byte + d["start_byte"],
+                            "end_byte": md_start_byte + d["end_byte"],
+                            "start_line": d["start_line"],
+                            "end_line": d["end_line"],
+                            "content_sha256": d["sha256"]
+                        }
                 d["search_keys"] = {
                     "repo_id": fi.root_label,
                     "path_norm": fi.rel_path.as_posix().lower(),
