@@ -34,7 +34,7 @@ async def test_sse_concurrent_stream_overhead():
         job.status = "succeeded"
         state.job_store.update_job(job)
 
-    async def stream_logs(client_id):
+    async def stream_logs():
         transport = ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
             t0 = time.perf_counter()
@@ -54,13 +54,13 @@ async def test_sse_concurrent_stream_overhead():
 
     tasks = []
     for i in range(100):
-        tasks.append(stream_logs(i))
+        tasks.append(stream_logs())
 
     results = await asyncio.gather(*tasks)
     await t_job
 
     t1 = time.perf_counter()
-    avg_dur = sum([r[0] for r in results]) / len(results)
+    avg_dur = sum(r[0] for r in results) / len(results)
 
     print(f"Total time taken: {t1 - t0:.3f} seconds. Average duration: {avg_dur:.3f}")
 
