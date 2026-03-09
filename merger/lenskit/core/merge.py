@@ -4991,31 +4991,33 @@ def write_reports_v2(
         out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         return out_path
 
-    def _extract_file_offsets(md_path: Path) -> Dict[str, int]:
+    def _extract_file_offsets(md_paths: List[Path]) -> Dict[str, Tuple[str, int]]:
         offsets = {}
-        if not md_path or not md_path.exists():
-            return offsets
-        try:
-            content = md_path.read_bytes()
-            pattern = re.compile(rb'<!-- zone:begin type=code lang="[^"]*" id=([^ ]+) -->\n\n`+[^\n]*\n')
-            for match in pattern.finditer(content):
-                fid = match.group(1).decode('utf-8')
-                offsets[fid] = match.end()
-        except Exception as e:
-            if debug:
-                print(f"Error extracting offsets from {md_path}: {e}")
+        for md_path in md_paths:
+            if not md_path or not md_path.exists():
+                continue
+            try:
+                content = md_path.read_bytes()
+                # Handle both id=FILE:f_abc and id="FILE:f_abc", and handle \r?\n gracefully.
+                pattern = re.compile(rb'<!-- zone:begin type=code lang="[^"]*" id="?([^ "]+)"? -->\r?\n\r?\n`+[^\n]*\r?\n')
+                for match in pattern.finditer(content):
+                    fid = match.group(1).decode('utf-8')
+                    offsets[fid] = (md_path.name, match.end())
+            except Exception as e:
+                if debug:
+                    print(f"Error extracting offsets from {md_path}: {e}")
         return offsets
 
     # Helper for chunking (PR-Optimierung)
-    def generate_chunk_artifacts(target_files, output_filename_base_func, md_path: Optional[Path] = None):
+    def generate_chunk_artifacts(target_files, output_filename_base_func, md_paths: Optional[List[Path]] = None):
         if output_mode not in ("retrieval", "dual"):
             return None
 
         chunker = Chunker()
         redactor = Redactor() if redact_secrets else None
 
-        # Build offset map from canonical_md if available
-        md_offsets = _extract_file_offsets(md_path) if md_path else {}
+        # Build offset map from all generated markdown parts
+        md_offsets = _extract_file_offsets(md_paths) if md_paths else {}
 
         all_chunks = []
 
@@ -5078,12 +5080,12 @@ def write_reports_v2(
                 }
 
                 # V2.4 Range Ref Propagation: Point directly to the canonical_md bytes
-                if md_path and fid in md_offsets:
-                    md_start_byte = md_offsets[fid]
+                if md_paths and fid in md_offsets:
+                    md_file_name, md_start_byte = md_offsets[fid]
                     d["content_range_ref"] = {
                         "artifact_role": "canonical_md",
                         "repo_id": fi.root_label,
-                        "file_path": md_path.name,
+                        "file_path": md_file_name,
                         "start_byte": md_start_byte + d["start_byte"],
                         "end_byte": md_start_byte + d["end_byte"],
                         "start_line": d["start_line"],
@@ -5390,9 +5392,9 @@ def write_reports_v2(
 
         chunk_path = None
         if output_mode in ("retrieval", "dual"):
-            # Use the first generated MD path as the canonical md
-            canonical_md_path = generated_paths[0] if generated_paths else None
-            chunk_path = generate_chunk_artifacts(all_files, base_name_func, md_path=canonical_md_path)
+            # Pass all generated MD parts to support split_size > 0
+            md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
+            chunk_path = generate_chunk_artifacts(all_files, base_name_func, md_paths=md_parts)
             if chunk_path:
                 out_paths.append(chunk_path)
                 last_chunk_index_path = chunk_path
@@ -5515,8 +5517,8 @@ def write_reports_v2(
 
             chunk_path = None
             if output_mode in ("retrieval", "dual"):
-                canonical_md_path = generated_paths[0] if generated_paths else None
-                chunk_path = generate_chunk_artifacts(s_files, base_name_func, md_path=canonical_md_path)
+                md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
+                chunk_path = generate_chunk_artifacts(s_files, base_name_func, md_paths=md_parts)
                 if chunk_path:
                     out_paths.append(chunk_path)
                     last_chunk_index_path = chunk_path
@@ -5559,10 +5561,9 @@ def write_reports_v2(
                 json_data["artifacts"]["md_parts"] = [str(p) for p in md_parts]
                 json_data["artifacts"]["md_parts_basenames"] = [p.name for p in md_parts]
 
-                # Canonical MD is the last one generated?
                 if md_parts:
-                    json_data["artifacts"]["canonical_md"] = str(md_parts[-1])
-                    json_data["artifacts"]["canonical_md_basename"] = md_parts[-1].name
+                    json_data["artifacts"]["canonical_md"] = str(md_parts[0])
+                    json_data["artifacts"]["canonical_md_basename"] = md_parts[0].name
                 else:
                     json_data["artifacts"]["canonical_md"] = None
                     json_data["artifacts"]["canonical_md_basename"] = None

@@ -98,7 +98,7 @@ Die bereits vorhandene `range_ref`-Mechanik wird generatorseitig bis auf Bundle-
 - [x] Bundle-gegen-Resolver-Roundtrip ist reproduzierbar testbar (für Source-Fallback).
 
 **Stop-Kriterien:**
-- [x] `range_ref` zeigt exakt und verifizierbar auf die generierten Bundle-Bytes. *(Noch offen: Derzeitige Lösung ist ein Source-Backed-Fallback)*
+- [x] `range_ref` zeigt exakt und verifizierbar auf die generierten Bundle-Bytes.
 
 ### 2.4 Graph Index Artifact + Runtime Consistency
 
