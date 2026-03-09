@@ -67,7 +67,7 @@ def test_range_propagation_split_mode(tmp_path):
 
     # We create multiple files to force a split
     fis = []
-    for i in range(5):
+    for i in range(50):
         fname = f"test_{i}.py"
         fpath = repo_dir / fname
         content = f"def hello_{i}():\n    print('This is file {i} filling up space to trigger a split.')\n"
@@ -97,7 +97,7 @@ def test_range_propagation_split_mode(tmp_path):
         max_bytes=10000,
         plan_only=False,
         output_mode="dual",
-        split_size=500  # small split size to force multiple md files
+        split_size=20000  # Make it large enough so Part 1 captures files, but small enough to split over multiple files
     )
 
     assert len(res.md_parts) > 1, f"Expected multiple MD parts, but got {len(res.md_parts)}"
@@ -108,12 +108,15 @@ def test_range_propagation_split_mode(tmp_path):
         for line in f:
             chunks.append(json.loads(line))
 
-    assert len(chunks) == 5, f"Expected 5 chunks, but got {len(chunks)}"
+    assert len(chunks) == 50, f"Expected 50 chunks, but got {len(chunks)}"
 
     parts_map = {p.name: p for p in res.md_parts}
 
     # Check that chunks refer to valid, existing file paths and byte offsets are correct
     # And most importantly, check that the official resolver accepts it!
+    with_ref = 0
+    without_ref = 0
+
     for chunk in chunks:
         # We only expect content_range_ref if the chunk actually fell into the canonical_md part.
         # Otherwise, we expect it to fallback gracefully to derived_range_ref at query time (no content_range_ref in index).
@@ -125,6 +128,7 @@ def test_range_propagation_split_mode(tmp_path):
         expected_chunk_content = original_bytes[chunk["start_byte"]:chunk["end_byte"]]
 
         if ref:
+            with_ref += 1
             assert ref["artifact_role"] == "canonical_md"
             file_path = ref["file_path"]
             assert file_path in parts_map, f"Chunk referenced MD part {file_path} not found in generated parts."
@@ -134,6 +138,11 @@ def test_range_propagation_split_mode(tmp_path):
             resolved = resolve_range_ref(res.bundle_manifest, ref)
             assert resolved["text"].encode("utf-8") == expected_chunk_content
         else:
+            without_ref += 1
             # If it's not in the canonical part, it shouldn't have a content_range_ref
             # to prevent breaking the resolver.
             assert "content_range_ref" not in chunk, "Chunks outside canonical MD must not have a content_range_ref to avoid contract violations."
+
+    # Guarantee that the test actually split things into both categories
+    assert with_ref > 0, "Test failed to produce any canonical chunks with refs"
+    assert without_ref > 0, "Test failed to produce any split overflow chunks without refs"
