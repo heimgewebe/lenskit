@@ -3,11 +3,7 @@ import time
 import httpx
 from merger.lenskit.service.app import app, state, init_service
 from merger.lenskit.service.models import JobRequest, Job
-import multiprocessing
-import uvicorn
 import pathlib
-import os
-import signal
 from httpx import ASGITransport
 
 async def test_sse_polling_overhead():
@@ -28,7 +24,8 @@ async def test_sse_polling_overhead():
         for i in range(10):
             await asyncio.sleep(0.5)
             state.job_store.append_log_line(job_id, f"Line {i}")
-            state.job_store._save_jobs() # Ensure job state update triggers file write
+            current_job = state.job_store.get_job(job_id)
+            state.job_store.update_job(current_job)
 
         job.status = "succeeded"
         state.job_store.update_job(job)

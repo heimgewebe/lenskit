@@ -555,6 +555,10 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
         state.job_store.subscribe_to_logs(job_id, notify)
         try:
             while True:
+                # Clear event *before* processing to avoid dropping signals
+                # that arrive between the loop processing and wait()
+                event.clear()
+
                 # Stop work if client disconnected (prevents zombie generators)
                 try:
                     if await request.is_disconnected():
@@ -588,9 +592,12 @@ async def stream_logs(request: Request, job_id: str, last_id: Optional[int] = Qu
                     yield "event: end\ndata: end\n\n"
                     break
 
-                # Wait for next event instead of polling
-                await event.wait()
-                event.clear()
+                # Wait for next event instead of polling, but wake periodically
+                # to detect client disconnects if no events are arriving.
+                try:
+                    await asyncio.wait_for(event.wait(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    pass
         finally:
             state.job_store.unsubscribe_from_logs(job_id, notify)
 

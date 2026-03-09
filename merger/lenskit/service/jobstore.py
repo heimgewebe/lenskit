@@ -199,6 +199,13 @@ class JobStore:
         except Exception:
             pass
 
+        # Notify any waiting SSE streams before we drop the job so they can exit gracefully.
+        self._notify_log_subscribers(job_id)
+
+        with self._lock:
+            # Cleanup subscribers to prevent memory leaks if streams don't exit.
+            self._log_subscribers.pop(job_id, None)
+
         self._jobs_cache.pop(job_id, None)
 
     def get_job(self, job_id: str) -> Optional[Job]:

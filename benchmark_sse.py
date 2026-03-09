@@ -3,11 +3,7 @@ import time
 import httpx
 from merger.lenskit.service.app import app, state, init_service
 from merger.lenskit.service.models import JobRequest, Job
-import multiprocessing
-import uvicorn
 import pathlib
-import os
-import signal
 from httpx import ASGITransport
 
 async def test_sse_polling_overhead():
