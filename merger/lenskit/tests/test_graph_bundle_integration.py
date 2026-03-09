@@ -88,6 +88,15 @@ def test_graph_bundle_integration_fallback(tmp_path):
     hub_path = tmp_path / "hub"
     hub_path.mkdir()
 
+    docs_dir = hub_path / "docs" / "retrieval"
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "queries.md").write_text(
+        '1. **"test query"**\n'
+        '   *Category:* smoke\n'
+        '   *Expected:* `main.py`\n',
+        encoding="utf-8",
+    )
+
     base_path = tmp_path / "dummy_base"
 
     # We DO NOT create the prerequisite .architecture_graph.json and .entrypoints.json here
@@ -118,7 +127,7 @@ def test_graph_bundle_integration_fallback(tmp_path):
     assert graph_index_path not in derived_paths
     assert not graph_index_path.exists(), "Graph index artifact should NOT be generated when prereqs are missing"
 
-    # Assert NOT registered in derived.manifest.json
+    # Assert NOT registered in .derived_index.json
     derived_manifest_path = base_path.with_suffix(".derived_index.json")
     assert derived_manifest_path in derived_paths
     assert derived_manifest_path.exists()
