@@ -1,3 +1,7 @@
+"""
+Manual benchmark / smoke test script for SSE stream performance.
+Not intended as a deterministic performance test for CI.
+"""
 import asyncio
 import time
 import httpx
@@ -31,26 +35,24 @@ async def test_sse_stream_overhead():
     async def stream_logs():
         transport = ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            t0 = time.time()
-            # start streaming logs
+            t0 = time.perf_counter()
             line_count = 0
             async with client.stream("GET", f"/api/jobs/{job_id}/logs") as response:
                 async for line in response.aiter_lines():
                     if line:
                         line_count += 1
 
-            t1 = time.time()
+            t1 = time.perf_counter()
             return t1 - t0, line_count
 
     print("Running stream benchmark...")
-    t0 = time.time()
+    t0 = time.perf_counter()
 
-    # Run a stream while job simulates activity
     t_job = asyncio.create_task(simulate_job_activity())
     duration, line_count = await stream_logs()
     await t_job
 
-    t1 = time.time()
+    t1 = time.perf_counter()
     print(f"Total time taken: {t1 - t0:.3f} seconds for {line_count} lines")
 
 if __name__ == "__main__":

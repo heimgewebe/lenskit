@@ -1,3 +1,7 @@
+"""
+Manual concurrent benchmark / smoke test script for SSE stream efficiency.
+Not intended as a deterministic performance test for CI.
+"""
 import asyncio
 import time
 import httpx
@@ -33,23 +37,21 @@ async def test_sse_concurrent_stream_overhead():
     async def stream_logs(client_id):
         transport = ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            t0 = time.time()
+            t0 = time.perf_counter()
             line_count = 0
-            # start streaming logs
             async with client.stream("GET", f"/api/jobs/{job_id}/logs") as response:
                 async for line in response.aiter_lines():
                     if line:
                         line_count += 1
 
-            t1 = time.time()
+            t1 = time.perf_counter()
             return t1 - t0, line_count
 
     print("Running concurrent stream benchmark (100 streams)...")
-    t0 = time.time()
+    t0 = time.perf_counter()
 
     t_job = asyncio.create_task(simulate_job_activity())
 
-    # Run 100 concurrent streams to amplify the overhead test
     tasks = []
     for i in range(100):
         tasks.append(stream_logs(i))
@@ -57,12 +59,9 @@ async def test_sse_concurrent_stream_overhead():
     results = await asyncio.gather(*tasks)
     await t_job
 
-    t1 = time.time()
+    t1 = time.perf_counter()
     avg_dur = sum([r[0] for r in results]) / len(results)
 
-    # We are measuring overhead.
-    # The true measure of efficiency is that 100 clients should wait passively
-    # instead of waking up via polling. They should only do work when an event is set.
     print(f"Total time taken: {t1 - t0:.3f} seconds. Average duration: {avg_dur:.3f}")
 
 if __name__ == "__main__":
