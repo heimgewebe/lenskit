@@ -205,8 +205,7 @@ class JobStore:
         with self._lock:
             # Cleanup subscribers to prevent memory leaks if streams don't exit.
             self._log_subscribers.pop(job_id, None)
-
-        self._jobs_cache.pop(job_id, None)
+            self._jobs_cache.pop(job_id, None)
 
     def get_job(self, job_id: str) -> Optional[Job]:
         with self._lock:

@@ -6,7 +6,7 @@ from merger.lenskit.service.models import JobRequest, Job
 import pathlib
 from httpx import ASGITransport
 
-async def test_sse_polling_overhead():
+async def test_sse_stream_overhead():
     # Setup test env
     hub_path = pathlib.Path("./benchmark_hub").resolve()
     hub_path.mkdir(exist_ok=True)
@@ -54,4 +54,4 @@ async def test_sse_polling_overhead():
     print(f"Total time taken: {t1 - t0:.3f} seconds for {line_count} lines")
 
 if __name__ == "__main__":
-    asyncio.run(test_sse_polling_overhead())
+    asyncio.run(test_sse_stream_overhead())

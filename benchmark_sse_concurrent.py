@@ -6,7 +6,7 @@ from merger.lenskit.service.models import JobRequest, Job
 import pathlib
 from httpx import ASGITransport
 
-async def test_sse_polling_overhead():
+async def test_sse_concurrent_stream_overhead():
     # Setup test env
     hub_path = pathlib.Path("./benchmark_hub").resolve()
     hub_path.mkdir(exist_ok=True)
@@ -20,7 +20,7 @@ async def test_sse_polling_overhead():
     state.job_store.add_job(job)
 
     async def simulate_job_activity():
-        # Slow down job updates to trigger the busy sleep polling
+        # Slow down job updates to test event-driven wait efficiency
         for i in range(10):
             await asyncio.sleep(0.5)
             state.job_store.append_log_line(job_id, f"Line {i}")
@@ -49,7 +49,7 @@ async def test_sse_polling_overhead():
 
     t_job = asyncio.create_task(simulate_job_activity())
 
-    # Run 100 concurrent streams to amplify CPU usage of the polling loop
+    # Run 100 concurrent streams to amplify the overhead test
     tasks = []
     for i in range(100):
         tasks.append(stream_logs(i))
@@ -60,12 +60,10 @@ async def test_sse_polling_overhead():
     t1 = time.time()
     avg_dur = sum([r[0] for r in results]) / len(results)
 
-    # Actually what we want to measure is overhead.
-    # The true measure of polling inefficiency is that each client polls `await asyncio.sleep(SSE_POLL_SEC)`
-    # instead of waking up on an event. With `asyncio.sleep`, 100 clients wake up 4 times a second (0.25s),
-    # doing disk I/O each time (run_in_threadpool -> read_log_chunk).
-    # That is 400 disk accesses/second!
+    # We are measuring overhead.
+    # The true measure of efficiency is that 100 clients should wait passively
+    # instead of waking up via polling. They should only do work when an event is set.
     print(f"Total time taken: {t1 - t0:.3f} seconds. Average duration: {avg_dur:.3f}")
 
 if __name__ == "__main__":
-    asyncio.run(test_sse_polling_overhead())
+    asyncio.run(test_sse_concurrent_stream_overhead())
