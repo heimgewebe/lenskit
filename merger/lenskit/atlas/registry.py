@@ -14,6 +14,7 @@ class AtlasRegistry:
 
     def _init_db(self):
         with self.conn:
+            self.conn.execute("PRAGMA foreign_keys = ON;")
             self.conn.executescript("""
                 CREATE TABLE IF NOT EXISTS machines (
                     machine_id TEXT PRIMARY KEY,

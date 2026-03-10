@@ -12,21 +12,21 @@ from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 from merger.lenskit.atlas.registry import AtlasRegistry
 
 def run_atlas_machines(args: argparse.Namespace) -> int:
-    registry_path = Path("atlas_registry.sqlite").resolve()
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     registry = AtlasRegistry(registry_path)
     machines = registry.list_machines()
     print(json.dumps(machines, indent=2))
     return 0
 
 def run_atlas_roots(args: argparse.Namespace) -> int:
-    registry_path = Path("atlas_registry.sqlite").resolve()
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     registry = AtlasRegistry(registry_path)
     roots = registry.list_roots()
     print(json.dumps(roots, indent=2))
     return 0
 
 def run_atlas_snapshots(args: argparse.Namespace) -> int:
-    registry_path = Path("atlas_registry.sqlite").resolve()
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     registry = AtlasRegistry(registry_path)
     snapshots = registry.list_snapshots()
     print(json.dumps(snapshots, indent=2))
@@ -67,7 +67,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         )
 
         # Setup Registry
-        registry_path = Path("atlas_registry.sqlite").resolve()
+        registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
         registry = AtlasRegistry(registry_path)
 
         # Register Machine
@@ -78,7 +78,8 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         # Register Root
         # Ensure we always use absolute path as canonical value
         root_value = str(scan_root.resolve())
-        root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}"
+        root_hash = hashlib.md5(root_value.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
+        root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
         registry.register_root(root_id, machine_id, "abs_path", root_value, label=scan_root.name)
 
         # Configure Snapshot Identity
