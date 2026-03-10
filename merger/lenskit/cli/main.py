@@ -93,6 +93,10 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
     atlas_scan_parser.add_argument("--mode", choices=["inventory", "topology", "content", "workspace"], default="inventory", help="The scan mode to execute")
 
+    atlas_machines_parser = atlas_subparsers.add_parser("machines", help="List registered machines")
+    atlas_roots_parser = atlas_subparsers.add_parser("roots", help="List registered roots")
+    atlas_snapshots_parser = atlas_subparsers.add_parser("snapshots", help="List registered snapshots")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
@@ -121,9 +125,15 @@ def main(args: Optional[List[str]] = None) -> int:
         from . import cmd_architecture
         return cmd_architecture.run_architecture_cmd(parsed_args)
     elif parsed_args.command == "atlas":
+        from . import cmd_atlas
         if parsed_args.atlas_cmd == "scan":
-            from . import cmd_atlas
             return cmd_atlas.run_atlas_scan(parsed_args)
+        elif parsed_args.atlas_cmd == "machines":
+            return cmd_atlas.run_atlas_machines(parsed_args)
+        elif parsed_args.atlas_cmd == "roots":
+            return cmd_atlas.run_atlas_roots(parsed_args)
+        elif parsed_args.atlas_cmd == "snapshots":
+            return cmd_atlas.run_atlas_snapshots(parsed_args)
         else:
             parser.parse_args(["atlas", "--help"])
             return 0

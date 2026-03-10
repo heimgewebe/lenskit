@@ -810,41 +810,41 @@ Dateien für `inventory.jsonl`, `dirs.jsonl`, `content.json`, `topology.json`, `
 * **Mode Output Contract**: Garantiert spezifische Pflichtartefakte für `inventory`, `topology`, `content`, `workspace`.
 
 ## 3. ADR-artige Setzungen (Architecture Decision Records)
-- [ ] ADR-001 Atlas is filesystem-first, not repo-first
-- [ ] ADR-002 Atlas is stateful and snapshot-driven
-- [ ] ADR-003 Atlas uses pipeline stages, not monolithic scan flows
-- [ ] ADR-004 Repo/workspace detection is annotation only
-- [ ] ADR-005 Registry in SQLite, large artifacts as files
-- [ ] ADR-006 Content enrichment is optional and mode-dependent
+- [x] ADR-001 Atlas is filesystem-first, not repo-first
+- [x] ADR-002 Atlas is stateful and snapshot-driven
+- [x] ADR-003 Atlas uses pipeline stages, not monolithic scan flows
+- [x] ADR-004 Repo/workspace detection is annotation only
+- [x] ADR-005 Registry in SQLite, large artifacts as files
+- [x] ADR-006 Content enrichment is optional and mode-dependent
 
 ## 4. Abhakbare Roadmap
 
 ### Phase 0 — Konstitution und Contracts
 Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
-- [ ] ADR-001 bis ADR-006 anlegen
-- [ ] Machine Contract definieren
-- [ ] Root Contract definieren
-- [ ] Snapshot Contract definieren
-- [ ] Inventory Contract definieren
-- [ ] Delta Contract definieren
-- [ ] Mode Output Contract definieren
-- [ ] is_text-Garantie explizit dokumentieren
-- [ ] Verzeichnisstruktur offiziell festlegen
+- [x] ADR-001 bis ADR-006 anlegen
+- [x] Machine Contract definieren
+- [x] Root Contract definieren
+- [x] Snapshot Contract definieren
+- [x] Inventory Contract definieren
+- [x] Delta Contract definieren
+- [x] Mode Output Contract definieren
+- [x] is_text-Garantie explizit dokumentieren
+- [x] Verzeichnisstruktur offiziell festlegen
 
 **Stop-Kriterium**: Atlas hat eine explizite, maschinenlesbare und dokumentierte Grundverfassung.
 
 ### Phase 1 — Registry-Kern
 Ziel: Machine-, Root- und Snapshot-Wirklichkeit persistent und abfragbar machen.
-- [ ] atlas_registry.sqlite einführen
-- [ ] Machine Registry implementieren
-- [ ] Root Registry implementieren
-- [ ] Snapshot Registry implementieren
-- [ ] Snapshot-Status (running/complete/partial/failed) implementieren
-- [ ] Snapshot-Artefakt-Refs konsistent speichern
-- [ ] Snapshot-ID-Schema stabilisieren
-- [ ] CLI: `atlas machines`
-- [ ] CLI: `atlas roots`
-- [ ] CLI: `atlas snapshots`
+- [x] atlas_registry.sqlite einführen
+- [x] Machine Registry implementieren
+- [x] Root Registry implementieren
+- [x] Snapshot Registry implementieren
+- [x] Snapshot-Status (running/complete/partial/failed) implementieren
+- [x] Snapshot-Artefakt-Refs konsistent speichern
+- [x] Snapshot-ID-Schema stabilisieren
+- [x] CLI: `atlas machines`
+- [x] CLI: `atlas roots`
+- [x] CLI: `atlas snapshots`
 
 **Stop-Kriterium**: Jeder Scan taucht als Snapshot mit Root-/Machine-Kontext in der Registry auf.
 

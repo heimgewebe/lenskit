@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "from_snapshot_id",
+    "to_snapshot_id",
+    "created_at",
+    "new_files",
+    "removed_files",
+    "changed_files"
+  ],
+  "properties": {
+    "delta_id": {
+      "type": "string",
+      "description": "Unique identifier for this delta calculation."
+    },
+    "from_snapshot_id": {
+      "type": "string",
+      "description": "The old snapshot ID."
+    },
+    "to_snapshot_id": {
+      "type": "string",
+      "description": "The new snapshot ID."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time the delta was calculated."
+    },
+    "new_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A deterministically sorted list of newly added files."
+    },
+    "removed_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A deterministically sorted list of removed files."
+    },
+    "changed_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A deterministically sorted list of changed files."
+    },
+    "renamed_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional list of renamed files."
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "new_count": { "type": "integer" },
+        "removed_count": { "type": "integer" },
+        "changed_count": { "type": "integer" }
+      },
+      "description": "Summary counts for the delta."
+    }
+  }
+}

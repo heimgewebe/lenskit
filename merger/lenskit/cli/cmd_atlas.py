@@ -2,10 +2,35 @@ import argparse
 import sys
 import json
 import os
+import socket
+import datetime
+import hashlib
 from pathlib import Path
 
 from merger.lenskit.adapters.atlas import AtlasScanner, render_atlas_md
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
+from merger.lenskit.atlas.registry import AtlasRegistry
+
+def run_atlas_machines(args: argparse.Namespace) -> int:
+    registry_path = Path("atlas_registry.sqlite").resolve()
+    registry = AtlasRegistry(registry_path)
+    machines = registry.list_machines()
+    print(json.dumps(machines, indent=2))
+    return 0
+
+def run_atlas_roots(args: argparse.Namespace) -> int:
+    registry_path = Path("atlas_registry.sqlite").resolve()
+    registry = AtlasRegistry(registry_path)
+    roots = registry.list_roots()
+    print(json.dumps(roots, indent=2))
+    return 0
+
+def run_atlas_snapshots(args: argparse.Namespace) -> int:
+    registry_path = Path("atlas_registry.sqlite").resolve()
+    registry = AtlasRegistry(registry_path)
+    snapshots = registry.list_snapshots()
+    print(json.dumps(snapshots, indent=2))
+    return 0
 
 def run_atlas_scan(args: argparse.Namespace) -> int:
     try:
@@ -41,6 +66,31 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             enable_content_stats=(args.mode == "content")
         )
 
+        # Setup Registry
+        registry_path = Path("atlas_registry.sqlite").resolve()
+        registry = AtlasRegistry(registry_path)
+
+        # Register Machine
+        hostname = socket.gethostname()
+        machine_id = os.environ.get("ATLAS_MACHINE_ID", hostname)
+        registry.register_machine(machine_id, hostname)
+
+        # Register Root
+        # Ensure we always use absolute path as canonical value
+        root_value = str(scan_root.resolve())
+        root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}"
+        registry.register_root(root_id, machine_id, "abs_path", root_value, label=scan_root.name)
+
+        # Configure Snapshot Identity
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+        # Determine scan config hash
+        config_str = f"mode={args.mode}|depth={args.depth}|limit={args.limit}|ex={','.join(exclude_globs)}|nodef={args.no_default_excludes}|maxfs={max_file_size}"
+        short_hash = hashlib.md5(config_str.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
+
+        snapshot_id = f"snap_{machine_id}__{root_id}__{timestamp}__{short_hash}"
+        registry.create_snapshot(snapshot_id, machine_id, root_id, short_hash, "running")
+
         base_name = f"atlas_scan_{scan_root.name if scan_root.name else 'root'}"
         scan_id = base_name
         planned_outputs = plan_atlas_outputs(args.mode, scan_id)
@@ -66,6 +116,10 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
 
         # Additional structural outputs
         write_mode_outputs(planned_outputs, result, Path("."))
+
+        # Update Registry
+        registry.update_snapshot_status(snapshot_id, "complete")
+        registry.update_snapshot_artifacts(snapshot_id, planned_outputs)
 
         print(f"Done. Outputs generated for mode '{args.mode}':")
         for k, v in planned_outputs.items():

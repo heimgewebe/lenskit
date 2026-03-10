@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "Defines guaranteed artifacts for different output modes in Atlas. Derived from `plan_atlas_outputs` logic.",
+  "properties": {
+    "inventory": {
+      "type": "object",
+      "required": ["summary", "inventory", "dirs"],
+      "properties": {
+        "summary": { "type": "string" },
+        "inventory": { "type": "string" },
+        "dirs": { "type": "string" }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "required": ["summary", "topology"],
+      "properties": {
+        "summary": { "type": "string" },
+        "topology": { "type": "string" }
+      }
+    },
+    "content": {
+      "type": "object",
+      "required": ["summary", "inventory", "content"],
+      "properties": {
+        "summary": { "type": "string" },
+        "inventory": { "type": "string" },
+        "content": { "type": "string" }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "required": ["summary", "workspaces", "hotspots"],
+      "properties": {
+        "summary": { "type": "string" },
+        "workspaces": { "type": "string" },
+        "hotspots": { "type": "string" }
+      }
+    }
+  }
+}

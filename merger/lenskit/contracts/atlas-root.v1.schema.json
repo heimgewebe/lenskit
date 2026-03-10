@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["root_id", "machine_id", "root_kind", "root_value"],
+  "properties": {
+    "root_id": {
+      "type": "string",
+      "description": "Unique identifier for the scan root."
+    },
+    "machine_id": {
+      "type": "string",
+      "description": "The machine ID this root belongs to."
+    },
+    "root_kind": {
+      "type": "string",
+      "enum": ["abs_path", "preset", "token"],
+      "description": "The type of root definition."
+    },
+    "root_value": {
+      "type": "string",
+      "description": "The path or value defining the root."
+    },
+    "filesystem": {
+      "type": "string",
+      "description": "Optional filesystem type (e.g., ext4, ntfs)."
+    },
+    "mountpoint": {
+      "type": "string",
+      "description": "Optional mountpoint of the filesystem."
+    },
+    "label": {
+      "type": "string",
+      "description": "Optional descriptive label for this root."
+    },
+    "allow_content": {
+      "type": "boolean",
+      "description": "Whether content inspection is allowed in this root."
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Optional scanning priority."
+    }
+  }
+}
