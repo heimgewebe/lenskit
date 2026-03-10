@@ -106,13 +106,13 @@ Die bereits vorhandene `range_ref`-Mechanik wird generatorseitig bis auf Bundle-
 Topologische Metadaten (Graph) werden als reproduzierbares Artefakt erzeugt und die bestehende Rerank-/Explain-Logik wird darauf konsolidiert.
 
 **Deliverables:**
-- [ ] `graph_index.json` wird reproduzierbar erzeugt (Nodes, Edges, Entrypoints, Distance Map).
-- [ ] Bundle-/Artefakt-Einbindung ist konsistent.
-- [ ] Explain- und Rerank-seitige Nutzung (wie Distanz-Metriken oder Tie-Break-Stabilisierung) greifen konsistent auf dieses Artefakt zu.
+- [x] `graph_index.json` wird reproduzierbar erzeugt (Nodes, Edges, Entrypoints, Distance Map).
+- [x] Bundle-/Artefakt-Einbindung ist konsistent.
+- [x] Explain- und Rerank-seitige Nutzung (wie Distanz-Metriken oder Tie-Break-Stabilisierung) greifen konsistent auf dieses Artefakt zu.
 
 **Stop-Kriterien:**
-- [ ] `graph_index.json` ist stabil, deterministisch und valide im Bundle vorhanden.
-- [ ] Bestehende graph-aware Features widersprechen dem Artefakt nicht.
+- [x] `graph_index.json` ist stabil, deterministisch und valide im Bundle vorhanden.
+- [x] Bestehende graph-aware Features widersprechen dem Artefakt nicht.
 
 ---
 
@@ -122,7 +122,7 @@ Diese Reihenfolge ist operativ bindend:
 1. [x] F1b Semantic Reranker Runtime
 2. [x] F1b Eval Delta
 3. [x] Range_ref Propagation
-4. [ ] Graph Index Artifact + Runtime Consistency
+4. [x] Graph Index Artifact + Runtime Consistency
 
 ---
 
