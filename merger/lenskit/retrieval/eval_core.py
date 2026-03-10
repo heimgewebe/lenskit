@@ -9,6 +9,14 @@ from .query_core import execute_query
 WHY_FAIL_QUERY_EXECUTION = "query execution failed"
 WHY_FAIL_MISSING_EXPLAIN = "missing explain from query execution"
 
+RE_MD_QUERY_TITLE = re.compile(r"^\d+\.\s+\*\*\"(.+?)\"\*\*")
+RE_CLEAN_MD_LINE = re.compile(r"^[\s*+\-]+")
+RE_EXPECTED_LABEL = re.compile(r"^\*?Expected:?\*?", re.IGNORECASE)
+RE_CODE_TICKS = re.compile(r"`([^`]+)`")
+RE_CATEGORY_LABEL = re.compile(r"^\*?Category:?\*?\s*(.+)$", re.IGNORECASE)
+RE_FILTER_LABEL = re.compile(r"^\*?Filter:?\*?", re.IGNORECASE)
+RE_FILTER_KV = re.compile(r"(?:`|)?([\w.-]+)=([\w/.-]+)(?:`|)?")
+
 def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
     if not md_path.exists():
         raise FileNotFoundError(f"Queries file not found: {md_path}")
@@ -40,7 +48,7 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         if not line:
             continue
 
-        m_title = re.match(r"^\d+\.\s+\*\*\"(.+?)\"\*\*", line)
+        m_title = RE_MD_QUERY_TITLE.match(line)
         if m_title:
             if current_query:
                 queries.append(current_query)
@@ -56,22 +64,22 @@ def parse_gold_queries(md_path: Path) -> List[Dict[str, Any]]:
         if not current_query:
             continue
 
-        clean_line = re.sub(r"^[\s*+\-]+", "", line).strip()
+        clean_line = RE_CLEAN_MD_LINE.sub("", line).strip()
 
-        if re.match(r"^\*?Expected:?\*?", clean_line, re.IGNORECASE):
-            expected_terms = re.findall(r"`([^`]+)`", line)
+        if RE_EXPECTED_LABEL.match(clean_line):
+            expected_terms = RE_CODE_TICKS.findall(line)
             current_query["expected_paths"].extend(expected_terms)
 
-        m_category = re.match(r"^\*?Category:?\*?\s*(.+)$", clean_line, re.IGNORECASE)
+        m_category = RE_CATEGORY_LABEL.match(clean_line)
         if m_category:
             current_query["category"] = m_category.group(1).strip()
             continue
 
-        if re.match(r"^\*?Filter:?\*?", clean_line, re.IGNORECASE):
+        if RE_FILTER_LABEL.match(clean_line):
             parts = clean_line.split(":", 1)
             if len(parts) > 1:
                 rest = parts[1]
-                matches = re.findall(r"(?:`|)?([\w.-]+)=([\w/.-]+)(?:`|)?", rest)
+                matches = RE_FILTER_KV.findall(rest)
                 for k, v in matches:
                     current_query["filters"][k] = v
 
