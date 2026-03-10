@@ -308,7 +308,7 @@ def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
     page_with_static.route("**/api/jobs", handle_jobs)
     page_with_static.select_option("#mode", "gesamt")
 
-    with page_with_static.expect_request("**/api/jobs", timeout=10000) as req_info:
+    with page_with_static.expect_request("**/api/jobs") as req_info:
         page_with_static.click("#jobForm button[type='submit']")
 
     req = req_info.value
