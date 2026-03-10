@@ -14,6 +14,14 @@ Darauf setzen Retrieval, Analyse, Visualisierung und Agentenlogik auf. Lenskit b
 
 ---
 
+## Status dieses Dokuments
+* **Dies ist eine Blaupause / Zielarchitektur / Ausbau-Roadmap.**
+* Sie beschreibt den **Soll-Zustand**, die Architekturentscheidungen und die priorisierten Ausbaupfade.
+* Einzelne Passagen referenzieren den aktuellen Repo-Stand, aber **die meisten beschriebenen Bausteine sind ausdrücklich noch nicht vollständig implementiert**.
+* Die Umsetzung erfolgt schrittweise in Folgearbeiten.
+
+---
+
 # Teil 1/4: Mandat, Zielbild, Invarianten, Bounded Context
 
 Dieses Fundament sichert ab, dass spätere Features stabil aufgebaut werden können.
@@ -272,11 +280,11 @@ file_entity:
 ```
 **Urteil**: Für Phase 1/2 ist `FileObservation` wichtiger als `FileEntity`. `FileEntity` sollte später kommen, wenn Rename-/Move-Erkennung ernsthaft gebaut wird.
 
-### 3. Beobachtungsmodell
+### 2.2 Beobachtungsmodell
 
 Beobachtungen sind die eigentliche Rohwirklichkeit.
 
-#### 3.1 FileObservation
+#### 2.2.1 FileObservation
 ```yaml
 file_observation:
   snapshot_id: snap_...
@@ -300,7 +308,7 @@ file_observation:
 **Optional**: `MIME`, `owner`, `group`, `permissions`, `checksum`, `encoding`, `line_count`, `is_text`, `ctime`, `abs_path_hint`, `ext`
 **Designentscheidung**: `abs_path_hint` darf existieren, aber `rel_path` bleibt die kanonische Pfadachse innerhalb eines Roots.
 
-#### 3.2 DirectoryObservation
+#### 2.2.2 DirectoryObservation
 ```yaml
 directory_observation:
   snapshot_id: snap_...
@@ -315,11 +323,11 @@ directory_observation:
 **Pflichtfelder**: `snapshot_id`, `rel_path`, `depth`
 **Optional**: `kept_file_count`, `recursive_bytes`, `child_dirs`, `signal_count`
 
-### 4. Abgeleitete Projektionen
+### 2.3 Abgeleitete Projektionen
 
 Diese Artefakte sind nicht Rohwirklichkeit, sondern interpretierte Sichten.
 
-#### 4.1 Workspaces
+#### 2.3.1 Workspaces
 Aktuell bereits als Kategorie sichtbar. Die Blaupause ordnet sie klar als Annotation ein.
 ```yaml
 workspace_annotation:
@@ -338,7 +346,7 @@ workspace_annotation:
 ```
 **Hinweis**: Repo-/Workspace-Erkennung ist nützlich, aber nicht der Kern der Ontologie. Sonst driftet Atlas wieder in Richtung Entwicklerzoo.
 
-#### 4.2 Hotspots
+#### 2.3.2 Hotspots
 ```yaml
 hotspots:
   snapshot_id: snap_...
@@ -357,7 +365,7 @@ hotspots:
 ```
 **Geplante Erweiterungen**: `growth_hotspots`, `duplicate_hotspots`, `change_hotspots`, `media_hotspots`, `archive_hotspots`
 
-#### 4.3 TopologyProjection
+#### 2.3.3 TopologyProjection
 ```yaml
 topology:
   snapshot_id: snap_...
@@ -378,7 +386,7 @@ topology:
 ```
 **Bemerkung**: Ich würde mittelfristig `root_path: "."` bevorzugen, weil das deterministischer ist. Aber das ist keine Grundsatzfrage des Fundaments, sondern ein späterer Contract-Schliff.
 
-#### 4.4 ContentProjection
+#### 2.3.4 ContentProjection
 ```yaml
 content:
   snapshot_id: snap_...
@@ -394,17 +402,17 @@ content:
 ```
 **Später erweiterbar um**: `language_counts`, `mime_counts`, `encoding_counts`, `preview_refs`, `chunk_refs`
 
-## 5. Snapshot-Mechanik
+## 3. Snapshot-Mechanik
 
-### 5.1 Snapshot-Erzeugung
+### 3.1 Snapshot-Erzeugung
 Phasen: Root auflösen -> Rohinventar erzeugen -> Basisstats berechnen -> optionale Enrichment-Artefakte erzeugen -> Snapshot-Metadaten schreiben -> Snapshot registrieren.
 
 Minimaler Write: `scan_result` -> `inventory.jsonl` -> `dirs.jsonl` -> `summary.md` -> `snapshot_meta.json` -> `snapshot_registry` append.
 
-### 5.2 Snapshot-ID-Strategie
+### 3.2 Snapshot-ID-Strategie
 Format: `snap_<machine_id>__<root_id>__<UTC timestamp>__<short config hash>` (Beispiel: `snap_heim-pc__home__2026-03-10T053519Z__83b1`). Dies ist global unterscheidbar, Root-/Maschinenkontext ist sichtbar.
 
-### 5.3 Snapshot-Registry
+### 3.3 Snapshot-Registry
 Atlas braucht eine Registry-Datei oder Tabelle.
 ```yaml
 snapshot_registry:
@@ -422,14 +430,14 @@ snapshot_registry:
 
 **Meine Präferenz**: SQLite als Registry, Artefakte als Dateien. Nicht alles in SQLite, nicht alles im Dateisystem. Mischform.
 
-## 6. Delta-Mechanik
+## 4. Delta-Mechanik
 
-### 6.1 Delta-Typen
+### 4.1 Delta-Typen
 * **Snapshot-to-Snapshot Delta**: Vergleich zweier Snapshots desselben Roots.
 * **Cross-machine Delta**: Vergleich zweier Roots auf unterschiedlichen Maschinen.
 * **Time-window Delta**: Vergleich erste vs letzte Beobachtung in Zeitraum.
 
-### 6.2 Delta-Kernstruktur
+### 4.2 Delta-Kernstruktur
 ```yaml
 delta:
   delta_id: delta_...
@@ -450,23 +458,23 @@ delta:
 ```
 **Pflicht**: sortierte Listen, deterministische Ausgabe, klare Referenz auf beide Snapshots.
 
-### 6.3 Renames
+### 4.3 Renames
 Rename-Erkennung ist verführerisch, aber teuer und fehleranfällig.
 **Entscheidung**: Nicht Pflichtkern in Phase 1.
 Später: optional über Hash-Matching, evtl. Heuristik (gleicher checksum, neuer Pfad, alter Pfad entfernt).
 
-## 7. Artefaktklassen
+## 5. Artefaktklassen
 * **Klasse A – Kernartefakte** (Immer): `inventory.jsonl`, `dirs.jsonl`, `summary.md`, `snapshot_meta.json`.
 * **Klasse B – Enrichment-Artefakte** (Optional): `content.json`, `media.json`, `mime_summary.json`, `hashes.jsonl`.
 * **Klasse C – Derivation-Artefakte** (Abgeleitet): `topology.json`, `hotspots.json`, `workspaces.json`, `duplicates.json`, `history_views.json`.
 * **Klasse D – Index-Artefakte** (Suche/Retrieval): `fts.sqlite`, `chunk_index.sqlite`, `semantic_index/...`.
 
-## 8. Speicherstrategie & Verzeichnisstruktur
+## 6. Speicherstrategie & Verzeichnisstruktur
 
-### 8.1 Speicherstrategie
+### 6.1 Speicherstrategie
 Registry + Indizes in SQLite (für Snapshot/Root/Machine Registries und schnelle Suche). Rohartefakte als Dateien (für große Inventare, Versionierung).
 
-### 8.2 Verzeichnisstruktur-Vorschlag
+### 6.2 Verzeichnisstruktur-Vorschlag
 ```text
 atlas/
   machines/
@@ -494,18 +502,18 @@ atlas/
     semantic_chunks.sqlite
 ```
 
-## 9. Index-Strategie
+## 7. Index-Strategie
 Suchachsen:
 * **Dateimetadaten-Suche** (Pfad, Ext, Größe, Root)
 * **Inhalts-Suche** (Volltext, Chunks)
 * **Historie-Suche** (wann gesehen/geändert).
 Backend: Primär SQLite + FTS.
 
-## 10. Contracts, die Atlas künftig braucht
+## 8. Contracts, die Atlas künftig braucht
 
 Hier wird es wichtig. Wenn diese Contracts fehlen, beginnt Drift.
 
-### 10.1 Root Contract
+### 8.1 Root Contract
 Definiert:
 * zulässige Root-Typen
 * machine_id-Bindung
@@ -513,14 +521,14 @@ Definiert:
 * Berechtigungsflags
 * Inhaltszugriff ja/nein
 
-### 10.2 Snapshot Contract
+### 8.2 Snapshot Contract
 Definiert:
 * Pflichtfelder eines Snapshots
 * Artefakt-Refs
 * scan_config_hash
 * Status (running, complete, failed, partial)
 
-### 10.3 Inventory Contract
+### 8.3 Inventory Contract
 Definiert:
 * Pflichtfelder pro Datei
 * optionale Felder
@@ -529,14 +537,14 @@ Definiert:
 
 **Wichtige offene Stelle**: `is_text` sollte künftig explizit im Contract stehen als: optional oder guaranteed only in content-enabled scans. Diese Entscheidung darf nicht still im Code wohnen.
 
-### 10.4 Delta Contract
+### 8.4 Delta Contract
 Definiert:
 * deterministische Listen
 * Sortierreihenfolge
 * Vergleichslogik
 * Fehlerstruktur
 
-### 10.5 Mode Output Contract
+### 8.5 Mode Output Contract
 Definiert für `inventory`, `topology`, `content`, `workspace`:
 * welche Artefakte mindestens entstehen
 * welche leer sein dürfen
@@ -544,11 +552,11 @@ Definiert für `inventory`, `topology`, `content`, `workspace`:
 
 Der aktuelle `planner.py` ist dafür ein guter technischer Anfang, aber noch kein offizieller Contract.
 
-## 11. API-Strategie
+## 9. API-Strategie
 
 Ich würde jetzt schon die verbalen Endpunkte festziehen, selbst wenn sie intern noch nicht voll ausgebaut sind.
 
-### 11.1 Kernoperationen
+### 9.1 Kernoperationen
 * `atlas scan`
 * `atlas snapshot`
 * `atlas derive`
@@ -560,7 +568,7 @@ Ich würde jetzt schon die verbalen Endpunkte festziehen, selbst wenn sie intern
 
 **Wichtig**: Nicht wieder alles in `atlas scan --do-everything` kippen.
 
-### 11.2 Semantischer Vorteil
+### 9.2 Semantischer Vorteil
 Dann kannst du später:
 * schnelle Discovery-Scans
 * selektives Enrichment
@@ -568,11 +576,11 @@ Dann kannst du später:
 * getrennten Index-Rebuild
 sauber auseinanderhalten.
 
-## 12. Multi-Machine-Universum
+## 10. Multi-Machine-Universum
 
 Das ist die Achse, auf der Atlas wirklich groß wird.
 
-### 12.1 Machine Registry
+### 10.1 Machine Registry
 ```yaml
 machines:
   - machine_id: heim-pc
@@ -583,7 +591,7 @@ machines:
     labels: [server, remote]
 ```
 
-### 12.2 Root Registry
+### 10.2 Root Registry
 ```yaml
 roots:
   - root_id: heim-pc__home
@@ -594,14 +602,14 @@ roots:
     path: /srv
 ```
 
-### 12.3 Cross-Machine-Fähigkeiten
+### 10.3 Cross-Machine-Fähigkeiten
 * Root-Vergleich
 * Snapshot-Vergleich
 * Diff
 * Sync-Lücken
 * Backup-Vollständigkeit
 
-## 13. Alternative Sinnachse
+## 11. Alternative Sinnachse
 
 Die übliche Frage lautet: *Wie scannt Atlas Dateien?*
 Die wichtigere Frage lautet: *Wie erinnert Atlas Maschinenzustände so, dass spätere Systeme darüber denken können?*
@@ -628,88 +636,31 @@ Ich ordne die kommenden Atlas-Funktionen nach fünf Kriterien:
 4. **Anschlussfähigkeit**: Kann Lenskit/Heimgeist/HausKI später darauf aufsetzen?
 5. **Drift-Risiko**: Verführt die Funktion Atlas dazu, seine Kernrolle zu verlieren?
 
-## 3. Die große Ausbau-Roadmap
+## 3. Die große Ausbau-Roadmap (Übersicht)
 
-Ich schlage 6 Phasen vor.
+Die detaillierte, abhakbare Roadmap mit spezifischen Tasks und Stop-Kriterien befindet sich in Teil 4. Hier ist die strategische Phasierung skizziert:
 
 ### Phase A – Atlas als belastbarer Kernscanner
-**Ziel**: Die physische Erfassung wird robust und vollständig.
-**Muss können**:
-* vollständige Datei-Inventur
-* dirs inventory
-* Root-/Machine-Kontext
-* Snapshot-Erzeugung
-* saubere Registry
-* stabile Artefaktstruktur
-
-**Abschlusskriterium**: Du kannst für jeden Root sagen, was dort liegt, wie groß es ist, wann gescannt wurde, und welche Snapshot-ID dazu gehört.
+**Muss können**: vollständige Datei-Inventur, Root-/Machine-Kontext, Snapshot-Erzeugung, saubere Registry.
 **Warum diese Phase zuerst?**: Weil alle späteren Wunderwerke sonst auf unstabiler Rohwirklichkeit aufbauen. Ein wackliger Scanner mit toller Suchoberfläche ist nur ein eloquenter Irrtum.
 
 ### Phase B – Zeitgedächtnis
-**Ziel**: Atlas wird historisch.
-**Muss können**:
-* Snapshot-Registry
-* Snapshot-Vergleich
-* deterministische Delta-Artefakte
-* Datei-/Root-Historie
-* Zeitfenster-Vergleiche
-
-**Neue Fähigkeiten**: `atlas snapshot`, `atlas diff`, `atlas history`
-**Praktische Wirkung**: Ab hier wird Atlas von einem Scanner zu einem Gedächtnisorgan.
-**Beispiel-Fragen**: Was war gestern neu? Welche Verzeichnisse wachsen? Welche Dateien verschwanden? Was änderte sich auf Heimserver vs. Heim-PC?
-**Abschlusskriterium**: Für jeden Root ist eine Timeline von Zuständen und Veränderungen rekonstruierbar.
+**Muss können**: Snapshot-Vergleich, deterministische Delta-Artefakte, Datei-/Root-Historie.
+**Praktische Wirkung**: Ab hier wird Atlas von einem Scanner zu einem Gedächtnisorgan. (Was war gestern neu? Was änderte sich auf Heimserver vs. Heim-PC?)
 
 ### Phase C – Incrementalität und Watch-Mode
-**Ziel**: Atlas wird schnell und lebendig.
-**Muss können**:
-* inkrementelle Re-Scans
-* heuristische Änderungserkennung
-* optionaler Watch-Mode
-* Event-Ausgabe an Chronik
-
-**Mechaniken**: mtime/size/inode-Filter, Snapshot-basierte Wiederaufnahme, inotify/fanotify nur optional (nicht Pflichtbasis).
+**Muss können**: inkrementelle Re-Scans, heuristische Änderungserkennung.
 **Warum erst jetzt?**: Weil Incrementalität ohne gutes Snapshot-Modell gefährlich ist. Sonst optimierst du auf eine Realität, die du noch nicht sauber modelliert hast.
-**Abschlusskriterium**: Ein großer Root kann nach Erstscan in deutlich kleineren Delta-Läufen aktualisiert werden.
 
 ### Phase D – Inhaltszugang und Suchschicht
-**Ziel**: Atlas wird durchsuchbar.
-**Muss können**:
-* Pfadsuche
-* Namenssuche
-* Extension-/MIME-Suche
-* Volltextsuche
-* Größen-/Zeitfilter
-* optional Preview-/Chunk-Artefakte
-
-**CLI-Vision**: `atlas search "snapshot_id"`, `atlas search --ext md`, `atlas search --size >10MB`, `atlas search --path docs/`
+**Muss können**: Pfadsuche, Namenssuche, Extension-/MIME-Suche, Volltextsuche.
 **Designregel**: Die Suche baut auf Artefakten auf, nicht auf ständigem Re-Scanning.
-**Abschlusskriterium**: Atlas kann eine Datei nicht nur finden, sondern auch erklären, warum sie im Suchraum auftaucht.
 
 ### Phase E – Systemanalyse und Cross-Machine Intelligence
-**Ziel**: Atlas wird vergleichend und diagnostisch.
-**Muss können**:
-* Cross-machine diff
-* Duplicate Detection
-* Storage-Hotspots
-* Old/Orphan analysis
-* Backup-Gaps
-* Change-Hotspots
-
-**CLI-Vision**: `atlas analyze disk`, `atlas analyze duplicates`, `atlas analyze orphan`, `atlas diff heim-pc:/home heimserver:/home`
-**Abschlusskriterium**: Atlas kann nicht nur Bestände zeigen, sondern Handlungsräume offenlegen: was räumt man auf? was fehlt? was wächst gefährlich? was ist doppelt?
+**Muss können**: Cross-machine diff, Duplicate Detection, Storage-Hotspots, Old/Orphan analysis.
 
 ### Phase F – Wissenskarte und höhere Projektionen
-**Ziel**: Atlas erzeugt übergeordnete Karten.
-**Muss können**:
-* Knowledge Clusters
-* Dateiraum-Topologie
-* Wissenszonen
-* Mediale Schwerpunkte
-* semantische Dateitags
-* Root-/Maschinen-Karten
-
-**Beispiel**: `atlas map`, `atlas map --machine heim-pc`, `atlas map --root home`
-**Abschlusskriterium**: Atlas kann deine digitale Landschaft als Karte zeigen, nicht nur als Inventarliste.
+**Muss können**: Knowledge Clusters, Dateiraum-Topologie, Wissenszonen, semantische Dateitags.
 
 ## 4. Die 12 Kernfeatures in endgültiger Priorisierung
 
