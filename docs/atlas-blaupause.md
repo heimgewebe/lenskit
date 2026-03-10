@@ -829,7 +829,7 @@ Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
 - [x] Delta Contract definieren
 - [x] Mode Output Contract definieren
 - [x] is_text-Garantie explizit dokumentieren
-- [x] Verzeichnisstruktur offiziell festlegen
+- [x] Verzeichnisstruktur offiziell festlegen (als Zielstruktur dokumentiert)
 
 **Stop-Kriterium**: Atlas hat eine explizite, maschinenlesbare und dokumentierte Grundverfassung.
 
@@ -840,8 +840,8 @@ Ziel: Machine-, Root- und Snapshot-Wirklichkeit persistent und abfragbar machen.
 - [x] Root Registry implementieren
 - [x] Snapshot Registry implementieren
 - [x] Snapshot-Status (running/complete/partial/failed) implementieren
-- [x] Snapshot-Artefakt-Refs konsistent speichern
-- [x] Snapshot-ID-Schema stabilisieren
+- [ ] Snapshot-Artefakt-Refs konsistent speichern (wartet auf finale Pfad-Migration)
+- [ ] Snapshot-ID-Schema stabilisieren
 - [x] CLI: `atlas machines`
 - [x] CLI: `atlas roots`
 - [x] CLI: `atlas snapshots`

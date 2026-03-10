@@ -13,22 +13,22 @@ from merger.lenskit.atlas.registry import AtlasRegistry
 
 def run_atlas_machines(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
-    registry = AtlasRegistry(registry_path)
-    machines = registry.list_machines()
+    with AtlasRegistry(registry_path) as registry:
+        machines = registry.list_machines()
     print(json.dumps(machines, indent=2))
     return 0
 
 def run_atlas_roots(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
-    registry = AtlasRegistry(registry_path)
-    roots = registry.list_roots()
+    with AtlasRegistry(registry_path) as registry:
+        roots = registry.list_roots()
     print(json.dumps(roots, indent=2))
     return 0
 
 def run_atlas_snapshots(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
-    registry = AtlasRegistry(registry_path)
-    snapshots = registry.list_snapshots()
+    with AtlasRegistry(registry_path) as registry:
+        snapshots = registry.list_snapshots()
     print(json.dumps(snapshots, indent=2))
     return 0
 
@@ -67,20 +67,13 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
 
         # Register Root
         # Ensure we always use absolute path as canonical value
-        root_value = str(scan_root.resolve())
+        root_value = str(scan_root)
         root_hash = hashlib.md5(root_value.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
         root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
         registry.register_root(root_id, machine_id, "abs_path", root_value, label=scan_root.name)
 
         # Configure Snapshot Identity
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-
-        # Determine scan config hash
-        config_str = f"mode={args.mode}|depth={args.depth}|limit={args.limit}|ex={','.join(exclude_globs)}|nodef={args.no_default_excludes}|maxfs={max_file_size}"
-        short_hash = hashlib.md5(config_str.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
-
-        snapshot_id = f"snap_{machine_id}__{root_id}__{timestamp}__{short_hash}"
-        registry.create_snapshot(snapshot_id, machine_id, root_id, short_hash, "running")
 
         scanner = AtlasScanner(
             root=scan_root,
@@ -89,22 +82,22 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             exclude_globs=exclude_globs if exclude_globs else None,
             no_default_excludes=args.no_default_excludes,
             max_file_size=max_file_size,
-            snapshot_id=snapshot_id,
+            snapshot_id=None, # Will inject directly later once hash is computed
             enable_content_stats=(args.mode == "content")
         )
 
-        try:
-            scanner = AtlasScanner(
-                root=scan_root,
-                max_depth=args.depth,
-                max_entries=args.limit,
-                exclude_globs=exclude_globs if exclude_globs else None,
-                no_default_excludes=args.no_default_excludes,
-                max_file_size=max_file_size,
-                snapshot_id=snapshot_id,
-                enable_content_stats=(args.mode == "content")
-            )
+        # Determine effective scan config hash based on Scanner state
+        eff_excludes = scanner.stats.get("active_excludes", [])
+        eff_ex_str = ",".join(sorted(eff_excludes))
+        config_str = f"mode={args.mode}|depth={args.depth}|limit={args.limit}|ex={eff_ex_str}|maxfs={max_file_size}"
+        short_hash = hashlib.md5(config_str.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
 
+        snapshot_id = f"snap_{machine_id}__{root_id}__{timestamp}__{short_hash}"
+        scanner.snapshot_id = snapshot_id
+
+        registry.create_snapshot(snapshot_id, machine_id, root_id, short_hash, "running")
+
+        try:
             base_name = f"atlas_scan_{scan_root.name if scan_root.name else 'root'}"
             scan_id = base_name
             planned_outputs = plan_atlas_outputs(args.mode, scan_id)

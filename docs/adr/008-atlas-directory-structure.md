@@ -7,7 +7,9 @@ Accepted
 Atlas needs a predictable filesystem layout for its SQLite registries and raw file artifacts to enable cross-machine operations, backups, and predictable data management.
 
 ## Decision
-The official directory structure for Atlas storage is as follows:
+The official **canonical target structure** for Atlas storage is as follows.
+
+*(Note: While the Registry is already correctly initialized at this location, flat file artifacts are currently still emitted to the working directory. A full migration of artifacts to this target snapshot path is pending in a future phase).*
 
 ```text
 atlas/

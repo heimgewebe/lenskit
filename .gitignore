@@ -32,3 +32,7 @@ merger/repoLens/merges/
 *.log
 repolensd.log
 .gewebe/out/
+
+# Atlas Registry & Indices
+atlas/registry/*.sqlite
+atlas/indexes/*.sqlite
