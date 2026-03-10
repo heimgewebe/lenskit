@@ -65,9 +65,22 @@
       "description": "Optional reference to the workspaces artifact."
     }
   },
-  "anyOf": [
-    { "required": ["inventory_ref"] },
-    { "required": ["dirs_ref"] }
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "complete"
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          { "required": ["inventory_ref"] },
+          { "required": ["dirs_ref"] }
+        ]
+      }
+    }
   ],
-  "description": "Must contain at least one core artifact reference (inventory or dirs)."
+  "description": "Complete snapshots must contain at least one core artifact reference (inventory or dirs)."
 }

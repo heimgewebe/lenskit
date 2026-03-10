@@ -73,6 +73,10 @@ def main():
     atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
     atlas_scan_parser.add_argument("--mode", choices=["inventory", "topology", "content", "workspace"], default="inventory", help="The scan mode to execute")
 
+    atlas_machines_parser = atlas_subparsers.add_parser("machines", help="List registered machines")
+    atlas_roots_parser = atlas_subparsers.add_parser("roots", help="List registered roots")
+    atlas_snapshots_parser = atlas_subparsers.add_parser("snapshots", help="List registered snapshots")
+
     # Architecture command
     arch_parser = subparsers.add_parser("architecture", help="Extract architectural views of a repository")
     arch_parser.add_argument("repo", nargs="?", default=".", help="The repository path to scan (default: current directory)")
@@ -94,9 +98,15 @@ def main():
         sys.exit(2)
 
     if args.command == "atlas":
+        from . import cmd_atlas
         if args.atlas_cmd == "scan":
-            from . import cmd_atlas
             sys.exit(cmd_atlas.run_atlas_scan(args))
+        elif args.atlas_cmd == "machines":
+            sys.exit(cmd_atlas.run_atlas_machines(args))
+        elif args.atlas_cmd == "roots":
+            sys.exit(cmd_atlas.run_atlas_roots(args))
+        elif args.atlas_cmd == "snapshots":
+            sys.exit(cmd_atlas.run_atlas_snapshots(args))
         else:
             parser.parse_args(["atlas", "--help"])
             sys.exit(0)

@@ -203,6 +203,7 @@ class AtlasScanner:
         Args:
             inventory_file: Optional path to write a JSONL inventory of all files.
             dirs_inventory_file: Optional path to write a JSONL inventory of all directories.
+            previous_inventory_file: Optional path to previous inventory to calculate delta against.
         """
         self.stats["start_time"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         start_ts = time.time()
@@ -422,6 +423,8 @@ class AtlasScanner:
                                 "mtime": datetime.fromtimestamp(mtime, timezone.utc).isoformat().replace('+00:00', 'Z'),
                                 "is_symlink": is_sym
                             }
+                        if self.snapshot_id:
+                            entry["snapshot_id"] = self.snapshot_id
                             if is_txt is not None:
                                 entry["is_text"] = is_txt
                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")

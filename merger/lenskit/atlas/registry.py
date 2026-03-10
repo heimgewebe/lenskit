@@ -12,6 +12,17 @@ class AtlasRegistry:
         self.conn.row_factory = sqlite3.Row
         self._init_db()
 
+    def close(self):
+        if self.conn:
+            self.conn.close()
+            self.conn = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def _init_db(self):
         with self.conn:
             self.conn.execute("PRAGMA foreign_keys = ON;")
@@ -143,5 +154,5 @@ class AtlasRegistry:
 
     def list_snapshots(self) -> List[Dict[str, Any]]:
         cur = self.conn.cursor()
-        cur.execute("SELECT * FROM snapshots ORDER BY created_at DESC")
+        cur.execute("SELECT * FROM snapshots ORDER BY created_at DESC, snapshot_id DESC")
         return [dict(row) for row in cur.fetchall()]

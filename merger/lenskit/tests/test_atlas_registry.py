@@ -10,7 +10,8 @@ def temp_db_path(tmp_path):
 
 @pytest.fixture
 def registry(temp_db_path):
-    return AtlasRegistry(temp_db_path)
+    with AtlasRegistry(temp_db_path) as reg:
+        yield reg
 
 def test_registry_initialization(temp_db_path, registry):
     assert temp_db_path.exists()
@@ -99,8 +100,19 @@ def test_snapshot_registry(registry):
     assert s3["dirs_ref"] is None
 
     # List snapshots
+    # Ensure they have identical created_at to test secondary sorting on ID
+    cur = registry.conn.cursor()
+    cur.execute("UPDATE snapshots SET created_at = '2026-03-10T00:00:00Z' WHERE snapshot_id = 's1'")
+    registry.conn.commit()
+
     registry.create_snapshot("s2", "m1", "r1", "hash456", "running")
+    cur.execute("UPDATE snapshots SET created_at = '2026-03-10T00:00:00Z' WHERE snapshot_id = 's2'")
+    registry.conn.commit()
+
     snapshots = registry.list_snapshots()
     assert len(snapshots) == 2
-    # Check ordering by created_at DESC
-    assert snapshots[0]["snapshot_id"] == "s2" or snapshots[0]["snapshot_id"] == "s1" # since they are created fast, test might not see difference but let's assume valid.
+
+    # Check ordering by created_at DESC, snapshot_id DESC
+    # Since both have the exact same created_at, 's2' must strictly appear before 's1'
+    assert snapshots[0]["snapshot_id"] == "s2"
+    assert snapshots[1]["snapshot_id"] == "s1"

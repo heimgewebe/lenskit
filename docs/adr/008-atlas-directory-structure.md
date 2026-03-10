@@ -17,14 +17,14 @@ atlas/
         <root_id>/
           snapshots/
             <snapshot_id>/
-              summary.md
-              inventory.jsonl
-              dirs.jsonl
-              content.json
-              topology.json
-              hotspots.json
-              workspaces.json
-              snapshot_meta.json
+              <scan_id>.summary.md
+              <scan_id>.inventory.jsonl
+              <scan_id>.dirs.jsonl
+              <scan_id>.content.json
+              <scan_id>.topology.json
+              <scan_id>.hotspots.json
+              <scan_id>.workspaces.json
+              <scan_id>.snapshot_meta.json
   registry/
     atlas_registry.sqlite
   indexes/
