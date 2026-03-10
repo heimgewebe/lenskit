@@ -86,6 +86,21 @@ Neue Artefakte:
 
 ---
 
+## 3.1 Kanonische Begriffe / Namensdisziplin
+
+Um Begriffsdrift zwischen Konzept und Implementierung zu vermeiden, gilt folgende Namensdisziplin:
+
+| Konzeptioneller Begriff (Rolle) | Kanonischer Dateiname / Artefaktname | Status |
+| :--- | :--- | :--- |
+| `context_bundle_json` | `query_context_bundle.json` | Verbindlich geplant |
+| `artifact_graph_json` | `artifact_graph.json` | Verbindlich geplant |
+| `chunk_index_sqlite` | `chunk_index.index.sqlite` | Historisch etabliert, kanonisch |
+| `query_trace_json` | `query_trace.json` | Verbindlich geplant |
+
+*(Abstrakte Unterstrich-Begriffe wie `artifact_graph_json` bezeichnen die Artefaktrolle im Manifest, Punkt-Begriffe wie `artifact_graph.json` den tatsächlichen Dateinamen.)*
+
+---
+
 ## 4 Artifact-Graph (neue Kernstruktur)
 
 Lenskit erhält eine explizite Build-Abhängigkeitsstruktur.
@@ -1761,23 +1776,18 @@ Gate:
 
 ---
 
-## Priorisierung
+## Priorisierung & Phasenabhängigkeiten
 
-Muss zuerst:
-- Phase 1
-- Phase 2
-- Phase 3
-
-Danach:
-- Phase 4
-- Phase 5
-
-Dann:
-- Phase 6
-- Phase 7
-
-Zuletzt:
-- Phase 8
+| Phase | Braucht zwingend | Profitiert von | Darf nicht vorziehen |
+| :--- | :--- | :--- | :--- |
+| **Phase 1** | - | - | - |
+| **Phase 2** | Phase 1 | - | - |
+| **Phase 3** | Phase 1 | Phase 2 | Phase 4 |
+| **Phase 4** | Phase 1, 2, 3 | - | Phase 5 |
+| **Phase 5** | Phase 1, 2, 3, 4 | Phase 3 | Phase 6 |
+| **Phase 6** | Phase 1, 2, 3, 4, 5 | Phase 3 | Phase 7 |
+| **Phase 7** | Phase 2, 4 | Phase 3, 6 | Phase 8 |
+| **Phase 8** | Phase 2, 3 | Phase 4, 5 | (Endstufe) |
 
 ---
 
