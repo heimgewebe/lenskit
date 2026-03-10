@@ -293,7 +293,7 @@ Optional:
 Context Builder:
 
 Output:
-`context_bundle.json`
+`query_context_bundle.json`
 
 Enthält:
 * chunks
@@ -423,7 +423,7 @@ Endpoint:
 `lenskit query`
 
 Antwort:
-`context_bundle.json`
+`query_context_bundle.json`
 
 Agent Features:
 
