@@ -1,5 +1,12 @@
 # Blaupause: Lenskit-Optimierung zum deterministischen Knowledge-Compiler mit Query-Runtime
 
+**Status:** Blaupause / Zielarchitektur
+**Zweck:** Strategische Ausbauplanung für Lenskit
+**Geltungsbereich:** Beschreibt Zielbild und empfohlene Evolutionspfade
+**Nicht-Zweck:** Ist keine vollständige Beschreibung des aktuellen Implementierungsstands
+
+> **Knowledge-Compiler:** Ein System, das Repositories deterministisch in versionierte, contract-validierte Wissensartefakte überführt, die für Retrieval, Diagnose und Agent-Kontext nutzbar sind.
+
 ---
 
 ## 1 Zielbild
@@ -463,34 +470,7 @@ Regeln:
 
 ---
 
-## 17 Entwicklungsphasen
-
-Phase | Ziel
---- | ---
-Phase 1 | Pipeline stabilisieren
-Phase 2 | Query Runtime
-Phase 3 | Graph Layer
-Phase 4 | Bundle Evolution
-Phase 5 | Lens Ausbau
-Phase 6 | Agent Integration
-Phase 7 | UI / Service Konsolidierung
-Phase 8 | Semantische Erweiterung
-
----
-
-## 18 Prioritäten
-
-Reihenfolge:
-
-1. pipeline determinism
-2. query runtime
-3. graph index
-4. agent api
-5. cross repo analysis
-
----
-
-## 19 Systemprinzipien
+## 17 Systemprinzipien
 
 Lenskit folgt dauerhaft:
 
@@ -499,28 +479,6 @@ Lenskit folgt dauerhaft:
 * artifact centric
 * reproducible bundles
 * agent ready outputs
-
----
-
-## 20 Essenz
-
-Lenskit wird systematisch ausgebaut zu einem
-
-deterministischen Knowledge-Compiler mit Query-Runtime und portablem Knowledge-Bundle-Format.
-
-Pipeline:
-
-Repository
-   ↓
-Lenskit
-   ↓
-Knowledge Bundle
-   ↓
-Query / Agents / Analysis
-
-Lenskit durchsucht Repositories nicht.
-
-Lenskit kompiliert sie zu Wissen.
 
 ---
 
@@ -1420,6 +1378,8 @@ Phase 5 bis Phase 6 im Detail
 
 ## 1. Phase 5 – Cross-Repo-Knowledge-Layer
 
+*(Architektonischer Ausbaupfad – nicht als bereits implementiert zu lesen. Bedarf separater Contract-/Implementierungs-PRs.)*
+
 Ziel:
 
 Lenskit soll von einem Bundle-Erzeuger pro Repo oder Run zu einem System werden, das mehrere Bundles systematisch in Beziehung setzen kann, ohne seine deterministische Natur zu verlieren.
@@ -1589,6 +1549,8 @@ Wichtige Tests:
 
 ## 2. Phase 6 – Agent-Anbindung / Control Surface
 
+*(Architektonischer Ausbaupfad – nicht als bereits implementiert zu lesen. Bedarf separater Contract-/Implementierungs-PRs.)*
+
 Ziel:
 
 Lenskit soll Agenten bedienen können, ohne seine Deterministik und epistemische Disziplin zu verlieren.
@@ -1740,6 +1702,8 @@ Mittlere, semantisch saubere PR-Schnitte:
 
 ## Phase 7 – UI / Service / Produktisierung
 
+*(Architektonischer Ausbaupfad – nicht als bereits implementiert zu lesen. Bedarf separater Contract-/Implementierungs-PRs.)*
+
 Ziel:
 
 Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern.
@@ -1761,6 +1725,8 @@ Gate:
 ---
 
 ## Phase 8 – Semantische Erweiterung
+
+*(Architektonischer Ausbaupfad – nicht als bereits implementiert zu lesen. Bedarf separater Contract-/Implementierungs-PRs.)*
 
 Ziel:
 
