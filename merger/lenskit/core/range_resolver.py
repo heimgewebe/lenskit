@@ -44,7 +44,7 @@ def build_derived_range_ref(
     Builds a dictionary representing a derived, source-backed range reference.
     """
     return {
-        "artifact_role": "source_file",
+        "artifact_role": ArtifactRole.SOURCE_FILE.value,
         "repo_id": repo_id,
         "file_path": file_path,
         "start_byte": start_byte,

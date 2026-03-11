@@ -53,11 +53,13 @@ def test_role_completeness():
             assert not missing_in_python, f"Roles defined in {schema_name} but missing from code enum: {missing_in_python}"
 
         elif "range-ref" in schema_name:
-            # Depending on range-ref schema structure, we extract the enum
-            # Typically under properties -> artifact_role -> enum
+            # Note: The range-ref schema intentionally models only a SUBSET of roles
+            # (specifically those that can be referenced as artifacts or sources).
+            # Therefore, we do NOT check for full bidirectionality here.
+            # We ONLY check for unidirectional drift: Ensure the schema does not contain
+            # any roles that are completely unknown to the Python ArtifactRole enum.
             try:
                 schema_roles = set(schema["properties"]["artifact_role"]["enum"])
-                # The range-ref schema might be a subset, but it shouldn't contain things unknown to Python
                 missing_in_python = schema_roles - python_roles
                 assert not missing_in_python, f"Roles defined in {schema_name} but missing from code enum: {missing_in_python}"
             except KeyError:
