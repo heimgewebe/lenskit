@@ -5123,7 +5123,7 @@ def write_reports_v2(
                     md_file_name, md_start_byte = md_offsets[fid]
                     if md_file_name == canonical_md_name:
                         d["content_range_ref"] = build_explicit_range_ref(
-                            artifact_role="canonical_md",
+                            artifact_role=ArtifactRole.CANONICAL_MD.value,
                             repo_id=fi.root_label,
                             file_path=md_file_name,
                             start_byte=md_start_byte + d["start_byte"],

@@ -1,8 +1,8 @@
-import pytest
 from pathlib import Path
-from merger.lenskit.core.merge import write_reports_v2, FileInfo
 import json
-import sqlite3
+
+from merger.lenskit.core.merge import write_reports_v2, FileInfo
+
 
 def test_split_mode_contract_range_refs(tmp_path):
     """
@@ -20,12 +20,12 @@ def test_split_mode_contract_range_refs(tmp_path):
     repo_dir = hub_path / "r1"
     repo_dir.mkdir()
 
-    # We create multiple files to force a split
+    # We create multiple files to force a split reliably, making the chunks and parts deterministic
     fis = []
-    for i in range(50):
+    for i in range(20):
         fname = f"test_{i}.py"
         fpath = repo_dir / fname
-        content = f"def hello_{i}():\n    print('This is file {i} filling up space to trigger a split.')\n"
+        content = f"def hello_{i}():\n    # " + "B" * 2000 + f"\n    print('This is file {i} filling up space to trigger a split reliably.')\n"
         fpath.write_text(content, encoding="utf-8")
 
         fi = FileInfo(
@@ -43,8 +43,7 @@ def test_split_mode_contract_range_refs(tmp_path):
 
     repo_summaries = [{"name": "r1", "root": repo_dir, "files": fis}]
 
-    # Run merge with a small split size to force 2+ parts
-    # Ensure it's small enough to split, but large enough for at least one file per part
+    # Run merge with a split size to force multiple parts
     res = write_reports_v2(
         merges_dir=merges_dir,
         hub=hub_path,
@@ -54,7 +53,7 @@ def test_split_mode_contract_range_refs(tmp_path):
         max_bytes=10000,
         plan_only=False,
         output_mode="dual",
-        split_size=20000  # Make it large enough so Part 1 captures files, but small enough to split over multiple files
+        split_size=20000  # Ensure we capture multiple files in the first part but spill over
     )
 
     assert len(res.md_parts) > 1, "Test needs to generate multiple markdown parts to test split mode contract"
