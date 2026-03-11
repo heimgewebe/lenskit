@@ -89,6 +89,7 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     }
 
     # Store in the to_snapshot directory as per convention: snapshots/<snapshot_id>/
+    # Note: Artifacts are currently written relative to the Atlas CWD convention `Path("atlas")`.
     snapshot_dir = Path("atlas") / "machines" / machine_id / "roots" / root_id / "snapshots" / to_snap_id
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 

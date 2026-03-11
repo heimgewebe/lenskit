@@ -1,7 +1,6 @@
 import pytest
-import sqlite3
 import json
-from pathlib import Path
+import os
 from merger.lenskit.atlas.registry import AtlasRegistry
 from merger.lenskit.atlas.diff import compute_snapshot_delta
 
@@ -31,13 +30,11 @@ def populated_registry(temp_workspace):
         # Write mock inventory 2
         inv2_path = tmp_path / "inv2.jsonl"
         with open(inv2_path, "w", encoding="utf-8") as f:
-            f.write(json.dumps({"snapshot_id": "s2", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n") # Unchanged
-            f.write(json.dumps({"snapshot_id": "s2", "rel_path": "b.txt", "size_bytes": 250, "mtime": "2023-01-02T00:00:00Z", "is_symlink": False}) + "\n") # Changed
-            f.write(json.dumps({"snapshot_id": "s2", "rel_path": "c.txt", "size_bytes": 300, "mtime": "2023-01-02T00:00:00Z", "is_symlink": False}) + "\n") # New
-            # b is changed, c is new, d is missing (there was no d in s1, actually b is changed and there's no removed).
-            # Let's add d to s1 and remove from s2
+            f.write(json.dumps({"snapshot_id": "s2", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+            f.write(json.dumps({"snapshot_id": "s2", "rel_path": "b.txt", "size_bytes": 250, "mtime": "2023-01-02T00:00:00Z", "is_symlink": False}) + "\n")
+            f.write(json.dumps({"snapshot_id": "s2", "rel_path": "c.txt", "size_bytes": 300, "mtime": "2023-01-02T00:00:00Z", "is_symlink": False}) + "\n")
 
-        # Re-write s1 with d.txt
+        # Re-write s1 with d.txt to test removals
         with open(inv1_path, "a", encoding="utf-8") as f:
             f.write(json.dumps({"snapshot_id": "s1", "rel_path": "d.txt", "size_bytes": 400, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
@@ -49,10 +46,8 @@ def populated_registry(temp_workspace):
 def test_compute_snapshot_delta(temp_workspace, populated_registry):
     tmp_path, _ = temp_workspace
 
-    # Needs to be run from tmp_path conceptually so Path("atlas") works,
-    # but compute_snapshot_delta writes to `Path("atlas")` relative to cwd.
-    # We should patch the output directory logic in diff.py or run the test carefully.
-    import os
+    # Run test from tmp_path so the registry artifact paths resolve correctly
+    # based on the current CWD convention for Atlas outputs.
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
