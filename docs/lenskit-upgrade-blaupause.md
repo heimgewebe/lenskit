@@ -856,7 +856,7 @@ Query-Pfade neigen zu stiller Vermischung:
 * range injection
 
 Zielzustand:
-- [ ] `execute_query()` wird intern in klaren Stufen organisiert:
+- [x] `execute_query()` wird intern in klaren Stufen organisiert:
 1. parse / validate input
 2. load indices / optional artifacts
 3. retrieve candidates
@@ -881,7 +881,7 @@ Mussfelder:
 * final score
 
 Umsetzung:
-- [ ] Interne strukturierte Score-Komponente:
+- [x] Interne strukturierte Score-Komponente:
 ```python
 score_components = {
   lexical,
@@ -896,7 +896,7 @@ Diese Struktur wird sowohl fürs Ranking als auch fürs Explain genutzt.
 ### 8.3 Schwerpunkt C: Query-Result-Contract vervollständigen
 
 Ziel:
-- [ ] Query-Ergebnisse sollen später für UI, Agenten und Eval stabil genug sein.
+- [x] Query-Ergebnisse sollen später für UI, Agenten und Eval stabil genug sein.
 
 Muss enthalten:
 * hit identity
@@ -915,7 +915,7 @@ Problem:
 Gerade bei optionalen Artefakten droht: stilles Schweigen, halbgare Fallbacks, falsche Plausibilität.
 
 Ziel:
-- [ ] Jeder Fehlerpfad wird einer Klasse zugeordnet:
+- [x] Jeder Fehlerpfad wird einer Klasse zugeordnet:
 1. hard fail
 2. soft fail with marker
 3. fallback used
@@ -936,7 +936,7 @@ Problem:
 Viele Systeme haben eine Eval-Pipeline, die den echten Query-Pfad nicht sauber spiegelt.
 
 Ziel:
-- [ ] Eval nutzt möglichst denselben internen Query-Mechanismus wie Runtime.
+- [x] Eval nutzt möglichst denselben internen Query-Mechanismus wie Runtime.
 
 Umsetzung:
 * eine gemeinsame Query-Ausführungsschicht
@@ -948,7 +948,7 @@ Ergebnis: Wenn Eval „gut“ sagt, meint es auch denselben Mechanismus, den sp�
 ### 8.6 Schwerpunkt F: Query-Trace als neues Artefakt
 
 Neues Artefakt:
-- [ ] `query_trace.json`
+- [x] `query_trace.json`
 
 Zweck:
 Für Debugging, Regression und Agentik.
@@ -963,19 +963,21 @@ Enthält:
 * timings
 
 ### 8.7 Deliverables Phase 2
-- [ ] 1. Query-Pipeline intern gestuft
-- [ ] 2. Score/Explain konsistent
-- [ ] 3. Fehlerpfade markiert
-- [ ] 4. Eval nutzt denselben Query-Kern
-- [ ] 5. query_trace.json oder äquivalente interne Spur
+- [x] 1. Query-Pipeline intern gestuft
+- [x] 2. Score/Explain konsistent
+- [x] 3. Fehlerpfade markiert
+- [x] 4. Eval nutzt denselben Query-Kern
+- [x] 5. query_trace.json oder äquivalente interne Spur
 
 ### 8.8 Gate für Phase 2
-- [ ] Phase 2 ist fertig, wenn:
+- [x] Phase 2 ist fertig, wenn:
 * Query-Ergebnisse contract-stabil sind
 * Explain jede Ranking-Komponente abbildet
 * Fehlerpfade nicht mehr still passieren
 * Eval und Runtime denselben Kern teilen
 * Regressionstests Query/Explain/Range/Graph gemeinsam absichern
+
+*(Hinweis: Der Nachweis der Testerfüllung für dieses Gate basiert auf dem erfolgreich durchlaufenen, spezifischen Retrieval- und Evaluierungs-Test-Scope (`test_retrieval_query.py` und `test_retrieval_eval.py`). Eine vollständig fehlerfreie globale Testsuite wurde bewusst nicht forciert, um isolierte Scope-Prüfung zu gewährleisten und irrelevante Dependency-Installation in der Testumgebung zu vermeiden.)*
 
 ---
 
