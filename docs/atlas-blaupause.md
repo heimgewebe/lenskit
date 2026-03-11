@@ -855,7 +855,7 @@ Ziel: Atlas wird historisch nutzbar.
 - [x] `from_snapshot_id` / `to_snapshot_id` standardisieren
 - [x] sortierte Delta-Listen garantieren
 - [x] CLI: `atlas diff <snapA> <snapB>`
-- [x] CLI: `atlas history <path>`
+- [x] CLI: `atlas history <machine_id> <root_id> <rel_path>`
 - [x] Datei-Historienmodell definieren (Eine Datei-Historie wird über chronologisch sortierte `inventory.jsonl` Beobachtungen der Snapshots desselben Roots und canonical `rel_path` abgeleitet).
 - [x] Root-Historienmodell definieren (Eine Root-Historie ergibt sich implizit durch alle `complete` Snapshots, die der `root_id` in der Registry zugeordnet sind).
 - [x] Zeitfenster-Vergleiche konzipieren (Ein Zeitfenster-Vergleich entspricht der Aggregation von Deltas über alle Snapshots im Zielzeitraum, abgeleitet durch Registries).

@@ -13,6 +13,9 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     if not to_snap:
         raise ValueError(f"Snapshot not found: {to_snap_id}")
 
+    if from_snap["status"] != "complete" or to_snap["status"] != "complete":
+        raise ValueError("Deltas can only be computed between snapshots with status='complete'.")
+
     if from_snap["machine_id"] != to_snap["machine_id"] or from_snap["root_id"] != to_snap["root_id"]:
         raise ValueError("Snapshots must belong to the same machine and root for a direct delta calculation.")
 
@@ -89,13 +92,13 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     snapshot_dir = Path("atlas") / "machines" / machine_id / "roots" / root_id / "snapshots" / to_snap_id
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-    delta_filename = f"delta_{from_snap_id}.json"
+    delta_filename = f"{delta_id}.json"
     delta_path = snapshot_dir / delta_filename
 
     with open(delta_path, "w", encoding="utf-8") as f:
         json.dump(delta, f, indent=2)
 
     delta_ref = str(delta_path)
-    registry.register_delta(delta_id, from_snap_id, to_snap_id, delta_ref)
+    registry.register_delta(delta_id, from_snap_id, to_snap_id, delta_ref, created_at)
 
     return delta

@@ -78,6 +78,10 @@ def test_compute_delta_errors(populated_registry):
     with pytest.raises(ValueError, match="Snapshot not found"):
         compute_snapshot_delta(populated_registry, "s1", "nonexistent")
 
+    populated_registry.create_snapshot("s_partial", "m1", "r1", "hashx", "running")
+    with pytest.raises(ValueError, match="status='complete'"):
+        compute_snapshot_delta(populated_registry, "s1", "s_partial")
+
     populated_registry.register_root("r2", "m1", "abs_path", "/var/lib")
     populated_registry.create_snapshot("s3", "m1", "r2", "hash3", "complete")
 

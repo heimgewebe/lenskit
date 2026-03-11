@@ -138,5 +138,13 @@ def test_delta_registry(registry):
     registry.create_snapshot("s3", "m1", "r1", "hash3", "complete")
     registry.register_delta("delta2", "s2", "s3", "delta_ref2.json")
 
+    # Check ordering by created_at DESC, delta_id DESC
+    cur = registry.conn.cursor()
+    cur.execute("UPDATE deltas SET created_at = '2026-03-10T00:00:00Z' WHERE delta_id = 'delta1'")
+    cur.execute("UPDATE deltas SET created_at = '2026-03-10T00:00:00Z' WHERE delta_id = 'delta2'")
+    registry.conn.commit()
+
     deltas = registry.list_deltas()
     assert len(deltas) == 2
+    assert deltas[0]["delta_id"] == "delta2"
+    assert deltas[1]["delta_id"] == "delta1"

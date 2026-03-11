@@ -83,9 +83,11 @@ def run_atlas_history(args: argparse.Namespace) -> int:
         for snap in snapshots:
             inv_ref = snap.get("inventory_ref")
             if not inv_ref:
+                print(f"Warning: Snapshot '{snap['snapshot_id']}' has no inventory_ref. Skipping.", file=sys.stderr)
                 continue
             inv_path = Path(inv_ref)
             if not inv_path.exists():
+                print(f"Warning: Inventory file '{inv_path}' for snapshot '{snap['snapshot_id']}' not found. Skipping.", file=sys.stderr)
                 continue
 
             file_data = None

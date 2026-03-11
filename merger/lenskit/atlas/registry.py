@@ -166,13 +166,14 @@ class AtlasRegistry:
         cur.execute("SELECT * FROM snapshots ORDER BY created_at DESC, snapshot_id DESC")
         return [dict(row) for row in cur.fetchall()]
 
-    def register_delta(self, delta_id: str, from_snapshot_id: str, to_snapshot_id: str, delta_ref: str):
-        now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+    def register_delta(self, delta_id: str, from_snapshot_id: str, to_snapshot_id: str, delta_ref: str, created_at: Optional[str] = None):
+        if not created_at:
+            created_at = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
         with self.conn:
             self.conn.execute("""
                 INSERT INTO deltas (delta_id, from_snapshot_id, to_snapshot_id, created_at, delta_ref)
                 VALUES (?, ?, ?, ?, ?)
-            """, (delta_id, from_snapshot_id, to_snapshot_id, now, delta_ref))
+            """, (delta_id, from_snapshot_id, to_snapshot_id, created_at, delta_ref))
 
     def get_delta(self, delta_id: str) -> Optional[Dict[str, Any]]:
         cur = self.conn.cursor()
