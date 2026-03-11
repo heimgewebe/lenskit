@@ -4,6 +4,7 @@ import json
 from typing import Dict, Any, Optional
 
 from .router import route_query
+from ..core.range_resolver import build_derived_range_ref
 
 WHY_ZERO_TOKENS = "tokens too restrictive"
 WHY_ZERO_FILTERS = "filters too restrictive"
@@ -336,16 +337,15 @@ def execute_query(
                     content_sha256 = r["content_sha256"]
 
                     if source_file and start_byte is not None and end_byte is not None and end_byte > start_byte and content_sha256:
-                        hit["derived_range_ref"] = {
-                            "artifact_role": "source_file",
-                            "repo_id": hit["repo_id"],
-                            "file_path": source_file,
-                            "start_byte": start_byte,
-                            "end_byte": end_byte,
-                            "start_line": r["start_line"],
-                            "end_line": r["end_line"],
-                            "content_sha256": content_sha256
-                        }
+                        hit["derived_range_ref"] = build_derived_range_ref(
+                            repo_id=hit["repo_id"],
+                            file_path=source_file,
+                            start_byte=start_byte,
+                            end_byte=end_byte,
+                            start_line=r["start_line"],
+                            end_line=r["end_line"],
+                            content_sha256=content_sha256
+                        )
                 except IndexError:
                     pass
 
