@@ -49,10 +49,10 @@ class AtlasScanner:
         "lost+found/**"
     ]
 
-    def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,
+    def __init__(self, root: Path, snapshot_id: str, max_depth: int = 6, max_entries: int = 200000,
                  exclude_globs: List[str] = None, inventory_strict: bool = False,
                  no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024,
-                 snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
+                 compare_to_snapshot_id: Optional[str] = None,
                  enable_content_stats: bool = False):
         self.root = root
         self.max_depth = max_depth
@@ -203,7 +203,6 @@ class AtlasScanner:
         Args:
             inventory_file: Optional path to write a JSONL inventory of all files.
             dirs_inventory_file: Optional path to write a JSONL inventory of all directories.
-            previous_inventory_file: Optional path to previous inventory to calculate delta against.
         """
         self.stats["start_time"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         start_ts = time.time()

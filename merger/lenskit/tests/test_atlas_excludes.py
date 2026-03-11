@@ -7,6 +7,7 @@ def test_atlas_excludes_match_top_level_and_nested(tmp_path: Path) -> None:
     # Pure path semantics; no filesystem touch required.
     scanner = AtlasScanner(
         tmp_path,
+        "dummy_snap",
         exclude_globs=[
             "**/.git/**",
             "**/node_modules/**",

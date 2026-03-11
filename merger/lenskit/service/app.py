@@ -894,6 +894,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
             scanner = AtlasScanner(
                 root=scan_root,
+                snapshot_id=f"snap_api_{int(time.time())}", # Temporary dummy ID until service adopts full registry logic
                 max_depth=effective_max_depth,
                 max_entries=effective_max_entries,
                 exclude_globs=effective_excludes,

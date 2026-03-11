@@ -12,7 +12,7 @@ def test_atlas_merge_single_folder(tmp_path):
 
     output_file = tmp_path / "merged.txt"
 
-    scanner = AtlasScanner(tmp_path)
+    scanner = AtlasScanner(tmp_path, "dummy_snap")
     result = scanner.merge_folder("myfolder", output_file)
 
     assert output_file.exists()
@@ -45,7 +45,7 @@ def test_atlas_merge_recursive_and_limits(tmp_path):
     (target_dir / "sub/deep.txt").write_text("Deep")
 
     output_file = tmp_path / "rec_merged.txt"
-    scanner = AtlasScanner(tmp_path)
+    scanner = AtlasScanner(tmp_path, "dummy_snap")
 
     # Test recursive
     result = scanner.merge_folder("rec", output_file, recursive=True)

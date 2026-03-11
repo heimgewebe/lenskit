@@ -125,8 +125,8 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             write_mode_outputs(planned_outputs, result, Path("."))
 
             # Update Registry
-            registry.update_snapshot_status(snapshot_id, "complete")
             registry.update_snapshot_artifacts(snapshot_id, planned_outputs)
+            registry.update_snapshot_status(snapshot_id, "complete")
 
             print(f"Done. Outputs generated for mode '{args.mode}':")
             for k, v in planned_outputs.items():

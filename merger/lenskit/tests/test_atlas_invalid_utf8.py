@@ -24,7 +24,7 @@ def test_atlas_invalid_utf8_filename(tmp_path: Path):
         pytest.skip("Filesystem does not support invalid UTF-8 bytes in filenames")
 
     # Run AtlasScanner
-    scanner = AtlasScanner(tmp_path)
+    scanner = AtlasScanner(tmp_path, "dummy_snap")
 
     inventory_file = tmp_path / "inventory.jsonl"
     dirs_inventory_file = tmp_path / "dirs_inventory.jsonl"
