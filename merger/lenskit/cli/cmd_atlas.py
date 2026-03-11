@@ -124,8 +124,6 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             with open(out_json, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2)
 
-            registry_artifacts["snapshot_meta"] = str(out_json)
-
             # Render summary MD
             md_content = render_atlas_md(result)
             out_md = planned_paths["summary"]

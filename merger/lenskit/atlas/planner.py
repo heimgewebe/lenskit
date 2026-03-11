@@ -2,9 +2,9 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-def plan_atlas_outputs(scan_mode: str, scan_id: str = None) -> Dict[str, str]:
+def plan_atlas_outputs(scan_mode: str, scan_id: Optional[str] = None) -> Dict[str, str]:
     """
     Determines the set of artifacts to generate based on the scan mode.
     Returns a mapping of logical artifact keys to their expected filenames.

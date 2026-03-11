@@ -840,8 +840,8 @@ Ziel: Machine-, Root- und Snapshot-Wirklichkeit persistent und abfragbar machen.
 - [x] Root Registry implementieren
 - [x] Snapshot Registry implementieren (für CLI-Scan; Service-Integration folgt)
 - [x] Snapshot-Status (running/complete/failed) implementieren
-- [x] Snapshot-Artefakt-Refs konsistent speichern (wartet auf finale Pfad-Migration)
-- [x] Snapshot-ID-Schema stabilisieren
+- [x] Snapshot-Artefakt-Refs konsistent in Zielstruktur speichern
+- [x] Snapshot-ID-Schema vorläufig stabilisiert
 - [x] CLI: `atlas machines`
 - [x] CLI: `atlas roots`
 - [x] CLI: `atlas snapshots`
