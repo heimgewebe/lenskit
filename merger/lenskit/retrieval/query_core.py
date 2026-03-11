@@ -5,7 +5,6 @@ from typing import Dict, Any, Optional
 
 from .router import route_query
 from ..core.range_resolver import build_derived_range_ref
-from ..architecture.graph_index import load_graph_index
 
 WHY_ZERO_TOKENS = "tokens too restrictive"
 WHY_ZERO_FILTERS = "filters too restrictive"
@@ -29,8 +28,7 @@ def execute_query(
     overmatch_guard: bool = False,
     graph_index_path: Optional[Path] = None,
     graph_weights: Optional[Dict[str, float]] = None,
-    test_penalty: float = 0.75,
-    expected_graph_sha256: Optional[str] = None
+    test_penalty: float = 0.75
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -143,17 +141,6 @@ def execute_query(
 
         # If semantic re-ranking or graph reranking is requested, fetch a larger candidate pool
         is_reranking = embedding_policy is not None or graph_index_path is not None
-
-        # Load Graph
-        graph_index_dict = None
-        graph_status = "unavailable"
-        if graph_index_path:
-            graph_load_res = load_graph_index(graph_index_path, expected_graph_sha256)
-            graph_status = graph_load_res["status"]
-            if graph_status in ("ok", "stale_or_mismatched"):
-                # Even if stale, we load it, but we mark it so in explain
-                graph_index_dict = graph_load_res["graph"]
-
         fetch_k = max(k, 50) if is_reranking else k
 
         base_sql += f" {order_clause} LIMIT ?"
@@ -230,11 +217,21 @@ def execute_query(
                             "fallback_behavior": fallback
                         }
 
+        graph_index = None
+        if graph_index_path:
+            if not graph_index_path.exists():
+                raise RuntimeError(f"Explicitly provided graph index file does not exist: {graph_index_path}")
+            try:
+                with graph_index_path.open() as f:
+                    graph_index = json.load(f)
+            except Exception as e:
+                raise RuntimeError(f"Invalid graph index JSON at {graph_index_path}: {e}") from e
+
         if not graph_weights:
             graph_weights = {"w_bm25": 0.65, "w_graph": 0.20, "w_entry": 0.15}
 
         ranker_meta = None
-        if graph_index_dict:
+        if graph_index:
             ranker_meta = {
                 "w_bm25": graph_weights.get("w_bm25", 0.65),
                 "w_graph": graph_weights.get("w_graph", 0.20),
@@ -266,15 +263,10 @@ def execute_query(
             final_score = rank_features["bm25_norm"]
             why_list = []
 
-            graph_explain_info = {
-                "graph_used": False,
-                "graph_status": graph_status
-            }
-
-            if graph_index_dict:
+            if graph_index:
                 path_str = r["path"]
                 node_id = f"file:{path_str}"
-                dist = graph_index_dict.get("distances", {}).get(node_id, -1)
+                dist = graph_index.get("distances", {}).get(node_id, -1)
 
                 graph_proximity = 0.0
                 entrypoint_boost = 0.0
@@ -288,35 +280,20 @@ def execute_query(
                 is_test = r["layer"] == "test" or "test" in path_str.lower()
                 current_penalty = test_penalty if is_test else 1.0
 
-                w_b = graph_weights.get("w_bm25", 0.65) if graph_weights else 0.65
-                w_g = graph_weights.get("w_graph", 0.20) if graph_weights else 0.20
-                w_e = graph_weights.get("w_entry", 0.15) if graph_weights else 0.15
-
-                # Graph bonus mathematical formula implementation
-                # graph_bonus = f(distance, weights, caps)
-                graph_bonus = (w_g * graph_proximity) + (w_e * entrypoint_boost)
-
-                # Cap the graph bonus to not completely overwhelm lexical signals
-                # Cap the total graph bonus to an additive factor relative to lexical norm
-                max_graph_cap = 0.5 * rank_features["bm25_norm"] if rank_features["bm25_norm"] > 0 else 0.2
-                graph_bonus = min(graph_bonus, max_graph_cap)
-
                 rank_features["graph_proximity"] = graph_proximity
                 rank_features["entrypoint_boost"] = entrypoint_boost
-                rank_features["graph_bonus"] = graph_bonus
 
                 if graph_proximity > 0:
                     why_list.append("near_entry")
                 if not is_test:
                     why_list.append("not_test")
 
-                score_pre = (w_b * rank_features["bm25_norm"]) + graph_bonus
-                final_score = score_pre * current_penalty
+                w_b = graph_weights.get("w_bm25", 0.65)
+                w_g = graph_weights.get("w_graph", 0.20)
+                w_e = graph_weights.get("w_entry", 0.15)
 
-                graph_explain_info["graph_used"] = True
-                graph_explain_info["node_id"] = node_id
-                graph_explain_info["distance"] = dist
-                graph_explain_info["graph_bonus"] = graph_bonus
+                score_pre = (w_b * rank_features["bm25_norm"]) + (w_g * graph_proximity) + (w_e * entrypoint_boost)
+                final_score = score_pre * current_penalty
 
             hit = {
                 "chunk_id": r["chunk_id"],
@@ -335,10 +312,7 @@ def execute_query(
                     "diagnostics": base_diagnostics
                 }
             }
-            if graph_index_path:
-                hit["why"]["graph_explain"] = graph_explain_info
-
-            if graph_index_dict:
+            if graph_index:
                 hit["why_list"] = why_list
 
             ref_str = None

@@ -41,9 +41,17 @@ Das Graph-Signal wird als additiver Bonus in die Score-Komponenten integriert. E
 ### 3.1 Score-Formel
 
 ```python
-graph_bonus = f(distance)
-final_score = (w_bm25 * bm25_norm) + (w_graph * graph_bonus) + (w_entry * entrypoint_boost) + penalties
+graph_proximity = f(distance)
+entrypoint_boost = g(distance)
+
+raw_graph_bonus = (w_graph * graph_proximity) + (w_entry * entrypoint_boost)
+
+graph_bonus = min(raw_graph_bonus, cap)
+
+final_score = (w_bm25 * bm25_norm) + graph_bonus + penalties
 ```
+
+*Hinweis:* Der Graph-Bonus wird relativ zum lexical score gecappt (`cap`). Der Graph dient als Verstärker / Tie-Breaker, nicht als dominantes Alleinsignal.
 
 ### 3.2 Definition der Bonus-Werte
 
@@ -67,5 +75,22 @@ final_score = (w_bm25 * bm25_norm) + (w_graph * graph_bonus) + (w_entry * entryp
 
 Fehlt das Artefakt `graph_index.json` oder ist es ungültig, bricht die Query-Runtime nicht hart ab. Stattdessen:
 * Die Suche wird im "Baseline"-Modus (ohne Graph-Bonus) ausgeführt.
-* Das `explain`-Objekt der Query enthält die Information `graph_status: "unavailable"` (oder `invalid_schema`, `stale_or_mismatched`).
-* `graph_used: false` wird explizit gesetzt.
+
+Das `explain`-Objekt der Query enthält Diagnoseinformationen zur Graph-Nutzung.
+
+### 4.1 `graph_used`
+
+Gibt an, ob der Graph im Ranking genutzt wurde:
+* `true` → Graph war valide und wurde im Ranking als Bonus genutzt.
+* `false` → Graph fehlte, war kaputt oder wurde nicht genutzt.
+
+### 4.2 `graph_status`
+
+Gibt detailliert Auskunft über den Zustand des geladenen Graphen. Folgende Werte sind definiert:
+
+* `ok` → Graph erfolgreich geladen und validiert.
+* `not_found` → Datei nicht gefunden (oder `unavailable`).
+* `invalid_json` → Datei konnte nicht als JSON geparst werden.
+* `invalid_schema` → JSON entspricht nicht dem `architecture.graph_index` Contract.
+* `stale_or_mismatched` → Graph verweist auf einen anderen Dump-Index (Hash-Mismatch).
+* `unreadable` → IO-Fehler (z.B. fehlende Leserechte).

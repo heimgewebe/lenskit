@@ -20,6 +20,9 @@ def load_graph_index(path: Path, expected_sha256: str = None) -> Dict[str, Any]:
             data = json.load(f)
     except json.JSONDecodeError:
         return {"status": "invalid_json", "graph": None}
+    except OSError as e:
+        logger.warning("Graph index file unreadable: %s", e)
+        return {"status": "unreadable", "graph": None}
 
     # Validate against schema
     schema_path = Path(__file__).parent.parent / "contracts" / "architecture.graph_index.v1.schema.json"
@@ -32,7 +35,8 @@ def load_graph_index(path: Path, expected_sha256: str = None) -> Dict[str, Any]:
             logger.warning(f"Graph index schema validation failed: {e}")
             return {"status": "invalid_schema", "graph": None}
         except Exception as e:
-            logger.warning(f"Error reading/validating schema: {e}")
+            logger.error(f"Error reading/validating graph schema: {e}")
+            return {"status": "invalid_schema", "graph": None}
 
     # Check staleness if expected_sha256 is provided
     if expected_sha256:

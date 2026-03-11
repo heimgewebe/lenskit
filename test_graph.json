@@ -1,1 +1,0 @@
-{"kind": "lenskit.architecture.graph_index", "version": "1.0", "run_id": "run123", "canonical_dump_index_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "distances": {"file:src/main.py": 0}, "metrics": {"entrypoint_count": 1, "nodes_reachable": 1, "unreachable_nodes": 0}}
