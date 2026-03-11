@@ -977,7 +977,7 @@ Enthält:
 * Eval und Runtime denselben Kern teilen
 * Regressionstests Query/Explain/Range/Graph gemeinsam absichern
 
-*(Hinweis: Der Nachweis der Testerfüllung für dieses Gate basiert auf dem erfolgreich durchlaufenen, spezifischen Retrieval- und Evaluierungs-Test-Scope (`test_retrieval_query.py` und `test_retrieval_eval.py`). Eine vollständig fehlerfreie globale Testsuite wurde bewusst nicht forciert, um isolierte Scope-Prüfung zu gewährleisten und irrelevante Dependency-Installation in der Testumgebung zu vermeiden.)*
+*(Hinweis: Der Nachweis der Testerfüllung für dieses Gate basiert auf dem erfolgreich durchlaufenen, spezifischen Retrieval- und Evaluierungs-Test-Scope (`merger/lenskit/tests/test_retrieval_query.py` und `merger/lenskit/tests/test_retrieval_eval.py`). Eine vollständig fehlerfreie globale Testsuite wurde bewusst nicht forciert, um isolierte Scope-Prüfung zu gewährleisten und irrelevante Dependency-Installation in der Testumgebung zu vermeiden. Für die Reproduktion kann z.B. folgender Aufruf verwendet werden: `pytest merger/lenskit/tests/test_retrieval_query.py merger/lenskit/tests/test_retrieval_eval.py`.)*
 
 ---
 
