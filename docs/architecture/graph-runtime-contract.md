@@ -80,9 +80,9 @@ Das `explain`-Objekt der Query enthält Diagnoseinformationen zur Graph-Nutzung.
 
 ### 4.1 `graph_used`
 
-Gibt an, ob der Graph im Ranking genutzt wurde:
-* `true` → Graph war valide und wurde im Ranking als Bonus genutzt.
-* `false` → Graph fehlte, war kaputt oder wurde nicht genutzt.
+Gibt an, ob ein geladener Graph tatsächlich in das Ranking eingeflossen ist:
+* `true` → Ein Graph wurde im Scoring verwendet. Das kann sowohl bei `graph_status = "ok"` als auch bei `graph_status = "stale_or_mismatched"` gelten.
+* `false` → Es wurde kein Graph im Scoring verwendet, z. B. bei `graph_status = "not_found"`, `"invalid_json"`, `"invalid_schema"` oder `"unreadable"`.
 
 ### 4.2 `graph_status`
 
