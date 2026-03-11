@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "snapshot_id",
+    "machine_id",
+    "root_id",
+    "created_at",
+    "scan_config_hash",
+    "status"
+  ],
+  "properties": {
+    "snapshot_id": {
+      "type": "string",
+      "description": "Unique identifier for the snapshot."
+    },
+    "machine_id": {
+      "type": "string",
+      "description": "The machine ID this snapshot belongs to."
+    },
+    "root_id": {
+      "type": "string",
+      "description": "The root ID this snapshot belongs to."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The time the snapshot was created."
+    },
+    "scan_config_hash": {
+      "type": "string",
+      "description": "The hash of the scan configuration used."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["running", "complete", "partial", "failed"],
+      "description": "The status of the snapshot."
+    },
+    "inventory_ref": {
+      "type": "string",
+      "description": "Optional reference to the inventory artifact."
+    },
+    "dirs_ref": {
+      "type": "string",
+      "description": "Optional reference to the dirs artifact."
+    },
+    "summary_ref": {
+      "type": "string",
+      "description": "Optional reference to the summary artifact."
+    },
+    "content_ref": {
+      "type": "string",
+      "description": "Optional reference to the content artifact."
+    },
+    "topology_ref": {
+      "type": "string",
+      "description": "Optional reference to the topology artifact."
+    },
+    "hotspots_ref": {
+      "type": "string",
+      "description": "Optional reference to the hotspots artifact."
+    },
+    "workspaces_ref": {
+      "type": "string",
+      "description": "Optional reference to the workspaces artifact."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "complete"
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          { "required": ["inventory_ref"] },
+          { "required": ["dirs_ref"] },
+          { "required": ["summary_ref"] },
+          { "required": ["content_ref"] },
+          { "required": ["topology_ref"] },
+          { "required": ["hotspots_ref"] },
+          { "required": ["workspaces_ref"] }
+        ]
+      }
+    }
+  ],
+  "description": "Complete snapshots must contain at least one valid artifact reference depending on the executed scan mode."
+}

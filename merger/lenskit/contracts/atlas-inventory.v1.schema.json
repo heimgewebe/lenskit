@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "snapshot_id",
+    "rel_path",
+    "size_bytes",
+    "mtime",
+    "is_symlink"
+  ],
+  "properties": {
+    "snapshot_id": {
+      "type": "string",
+      "description": "The snapshot this observation belongs to."
+    },
+    "rel_path": {
+      "type": "string",
+      "description": "The canonical relative path within the root."
+    },
+    "abs_path_hint": {
+      "type": "string",
+      "description": "Optional hint for the absolute path."
+    },
+    "ext": {
+      "type": "string",
+      "description": "Optional file extension."
+    },
+    "mime_type": {
+      "type": "string",
+      "description": "Optional MIME type."
+    },
+    "size_bytes": {
+      "type": "integer",
+      "description": "The size of the file in bytes."
+    },
+    "mtime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The modification time."
+    },
+    "ctime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The creation time."
+    },
+    "is_symlink": {
+      "type": "boolean",
+      "description": "Whether the file is a symlink."
+    },
+    "is_text": {
+      "type": "boolean",
+      "description": "Optional boolean indicating text content. Guaranteed only in content-enabled scans."
+    },
+    "encoding": {
+      "type": "string",
+      "description": "Optional encoding."
+    },
+    "line_count": {
+      "type": "integer",
+      "description": "Optional line count."
+    },
+    "checksum": {
+      "type": "string",
+      "description": "Optional checksum."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Optional file owner."
+    },
+    "group": {
+      "type": "string",
+      "description": "Optional file group."
+    },
+    "permissions": {
+      "type": "string",
+      "description": "Optional file permissions."
+    }
+  }
+}

@@ -123,10 +123,10 @@ def test_atlas_override_excludes(tmp_path: Path):
 
 def test_atlas_max_file_size_validation():
     with pytest.raises(ValueError, match="max_file_size must be a positive integer or None."):
-        AtlasScanner(Path("/"), max_file_size=0)
+        AtlasScanner(Path("."), max_file_size=0)
 
     with pytest.raises(ValueError, match="max_file_size must be a positive integer or None."):
-        AtlasScanner(Path("/"), max_file_size=-5)
+        AtlasScanner(Path("."), max_file_size=-5)
 
 def test_atlas_max_file_size_unlimited(tmp_path: Path):
     big_file = tmp_path / "big.bin"

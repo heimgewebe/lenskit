@@ -52,7 +52,7 @@ def test_scan_integration_excludes(tmp_path):
 
     # Initialize scanner excluding "secret" folder
     # Using relative path pattern
-    scanner = AtlasScanner(tmp_path, exclude_globs=["secret/**"])
+    scanner = AtlasScanner(tmp_path, snapshot_id="dummy_snap", exclude_globs=["secret/**"])
 
     inventory_file = tmp_path / "inventory.jsonl"
     scanner.scan(inventory_file=inventory_file)

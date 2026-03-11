@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["machine_id", "hostname"],
+  "properties": {
+    "machine_id": {
+      "type": "string",
+      "description": "Unique, stable identifier for the machine."
+    },
+    "hostname": {
+      "type": "string",
+      "description": "The machine's hostname."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Optional kind, e.g., workstation, server, laptop."
+    },
+    "os_family": {
+      "type": "string",
+      "description": "Optional OS family, e.g., linux, windows, macos."
+    },
+    "arch": {
+      "type": "string",
+      "description": "Optional architecture, e.g., x86_64, arm64."
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional labels like 'primary', 'local', etc."
+    },
+    "last_seen_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional timestamp of the last time this machine was seen."
+    }
+  }
+}

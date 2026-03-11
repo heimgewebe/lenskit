@@ -900,6 +900,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 inventory_strict=request.inventory_strict,
                 no_default_excludes=request.no_default_excludes,
                 max_file_size=request.max_file_size,
+                snapshot_id=f"snap_api_{int(time.time())}", # Temporary dummy ID until service adopts full registry logic
                 enable_content_stats=(request.scan_mode == "content")
             )
             result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path)
