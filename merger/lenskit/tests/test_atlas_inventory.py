@@ -15,7 +15,7 @@ def test_atlas_inventory_includes_all_titles(tmp_path):
 
     inventory_file = tmp_path / "atlas.inventory.jsonl"
 
-    scanner = AtlasScanner(tmp_path, "dummy_snap", inventory_strict=False, enable_content_stats=True)
+    scanner = AtlasScanner(tmp_path, inventory_strict=False, enable_content_stats=True)
     scanner.scan(inventory_file=inventory_file)
 
     assert inventory_file.exists()
@@ -53,7 +53,7 @@ def test_atlas_inventory_strict_mode(tmp_path):
 
     # With inventory_strict=True, node_modules should be included
     # (Default strict excludes are only .git and .venv)
-    scanner = AtlasScanner(tmp_path, "dummy_snap", inventory_strict=True)
+    scanner = AtlasScanner(tmp_path, inventory_strict=True)
     scanner.scan(inventory_file=inventory_file)
 
     lines = inventory_file.read_text(encoding="utf-8").strip().splitlines()
@@ -67,7 +67,7 @@ def test_atlas_truncation(tmp_path):
     for i in range(10):
         (tmp_path / f"file{i}.txt").write_text("x")
 
-    scanner = AtlasScanner(tmp_path, "dummy_snap", max_entries=5)
+    scanner = AtlasScanner(tmp_path, max_entries=5)
     result = scanner.scan()
 
     assert result["stats"]["truncated"]["hit"] is True
@@ -82,7 +82,7 @@ def test_atlas_dirs_inventory(tmp_path):
     (tmp_path / "a/sub").mkdir()
 
     dirs_file = tmp_path / "dirs.jsonl"
-    scanner = AtlasScanner(tmp_path, "dummy_snap")
+    scanner = AtlasScanner(tmp_path)
     scanner.scan(dirs_inventory_file=dirs_file)
 
     assert dirs_file.exists()
@@ -105,7 +105,7 @@ def test_exclude_pattern_robustness(tmp_path):
     (tmp_path / "myexclude" / "bad.txt").write_text("bad")
 
     # Explicit custom exclude
-    scanner = AtlasScanner(tmp_path, "dummy_snap", exclude_globs=["**/myexclude"])
+    scanner = AtlasScanner(tmp_path, exclude_globs=["**/myexclude"])
 
     inventory_file = tmp_path / "inv.jsonl"
     scanner.scan(inventory_file=inventory_file)
@@ -123,7 +123,7 @@ def test_atlas_dirs_inventory_excludes_files(tmp_path):
     (tmp_path / "mixed" / "ignore.me").write_text("ignore")
 
     dirs_file = tmp_path / "dirs.jsonl"
-    scanner = AtlasScanner(tmp_path, "dummy_snap", exclude_globs=["**/ignore.me"])
+    scanner = AtlasScanner(tmp_path, exclude_globs=["**/ignore.me"])
     scanner.scan(dirs_inventory_file=dirs_file)
 
     lines = dirs_file.read_text(encoding="utf-8").strip().splitlines()

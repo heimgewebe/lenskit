@@ -5,7 +5,7 @@ from merger.lenskit.adapters.atlas import AtlasScanner
 def test_is_excluded_handles_backslashes():
     # Use simpler pattern to test normalization logic specifically
     # Exclude "secret/file.txt"
-    scanner = AtlasScanner(Path("."), "dummy_snap", exclude_globs=["secret/file.txt"])
+    scanner = AtlasScanner(Path("."), exclude_globs=["secret/file.txt"])
 
     # Test path with backslash - should be normalized to match "secret/file.txt"
     assert scanner._is_excluded("secret\\file.txt") is True
@@ -18,14 +18,14 @@ def test_is_excluded_handles_backslashes():
 
 def test_is_excluded_handles_mixed_slashes_glob():
     # Test normalization with standard glob
-    scanner = AtlasScanner(Path("."), "dummy_snap", exclude_globs=["**/node_modules/**"])
+    scanner = AtlasScanner(Path("."), exclude_globs=["**/node_modules/**"])
 
     assert scanner._is_excluded("project\\node_modules/package.json") is True
 
 def test_is_excluded_rejects_absolute_and_traversal_strings():
     # Guardrail tests for string inputs to enforce relative semantics
     # Glob pattern doesn't matter much here, checking guardrail logic
-    scanner = AtlasScanner(Path("."), "dummy_snap", exclude_globs=["**/*.txt"])
+    scanner = AtlasScanner(Path("."), exclude_globs=["**/*.txt"])
 
     # Absolute POSIX path
     assert scanner._is_excluded("/etc/passwd") is True
@@ -52,7 +52,7 @@ def test_scan_integration_excludes(tmp_path):
 
     # Initialize scanner excluding "secret" folder
     # Using relative path pattern
-    scanner = AtlasScanner(tmp_path, "dummy_snap", exclude_globs=["secret/**"])
+    scanner = AtlasScanner(tmp_path, exclude_globs=["secret/**"])
 
     inventory_file = tmp_path / "inventory.jsonl"
     scanner.scan(inventory_file=inventory_file)

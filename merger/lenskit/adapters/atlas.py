@@ -49,10 +49,10 @@ class AtlasScanner:
         "lost+found/**"
     ]
 
-    def __init__(self, root: Path, snapshot_id: str, max_depth: int = 6, max_entries: int = 200000,
+    def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,
                  exclude_globs: List[str] = None, inventory_strict: bool = False,
                  no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024,
-                 compare_to_snapshot_id: Optional[str] = None,
+                 snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
                  enable_content_stats: bool = False):
         self.root = root
         self.max_depth = max_depth

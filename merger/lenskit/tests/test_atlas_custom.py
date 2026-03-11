@@ -75,7 +75,7 @@ def test_atlas_excludes_proc(tmp_path: Path):
 
     # Run scan with inventory
     inv_file = tmp_path / "inventory.jsonl"
-    scanner = AtlasScanner(tmp_path, "dummy_snap")
+    scanner = AtlasScanner(tmp_path)
     result = scanner.scan(inventory_file=inv_file)
 
     # Get relative paths of all files found
@@ -94,7 +94,7 @@ def test_atlas_excludes_sys(tmp_path: Path):
     (tmp_path / "sys" / "kernel" / "debug").write_text("mock")
 
     inv_file = tmp_path / "inventory.jsonl"
-    scanner = AtlasScanner(tmp_path, "dummy_snap")
+    scanner = AtlasScanner(tmp_path)
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []
@@ -110,7 +110,7 @@ def test_atlas_override_excludes(tmp_path: Path):
     (tmp_path / "proc" / "1").write_text("mock")
 
     inv_file = tmp_path / "inventory.jsonl"
-    scanner = AtlasScanner(tmp_path, "dummy_snap", no_default_excludes=True)
+    scanner = AtlasScanner(tmp_path, no_default_excludes=True)
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []
@@ -123,10 +123,10 @@ def test_atlas_override_excludes(tmp_path: Path):
 
 def test_atlas_max_file_size_validation():
     with pytest.raises(ValueError, match="max_file_size must be a positive integer or None."):
-        AtlasScanner(Path("."), "dummy_snap", max_file_size=0)
+        AtlasScanner(Path("."), max_file_size=0)
 
     with pytest.raises(ValueError, match="max_file_size must be a positive integer or None."):
-        AtlasScanner(Path("."), "dummy_snap", max_file_size=-5)
+        AtlasScanner(Path("."), max_file_size=-5)
 
 def test_atlas_max_file_size_unlimited(tmp_path: Path):
     big_file = tmp_path / "big.bin"
@@ -134,12 +134,12 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     big_file.write_bytes(b"0" * 2048)
 
     # 1. With a limit strictly smaller than the file, the big file should be skipped
-    scanner = AtlasScanner(tmp_path, "dummy_snap", max_file_size=1024)
+    scanner = AtlasScanner(tmp_path, max_file_size=1024)
     res = scanner.scan()
     assert scanner.stats["total_files"] == 0
 
     # 2. With no limit (None), the big file should be included
-    scanner_unlimited = AtlasScanner(tmp_path, "dummy_snap", max_file_size=None)
+    scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None)
     res_unlimited = scanner_unlimited.scan()
     assert scanner_unlimited.stats["total_files"] == 1
 
@@ -148,7 +148,7 @@ def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
     original_id = id(my_excludes)
     original_len = len(my_excludes)
 
-    scanner = AtlasScanner(tmp_path, "dummy_snap", exclude_globs=my_excludes, no_default_excludes=False)
+    scanner = AtlasScanner(tmp_path, exclude_globs=my_excludes, no_default_excludes=False)
 
     # Check that my_excludes wasn't mutated
     assert len(my_excludes) == original_len

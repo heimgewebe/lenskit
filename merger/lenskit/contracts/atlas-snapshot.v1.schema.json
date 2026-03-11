@@ -77,10 +77,15 @@
       "then": {
         "anyOf": [
           { "required": ["inventory_ref"] },
-          { "required": ["dirs_ref"] }
+          { "required": ["dirs_ref"] },
+          { "required": ["summary_ref"] },
+          { "required": ["content_ref"] },
+          { "required": ["topology_ref"] },
+          { "required": ["hotspots_ref"] },
+          { "required": ["workspaces_ref"] }
         ]
       }
     }
   ],
-  "description": "Complete snapshots must contain at least one core artifact reference (inventory or dirs)."
+  "description": "Complete snapshots must contain at least one valid artifact reference depending on the executed scan mode."
 }
