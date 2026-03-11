@@ -1025,7 +1025,7 @@ Nach Phase 3 gilt:
 ### 1.3 Arbeitspaket A – Graph-Semantik explizit definieren
 
 Ziel:
-- [ ] Dokumentieren, was der Graph überhaupt bedeutet.
+- [x] Dokumentieren, was der Graph überhaupt bedeutet.
 
 Muss schriftlich festgehalten werden:
 * Was ist ein Node?
@@ -1045,7 +1045,7 @@ node identity, edge semantics, distance semantics, entrypoint semantics, runtime
 ### 1.4 Arbeitspaket B – Graph-Index-Schema härten
 
 Ziel:
-- [ ] graph_index.json soll nicht nur existieren, sondern contractuell erzwungen valide sein.
+- [x] graph_index.json soll nicht nur existieren, sondern contractuell erzwungen valide sein.
 
 Umsetzung:
 Falls noch nicht vorhanden bzw. unvollständig:
@@ -1070,7 +1070,7 @@ Problem:
 Wenn Query und Eval jeweils separat laden/parsen/normalisieren, droht Drift.
 
 Ziel:
-- [ ] Eine zentrale Ladefunktion: `load_graph_index(path) -> validated normalized graph object`
+- [x] Eine zentrale Ladefunktion: `load_graph_index(path) -> validated normalized graph object`
 
 Aufgaben dieser Funktion:
 * Existenz prüfen
@@ -1092,7 +1092,7 @@ Problem:
 „Graph beeinflusst Ranking“ ist noch zu grob. Es braucht eine definierte Formel.
 
 Ziel:
-- [ ] Graph-Signal als klarer Score-Term.
+- [x] Graph-Signal als klarer Score-Term.
 
 Beispielhafte Form:
 `graph_bonus = f(distance, weights, caps)`
@@ -1111,7 +1111,7 @@ Anfangs konservativ: Graph nur moderat tie-breakend / leicht verstärkend, nie d
 ### 1.7 Arbeitspaket E – Explain mit Graph koppeln
 
 Ziel:
-- [ ] Wenn der Graph etwas beeinflusst, muss Explain genau das zeigen.
+- [x] Wenn der Graph etwas beeinflusst, muss Explain genau das zeigen.
 
 Explain soll enthalten:
 * graph_used: true/false
@@ -1129,7 +1129,7 @@ Testfragen:
 ### 1.8 Arbeitspaket F – Graph-Aware-Eval ausbauen
 
 Ziel:
-- [ ] Eval soll nicht nur „mit Graph läuft“, sondern explizit zeigen, ob und wann der Graph etwas bringt.
+- [x] Eval soll nicht nur „mit Graph läuft“, sondern explizit zeigen, ob und wann der Graph etwas bringt.
 
 Neue Eval-Sichten:
 * baseline
@@ -1151,7 +1151,7 @@ Zusätzlich:
 ### 1.9 Arbeitspaket G – Graph-Staleness / Konsistenz prüfen
 
 Ziel:
-- [ ] Ein Graph darf nicht still weiterverwendet werden, wenn seine Inputs nicht mehr passen.
+- [x] Ein Graph darf nicht still weiterverwendet werden, wenn seine Inputs nicht mehr passen.
 
 Möglichkeiten:
 1. Fingerprint der Inputs im Graph speichern
@@ -1163,26 +1163,26 @@ Bessere Variante: Hash von `architecture_graph.json`, Hash von `entrypoints.json
 ### 1.10 Tests Phase 3
 
 Neue oder geschärfte Tests:
-- [ ] 1. test_graph_schema_validation
-- [ ] 2. test_graph_loader_normalizes_and_rejects_invalid
-- [ ] 3. test_query_explain_graph_fields_match_scoring
-- [ ] 4. test_eval_graph_delta_reporting
-- [ ] 5. test_graph_staleness_marker
-- [ ] 6. test_missing_graph_is_explicitly_reported
-- [ ] 7. test_graph_bonus_is_bounded
+- [x] 1. test_graph_schema_validation
+- [x] 2. test_graph_loader_normalizes_and_rejects_invalid
+- [x] 3. test_query_explain_graph_fields_match_scoring
+- [x] 4. test_eval_graph_delta_reporting
+- [x] 5. test_graph_staleness_marker
+- [x] 6. test_missing_graph_is_explicitly_reported
+- [x] 7. test_graph_bonus_is_bounded
 
 Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert sich -> Explain zeigt exakt denselben Grund.
 
 ### 1.11 Deliverables Phase 3
-- [ ] 1. Graph-Runtime-Contract-Doku
-- [ ] 2. zentrales Graph-Loader-Modul
-- [ ] 3. definierte Graph-Score-Formel
-- [ ] 4. Explain/Runtime-Kopplung
-- [ ] 5. graph-aware Eval mit Deltas
-- [ ] 6. Graph-Staleness-Marker
+- [x] 1. Graph-Runtime-Contract-Doku
+- [x] 2. zentrales Graph-Loader-Modul
+- [x] 3. definierte Graph-Score-Formel
+- [x] 4. Explain/Runtime-Kopplung
+- [x] 5. graph-aware Eval mit Deltas
+- [x] 6. Graph-Staleness-Marker
 
 ### 1.12 Gate für Phase 3
-- [ ] Phase 3 ist fertig, wenn:
+- [x] Phase 3 ist fertig, wenn:
 * Graph semantisch dokumentiert ist
 * Query/Eval denselben Loader und dieselbe Semantik nutzen
 * Explain die tatsächliche Graph-Wirkung abbildet
@@ -1708,7 +1708,7 @@ Tests:
 
 Mittlere, semantisch saubere PR-Schnitte:
 
-- [ ] **PR 1 – Graph Runtime Contract** (Graph-Doku, Loader, Explain/Score-Konsistenz, graph-aware Eval)
+- [x] **PR 1 – Graph Runtime Contract** (Graph-Doku, Loader, Explain/Score-Konsistenz, graph-aware Eval)
 - [ ] **PR 2 – Query Trace + Context Bundle** (query_trace, query_context_bundle, Hit/Evidence/Context-Trennung, Output-Profile intern)
 - [ ] **PR 3 – Federation Foundation** (federation_index, Identity-Regeln, Cross-Repo-Links, Konfliktartefakte)
 - [ ] **PR 4 – Federated Query** (föderierte Query, föderiertes Ranking, federation trace, Cross-Repo-Context)
@@ -1769,7 +1769,7 @@ Gate:
 
 - [x] PR 1: Contract-/Provenance-Härtung
 - [ ] PR 2: Query Trace + Context Bundle
-- [ ] PR 3: Graph Runtime Konsolidierung
+- [x] PR 3: Graph Runtime Konsolidierung
 - [ ] PR 4: Federation Foundation
 - [ ] PR 5: Federated Query + Ranking
 - [ ] PR 6: Agent Control Surface
@@ -1832,7 +1832,7 @@ Schutzmaßnahmen:
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
 - [ ] M2: Query Trace + Context Bundle vorhanden
-- [ ] M3: Graph-Runtime konsistent und diagnostizierbar
+- [x] M3: Graph-Runtime konsistent und diagnostizierbar
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar

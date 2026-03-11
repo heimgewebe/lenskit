@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:lenskit:schema:architecture.graph_index.v1.schema.json",
+  "title": "Architecture Graph Index (architecture.graph_index v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "run_id",
+    "canonical_dump_index_sha256",
+    "distances",
+    "metrics"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "lenskit.architecture.graph_index"
+    },
+    "version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "canonical_dump_index_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "distances": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entrypoint_count",
+        "nodes_reachable",
+        "unreachable_nodes"
+      ],
+      "properties": {
+        "entrypoint_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nodes_reachable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreachable_nodes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
