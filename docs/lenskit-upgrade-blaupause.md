@@ -824,14 +824,14 @@ Aber:
 * Resolver-Logik
 
 ### 7.5 Deliverables Phase 1
-- [ ] 1. canonical_md zentral vereinheitlicht
-- [ ] 2. Role-Completeness-Check
-- [ ] 3. Range-Builder-Helfer
-- [ ] 4. Split-Mode-Vertrag dokumentiert
-- [ ] 5. Docs/Beispiele synchronisiert
+- [x] 1. canonical_md zentral vereinheitlicht
+- [x] 2. Role-Completeness-Check
+- [x] 3. Range-Builder-Helfer
+- [x] 4. Split-Mode-Vertrag dokumentiert
+- [x] 5. Docs/Beispiele synchronisiert
 
 ### 7.6 Gate für Phase 1
-- [ ] Phase 1 ist fertig, wenn:
+- [x] Phase 1 ist fertig, wenn:
 * kein Widerspruch mehr zwischen manifest / sidecar / chunk / resolver bzgl. canonical_md existiert
 * alle ArtifactRoles schema-konsistent sind
 * range_ref und derived_range_ref logisch getrennt sind
