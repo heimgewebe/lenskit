@@ -58,6 +58,15 @@ class AtlasRegistry:
                     FOREIGN KEY(machine_id) REFERENCES machines(machine_id),
                     FOREIGN KEY(root_id) REFERENCES roots(root_id)
                 );
+                CREATE TABLE IF NOT EXISTS deltas (
+                    delta_id TEXT PRIMARY KEY,
+                    from_snapshot_id TEXT NOT NULL,
+                    to_snapshot_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    delta_ref TEXT NOT NULL,
+                    FOREIGN KEY(from_snapshot_id) REFERENCES snapshots(snapshot_id),
+                    FOREIGN KEY(to_snapshot_id) REFERENCES snapshots(snapshot_id)
+                );
             """)
 
     def register_machine(self, machine_id: str, hostname: str, labels: Optional[List[str]] = None):
@@ -155,4 +164,23 @@ class AtlasRegistry:
     def list_snapshots(self) -> List[Dict[str, Any]]:
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM snapshots ORDER BY created_at DESC, snapshot_id DESC")
+        return [dict(row) for row in cur.fetchall()]
+
+    def register_delta(self, delta_id: str, from_snapshot_id: str, to_snapshot_id: str, delta_ref: str):
+        now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+        with self.conn:
+            self.conn.execute("""
+                INSERT INTO deltas (delta_id, from_snapshot_id, to_snapshot_id, created_at, delta_ref)
+                VALUES (?, ?, ?, ?, ?)
+            """, (delta_id, from_snapshot_id, to_snapshot_id, now, delta_ref))
+
+    def get_delta(self, delta_id: str) -> Optional[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM deltas WHERE delta_id = ?", (delta_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+    def list_deltas(self) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM deltas ORDER BY created_at DESC, delta_id DESC")
         return [dict(row) for row in cur.fetchall()]

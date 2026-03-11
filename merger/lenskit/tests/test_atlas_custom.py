@@ -75,7 +75,7 @@ def test_atlas_excludes_proc(tmp_path: Path):
 
     # Run scan with inventory
     inv_file = tmp_path / "inventory.jsonl"
-    scanner = AtlasScanner(tmp_path)
+    scanner = AtlasScanner(tmp_path, snapshot_id="snap1")
     result = scanner.scan(inventory_file=inv_file)
 
     # Get relative paths of all files found
@@ -94,7 +94,7 @@ def test_atlas_excludes_sys(tmp_path: Path):
     (tmp_path / "sys" / "kernel" / "debug").write_text("mock")
 
     inv_file = tmp_path / "inventory.jsonl"
-    scanner = AtlasScanner(tmp_path)
+    scanner = AtlasScanner(tmp_path, snapshot_id="snap1")
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []
@@ -110,7 +110,7 @@ def test_atlas_override_excludes(tmp_path: Path):
     (tmp_path / "proc" / "1").write_text("mock")
 
     inv_file = tmp_path / "inventory.jsonl"
-    scanner = AtlasScanner(tmp_path, no_default_excludes=True)
+    scanner = AtlasScanner(tmp_path, no_default_excludes=True, snapshot_id="snap1")
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []

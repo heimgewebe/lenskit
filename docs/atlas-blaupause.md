@@ -850,16 +850,16 @@ Ziel: Machine-, Root- und Snapshot-Wirklichkeit persistent und abfragbar machen.
 
 ### Phase 2 — Zeitgedächtnis
 Ziel: Atlas wird historisch nutzbar.
-- [ ] Snapshot-to-Snapshot Delta formal einführen
-- [ ] Delta Registry ergänzen
-- [ ] `from_snapshot_id` / `to_snapshot_id` standardisieren
-- [ ] sortierte Delta-Listen garantieren
-- [ ] CLI: `atlas diff <snapA> <snapB>`
-- [ ] CLI: `atlas history <path>`
-- [ ] Datei-Historienmodell definieren
-- [ ] Root-Historienmodell definieren
-- [ ] Zeitfenster-Vergleiche konzipieren
-- [ ] Fehler-/Partial-Delta-Verhalten standardisieren
+- [x] Snapshot-to-Snapshot Delta formal einführen
+- [x] Delta Registry ergänzen
+- [x] `from_snapshot_id` / `to_snapshot_id` standardisieren
+- [x] sortierte Delta-Listen garantieren
+- [x] CLI: `atlas diff <snapA> <snapB>`
+- [x] CLI: `atlas history <path>`
+- [x] Datei-Historienmodell definieren (Eine Datei-Historie wird über chronologisch sortierte `inventory.jsonl` Beobachtungen der Snapshots desselben Roots und canonical `rel_path` abgeleitet).
+- [x] Root-Historienmodell definieren (Eine Root-Historie ergibt sich implizit durch alle `complete` Snapshots, die der `root_id` in der Registry zugeordnet sind).
+- [x] Zeitfenster-Vergleiche konzipieren (Ein Zeitfenster-Vergleich entspricht der Aggregation von Deltas über alle Snapshots im Zielzeitraum, abgeleitet durch Registries).
+- [x] Fehler-/Partial-Delta-Verhalten standardisieren (Ein Delta kann nur zwischen zwei `status="complete"` Snapshots auf derselben Machine und Root berechnet werden, sonst Abbruch).
 
 **Stop-Kriterium**: Atlas kann Zustand und Veränderung über Zeit explizit zeigen.
 
