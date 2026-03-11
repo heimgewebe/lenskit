@@ -78,7 +78,8 @@
               "retrieval_eval_json",
               "derived_manifest_json",
               "delta_json",
-              "graph_index_json"
+              "graph_index_json",
+              "architecture_summary"
             ],
             "description": "Machine-readable enum role for this artifact."
           },
@@ -191,7 +192,8 @@
                     "index_sidecar_json",
                     "retrieval_eval_json",
                     "delta_json",
-                    "graph_index_json"
+                    "graph_index_json",
+                    "architecture_summary"
                   ]
                 }
               },

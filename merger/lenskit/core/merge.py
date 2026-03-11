@@ -23,6 +23,7 @@ from .constants import ArtifactRole
 from . import clock
 from .chunker import Chunker
 from .redactor import Redactor
+from .range_resolver import build_explicit_range_ref
 from . import __core_version__ as CORE_VERSION
 
 try:
@@ -260,6 +261,13 @@ def _stable_file_id(fi: "FileInfo") -> str:
     # Updated in v2.4 (PR1) to include FILE: prefix
     return "FILE:f_" + hashlib.sha1(raw).hexdigest()[:12]
 
+
+def resolve_canonical_md(md_parts: List[Path]) -> Optional[Path]:
+    """
+    Returns the canonical markdown artifact from a list of markdown parts.
+    By contract, only the first part is fully bundle-backed.
+    """
+    return md_parts[0] if md_parts else None
 
 def _validate_agent_json_dict(d: Dict[str, Any], allow_empty_primary: bool = False) -> None:
     """
@@ -5030,6 +5038,12 @@ def write_reports_v2(
 
 
 
+    # --- Split-Mode Contract ---
+    # By architectural mandate (Phase 1, Schwerpunkt D), only the FIRST part of a split
+    # bundle is considered fully `bundle-backed` and canonically referenceable.
+    # Subsequent parts are transient artifacts and do NOT receive `content_range_ref` provenance.
+    # The chunker and the JSON sidecar exclusively refer to `md_parts[0]` as the canonical representation.
+
     # Helper for chunking (PR-Optimierung)
     def generate_chunk_artifacts(target_files, output_filename_base_func, md_paths: Optional[List[Path]] = None):
         if output_mode not in ("retrieval", "dual"):
@@ -5040,7 +5054,8 @@ def write_reports_v2(
 
         # Build offset map from all generated markdown parts
         md_offsets = extract_file_offsets(md_paths, debug) if md_paths else {}
-        canonical_md_name = md_paths[0].name if md_paths else None
+        can_md = resolve_canonical_md(md_paths) if md_paths else None
+        canonical_md_name = can_md.name if can_md else None
 
         all_chunks = []
 
@@ -5108,16 +5123,16 @@ def write_reports_v2(
                 if md_paths and fid in md_offsets:
                     md_file_name, md_start_byte = md_offsets[fid]
                     if md_file_name == canonical_md_name:
-                        d["content_range_ref"] = {
-                            "artifact_role": "canonical_md",
-                            "repo_id": fi.root_label,
-                            "file_path": md_file_name,
-                            "start_byte": md_start_byte + d["start_byte"],
-                            "end_byte": md_start_byte + d["end_byte"],
-                            "start_line": d["start_line"],
-                            "end_line": d["end_line"],
-                            "content_sha256": d["sha256"]
-                        }
+                        d["content_range_ref"] = build_explicit_range_ref(
+                            artifact_role=ArtifactRole.CANONICAL_MD.value,
+                            repo_id=fi.root_label,
+                            file_path=md_file_name,
+                            start_byte=md_start_byte + d["start_byte"],
+                            end_byte=md_start_byte + d["end_byte"],
+                            start_line=d["start_line"],
+                            end_line=d["end_line"],
+                            content_sha256=d["sha256"]
+                        )
                 d["search_keys"] = {
                     "repo_id": fi.root_label,
                     "path_norm": fi.rel_path.as_posix().lower(),
@@ -5463,8 +5478,9 @@ def write_reports_v2(
             json_data["artifacts"]["md_parts"] = [str(p) for p in md_parts]
             json_data["artifacts"]["md_parts_basenames"] = [p.name for p in md_parts]
 
-            json_data["artifacts"]["canonical_md"] = str(md_parts[0]) if md_parts else None
-            json_data["artifacts"]["canonical_md_basename"] = md_parts[0].name if md_parts else None
+            can_md = resolve_canonical_md(md_parts)
+            json_data["artifacts"]["canonical_md"] = str(can_md) if can_md else None
+            json_data["artifacts"]["canonical_md_basename"] = can_md.name if can_md else None
 
             if chunk_path:
                 json_data["artifacts"]["chunk_index"] = str(chunk_path)
@@ -5477,7 +5493,7 @@ def write_reports_v2(
         # Generate Dump Index
         md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
         artifacts_map = {
-            ArtifactRole.CANONICAL_MD.value: md_parts[0] if md_parts else None,
+            ArtifactRole.CANONICAL_MD.value: resolve_canonical_md(md_parts),
             ArtifactRole.INDEX_SIDECAR_JSON.value: json_path,
             ArtifactRole.CHUNK_INDEX_JSONL.value: chunk_path,
             ArtifactRole.ARCHITECTURE_SUMMARY.value: arch_path
@@ -5587,9 +5603,10 @@ def write_reports_v2(
                 json_data["artifacts"]["md_parts"] = [str(p) for p in md_parts]
                 json_data["artifacts"]["md_parts_basenames"] = [p.name for p in md_parts]
 
-                if md_parts:
-                    json_data["artifacts"]["canonical_md"] = str(md_parts[0])
-                    json_data["artifacts"]["canonical_md_basename"] = md_parts[0].name
+                can_md = resolve_canonical_md(md_parts)
+                if can_md:
+                    json_data["artifacts"]["canonical_md"] = str(can_md)
+                    json_data["artifacts"]["canonical_md_basename"] = can_md.name
                 else:
                     json_data["artifacts"]["canonical_md"] = None
                     json_data["artifacts"]["canonical_md_basename"] = None
@@ -5605,7 +5622,7 @@ def write_reports_v2(
             # Generate Dump Index
             md_parts = [p for p in generated_paths if p.suffix.lower() == ".md"]
             artifacts_map = {
-                ArtifactRole.CANONICAL_MD.value: md_parts[0] if md_parts else None,
+                ArtifactRole.CANONICAL_MD.value: resolve_canonical_md(md_parts),
                 ArtifactRole.INDEX_SIDECAR_JSON.value: json_path,
                 ArtifactRole.CHUNK_INDEX_JSONL.value: chunk_path,
                 ArtifactRole.ARCHITECTURE_SUMMARY.value: arch_path

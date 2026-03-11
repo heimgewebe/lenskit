@@ -6,6 +6,55 @@ from typing import Dict, Any
 import jsonschema
 from .constants import ArtifactRole
 
+def build_explicit_range_ref(
+    artifact_role: str,
+    repo_id: str,
+    file_path: str,
+    start_byte: int,
+    end_byte: int,
+    start_line: int,
+    end_line: int,
+    content_sha256: str
+) -> Dict[str, Any]:
+    """
+    Builds a dictionary representing an explicit, bundle-backed range reference.
+    """
+    return {
+        "artifact_role": artifact_role,
+        "repo_id": repo_id,
+        "file_path": file_path,
+        "start_byte": start_byte,
+        "end_byte": end_byte,
+        "start_line": start_line,
+        "end_line": end_line,
+        "content_sha256": content_sha256
+    }
+
+
+def build_derived_range_ref(
+    repo_id: str,
+    file_path: str,
+    start_byte: int,
+    end_byte: int,
+    start_line: int,
+    end_line: int,
+    content_sha256: str
+) -> Dict[str, Any]:
+    """
+    Builds a dictionary representing a derived, source-backed range reference.
+    """
+    return {
+        "artifact_role": ArtifactRole.SOURCE_FILE.value,
+        "repo_id": repo_id,
+        "file_path": file_path,
+        "start_byte": start_byte,
+        "end_byte": end_byte,
+        "start_line": start_line,
+        "end_line": end_line,
+        "content_sha256": content_sha256
+    }
+
+
 def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any]:
     """
     Resolves a range_ref against a bundle.manifest.json or dump_index.json to extract
