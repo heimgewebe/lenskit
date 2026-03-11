@@ -2,28 +2,29 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-def plan_atlas_outputs(scan_mode: str, scan_id: str) -> Dict[str, str]:
+def plan_atlas_outputs(scan_mode: str, scan_id: Optional[str] = None) -> Dict[str, str]:
     """
     Determines the set of artifacts to generate based on the scan mode.
     Returns a mapping of logical artifact keys to their expected filenames.
     """
+    prefix = f"{scan_id}." if scan_id else ""
     outputs = {
-        "summary": f"{scan_id}.summary.md"
+        "summary": f"{prefix}summary.md"
     }
 
     if scan_mode == "inventory":
-        outputs["inventory"] = f"{scan_id}.inventory.jsonl"
-        outputs["dirs"] = f"{scan_id}.dirs.jsonl"
+        outputs["inventory"] = f"{prefix}inventory.jsonl"
+        outputs["dirs"] = f"{prefix}dirs.jsonl"
     elif scan_mode == "topology":
-        outputs["topology"] = f"{scan_id}.topology.json"
+        outputs["topology"] = f"{prefix}topology.json"
     elif scan_mode == "content":
-        outputs["inventory"] = f"{scan_id}.inventory.jsonl"
-        outputs["content"] = f"{scan_id}.content.json"
+        outputs["inventory"] = f"{prefix}inventory.jsonl"
+        outputs["content"] = f"{prefix}content.json"
     elif scan_mode == "workspace":
-        outputs["workspaces"] = f"{scan_id}.workspaces.json"
-        outputs["hotspots"] = f"{scan_id}.hotspots.json"
+        outputs["workspaces"] = f"{prefix}workspaces.json"
+        outputs["hotspots"] = f"{prefix}hotspots.json"
 
     return outputs
 
