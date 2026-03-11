@@ -15,7 +15,7 @@ def test_atlas_inventory_includes_all_titles(tmp_path):
 
     inventory_file = tmp_path / "atlas.inventory.jsonl"
 
-    scanner = AtlasScanner(tmp_path, inventory_strict=False, enable_content_stats=True)
+    scanner = AtlasScanner(tmp_path, snapshot_id="dummy_snap", inventory_strict=False, enable_content_stats=True)
     scanner.scan(inventory_file=inventory_file)
 
     assert inventory_file.exists()
@@ -53,7 +53,7 @@ def test_atlas_inventory_strict_mode(tmp_path):
 
     # With inventory_strict=True, node_modules should be included
     # (Default strict excludes are only .git and .venv)
-    scanner = AtlasScanner(tmp_path, inventory_strict=True)
+    scanner = AtlasScanner(tmp_path, snapshot_id="dummy_snap", inventory_strict=True)
     scanner.scan(inventory_file=inventory_file)
 
     lines = inventory_file.read_text(encoding="utf-8").strip().splitlines()
@@ -105,7 +105,7 @@ def test_exclude_pattern_robustness(tmp_path):
     (tmp_path / "myexclude" / "bad.txt").write_text("bad")
 
     # Explicit custom exclude
-    scanner = AtlasScanner(tmp_path, exclude_globs=["**/myexclude"])
+    scanner = AtlasScanner(tmp_path, snapshot_id="dummy_snap", exclude_globs=["**/myexclude"])
 
     inventory_file = tmp_path / "inv.jsonl"
     scanner.scan(inventory_file=inventory_file)
@@ -116,6 +116,18 @@ def test_exclude_pattern_robustness(tmp_path):
 
     assert "keep/ok.txt" in paths
     assert "myexclude/bad.txt" not in paths
+
+def test_atlas_inventory_fails_without_snapshot_id(tmp_path):
+    import pytest
+    (tmp_path / "file1.txt").write_text("content", encoding="utf-8")
+
+    inventory_file = tmp_path / "atlas.inventory.jsonl"
+
+    # Missing snapshot_id
+    scanner = AtlasScanner(tmp_path)
+
+    with pytest.raises(ValueError, match="Inventory emission requires a snapshot_id"):
+        scanner.scan(inventory_file=inventory_file)
 
 def test_atlas_dirs_inventory_excludes_files(tmp_path):
     (tmp_path / "mixed").mkdir()

@@ -204,6 +204,9 @@ class AtlasScanner:
             inventory_file: Optional path to write a JSONL inventory of all files.
             dirs_inventory_file: Optional path to write a JSONL inventory of all directories.
         """
+        if inventory_file and not self.snapshot_id:
+            raise ValueError("Inventory emission requires a snapshot_id to satisfy the atlas-inventory.v1 schema contract.")
+
         self.stats["start_time"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         start_ts = time.time()
 
