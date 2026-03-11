@@ -87,7 +87,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         )
 
         # Determine effective scan config hash based on Scanner state
-        eff_excludes = scanner.stats.get("active_excludes", [])
+        eff_excludes = scanner.exclude_globs
         eff_ex_str = ",".join(sorted(eff_excludes))
         config_str = f"mode={args.mode}|depth={args.depth}|limit={args.limit}|ex={eff_ex_str}|maxfs={max_file_size}"
         short_hash = hashlib.md5(config_str.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
