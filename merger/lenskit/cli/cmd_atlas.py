@@ -98,40 +98,50 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         registry.create_snapshot(snapshot_id, machine_id, root_id, short_hash, "running")
 
         try:
-            base_name = f"atlas_scan_{scan_root.name if scan_root.name else 'root'}"
-            scan_id = base_name
-            planned_outputs = plan_atlas_outputs(args.mode, scan_id)
+            # Set up correct directory structure based on Atlas Blaupause
+            snapshot_dir = Path("atlas") / "machines" / machine_id / "roots" / root_id / "snapshots" / snapshot_id
+            snapshot_dir.mkdir(parents=True, exist_ok=True)
+
+            planned_outputs = plan_atlas_outputs(args.mode, scan_id=None)
+
+            # Map the planned outputs to the full paths, but let planner just return file names
+            planned_paths = {k: snapshot_dir / v for k, v in planned_outputs.items()}
+
+            # For the registry, we'll store the relative path from the CWD
+            # so the SQLite index references the files correctly.
+            registry_artifacts = {k: str(v) for k, v in planned_paths.items()}
 
             print(f"Scanning: {scan_root} (Mode: {args.mode})")
             print("This may take a while depending on the filesystem...")
 
-            inventory_path = Path(planned_outputs["inventory"]) if "inventory" in planned_outputs else None
-            dirs_path = Path(planned_outputs["dirs"]) if "dirs" in planned_outputs else None
+            inventory_path = planned_paths.get("inventory")
+            dirs_path = planned_paths.get("dirs")
 
             result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_path)
 
             # Write core stats JSON (always)
-            out_json = Path(f"{base_name}.json")
+            out_json = snapshot_dir / "snapshot_meta.json"
             with open(out_json, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2)
 
+            registry_artifacts["snapshot_meta"] = str(out_json)
+
             # Render summary MD
             md_content = render_atlas_md(result)
-            out_md = Path(planned_outputs["summary"])
+            out_md = planned_paths["summary"]
             with open(out_md, "w", encoding="utf-8") as f:
                 f.write(md_content)
 
             # Additional structural outputs
-            write_mode_outputs(planned_outputs, result, Path("."))
+            write_mode_outputs(planned_outputs, result, snapshot_dir)
 
-            # Update Registry
-            registry.update_snapshot_artifacts(snapshot_id, planned_outputs)
+            # Write artifacts before updating the registry status to complete (Memory constraint)
+            registry.update_snapshot_artifacts(snapshot_id, registry_artifacts)
             registry.update_snapshot_status(snapshot_id, "complete")
 
             print(f"Done. Outputs generated for mode '{args.mode}':")
-            for k, v in planned_outputs.items():
+            for k, v in registry_artifacts.items():
                 print(f" - {k}: {v}")
-            print(f" - stats: {out_json.name}")
 
             print(f"\nSummary preview:\n{md_content}")
             return 0
