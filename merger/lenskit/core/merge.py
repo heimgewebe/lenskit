@@ -5054,7 +5054,8 @@ def write_reports_v2(
 
         # Build offset map from all generated markdown parts
         md_offsets = extract_file_offsets(md_paths, debug) if md_paths else {}
-        canonical_md_name = md_paths[0].name if md_paths else None
+        can_md = resolve_canonical_md(md_paths) if md_paths else None
+        canonical_md_name = can_md.name if can_md else None
 
         all_chunks = []
 
