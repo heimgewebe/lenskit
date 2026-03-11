@@ -742,7 +742,7 @@ canonical_md muss zentral festgelegt werden und an drei Stellen identisch sein:
 3. sidecar / artifacts metadata
 
 Umsetzung:
-- [ ] Einführen einer kleinen Hilfsfunktion: `resolve_canonical_md(md_parts) -> Path | None`
+- [x] Einführen einer kleinen Hilfsfunktion: `resolve_canonical_md(md_parts) -> Path | None`
 Diese Funktion wird die einzige Quelle für die canonical-Auswahl.
 
 Betroffene Stellen:
@@ -771,7 +771,7 @@ Jede Rolle ist an allen notwendigen Stellen konsistent:
 5. tests
 
 Umsetzung:
-- [ ] Ein „role completeness check“.
+- [x] Ein „role completeness check“.
 
 Idee:
 Eigener Test oder Validator:
@@ -797,7 +797,7 @@ Regel:
 * niemals implizites Überschreiben
 
 Umsetzung:
-- [ ] Hilfsfunktion für Range-Entscheidung
+- [x] Hilfsfunktion für Range-Entscheidung
 * Query-Core darf dies nicht inline improvisieren
 * Resolver muss die Semantik kennen
 
@@ -816,7 +816,7 @@ Aktueller sinnvoller Zwischenstand:
 Nur das kanonische Bundle-Artefakt ist streng bundle-backed; spätere Parts bleiben bewusst außerhalb dieses Contracts.
 
 Aber:
-- [ ] Das muss dann überall explizit sein:
+- [x] Das muss dann überall explizit sein:
 * Roadmap
 * Tests
 * Query-Verhalten
@@ -824,14 +824,14 @@ Aber:
 * Resolver-Logik
 
 ### 7.5 Deliverables Phase 1
-- [ ] 1. canonical_md zentral vereinheitlicht
-- [ ] 2. Role-Completeness-Check
-- [ ] 3. Range-Builder-Helfer
-- [ ] 4. Split-Mode-Vertrag dokumentiert
-- [ ] 5. Docs/Beispiele synchronisiert
+- [x] 1. canonical_md zentral vereinheitlicht
+- [x] 2. Role-Completeness-Check
+- [x] 3. Range-Builder-Helfer
+- [x] 4. Split-Mode-Vertrag dokumentiert
+- [x] 5. Docs/Beispiele synchronisiert
 
 ### 7.6 Gate für Phase 1
-- [ ] Phase 1 ist fertig, wenn:
+- [x] Phase 1 ist fertig, wenn:
 * kein Widerspruch mehr zwischen manifest / sidecar / chunk / resolver bzgl. canonical_md existiert
 * alle ArtifactRoles schema-konsistent sind
 * range_ref und derived_range_ref logisch getrennt sind
@@ -1765,7 +1765,7 @@ Gate:
 
 ## Empfohlene PR-Reihenfolge (Gesamt)
 
-- [ ] PR 1: Contract-/Provenance-Härtung
+- [x] PR 1: Contract-/Provenance-Härtung
 - [ ] PR 2: Query Trace + Context Bundle
 - [ ] PR 3: Graph Runtime Konsolidierung
 - [ ] PR 4: Federation Foundation
@@ -1828,7 +1828,7 @@ Schutzmaßnahmen:
 
 ## Messbare Meilensteine
 
-- [ ] M1: Alle Kernartefakte contract-validiert und provenance-klar
+- [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
 - [ ] M2: Query Trace + Context Bundle vorhanden
 - [ ] M3: Graph-Runtime konsistent und diagnostizierbar
 - [ ] M4: Bundles föderierbar
