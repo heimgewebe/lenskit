@@ -36,3 +36,6 @@ repolensd.log
 # Atlas Registry & Indices
 atlas/registry/*.sqlite
 atlas/indexes/*.sqlite
+atlas_scan_*.json
+atlas_scan_*.jsonl
+atlas_scan_*.md
