@@ -4,6 +4,8 @@ import datetime
 from pathlib import Path
 from typing import Dict, Any, List
 
+from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
+
 def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict[str, Any]:
     from_snap = registry.get_snapshot(from_snap_id)
     to_snap = registry.get_snapshot(to_snap_id)
@@ -22,12 +24,16 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     machine_id = from_snap["machine_id"]
     root_id = from_snap["root_id"]
 
+    if not getattr(registry, 'db_path', None):
+        raise ValueError("Cannot compute snapshot delta without a canonical registry db_path.")
+    atlas_base = resolve_atlas_base_dir(registry.db_path)
+
     from_inv_path = None
     if from_snap["inventory_ref"]:
-        from_inv_path = Path(from_snap["inventory_ref"])
+        from_inv_path = resolve_artifact_ref(atlas_base, from_snap["inventory_ref"])
     to_inv_path = None
     if to_snap["inventory_ref"]:
-        to_inv_path = Path(to_snap["inventory_ref"])
+        to_inv_path = resolve_artifact_ref(atlas_base, to_snap["inventory_ref"])
 
     if not from_inv_path or not from_inv_path.exists():
         raise FileNotFoundError(f"Inventory missing for snapshot {from_snap_id}")
@@ -89,8 +95,7 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     }
 
     # Store in the to_snapshot directory as per convention: snapshots/<snapshot_id>/
-    # Note: Artifacts are currently written relative to the Atlas CWD convention `Path("atlas")`.
-    snapshot_dir = Path("atlas") / "machines" / machine_id / "roots" / root_id / "snapshots" / to_snap_id
+    snapshot_dir = resolve_snapshot_dir(atlas_base, machine_id, root_id, to_snap_id)
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 
     delta_filename = f"{delta_id}.json"
@@ -99,7 +104,11 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     with open(delta_path, "w", encoding="utf-8") as f:
         json.dump(delta, f, indent=2)
 
-    delta_ref = str(delta_path)
+    try:
+        delta_ref = str(delta_path.relative_to(atlas_base))
+    except ValueError:
+        delta_ref = str(delta_path)
+
     registry.register_delta(delta_id, from_snap_id, to_snap_id, delta_ref, created_at)
 
     return delta

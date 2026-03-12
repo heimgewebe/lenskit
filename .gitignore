@@ -34,9 +34,9 @@ repolensd.log
 .gewebe/out/
 
 # Atlas Registry & Indices
-atlas/
-atlas/registry/*.sqlite
-atlas/indexes/*.sqlite
+/atlas/
+/atlas/registry/*.sqlite
+/atlas/indexes/*.sqlite
 atlas_scan_*.json
 atlas_scan_*.jsonl
 atlas_scan_*.md

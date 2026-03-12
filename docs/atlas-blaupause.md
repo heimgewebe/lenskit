@@ -799,6 +799,7 @@ Atlas modelliert primär Dateiwirklichkeit, nicht Projektpsychologie. Repo-Marke
 ### Entscheidung E — Registry in SQLite, schwere Artefakte als Dateien
 SQLite für Machine Registry, Root Registry, Snapshot Registry, Delta Registry, Suchmetadaten/FTS.
 Dateien für `inventory.jsonl`, `dirs.jsonl`, `content.json`, `topology.json`, `hotspots.json`, `workspaces.json`.
+Atlas-Artefakte werden deterministisch gegen einen kanonischen Atlas-Basisordner aufgelöst (abgeleitet aus dem Registry-Pfad), nicht gegen den aktuellen Prozess-CWD.
 
 ## 2. Contracts, die du wirklich anlegen solltest
 
