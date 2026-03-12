@@ -161,7 +161,7 @@ def do_eval(
         print("No queries found in input file.", file=sys.stderr)
         return None
 
-    compare_mode = embedding_policy is not None
+    compare_mode = (embedding_policy is not None) or (graph_index_path is not None)
 
     if not is_json_mode:
         print(f"Running Eval on {len(gold_queries)} queries against {index_path.name}...")
@@ -194,9 +194,7 @@ def do_eval(
 
         try:
             # Baseline run (no embedding policy)
-            b_rel, b_match, b_why, b_paths, b_count, b_rr, b_res = evaluate_single_run(
-                q_text, filters, expected, index_path, k, None, graph_index_path, graph_weights
-            )
+            b_rel, b_match, b_why, b_paths, b_count, b_rr, b_res = evaluate_single_run(q_text, filters, expected, index_path, k, None, None, graph_weights)
 
             s_rel, s_match, s_why, s_paths, s_count, s_rr, s_res = False, "-", None, [], 0, 0.0, {}
             sem_error_str = None
@@ -398,5 +396,9 @@ def do_eval(
         out["metrics"]["semantic_hits"] = sem_hits_at_k
         out["metrics"]["delta_recall"] = sem_recall_at_k - base_recall_at_k
         out["metrics"]["delta_mrr"] = sem_mrr - base_mrr
+        if graph_index_path is not None:
+            out["metrics"][f"graph_recall@{k}"] = sem_recall_at_k
+            out["metrics"]["graph_MRR"] = sem_mrr
+            out["metrics"]["delta_graph_mrr"] = sem_mrr - base_mrr
 
     return out

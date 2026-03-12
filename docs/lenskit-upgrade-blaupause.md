@@ -1165,24 +1165,24 @@ Bessere Variante: Hash von `architecture_graph.json`, Hash von `entrypoints.json
 Neue oder geschärfte Tests:
 - [ ] 1. test_graph_schema_validation
 - [ ] 2. test_graph_loader_normalizes_and_rejects_invalid
-- [ ] 3. test_query_explain_graph_fields_match_scoring
-- [ ] 4. test_eval_graph_delta_reporting
-- [ ] 5. test_graph_staleness_marker
-- [ ] 6. test_missing_graph_is_explicitly_reported
-- [ ] 7. test_graph_bonus_is_bounded
+- [x] 3. test_query_explain_graph_fields_match_scoring
+- [x] 4. test_eval_graph_delta_reporting
+- [x] 5. test_graph_staleness_marker
+- [x] 6. test_missing_graph_is_explicitly_reported
+- [x] 7. test_graph_bonus_is_bounded
 
 Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert sich -> Explain zeigt exakt denselben Grund.
 
 ### 1.11 Deliverables Phase 3
 - [x] 1. Graph-Runtime-Contract-Doku
 - [x] 2. zentrales Graph-Loader-Modul
-- [ ] 3. definierte Graph-Score-Formel
-- [ ] 4. Explain/Runtime-Kopplung
-- [ ] 5. graph-aware Eval mit Deltas
-- [ ] 6. Graph-Staleness-Marker
+- [x] 3. definierte Graph-Score-Formel
+- [x] 4. Explain/Runtime-Kopplung
+- [x] 5. graph-aware Eval mit Deltas
+- [x] 6. Graph-Staleness-Marker
 
 ### 1.12 Gate für Phase 3
-- [ ] Phase 3 ist fertig, wenn:
+- [x] Phase 3 ist fertig, wenn:
 * Graph semantisch dokumentiert ist
 * Query/Eval denselben Loader und dieselbe Semantik nutzen
 * Explain die tatsächliche Graph-Wirkung abbildet
@@ -1769,7 +1769,7 @@ Gate:
 
 - [x] PR 1: Contract-/Provenance-Härtung
 - [ ] PR 2: Query Trace + Context Bundle
-- [ ] PR 3: Graph Runtime Konsolidierung
+- [x] PR 3: Graph Runtime Konsolidierung
 - [ ] PR 4: Federation Foundation
 - [ ] PR 5: Federated Query + Ranking
 - [ ] PR 6: Agent Control Surface
@@ -1832,7 +1832,7 @@ Schutzmaßnahmen:
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
 - [ ] M2: Query Trace + Context Bundle vorhanden
-- [ ] M3: Graph-Runtime konsistent und diagnostizierbar
+- [x] M3: Graph-Runtime konsistent und diagnostizierbar
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar

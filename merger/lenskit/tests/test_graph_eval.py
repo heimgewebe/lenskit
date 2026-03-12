@@ -27,7 +27,12 @@ def eval_env(tmp_path):
     queries_path.write_text("1. **\"index\"**\n   * *Expected:* `src/entry.py`\n")
 
     graph_index = {
-        "distances": {"file:src/entry.py": 0, "file:src/util.py": 1}
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": "test",
+        "canonical_dump_index_sha256": "0"*64,
+        "distances": {"file:src/entry.py": 0, "file:src/util.py": 1},
+        "metrics": {"entrypoint_count": 1, "nodes_reachable": 2, "unreachable_nodes": 0}
     }
     graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
 
@@ -73,9 +78,11 @@ def test_invalid_graph_index_raises(eval_env, capsys):
     )
 
     ret = cmd_eval.run_eval(args)
-    assert ret == 1
+    assert ret == 0
     captured = capsys.readouterr()
-    assert "Invalid graph index JSON" in captured.err
+    output = json.loads(captured.out)
+    assert output["details"][0]["why"]["graph_explain"]["graph_used"] is False
+    assert output["details"][0]["why"]["graph_explain"]["graph_status"] == "invalid_json"
 
 def test_missing_graph_index_raises(eval_env, capsys):
     missing_graph = eval_env["graph_index"].parent / "does_not_exist.json"
@@ -92,6 +99,40 @@ def test_missing_graph_index_raises(eval_env, capsys):
     )
 
     ret = cmd_eval.run_eval(args)
-    assert ret == 1
+    assert ret == 0
     captured = capsys.readouterr()
-    assert "Explicitly provided graph index file does not exist" in captured.err
+    output = json.loads(captured.out)
+    assert output["details"][0]["why"]["graph_explain"]["graph_used"] is False
+    assert output["details"][0]["why"]["graph_explain"]["graph_status"] == "not_found"
+
+def test_eval_graph_delta_reporting(eval_env, capsys):
+    args = argparse.Namespace(
+        index=str(eval_env["db"]),
+        queries=str(eval_env["queries"]),
+        k=10,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        graph_index=str(eval_env["graph_index"]),
+        graph_weights=None
+    )
+
+    ret = cmd_eval.run_eval(args)
+    assert ret == 0
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert "graph_MRR" in output["metrics"]
+    assert "delta_graph_mrr" in output["metrics"]
+
+    # In compare mode, baseline is checked
+    detail = output["details"][0]
+    assert "baseline" in detail
+    assert "semantic" in detail
+
+    assert detail["baseline"]["explain"]["top_k_scoring"]
+
+    # Ensure graph is used in semantic run and not baseline run
+    sem_hit_why = detail["why"]
+    assert "graph_explain" in sem_hit_why
+    assert sem_hit_why["graph_explain"]["graph_used"] is True

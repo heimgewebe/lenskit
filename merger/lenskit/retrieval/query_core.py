@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 
 from .router import route_query
 from ..core.range_resolver import build_derived_range_ref
+from ..architecture.graph_index import load_graph_index
 
 WHY_ZERO_TOKENS = "tokens too restrictive"
 WHY_ZERO_FILTERS = "filters too restrictive"
@@ -218,14 +219,27 @@ def execute_query(
                         }
 
         graph_index = None
+        graph_status = "not_found"
+
+        # Determine expected sha256 from the index metadata if we want to check staleness.
+        # But we only need expected_sha256 if we have dump_index metadata in the database.
+        expected_sha256 = None
+        try:
+            # Attempt to read canonical_dump_index_sha256 if available in the database
+            cursor = conn.execute("SELECT value FROM metadata WHERE key='canonical_dump_index_sha256'")
+            row = cursor.fetchone()
+            if row:
+                expected_sha256 = row["value"]
+        except sqlite3.OperationalError:
+            pass
+
         if graph_index_path:
-            if not graph_index_path.exists():
-                raise RuntimeError(f"Explicitly provided graph index file does not exist: {graph_index_path}")
-            try:
-                with graph_index_path.open() as f:
-                    graph_index = json.load(f)
-            except Exception as e:
-                raise RuntimeError(f"Invalid graph index JSON at {graph_index_path}: {e}") from e
+            res = load_graph_index(graph_index_path, expected_sha256=expected_sha256)
+            graph_status = res["status"]
+            if graph_status in ("ok", "stale_or_mismatched"):
+                graph_index = res["graph"]
+            else:
+                graph_index = None
 
         if not graph_weights:
             graph_weights = {"w_bm25": 0.65, "w_graph": 0.20, "w_entry": 0.15}
@@ -263,37 +277,54 @@ def execute_query(
             final_score = rank_features["bm25_norm"]
             why_list = []
 
-            if graph_index:
-                path_str = r["path"]
-                node_id = f"file:{path_str}"
-                dist = graph_index.get("distances", {}).get(node_id, -1)
-
-                graph_proximity = 0.0
-                entrypoint_boost = 0.0
-                if dist == 0:
-                    graph_proximity = 1.0
-                    entrypoint_boost = 1.0
-                    why_list.append("entrypoint_boost")
-                elif dist > 0:
-                    graph_proximity = 1.0 / (dist + 1.0)
-
-                is_test = r["layer"] == "test" or "test" in path_str.lower()
-                current_penalty = test_penalty if is_test else 1.0
-
-                rank_features["graph_proximity"] = graph_proximity
-                rank_features["entrypoint_boost"] = entrypoint_boost
-
-                if graph_proximity > 0:
-                    why_list.append("near_entry")
-                if not is_test:
-                    why_list.append("not_test")
-
+            graph_explain = None
+            if graph_index_path:
                 w_b = graph_weights.get("w_bm25", 0.65)
                 w_g = graph_weights.get("w_graph", 0.20)
                 w_e = graph_weights.get("w_entry", 0.15)
 
-                score_pre = (w_b * rank_features["bm25_norm"]) + (w_g * graph_proximity) + (w_e * entrypoint_boost)
-                final_score = score_pre * current_penalty
+                path_str = r["path"]
+                node_id = f"file:{path_str}"
+
+                graph_used = graph_status in ("ok", "stale_or_mismatched")
+                dist = -1
+
+                graph_proximity = 0.0
+                entrypoint_boost = 0.0
+                graph_bonus = 0.0
+
+                if graph_used and graph_index:
+                    dist = graph_index.get("distances", {}).get(node_id, -1)
+                    if dist == 0:
+                        graph_proximity = 1.0
+                        entrypoint_boost = 1.0
+                        why_list.append("entrypoint_boost")
+                    elif dist > 0:
+                        graph_proximity = 1.0 / (dist + 1.0)
+
+                    if graph_proximity > 0:
+                        why_list.append("near_entry")
+
+                    raw_graph_bonus = (w_g * graph_proximity) + (w_e * entrypoint_boost)
+                    cap = w_g + w_e
+                    graph_bonus = min(raw_graph_bonus, cap)
+
+                is_test = r["layer"] == "test" or "test" in path_str.lower()
+                current_penalty = test_penalty if is_test else 1.0
+                if not is_test and graph_used:
+                    why_list.append("not_test")
+
+                if graph_used:
+                    score_pre = (w_b * rank_features["bm25_norm"]) + graph_bonus
+                    final_score = score_pre * current_penalty
+
+                graph_explain = {
+                    "graph_used": graph_used,
+                    "graph_status": graph_status,
+                    "node_id": node_id,
+                    "distance": dist,
+                    "graph_bonus": graph_bonus
+                }
 
             hit = {
                 "chunk_id": r["chunk_id"],
@@ -312,7 +343,10 @@ def execute_query(
                     "diagnostics": base_diagnostics
                 }
             }
-            if graph_index:
+            if graph_index_path:
+                hit["why"]["graph_explain"] = graph_explain
+
+            if why_list:
                 hit["why_list"] = why_list
 
             ref_str = None
