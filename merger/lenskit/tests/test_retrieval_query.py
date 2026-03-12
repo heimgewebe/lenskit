@@ -408,6 +408,14 @@ def test_query_explain_graph_fields_match_scoring(mini_index, tmp_path, monkeypa
     assert ge["node_id"] == "file:tests/test_main.py"
     assert ge["distance"] == 0
 
+    # Contract proof
+    import jsonschema
+    from pathlib import Path
+    schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f2:
+        schema = json.load(f2)
+    jsonschema.validate(instance=res, schema=schema)
+
     # Check that score pre calculation aligns with graph_bonus
     # final_score = (bm25_norm * w_b) + graph_bonus (and test penalty applied if it's test)
     rf = hit["why"]["rank_features"]

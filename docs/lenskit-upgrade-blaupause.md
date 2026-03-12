@@ -1163,8 +1163,8 @@ Bessere Variante: Hash von `architecture_graph.json`, Hash von `entrypoints.json
 ### 1.10 Tests Phase 3
 
 Neue oder geschärfte Tests:
-- [ ] 1. test_graph_schema_validation
-- [ ] 2. test_graph_loader_normalizes_and_rejects_invalid
+- [x] 1. test_graph_schema_validation
+- [x] 2. test_graph_loader_normalizes_and_rejects_invalid
 - [x] 3. test_query_explain_graph_fields_match_scoring
 - [x] 4. test_eval_graph_delta_reporting
 - [x] 5. test_graph_staleness_marker

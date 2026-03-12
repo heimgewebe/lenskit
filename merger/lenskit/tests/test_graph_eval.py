@@ -123,12 +123,12 @@ def test_eval_graph_delta_reporting(eval_env, capsys):
     output = json.loads(captured.out)
 
     assert "graph_MRR" in output["metrics"]
-    assert "delta_graph_mrr" in output["metrics"]
+    assert "delta_mrr" in output["metrics"]
 
     # In compare mode, baseline is checked
     detail = output["details"][0]
     assert "baseline" in detail
-    assert "semantic" in detail
+    assert "graph" in detail
 
     assert detail["baseline"]["explain"]["top_k_scoring"]
 

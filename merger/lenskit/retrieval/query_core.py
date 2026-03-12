@@ -228,12 +228,6 @@ def execute_query(
                 row = cursor.fetchone()
                 if row:
                     return row["value"]
-
-                # Legacy fallback check if index_meta has a different key name (e.g. dump_sha256)
-                cursor = db_conn.execute("SELECT value FROM index_meta WHERE key='dump_sha256'")
-                row = cursor.fetchone()
-                if row:
-                    return row["value"]
             except sqlite3.OperationalError:
                 pass
             return None

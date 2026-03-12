@@ -162,12 +162,24 @@ def do_eval(
         return None
 
     compare_mode = (embedding_policy is not None) or (graph_index_path is not None)
+    if embedding_policy is not None and graph_index_path is not None:
+        compare_type = "sem_graph"
+        compare_label = "Sem+Graph"
+    elif embedding_policy is not None:
+        compare_type = "semantic"
+        compare_label = "Semantic"
+    elif graph_index_path is not None:
+        compare_type = "graph"
+        compare_label = "Graph"
+    else:
+        compare_type = "none"
+        compare_label = "None"
 
     if not is_json_mode:
         print(f"Running Eval on {len(gold_queries)} queries against {index_path.name}...")
         print("-" * 80 if compare_mode else "-" * 60)
         if compare_mode:
-            print(f"{'Query':<35} | {'Base (RR / Match)':<25} | {'Sem (RR / Match)':<25}")
+            print(f"{'Query':<35} | {'Base (RR / Match)':<25} | {compare_label + ' (RR / Match)':<25}")
         else:
             print(f"{'Query':<40} | {'Found':<5} | {'Rel?':<4} | {'Top-1 Match':<30}")
         print("-" * 80 if compare_mode else "-" * 60)
@@ -267,7 +279,7 @@ def do_eval(
                     "rr": b_rr,
                     "explain": b_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
                 }
-                detail["semantic"] = {
+                detail[compare_type] = {
                     "is_relevant": s_rel,
                     "hit_path": s_match if s_rel else None,
                     "found_count": s_count,
@@ -276,7 +288,7 @@ def do_eval(
                     "explain": s_res.get("explain", {"filters": filters, "why_fail": WHY_FAIL_MISSING_EXPLAIN})
                 }
                 if sem_error_str:
-                    detail["semantic"]["error"] = sem_error_str
+                    detail[compare_type]["error"] = sem_error_str
                 detail["delta_rr"] = s_rr - b_rr
                 # Overwrite backwards-compatible base fields with semantic ones if we're evaluating semantic overall
                 detail["is_relevant"] = s_rel
@@ -354,19 +366,19 @@ def do_eval(
         cat_data["MRR"] = cat_data["base_mrr_sum"] / c_total if c_total > 0 else 0.0
 
         if compare_mode:
-            cat_data[f"semantic_recall@{k}"] = (cat_data["sem_hits"] / c_total) * 100.0 if c_total > 0 else 0.0
-            cat_data["semantic_MRR"] = cat_data["sem_mrr_sum"] / c_total if c_total > 0 else 0.0
+            cat_data[f"{compare_type}_recall@{k}"] = (cat_data["sem_hits"] / c_total) * 100.0 if c_total > 0 else 0.0
+            cat_data[f"{compare_type}_MRR"] = cat_data["sem_mrr_sum"] / c_total if c_total > 0 else 0.0
 
     if not is_json_mode:
         print("-" * 80 if compare_mode else "-" * 60)
         if compare_mode:
             print(f"Base Recall@{k}: {base_recall_at_k:.1f}% ({base_hits_at_k}/{total_queries}) | Base MRR: {base_mrr:.3f}")
-            print(f"Sem  Recall@{k}: {sem_recall_at_k:.1f}% ({sem_hits_at_k}/{total_queries}) | Sem  MRR: {sem_mrr:.3f}")
+            print(f"{compare_label[:4]:<4} Recall@{k}: {sem_recall_at_k:.1f}% ({sem_hits_at_k}/{total_queries}) | {compare_label[:4]:<4} MRR: {sem_mrr:.3f}")
             print(f"Delta Recall@{k}: {(sem_recall_at_k - base_recall_at_k):+.1f}% | Delta MRR: {(sem_mrr - base_mrr):+.3f}")
             print(f"0-Hits Ratio: {zero_hit_ratio:.2f} ({zero_hit_count}/{total_queries})")
             for cat, stats in category_stats.items():
                 print(f"  {cat} Base Recall@{k}: {stats[f'recall@{k}']:.1f}% | Base MRR: {stats['MRR']:.3f}")
-                print(f"  {cat} Sem  Recall@{k}: {stats[f'semantic_recall@{k}']:.1f}% | Sem  MRR: {stats['semantic_MRR']:.3f}")
+                print(f"  {cat} {compare_label[:4]:<4} Recall@{k}: {stats.get(f'{compare_type}_recall@{k}', 0):.1f}% | {compare_label[:4]:<4} MRR: {stats.get(f'{compare_type}_MRR', 0):.3f}")
         else:
             print(f"Recall@{k}: {base_recall_at_k:.1f}% ({base_hits_at_k}/{total_queries}) | MRR: {base_mrr:.3f}")
             print(f"0-Hits Ratio: {zero_hit_ratio:.2f} ({zero_hit_count}/{total_queries})")
@@ -391,14 +403,15 @@ def do_eval(
     }
 
     if compare_mode:
-        out["metrics"][f"semantic_recall@{k}"] = sem_recall_at_k
-        out["metrics"]["semantic_MRR"] = sem_mrr
-        out["metrics"]["semantic_hits"] = sem_hits_at_k
+        out["metrics"][f"{compare_type}_recall@{k}"] = sem_recall_at_k
+        out["metrics"][f"{compare_type}_MRR"] = sem_mrr
+        out["metrics"][f"{compare_type}_hits"] = sem_hits_at_k
         out["metrics"]["delta_recall"] = sem_recall_at_k - base_recall_at_k
         out["metrics"]["delta_mrr"] = sem_mrr - base_mrr
-        if graph_index_path is not None:
-            out["metrics"][f"graph_recall@{k}"] = sem_recall_at_k
-            out["metrics"]["graph_MRR"] = sem_mrr
-            out["metrics"]["delta_graph_mrr"] = sem_mrr - base_mrr
+
+        # Backwards compatibility specifically for semantic eval callers
+        if compare_type != "semantic":
+            out["metrics"][f"semantic_recall@{k}"] = sem_recall_at_k
+            out["metrics"]["semantic_MRR"] = sem_mrr
 
     return out
