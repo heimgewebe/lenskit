@@ -1,15 +1,15 @@
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 import jsonschema
 
 logger = logging.getLogger(__name__)
 
-def load_graph_index(path: Path, expected_sha256: str = None) -> Dict[str, Any]:
+def load_graph_index(path: Path, expected_sha256: Optional[str] = None) -> Dict[str, Any]:
     """
     Loads and validates a graph index.
-    Returns a dict with 'status' (ok, not_found, invalid_json, invalid_schema, stale_or_mismatched)
+    Returns a dict with 'status' (ok, not_found, invalid_json, invalid_schema, stale_or_mismatched, unreadable)
     and 'graph' (the loaded dict, if successful).
     """
     if not path.exists():
