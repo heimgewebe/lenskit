@@ -24,7 +24,9 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     machine_id = from_snap["machine_id"]
     root_id = from_snap["root_id"]
 
-    atlas_base = resolve_atlas_base_dir(getattr(registry, 'db_path', None))
+    if not getattr(registry, 'db_path', None):
+        raise ValueError("Cannot compute snapshot delta without a canonical registry db_path.")
+    atlas_base = resolve_atlas_base_dir(registry.db_path)
 
     from_inv_path = None
     if from_snap["inventory_ref"]:

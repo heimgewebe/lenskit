@@ -32,4 +32,19 @@ def resolve_artifact_ref(atlas_base_dir: Path, ref_path: str) -> Path:
     p = Path(ref_path)
     if p.is_absolute():
         return p
-    return atlas_base_dir / p
+
+    # Handle legacy paths that include 'atlas/' prefix
+    # when the base directory itself is named 'atlas'
+    parts = p.parts
+    if atlas_base_dir.name == "atlas" and parts and parts[0] == "atlas":
+        p = Path(*parts[1:])
+
+    resolved_path = (atlas_base_dir / p).resolve()
+
+    # Path traversal prevention
+    try:
+        resolved_path.relative_to(atlas_base_dir.resolve())
+    except ValueError:
+        raise ValueError("Artifact reference escapes atlas base directory")
+
+    return resolved_path
