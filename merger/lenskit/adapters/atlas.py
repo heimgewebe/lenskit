@@ -77,6 +77,8 @@ class AtlasScanner:
                             try:
                                 item = json.loads(line)
                                 rel_path = item["rel_path"]
+                                if not isinstance(rel_path, str):
+                                    raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
                                 self.incremental_inventory[rel_path] = item
                             except (json.JSONDecodeError, KeyError, TypeError) as e:
                                 logger.warning(f"Failed to load incremental inventory entry in {incremental_inventory} at line {line_idx}. Error: {type(e).__name__} - {e}. Skipping line.")
