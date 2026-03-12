@@ -63,6 +63,40 @@ def run_atlas_diff(args: argparse.Namespace) -> int:
         print(f"Error computing diff: {e}", file=sys.stderr)
         return 1
 
+def run_atlas_search(args: argparse.Namespace) -> int:
+    from merger.lenskit.atlas.search import AtlasSearch
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    try:
+        searcher = AtlasSearch(registry_path)
+
+        # Add basic query support
+        query = args.query if hasattr(args, 'query') else None
+
+        results = searcher.search(
+            query=query,
+            machine_id=args.machine_id if hasattr(args, 'machine_id') else None,
+            root_id=args.root_id if hasattr(args, 'root_id') else None,
+            snapshot_id=args.snapshot_id if hasattr(args, 'snapshot_id') else None,
+            path_pattern=args.path if hasattr(args, 'path') else None,
+            name_pattern=args.name if hasattr(args, 'name') else None,
+            ext=args.ext if hasattr(args, 'ext') else None,
+            min_size=args.min_size if hasattr(args, 'min_size') else None,
+            max_size=args.max_size if hasattr(args, 'max_size') else None,
+            date_after=args.date_after if hasattr(args, 'date_after') else None,
+            date_before=args.date_before if hasattr(args, 'date_before') else None
+        )
+
+        # Print results
+        for r in results:
+            print(f"[{r.get('machine_id')}][{r.get('root_id')}] {r.get('rel_path')} ({r.get('size_bytes')} bytes) - {r.get('mtime')}")
+
+        print(f"\nTotal results: {len(results)}")
+
+        return 0
+    except Exception as e:
+        print(f"Error executing search: {e}", file=sys.stderr)
+        return 1
+
 def run_atlas_history(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     try:
