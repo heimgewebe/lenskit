@@ -46,12 +46,14 @@ entrypoint_boost = g(distance)
 
 raw_graph_bonus = (w_graph * graph_proximity) + (w_entry * entrypoint_boost)
 
+cap = w_graph + w_entry
 graph_bonus = min(raw_graph_bonus, cap)
 
-final_score = (w_bm25 * bm25_norm) + graph_bonus + penalties
+score_pre = (w_bm25 * bm25_norm) + graph_bonus
+final_score = score_pre * current_penalty
 ```
 
-*Hinweis:* Der Graph-Bonus wird relativ zum lexical score gecappt (`cap`). Der Graph dient als Verstärker / Tie-Breaker, nicht als dominantes Alleinsignal.
+*Hinweis:* Der Graph-Bonus wird implizit durch die Summe der eigenen Gewichte (`w_graph + w_entry`) gecappt. Penalties (z.B. für Tests) wirken multiplikativ auf den Gesamtscore. Der Graph dient primär als Verstärker / Tie-Breaker.
 
 ### 3.2 Definition der Bonus-Werte
 
