@@ -53,7 +53,8 @@ class AtlasScanner:
                  exclude_globs: List[str] = None, inventory_strict: bool = False,
                  no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024,
                  snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
-                 enable_content_stats: bool = False):
+                 enable_content_stats: bool = False,
+                 incremental_inventory: Optional[Union[Dict[str, Any], Path]] = None):
         self.root = root
         self.max_depth = max_depth
         self.max_entries = max_entries
@@ -65,6 +66,20 @@ class AtlasScanner:
         self.snapshot_id = snapshot_id
         self.compare_to_snapshot_id = compare_to_snapshot_id
         self.enable_content_stats = enable_content_stats
+
+        self.incremental_inventory = {}
+        if incremental_inventory:
+            if isinstance(incremental_inventory, Path):
+                try:
+                    with incremental_inventory.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            if not line.strip(): continue
+                            item = json.loads(line)
+                            self.incremental_inventory[item["rel_path"]] = item
+                except OSError as e:
+                    logger.warning(f"Failed to load incremental inventory from {incremental_inventory}: {e}")
+            elif isinstance(incremental_inventory, dict):
+                self.incremental_inventory = incremental_inventory
 
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
@@ -93,6 +108,10 @@ class AtlasScanner:
             "hotspots": {},
             "topology": {},
             "delta": {},
+            "incremental": {
+                "reused_files_count": 0,
+                "skipped_analysis_count": 0
+            },
             "active_excludes": self.exclude_globs,
             "truncated": {
                 "max_entries": self.max_entries,
@@ -396,6 +415,10 @@ class AtlasScanner:
                         mtime = stat.st_mtime
                         ext = f_path.suffix.lower()
                         is_sym = f_path.is_symlink()
+                        inode = stat.st_ino
+                        device = stat.st_dev
+
+                        mtime_iso = datetime.fromtimestamp(mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
 
                         self.stats["total_files"] += 1
                         self.stats["total_bytes"] += size
@@ -404,8 +427,21 @@ class AtlasScanner:
                         dir_bytes += size
 
                         is_txt = None
+
+                        # Incremental reuse heuristic
+                        prev_entry = self.incremental_inventory.get(f_rel)
+                        is_reused = False
+                        if prev_entry and prev_entry.get("size_bytes") == size and prev_entry.get("mtime") == mtime_iso:
+                            is_reused = True
+                            self.stats["incremental"]["reused_files_count"] += 1
+                            if "is_text" in prev_entry:
+                                is_txt = prev_entry["is_text"]
+                                self.stats["incremental"]["skipped_analysis_count"] += 1
+
                         if self.enable_content_stats:
-                            is_txt = is_probably_text(f_path, size)
+                            if not is_reused or is_txt is None:
+                                is_txt = is_probably_text(f_path, size)
+
                             if is_txt:
                                 text_files_count += 1
                             else:
@@ -422,8 +458,10 @@ class AtlasScanner:
                                 "name": f,
                                 "ext": ext,
                                 "size_bytes": size,
-                                "mtime": datetime.fromtimestamp(mtime, timezone.utc).isoformat().replace('+00:00', 'Z'),
-                                "is_symlink": is_sym
+                                "mtime": mtime_iso,
+                                "is_symlink": is_sym,
+                                "inode": inode,
+                                "device": device
                             }
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
