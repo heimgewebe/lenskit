@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 import json
+import time
 from typing import Dict, Any, Optional
 
 from .router import route_query
@@ -29,7 +30,8 @@ def execute_query(
     overmatch_guard: bool = False,
     graph_index_path: Optional[Path] = None,
     graph_weights: Optional[Dict[str, float]] = None,
-    test_penalty: float = 0.75
+    test_penalty: float = 0.75,
+    trace: bool = False
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -37,6 +39,20 @@ def execute_query(
     """
     if not filters:
         filters = {}
+
+    trace_data = None
+    if trace:
+        trace_data = {
+            "query_input": query_text,
+            "filters": filters,
+            "timings": {
+                "start": time.perf_counter(),
+                "parse_validate_start": time.perf_counter()
+            },
+            "ranking_stages": [],
+            "fallback_markers": [],
+            "loaded_artifacts": []
+        }
 
     conn = None
     try:
@@ -140,6 +156,10 @@ def execute_query(
             # For metadata query, we have `FROM chunks c`. We need to start WHERE clause.
             base_sql += " WHERE " + " AND ".join(where_clauses)
 
+        if trace_data:
+            trace_data["timings"]["parse_validate_end"] = time.perf_counter()
+            trace_data["timings"]["candidate_retrieval_start"] = time.perf_counter()
+
         # If semantic re-ranking or graph reranking is requested, fetch a larger candidate pool
         is_reranking = embedding_policy is not None or graph_index_path is not None
         fetch_k = max(k, 50) if is_reranking else k
@@ -149,6 +169,11 @@ def execute_query(
 
         cursor = conn.execute(base_sql, params)
         rows = cursor.fetchall()
+
+        if trace_data:
+            trace_data["timings"]["candidate_retrieval_end"] = time.perf_counter()
+            trace_data["candidate_count"] = len(rows)
+            trace_data["timings"]["rerank_start"] = time.perf_counter()
 
         results = []
         semantic_enabled = embedding_policy is not None
@@ -168,6 +193,9 @@ def execute_query(
                 if fallback == "fail":
                     raise RuntimeError(f"Semantic re-ranking provider '{provider}' is not yet implemented (fallback_behavior=fail).")
                 else:
+                    if trace_data:
+                        trace_data["semantic_status"] = "unsupported_provider"
+                        trace_data["fallback_markers"].append("semantic_fallback_unsupported_provider")
                     base_diagnostics["semantic"] = {
                         "enabled": False,
                         "error": f"Provider '{provider}' not implemented",
@@ -180,6 +208,9 @@ def execute_query(
                 if fallback == "fail":
                     raise RuntimeError(f"Semantic re-ranking metric '{metric}' is not supported (fallback_behavior=fail).")
                 else:
+                    if trace_data:
+                        trace_data["semantic_status"] = "unsupported_metric"
+                        trace_data["fallback_markers"].append("semantic_fallback_unsupported_metric")
                     base_diagnostics["semantic"] = {
                         "enabled": False,
                         "error": f"Metric '{metric}' not supported",
@@ -192,6 +223,8 @@ def execute_query(
                 try:
                     model_name = embedding_policy.get("model_name", "all-MiniLM-L6-v2")
                     semantic_model = _get_semantic_model(model_name)
+                    if trace_data:
+                        trace_data["semantic_status"] = "ok"
                     base_diagnostics["semantic"] = {
                         "enabled": True,
                         "fallback_behavior": fallback,
@@ -462,6 +495,13 @@ def execute_query(
         results.sort(key=lambda x: (-x.get("final_score", 0), x["path"]))
         results = results[:k]
 
+        if trace_data and is_reranking:
+            trace_data["timings"]["rerank_end"] = time.perf_counter()
+
+        if trace_data:
+            trace_data["timings"]["context_explain_start"] = time.perf_counter()
+            trace_data["chosen_hits"] = [r["chunk_id"] for r in results[:k]]
+
         out = {
             "query": query_text,
             "k": k,
@@ -494,6 +534,11 @@ def execute_query(
                 # we just need a summary of scores
                 explain_block["top_k_scoring"] = [{"chunk_id": r["chunk_id"], "score": r["score"]} for r in results[:k]]
             out["explain"] = explain_block
+
+        if trace_data:
+            trace_data["timings"]["context_explain_end"] = time.perf_counter()
+            trace_data["timings"]["end"] = time.perf_counter()
+            out["query_trace"] = trace_data
 
         return out
 

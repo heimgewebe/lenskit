@@ -231,6 +231,11 @@
           }
         }
       }
+    },
+    "query_trace": {
+      "type": "object",
+      "description": "Diagnostic query execution trace.",
+      "additionalProperties": true
     }
   }
 }

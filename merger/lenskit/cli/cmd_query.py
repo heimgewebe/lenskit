@@ -56,8 +56,16 @@ def run_query(args: argparse.Namespace) -> int:
             overmatch_guard=getattr(args, "overmatch_guard", False),
             graph_index_path=Path(args.graph_index) if getattr(args, "graph_index", None) else None,
             graph_weights=graph_weights_dict,
-            test_penalty=getattr(args, "test_penalty", 0.75)
+            test_penalty=getattr(args, "test_penalty", 0.75),
+            trace=getattr(args, "trace", False)
         )
+
+        if getattr(args, "trace", False) and "query_trace" in result:
+            trace_path = Path("query_trace.json")
+            trace_path.write_text(json.dumps(result["query_trace"], indent=2), encoding="utf-8")
+            print(f"Query trace saved to {trace_path.absolute()}", file=sys.stderr)
+
+
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         return 1
