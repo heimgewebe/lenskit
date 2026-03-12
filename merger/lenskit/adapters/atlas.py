@@ -72,10 +72,14 @@ class AtlasScanner:
             if isinstance(incremental_inventory, Path):
                 try:
                     with incremental_inventory.open("r", encoding="utf-8") as f:
-                        for line in f:
+                        for line_idx, line in enumerate(f, start=1):
                             if not line.strip(): continue
-                            item = json.loads(line)
-                            self.incremental_inventory[item["rel_path"]] = item
+                            try:
+                                item = json.loads(line)
+                                rel_path = item["rel_path"]
+                                self.incremental_inventory[rel_path] = item
+                            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                                logger.warning(f"Failed to load incremental inventory entry in {incremental_inventory} at line {line_idx}. Error: {type(e).__name__} - {e}. Skipping line.")
                 except OSError as e:
                     logger.warning(f"Failed to load incremental inventory from {incremental_inventory}: {e}")
             elif isinstance(incremental_inventory, dict):

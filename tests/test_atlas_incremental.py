@@ -1,6 +1,7 @@
 import os
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
 
@@ -29,11 +30,12 @@ def test_incremental_scan_reuses_unchanged_files(tmp_path: Path):
     assert stats1["incremental"]["reused_files_count"] == 0
     assert stats1["total_files"] == 2
 
-    # Ensure mtime resolution allows next write to have a different timestamp
-    time.sleep(0.1)
-
     # Modify one file, leave the other
     file1.write_text("Hello Incremental World!")
+
+    # Explicitly set a newer mtime to ensure the heuristic correctly catches it
+    current_mtime = file1.stat().st_mtime
+    os.utime(file1, (current_mtime + 10.0, current_mtime + 10.0))
 
     # Add a new file
     file3 = root_dir / "file3.txt"
@@ -83,7 +85,6 @@ def test_incremental_scan_dict_input(tmp_path: Path):
 
     # Manually construct fake prior inventory dict
     stat = file1.stat()
-    from datetime import datetime, timezone
     mtime_iso = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
     fake_inv = {
         "dict_file.txt": {
