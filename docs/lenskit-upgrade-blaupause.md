@@ -1223,7 +1223,7 @@ Nach Phase 4 gibt es:
 ### 2.3 Arbeitspaket A – Query-Trace einführen
 
 Ziel:
-- [ ] Jede relevante Query kann als Diagnoseartefakt geschrieben werden.
+- [x] Jede relevante Query kann als Diagnoseartefakt geschrieben werden.
 
 Artefakt: `query_trace.json`
 
@@ -1361,7 +1361,7 @@ Deterministische Checks:
 ### 2.12 Tests Phase 4
 
 Wichtige Tests:
-- [ ] 1. test_query_trace_contains_runtime_markers
+- [x] 1. test_query_trace_contains_runtime_markers
 - [ ] 2. test_context_bundle_contains_evidence_and_context
 - [ ] 3. test_context_bundle_preserves_provenance
 - [ ] 4. test_context_expansion_exact_vs_block_vs_window
@@ -1370,7 +1370,7 @@ Wichtige Tests:
 - [ ] 7. test_context_bundle_roundtrip_with_resolver
 
 ### 2.13 Deliverables Phase 4
-- [ ] 1. query_trace.json
+- [x] 1. query_trace.json
 - [ ] 2. query_context_bundle.json
 - [ ] 3. Hit/Evidence/Context-Modell
 - [ ] 4. Context-Expansion-Regeln

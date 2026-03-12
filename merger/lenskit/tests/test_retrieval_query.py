@@ -507,3 +507,36 @@ def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
 
     # Direct proof that _read_expected_graph_sha256 extracted the legacy fallback and passed it to the mock
     assert captured.get("expected_sha256") == "legacy_sha"
+
+def test_query_trace_contains_runtime_markers(mini_index):
+    policy = {
+        "model_name": "test-model",
+        "provider": "api",
+        "fallback_behavior": "ignore",
+        "similarity_metric": "cosine",
+        "dimensions": 128
+    }
+
+    res = query_core.execute_query(mini_index, query_text="hello", k=10, embedding_policy=policy, trace=True)
+    assert "query_trace" in res
+
+    trace = res["query_trace"]
+    assert "timings" in trace
+    assert "start" in trace["timings"]
+    assert "end" in trace["timings"]
+    assert "parse_validate_start" in trace["timings"]
+    assert "parse_validate_end" in trace["timings"]
+    assert "candidate_retrieval_start" in trace["timings"]
+    assert "candidate_retrieval_end" in trace["timings"]
+    assert "rerank_start" in trace["timings"]
+    assert "rerank_end" in trace["timings"]
+
+    assert "semantic_status" in trace
+    assert trace["semantic_status"] == "unsupported_provider"
+
+    assert "fallback_markers" in trace
+    assert "semantic_fallback_unsupported_provider" in trace["fallback_markers"]
+
+    assert "candidate_count" in trace
+    assert "chosen_hits" in trace
+    assert len(trace["chosen_hits"]) > 0
