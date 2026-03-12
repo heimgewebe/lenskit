@@ -1,6 +1,5 @@
 import os
 import json
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
@@ -34,8 +33,11 @@ def test_incremental_scan_reuses_unchanged_files(tmp_path: Path):
     file1.write_text("Hello Incremental World!")
 
     # Explicitly set a newer mtime to ensure the heuristic correctly catches it
-    current_mtime = file1.stat().st_mtime
-    os.utime(file1, (current_mtime + 10.0, current_mtime + 10.0))
+    old_mtime = file1.stat().st_mtime
+    os.utime(file1, (old_mtime + 10.0, old_mtime + 10.0))
+
+    new_mtime = file1.stat().st_mtime
+    assert new_mtime > old_mtime, "mtime must be strictly newer for heuristic test"
 
     # Add a new file
     file3 = root_dir / "file3.txt"
