@@ -476,7 +476,10 @@ def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
     }
     graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
 
+    captured = {}
+
     def mock_load(path, expected_sha256=None):
+        captured["expected_sha256"] = expected_sha256
         return {"status": "stale_or_mismatched", "graph": graph_index}
 
     monkeypatch.setattr(query_core, "load_graph_index", mock_load)
@@ -501,3 +504,6 @@ def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
     assert ge["graph_status"] == "stale_or_mismatched"
     assert ge["distance"] == 0
     assert ge["graph_bonus"] > 0
+
+    # Direct proof that _read_expected_graph_sha256 extracted the legacy fallback and passed it to the mock
+    assert captured.get("expected_sha256") == "legacy_sha"
