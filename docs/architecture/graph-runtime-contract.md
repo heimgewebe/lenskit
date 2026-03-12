@@ -89,7 +89,7 @@ Gibt an, ob ein geladener Graph tatsächlich in das Ranking eingeflossen ist:
 Gibt detailliert Auskunft über den Zustand des geladenen Graphen. Folgende Werte sind definiert:
 
 * `ok` → Graph erfolgreich geladen und validiert.
-* `not_found` → Datei nicht gefunden (oder `unavailable`).
+* `not_found` → Datei nicht gefunden.
 * `invalid_json` → Datei konnte nicht als JSON geparst werden.
 * `invalid_schema` → JSON entspricht nicht dem `architecture.graph_index` Contract.
 * `stale_or_mismatched` → Graph verweist auf einen anderen Dump-Index (Hash-Mismatch).
