@@ -1,5 +1,8 @@
 import json
-import jsonschema
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None
 from pathlib import Path
 from typing import Dict, Any
 
@@ -32,6 +35,11 @@ def load_and_validate_embedding_policy(path: Path) -> Dict[str, Any]:
             schema = json.load(sf)
     except Exception as e:
         raise EmbeddingPolicyError(f"Could not load embedding policy schema for validation: {e}")
+
+    if jsonschema is None:
+        raise EmbeddingPolicyError(
+            "Schema validation requested but jsonschema is unavailable in this environment."
+        )
 
     try:
         jsonschema.validate(instance=policy_instance, schema=schema)

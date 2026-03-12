@@ -3,8 +3,18 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any
 
-import jsonschema
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None
+
 from .constants import ArtifactRole
+
+def _require_jsonschema() -> None:
+    if jsonschema is None:
+        raise RuntimeError(
+            "Schema validation requested but jsonschema is unavailable in this environment."
+        )
 
 def build_explicit_range_ref(
     artifact_role: str,
@@ -73,6 +83,9 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
 
     with schema_path.open("r", encoding="utf-8") as f:
         schema = json.load(f)
+
+    _require_jsonschema()
+
     try:
         jsonschema.validate(instance=ref, schema=schema)
     except jsonschema.ValidationError as e:
