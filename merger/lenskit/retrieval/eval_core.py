@@ -409,7 +409,8 @@ def do_eval(
         out["metrics"]["delta_recall"] = sem_recall_at_k - base_recall_at_k
         out["metrics"]["delta_mrr"] = sem_mrr - base_mrr
 
-        # Backwards compatibility specifically for semantic eval callers
+        # Backwards compatibility specifically for semantic eval callers.
+        # These additional semantic_* metrics in non-semantic compare modes serve purely for backward compatibility.
         if compare_type != "semantic":
             out["metrics"][f"semantic_recall@{k}"] = sem_recall_at_k
             out["metrics"]["semantic_MRR"] = sem_mrr

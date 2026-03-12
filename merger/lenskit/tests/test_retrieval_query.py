@@ -481,6 +481,14 @@ def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
 
     monkeypatch.setattr(query_core, "load_graph_index", mock_load)
 
+    # Test legacy fallback query using monkeypatched db_conn inside _read_expected_graph_sha256 implicitly by modifying the DB
+    import sqlite3
+    conn = sqlite3.connect(mini_index)
+    conn.execute("DELETE FROM index_meta WHERE key='canonical_dump_index_sha256'")
+    conn.execute("INSERT INTO index_meta (key, value) VALUES ('dump_sha256', 'legacy_sha')")
+    conn.commit()
+    conn.close()
+
     res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path)
 
 
