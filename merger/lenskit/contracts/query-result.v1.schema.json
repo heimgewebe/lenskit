@@ -236,6 +236,10 @@
       "type": "object",
       "description": "Diagnostic query execution trace.",
       "additionalProperties": true
+    },
+    "context_bundle": {
+      "description": "Optional portable context bundle encapsulating results and expanded textual/structural context.",
+      "$ref": "query-context-bundle.v1.schema.json"
     }
   }
 }

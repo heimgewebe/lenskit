@@ -47,7 +47,14 @@ def run_query(args: argparse.Namespace) -> int:
                 return 1
 
         output_profile = getattr(args, "output_profile", None)
-        build_context = output_profile is not None
+        context_mode = getattr(args, "context_mode", "exact")
+        context_window_lines = getattr(args, "context_window_lines", 0)
+
+        if context_mode == "window" and context_window_lines <= 0:
+            print("Error: --context-mode window requires --context-window-lines > 0", file=sys.stderr)
+            return 1
+
+        build_context = bool(output_profile) or context_mode != "exact" or context_window_lines > 0
 
         result = execute_query(
             index_path=index_path,
@@ -62,8 +69,8 @@ def run_query(args: argparse.Namespace) -> int:
             test_penalty=getattr(args, "test_penalty", 0.75),
             trace=getattr(args, "trace", False),
             build_context=build_context,
-            context_mode=getattr(args, "context_mode", "exact"),
-            context_window_lines=getattr(args, "context_window_lines", 0)
+            context_mode=context_mode,
+            context_window_lines=context_window_lines
         )
 
         if getattr(args, "trace", False) and "query_trace" in result:

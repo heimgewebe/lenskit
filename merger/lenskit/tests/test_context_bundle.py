@@ -51,10 +51,25 @@ def test_context_bundle_contains_evidence_and_context(mini_index):
     assert "hello world" in hit["resolved_code_snippet"]
     assert hit["surrounding_context"] is None
 
-    # Contract validation
-    schema_path = Path(__file__).parent.parent / "contracts" / "query-context-bundle.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    jsonschema.validate(instance=bundle, schema=schema)
+    # Contract validation of the explicit bundle schema
+    import jsonschema
+    bundle_schema_path = Path(__file__).parent.parent / "contracts" / "query-context-bundle.v1.schema.json"
+    bundle_schema = json.loads(bundle_schema_path.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=bundle, schema=bundle_schema)
+
+    # Contract validation of the base result schema
+    contracts_dir = Path(__file__).parent.parent / "contracts"
+    base_schema_path = contracts_dir / "query-result.v1.schema.json"
+    base_schema = json.loads(base_schema_path.read_text(encoding="utf-8"))
+
+    # Need a custom registry mapping the local file so remote fetches aren't attempted
+    from referencing import Registry, Resource
+    registry = Registry().with_resource(
+        "query-context-bundle.v1.schema.json",
+        Resource.from_contents(bundle_schema)
+    )
+
+    jsonschema.validate(instance=res, schema=base_schema, registry=registry)
 
 
 def test_context_bundle_preserves_provenance(tmp_path):
@@ -147,6 +162,10 @@ def test_ui_payload_excludes_internal_fields(mini_index, capsys):
     assert "hits" in output
     assert "explain" in output["hits"][0]
 
+    # Explicitly check that no internal hit fields (like _raw_content) leaked
+    hit = output["hits"][0]
+    assert "_raw_content" not in hit
+
 
 def test_agent_minimal_profile_contract(mini_index, capsys):
     from merger.lenskit.cli import cmd_query
@@ -185,10 +204,11 @@ def test_agent_minimal_profile_contract(mini_index, capsys):
     # Essential provenance is preserved
     assert hit["provenance_type"] in ["explicit", "derived"]
 
-def test_context_bundle_roundtrip_with_resolver(mini_index):
-    # As resolver isn't explicitly defined in query_core context here, just testing logic integration
+def test_context_bundle_extracts_snippet_correctly(mini_index):
+    # Testing that snippet is correctly extracted during hit building
     res = query_core.execute_query(mini_index, query_text="hello", build_context=True)
     hit = res["context_bundle"]["hits"][0]
 
     # Ensuring snippet exists (representing the raw extracted content)
     assert isinstance(hit["resolved_code_snippet"], str)
+    assert "hello world" in hit["resolved_code_snippet"]

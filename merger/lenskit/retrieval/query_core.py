@@ -428,11 +428,6 @@ def execute_query(
                 except IndexError:
                     pass
 
-            try:
-                hit["_raw_content"] = r["content"]
-            except IndexError:
-                hit["_raw_content"] = ""
-
             results.append(hit)
 
         if semantic_model:
@@ -545,9 +540,16 @@ def execute_query(
             out["explain"] = explain_block
 
         if build_context:
+            raw_contents = {}
+            for r in rows:
+                try:
+                    raw_contents[r["chunk_id"]] = r["content"]
+                except IndexError:
+                    pass
             context_bundle = build_context_bundle(
                 query_text=query_text,
                 results=results[:k],
+                raw_contents=raw_contents,
                 db_conn=conn,
                 context_mode=context_mode,
                 context_window_lines=context_window_lines
@@ -625,7 +627,7 @@ def _expand_context(db_conn: sqlite3.Connection, chunk_id: str, file_path: str, 
 
     return None
 
-def build_context_bundle(query_text: str, results: List[Dict[str, Any]], db_conn: sqlite3.Connection, context_mode: str = "exact", context_window_lines: int = 0) -> Dict[str, Any]:
+def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_contents: Dict[str, str], db_conn: sqlite3.Connection, context_mode: str = "exact", context_window_lines: int = 0) -> Dict[str, Any]:
     """
     Builds a query_context_bundle.json compliant structure from a list of hits.
     Translates raw hits into a separated Evidence/Context model.
@@ -656,7 +658,7 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], db_conn
             "range": hit.get("range", ""),
             "score": hit.get("final_score", hit.get("score", 0)),
             "explain": hit.get("why", {}),
-            "resolved_code_snippet": hit.get("_raw_content", ""), # Assume we stash content here or fetch it
+            "resolved_code_snippet": raw_contents.get(hit.get("chunk_id"), ""),
             "surrounding_context": None, # Will populate in Expansion Logic
             "graph_context": hit.get("why", {}).get("diagnostics", {}).get("graph"),
             "provenance_type": prov_type,
