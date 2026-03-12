@@ -1253,6 +1253,10 @@ Ziel:
 
 Neues Artefakt: `query_context_bundle.json`
 
+*Architektur-Anmerkung (Hybridmodell):*
+Das Context-Bundle ist primär als optionales Feld `context_bundle` im `query-result.v1.schema.json` verankert.
+Die Datei `query_context_bundle.json` bzw. das CLI-Output-Format beschreibt dessen projizierte JSON-Ausgabe. Es existieren keine zwei konkurrierenden Wahrheitsmodelle (wie schon bei `query_trace`).
+
 Inhalt pro Hit:
 * hit identity
 * file/path/range

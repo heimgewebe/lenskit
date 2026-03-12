@@ -118,6 +118,10 @@ def test_context_expansion_exact_vs_block_vs_window(mini_index):
     res_exact = query_core.execute_query(mini_index, query_text="hello", build_context=True, context_mode="exact")
     assert res_exact["context_bundle"]["hits"][0]["surrounding_context"] is None
 
+    # block (currently a deterministic pass-through yielding None)
+    res_block = query_core.execute_query(mini_index, query_text="hello", build_context=True, context_mode="block")
+    assert res_block["context_bundle"]["hits"][0]["surrounding_context"] is None
+
     # window
     res_win = query_core.execute_query(mini_index, query_text="hello", build_context=True, context_mode="window", context_window_lines=5)
     win_ctx = res_win["context_bundle"]["hits"][0]["surrounding_context"]
@@ -165,6 +169,9 @@ def test_ui_payload_excludes_internal_fields(mini_index, capsys):
     # Explicitly check that no internal hit fields (like _raw_content) leaked
     hit = output["hits"][0]
     assert "_raw_content" not in hit
+
+    # Also check the raw JSON output to ensure it doesn't appear anywhere
+    assert "_raw_content" not in captured.out
 
 
 def test_agent_minimal_profile_contract(mini_index, capsys):
