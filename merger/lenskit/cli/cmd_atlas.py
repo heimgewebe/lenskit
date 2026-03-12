@@ -162,6 +162,20 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         # Configure Snapshot Identity
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
+        incremental_inventory = None
+        if args.incremental:
+            snapshots = registry.list_snapshots()
+            # Find the latest complete snapshot for this root
+            latest_snap = next((s for s in snapshots if s["status"] == "complete" and s["machine_id"] == machine_id and s["root_id"] == root_id), None)
+            if latest_snap and latest_snap.get("inventory_ref"):
+                inv_path = Path(latest_snap["inventory_ref"])
+                if inv_path.exists():
+                    incremental_inventory = inv_path
+                else:
+                    print(f"Warning: Incremental requested, but previous inventory file not found: {inv_path}", file=sys.stderr)
+            else:
+                print("Warning: Incremental requested, but no complete prior snapshot found for this root.", file=sys.stderr)
+
         scanner = AtlasScanner(
             root=scan_root,
             max_depth=args.depth,
@@ -170,7 +184,8 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             no_default_excludes=args.no_default_excludes,
             max_file_size=max_file_size,
             snapshot_id=None, # Will inject directly later once hash is computed
-            enable_content_stats=(args.mode == "content")
+            enable_content_stats=(args.mode == "content"),
+            incremental_inventory=incremental_inventory
         )
 
         # Determine effective scan config hash based on Scanner state

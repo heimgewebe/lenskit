@@ -865,15 +865,15 @@ Ziel: Atlas wird historisch nutzbar.
 
 ### Phase 3 — Incrementalität
 Ziel: Große Roots effizient aktualisierbar machen.
-- [ ] Re-Scan gegen letzten Snapshot vorbereiten
-- [ ] mtime-/size-Heuristik definieren
-- [ ] inode/device optional einbeziehen
+- [x] Re-Scan gegen letzten Snapshot vorbereiten
+- [x] mtime-/size-Heuristik definieren
+- [x] inode/device optional erfassen
 - [ ] selektives Hashing-Modell festlegen
 - [ ] unveränderte Teilbäume überspringen können
 - [ ] `scan_config_hash` wirksam in Reuse-Logik einbeziehen
-- [ ] Performance-Metriken erfassen
-- [ ] CLI: `atlas scan --incremental`
-- [ ] Regressionstests für inkrementelles Verhalten ergänzen
+- [x] Basis-Incremental-Metriken erfassen
+- [x] CLI: `atlas scan --incremental`
+- [x] Regressionstests für inkrementelles Verhalten ergänzen
 
 **Stop-Kriterium**: Ein Folgescan großer Roots ist deutlich günstiger als ein Vollscan.
 

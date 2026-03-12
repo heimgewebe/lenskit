@@ -92,6 +92,7 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_scan_parser.add_argument("--depth", type=int, default=6, help="Maximum depth to scan")
     atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
     atlas_scan_parser.add_argument("--mode", choices=["inventory", "topology", "content", "workspace"], default="inventory", help="The scan mode to execute")
+    atlas_scan_parser.add_argument("--incremental", action="store_true", help="Perform an incremental scan based on the latest snapshot")
 
     atlas_machines_parser = atlas_subparsers.add_parser("machines", help="List registered machines")
     atlas_roots_parser = atlas_subparsers.add_parser("roots", help="List registered roots")
