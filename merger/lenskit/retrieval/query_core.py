@@ -221,17 +221,24 @@ def execute_query(
         graph_index = None
         graph_status = "not_found"
 
-        # Determine expected sha256 from the index metadata if we want to check staleness.
-        # But we only need expected_sha256 if we have dump_index metadata in the database.
-        expected_sha256 = None
-        try:
-            # Attempt to read canonical_dump_index_sha256 if available in the database
-            cursor = conn.execute("SELECT value FROM metadata WHERE key='canonical_dump_index_sha256'")
-            row = cursor.fetchone()
-            if row:
-                expected_sha256 = row["value"]
-        except sqlite3.OperationalError:
-            pass
+        def _read_expected_graph_sha256(db_conn) -> Optional[str]:
+            try:
+                # The canonical table is index_meta
+                cursor = db_conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
+                row = cursor.fetchone()
+                if row:
+                    return row["value"]
+
+                # Legacy fallback check if index_meta has a different key name (e.g. dump_sha256)
+                cursor = db_conn.execute("SELECT value FROM index_meta WHERE key='dump_sha256'")
+                row = cursor.fetchone()
+                if row:
+                    return row["value"]
+            except sqlite3.OperationalError:
+                pass
+            return None
+
+        expected_sha256 = _read_expected_graph_sha256(conn)
 
         if graph_index_path:
             res = load_graph_index(graph_index_path, expected_sha256=expected_sha256)
@@ -340,11 +347,12 @@ def execute_query(
                     "matched_terms": matched_terms,
                     "filter_pass": filter_pass,
                     "rank_features": rank_features,
-                    "diagnostics": base_diagnostics
+                    "diagnostics": base_diagnostics.copy()
                 }
             }
             if graph_index_path:
-                hit["why"]["graph_explain"] = graph_explain
+                hit["why"]["diagnostics"] = hit["why"].get("diagnostics", {})
+                hit["why"]["diagnostics"]["graph"] = graph_explain
 
             if why_list:
                 hit["why_list"] = why_list

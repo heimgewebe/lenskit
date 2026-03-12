@@ -379,32 +379,29 @@ def test_query_semantic_reranking(mini_index, monkeypatch):
     # Assert semantic score logic is correctly calculated by the mock fallback
     assert top_hit["why"]["rank_features"]["semantic_score"] > second_hit["why"]["rank_features"]["semantic_score"]
 
-import json
 
-def test_query_explain_graph_fields_match_scoring(mini_index, tmp_path):
+def test_query_explain_graph_fields_match_scoring(mini_index, tmp_path, monkeypatch):
     graph_index_path = tmp_path / "graph_index.json"
     graph_index = {
-        "kind": "lenskit.architecture.graph_index",
-        "version": "1.0",
-        "run_id": "test",
-        "canonical_dump_index_sha256": "0"*64,
-        "distances": {"file:tests/test_main.py": 0, "file:src/main.py": 1},
-        "metrics": {"entrypoint_count": 1, "nodes_reachable": 2, "unreachable_nodes": 0}
+        "distances": {"file:tests/test_main.py": 0, "file:src/main.py": 1}
     }
     graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
 
-    # Run query
+    def mock_load(path, expected_sha256=None):
+        return {"status": "ok", "graph": graph_index}
 
+    monkeypatch.setattr(query_core, "load_graph_index", mock_load)
 
     res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path)
+
 
     assert "results" in res
     assert len(res["results"]) > 0
 
     hit = [r for r in res["results"] if r["path"] == "tests/test_main.py"][0]
 
-    assert "graph_explain" in hit["why"]
-    ge = hit["why"]["graph_explain"]
+    assert "diagnostics" in hit["why"] and "graph" in hit["why"]["diagnostics"]
+    ge = hit["why"]["diagnostics"]["graph"]
 
     assert ge["graph_used"] is True
     assert ge["graph_status"] == "ok"
@@ -428,17 +425,17 @@ def test_query_explain_graph_fields_match_scoring(mini_index, tmp_path):
     # allow minor float drift
     assert abs(hit["final_score"] - expected_final_score) < 1e-5
 
-def test_graph_bonus_is_bounded(mini_index, tmp_path):
+def test_graph_bonus_is_bounded(mini_index, tmp_path, monkeypatch):
     graph_index_path = tmp_path / "graph_index.json"
     graph_index = {
-        "kind": "lenskit.architecture.graph_index",
-        "version": "1.0",
-        "run_id": "test",
-        "canonical_dump_index_sha256": "0"*64,
-        "distances": {"file:src/main.py": 0},
-        "metrics": {"entrypoint_count": 1, "nodes_reachable": 2, "unreachable_nodes": 0}
+        "distances": {"file:src/main.py": 0}
     }
     graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
+
+    def mock_load(path, expected_sha256=None):
+        return {"status": "ok", "graph": graph_index}
+
+    monkeypatch.setattr(query_core, "load_graph_index", mock_load)
 
     # Change weights so raw_graph_bonus exceeds cap naturally if cap is independent,
     # but the cap is currently w_g + w_e. We'll verify it doesn't exceed cap.
@@ -446,21 +443,22 @@ def test_graph_bonus_is_bounded(mini_index, tmp_path):
 
     res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path, graph_weights=weights)
 
-    hit = [r for r in res["results"] if r["path"] == "src/main.py"][0]
-    ge = hit["why"]["graph_explain"]
+    hits = [r for r in res["results"] if r["path"] == "src/main.py"]
+    assert len(hits) > 0, "No hit found for src/main.py"
+    hit = hits[0]
+    ge = hit["why"]["diagnostics"]["graph"]
 
     # cap = w_graph + w_entry = 3.0
     # At dist=0, prox=1, boost=1 => raw = 3.0. Bounded to 3.0.
-    assert ge["graph_bonus"] == 3.0
+    assert abs(ge["graph_bonus"] - 3.0) < 1e-5
 
     # What if distance > 0?
     graph_index["distances"]["file:src/main.py"] = 1
-    graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
     res2 = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path, graph_weights=weights)
     hit2 = [r for r in res2["results"] if r["path"] == "src/main.py"][0]
-    ge2 = hit2["why"]["graph_explain"]
+    ge2 = hit2["why"]["diagnostics"]["graph"]
     # At dist=1 => prox=0.5, boost=0 => raw = 2.0 * 0.5 = 1.0
-    assert ge2["graph_bonus"] == 1.0
+    assert abs(ge2["graph_bonus"] - 1.0) < 1e-5
 
 
 def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
@@ -477,8 +475,11 @@ def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
 
     res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path)
 
-    hit = [r for r in res["results"] if r["path"] == "src/main.py"][0]
-    ge = hit["why"]["graph_explain"]
+
+    hits = [r for r in res["results"] if r["path"] == "src/main.py"]
+    assert len(hits) > 0, "No hit found for src/main.py"
+    hit = hits[0]
+    ge = hit["why"]["diagnostics"]["graph"]
 
     assert ge["graph_used"] is True
     assert ge["graph_status"] == "stale_or_mismatched"

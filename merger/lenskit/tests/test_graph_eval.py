@@ -81,8 +81,8 @@ def test_invalid_graph_index_raises(eval_env, capsys):
     assert ret == 0
     captured = capsys.readouterr()
     output = json.loads(captured.out)
-    assert output["details"][0]["why"]["graph_explain"]["graph_used"] is False
-    assert output["details"][0]["why"]["graph_explain"]["graph_status"] == "invalid_json"
+    assert output["details"][0]["why"]["diagnostics"]["graph"]["graph_used"] is False
+    assert output["details"][0]["why"]["diagnostics"]["graph"]["graph_status"] == "invalid_json"
 
 def test_missing_graph_index_raises(eval_env, capsys):
     missing_graph = eval_env["graph_index"].parent / "does_not_exist.json"
@@ -102,8 +102,8 @@ def test_missing_graph_index_raises(eval_env, capsys):
     assert ret == 0
     captured = capsys.readouterr()
     output = json.loads(captured.out)
-    assert output["details"][0]["why"]["graph_explain"]["graph_used"] is False
-    assert output["details"][0]["why"]["graph_explain"]["graph_status"] == "not_found"
+    assert output["details"][0]["why"]["diagnostics"]["graph"]["graph_used"] is False
+    assert output["details"][0]["why"]["diagnostics"]["graph"]["graph_status"] == "not_found"
 
 def test_eval_graph_delta_reporting(eval_env, capsys):
     args = argparse.Namespace(
@@ -134,5 +134,5 @@ def test_eval_graph_delta_reporting(eval_env, capsys):
 
     # Ensure graph is used in semantic run and not baseline run
     sem_hit_why = detail["why"]
-    assert "graph_explain" in sem_hit_why
-    assert sem_hit_why["graph_explain"]["graph_used"] is True
+    assert "graph" in sem_hit_why["diagnostics"]
+    assert sem_hit_why["diagnostics"]["graph"]["graph_used"] is True
