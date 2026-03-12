@@ -1,10 +1,25 @@
 import pytest
 import sys
+import os
 import subprocess
+from pathlib import Path
 
 # This file aims to test the degradation of modules when jsonschema is not available.
 # We run these tests in a separate subprocess to avoid polluting the global sys.modules
 # state and pytest's cache.
+
+def get_repo_root() -> Path:
+    # merger/lenskit/tests/test_jsonschema_degradation.py -> parents[3] is the repo root
+    return Path(__file__).resolve().parents[3]
+
+def get_test_env() -> dict:
+    env = os.environ.copy()
+    repo_root = str(get_repo_root())
+    if "PYTHONPATH" in env:
+        env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{env['PYTHONPATH']}"
+    else:
+        env["PYTHONPATH"] = repo_root
+    return env
 
 def test_modules_import_without_jsonschema():
     """
@@ -24,7 +39,8 @@ assert getattr(gi, "jsonschema", None) is None
 assert getattr(pl, "jsonschema", None) is None
 print("Success")
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PYTHONPATH": "."})
+    repo_root = get_repo_root()
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=get_test_env(), cwd=repo_root)
     assert result.returncode == 0
     assert "Success" in result.stdout
 
@@ -49,7 +65,8 @@ except RuntimeError as e:
         print(f"Wrong error: {{e}}")
         sys.exit(1)
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PYTHONPATH": "."})
+    repo_root = get_repo_root()
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=get_test_env(), cwd=repo_root)
     assert result.returncode == 0
     assert "Success" in result.stdout
 
@@ -73,7 +90,8 @@ except pl.EmbeddingPolicyError as e:
         print(f"Wrong error: {{e}}")
         sys.exit(1)
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PYTHONPATH": "."})
+    repo_root = get_repo_root()
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=get_test_env(), cwd=repo_root)
     assert result.returncode == 0
     assert "Success" in result.stdout
 
@@ -97,7 +115,8 @@ if result["status"] == "ok" and "graph" in result:
 else:
     sys.exit(1)
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PYTHONPATH": "."})
+    repo_root = get_repo_root()
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=get_test_env(), cwd=repo_root)
     assert result.returncode == 0
     assert "Success" in result.stdout
     assert "Schema validation skipped" in result.stderr
