@@ -880,14 +880,14 @@ Ziel: Große Roots effizient aktualisierbar machen.
 ### Phase 4 — Suchschicht
 Ziel: Dateien und Inhalte systemweit abfragbar machen.
 - [ ] SQLite-FTS evaluieren und festziehen
-- [ ] Metadaten-Suchschema definieren
-- [ ] Path-Search implementieren
-- [ ] Name-Search implementieren
-- [ ] Extension-/MIME-Search implementieren
-- [ ] Größen-/Datumsfilter implementieren
+- [x] Metadaten-Suchschema definieren
+- [x] Path-Search implementieren
+- [x] Name-Search implementieren
+- [x] Extension-/MIME-Search implementieren
+- [x] Größen-/Datumsfilter implementieren
 - [ ] Content-Search implementieren
-- [ ] Scope-Filter (machine, root, snapshot) implementieren
-- [ ] CLI: `atlas search`
+- [x] Scope-Filter (machine, root, snapshot) implementieren
+- [x] CLI: `atlas search`
 - [ ] Preview-/Snippet-Format definieren
 
 **Stop-Kriterium**: Atlas kann Dateibestände und Inhalte über Registry + Index reproduzierbar durchsuchen.

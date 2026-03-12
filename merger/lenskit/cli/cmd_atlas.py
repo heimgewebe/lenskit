@@ -63,6 +63,37 @@ def run_atlas_diff(args: argparse.Namespace) -> int:
         print(f"Error computing diff: {e}", file=sys.stderr)
         return 1
 
+def run_atlas_search(args: argparse.Namespace) -> int:
+    from merger.lenskit.atlas.search import AtlasSearch
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    try:
+        searcher = AtlasSearch(registry_path)
+
+        results = searcher.search(
+            query=args.query,
+            machine_id=args.machine_id,
+            root_id=args.root_id,
+            snapshot_id=args.snapshot_id,
+            path_pattern=args.path,
+            name_pattern=args.name,
+            ext=args.ext,
+            min_size=args.min_size,
+            max_size=args.max_size,
+            date_after=args.date_after,
+            date_before=args.date_before
+        )
+
+        # Print results
+        for r in results:
+            print(f"[{r.get('machine_id')}][{r.get('root_id')}] {r.get('rel_path')} ({r.get('size_bytes')} bytes) - {r.get('mtime')}")
+
+        print(f"\nTotal results: {len(results)}")
+
+        return 0
+    except Exception as e:
+        print(f"Error executing search: {e}", file=sys.stderr)
+        return 1
+
 def run_atlas_history(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     try:

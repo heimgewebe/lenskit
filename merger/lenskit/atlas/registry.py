@@ -166,6 +166,26 @@ class AtlasRegistry:
         cur.execute("SELECT * FROM snapshots ORDER BY created_at DESC, snapshot_id DESC")
         return [dict(row) for row in cur.fetchall()]
 
+    def list_complete_snapshots(self, machine_id: Optional[str] = None, root_id: Optional[str] = None, snapshot_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        query = "SELECT * FROM snapshots WHERE status = 'complete'"
+        params = []
+
+        if machine_id:
+            query += " AND machine_id = ?"
+            params.append(machine_id)
+        if root_id:
+            query += " AND root_id = ?"
+            params.append(root_id)
+        if snapshot_id:
+            query += " AND snapshot_id = ?"
+            params.append(snapshot_id)
+
+        query += " ORDER BY created_at DESC, snapshot_id DESC"
+
+        cur.execute(query, params)
+        return [dict(row) for row in cur.fetchall()]
+
     def register_delta(self, delta_id: str, from_snapshot_id: str, to_snapshot_id: str, delta_ref: str, created_at: Optional[str] = None):
         if not created_at:
             created_at = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()

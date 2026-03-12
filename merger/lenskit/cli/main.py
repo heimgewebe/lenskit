@@ -107,6 +107,19 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_history_parser.add_argument("root_id", help="The root ID")
     atlas_history_parser.add_argument("rel_path", help="The canonical relative path of the file")
 
+    atlas_search_parser = atlas_subparsers.add_parser("search", help="Search the atlas registry")
+    atlas_search_parser.add_argument("--query", help="General search query")
+    atlas_search_parser.add_argument("--machine-id", help="Filter by machine ID")
+    atlas_search_parser.add_argument("--root-id", help="Filter by root ID")
+    atlas_search_parser.add_argument("--snapshot-id", help="Filter by snapshot ID")
+    atlas_search_parser.add_argument("--path", help="Filter by path pattern")
+    atlas_search_parser.add_argument("--name", help="Filter by name pattern")
+    atlas_search_parser.add_argument("--ext", help="Filter by extension")
+    atlas_search_parser.add_argument("--min-size", type=int, help="Filter by minimum size in bytes")
+    atlas_search_parser.add_argument("--max-size", type=int, help="Filter by maximum size in bytes")
+    atlas_search_parser.add_argument("--date-after", help="Filter by modified date after (ISO format)")
+    atlas_search_parser.add_argument("--date-before", help="Filter by modified date before (ISO format)")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
@@ -148,6 +161,8 @@ def main(args: Optional[List[str]] = None) -> int:
             return cmd_atlas.run_atlas_diff(parsed_args)
         elif parsed_args.atlas_cmd == "history":
             return cmd_atlas.run_atlas_history(parsed_args)
+        elif parsed_args.atlas_cmd == "search":
+            return cmd_atlas.run_atlas_search(parsed_args)
         else:
             parser.parse_args(["atlas", "--help"])
             return 0
