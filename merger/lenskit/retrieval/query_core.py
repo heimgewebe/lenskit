@@ -46,8 +46,8 @@ def execute_query(
             "query_input": query_text,
             "filters": filters,
             "timings": {
-                "start": time.time(),
-                "parse_validate_start": time.time()
+                "start": time.perf_counter(),
+                "parse_validate_start": time.perf_counter()
             },
             "ranking_stages": [],
             "fallback_markers": [],
@@ -157,8 +157,8 @@ def execute_query(
             base_sql += " WHERE " + " AND ".join(where_clauses)
 
         if trace_data:
-            trace_data["timings"]["parse_validate_end"] = time.time()
-            trace_data["timings"]["candidate_retrieval_start"] = time.time()
+            trace_data["timings"]["parse_validate_end"] = time.perf_counter()
+            trace_data["timings"]["candidate_retrieval_start"] = time.perf_counter()
 
         # If semantic re-ranking or graph reranking is requested, fetch a larger candidate pool
         is_reranking = embedding_policy is not None or graph_index_path is not None
@@ -171,9 +171,9 @@ def execute_query(
         rows = cursor.fetchall()
 
         if trace_data:
-            trace_data["timings"]["candidate_retrieval_end"] = time.time()
+            trace_data["timings"]["candidate_retrieval_end"] = time.perf_counter()
             trace_data["candidate_count"] = len(rows)
-            trace_data["timings"]["rerank_start"] = time.time()
+            trace_data["timings"]["rerank_start"] = time.perf_counter()
 
         results = []
         semantic_enabled = embedding_policy is not None
@@ -495,9 +495,11 @@ def execute_query(
         results.sort(key=lambda x: (-x.get("final_score", 0), x["path"]))
         results = results[:k]
 
+        if trace_data and is_reranking:
+            trace_data["timings"]["rerank_end"] = time.perf_counter()
+
         if trace_data:
-            trace_data["timings"]["rerank_end"] = time.time()
-            trace_data["timings"]["context_explain_start"] = time.time()
+            trace_data["timings"]["context_explain_start"] = time.perf_counter()
             trace_data["chosen_hits"] = [r["chunk_id"] for r in results[:k]]
 
         out = {
@@ -534,8 +536,8 @@ def execute_query(
             out["explain"] = explain_block
 
         if trace_data:
-            trace_data["timings"]["context_explain_end"] = time.time()
-            trace_data["timings"]["end"] = time.time()
+            trace_data["timings"]["context_explain_end"] = time.perf_counter()
+            trace_data["timings"]["end"] = time.perf_counter()
             out["query_trace"] = trace_data
 
         return out

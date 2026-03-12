@@ -528,8 +528,8 @@ def test_query_trace_contains_runtime_markers(mini_index):
     assert "parse_validate_end" in trace["timings"]
     assert "candidate_retrieval_start" in trace["timings"]
     assert "candidate_retrieval_end" in trace["timings"]
-    assert "rerank_start" in trace["timings"]
-    assert "rerank_end" in trace["timings"]
+    assert "rerank_start" in trace["timings"] if policy else True
+    assert "rerank_end" in trace["timings"] if policy else True
 
     assert "semantic_status" in trace
     assert trace["semantic_status"] == "unsupported_provider"
@@ -540,3 +540,15 @@ def test_query_trace_contains_runtime_markers(mini_index):
     assert "candidate_count" in trace
     assert "chosen_hits" in trace
     assert len(trace["chosen_hits"]) > 0
+
+def test_query_json_structure_trace(mini_index):
+    import jsonschema
+    from pathlib import Path
+
+    res = query_core.execute_query(mini_index, query_text="main", k=5, filters={"layer": "core"}, trace=True)
+    assert "query_trace" in res
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+    jsonschema.validate(instance=res, schema=schema)
