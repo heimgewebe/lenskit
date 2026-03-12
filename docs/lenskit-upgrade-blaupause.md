@@ -95,9 +95,13 @@ Um Begriffsdrift zwischen Konzept und Implementierung zu vermeiden, gilt folgend
 | `context_bundle_json` | `query_context_bundle.json` | Verbindlich geplant |
 | `artifact_graph_json` | `artifact_graph.json` | Verbindlich geplant |
 | `chunk_index_sqlite` | `chunk_index.index.sqlite` | Historisch etabliert, kanonisch |
-| `query_trace_json` | `query_trace.json` | Verbindlich geplant |
+| `query_trace_json` | `query_trace.json` | CLI-Export des Diagnoseobjekts (`query_trace`) |
 
 *(Abstrakte Unterstrich-Begriffe wie `artifact_graph_json` bezeichnen die Artefaktrolle im Manifest, Punkt-Begriffe wie `artifact_graph.json` den tatsächlichen Dateinamen.)*
+
+*Wichtige Architektur-Anmerkung zu `query_trace`:*
+Das `query_trace`-Objekt ist **kein eigenständiges zweites Wahrheitsmodell**, sondern konzeptionell als **optionales Diagnosefeld** (`query_trace`) direkt in den `query-result.v1.schema.json`-Contract eingebettet.
+Die Datei `query_trace.json` ist lediglich die Materialisierung (der CLI-Export) dieses Diagnoseobjekts, um bei Debugging-Läufen (z.B. über `--trace`) extern darauf zugreifen zu können.
 
 ---
 
@@ -1240,6 +1244,7 @@ Inhalt:
 * timings
 
 Designregel: Trace ist Diagnose, nicht Primärantwort.
+*Hinweis (Hybridmodell)*: Das `query_trace` ist ein Teilfeld im regulären `query-result.v1.schema.json` Contract. `query_trace.json` ist lediglich ein optionaler CLI-Export dieses Feldes, kein isoliert erzeugtes Artefakt.
 
 ### 2.4 Arbeitspaket B – Context-Bundle definieren
 
