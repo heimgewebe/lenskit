@@ -6,6 +6,7 @@ from datetime import datetime
 import fnmatch
 
 from merger.lenskit.atlas.registry import AtlasRegistry
+from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
 
 def parse_iso_datetime(value: str) -> datetime:
     if value.endswith('Z'):
@@ -50,6 +51,7 @@ class AtlasSearch:
                     latest_snapshots[s['root_id']] = s
             snapshots = list(latest_snapshots.values())
 
+        atlas_base = resolve_atlas_base_dir(self.registry_db_path)
         results = []
 
         # Parse date filters once
@@ -73,7 +75,7 @@ class AtlasSearch:
             if not inv_ref:
                 continue
 
-            inv_path = Path(inv_ref)
+            inv_path = resolve_artifact_ref(atlas_base, inv_ref)
             if not inv_path.exists():
                 print(f"[atlas-search] warning: inventory reference not found: {inv_path}", file=sys.stderr)
                 continue

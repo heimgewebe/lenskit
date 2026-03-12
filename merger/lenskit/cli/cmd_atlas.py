@@ -10,6 +10,7 @@ from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner, render_atlas_md
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 from merger.lenskit.atlas.registry import AtlasRegistry
+from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_snapshot_dir, resolve_artifact_ref
 
 def run_atlas_machines(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
@@ -96,6 +97,7 @@ def run_atlas_search(args: argparse.Namespace) -> int:
 
 def run_atlas_history(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    atlas_base = resolve_atlas_base_dir(registry_path)
     try:
         with AtlasRegistry(registry_path) as registry:
             snapshots = registry.list_snapshots()
@@ -116,7 +118,7 @@ def run_atlas_history(args: argparse.Namespace) -> int:
             if not inv_ref:
                 print(f"Warning: Snapshot '{snap['snapshot_id']}' has no inventory_ref. Skipping.", file=sys.stderr)
                 continue
-            inv_path = Path(inv_ref)
+            inv_path = resolve_artifact_ref(atlas_base, inv_ref)
             if not inv_path.exists():
                 print(f"Warning: Inventory file '{inv_path}' for snapshot '{snap['snapshot_id']}' not found. Skipping.", file=sys.stderr)
                 continue
@@ -176,6 +178,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
 
         # Setup Registry
         registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+        atlas_base = resolve_atlas_base_dir(registry_path)
         registry = AtlasRegistry(registry_path)
 
         # Register Machine
@@ -199,7 +202,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             # Find the latest complete snapshot for this root
             latest_snap = next((s for s in snapshots if s["status"] == "complete" and s["machine_id"] == machine_id and s["root_id"] == root_id), None)
             if latest_snap and latest_snap.get("inventory_ref"):
-                inv_path = Path(latest_snap["inventory_ref"])
+                inv_path = resolve_artifact_ref(atlas_base, latest_snap["inventory_ref"])
                 if inv_path.exists():
                     incremental_inventory = inv_path
                 else:
@@ -232,7 +235,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
 
         try:
             # Set up correct directory structure based on Atlas Blaupause
-            snapshot_dir = Path("atlas") / "machines" / machine_id / "roots" / root_id / "snapshots" / snapshot_id
+            snapshot_dir = resolve_snapshot_dir(atlas_base, machine_id, root_id, snapshot_id)
             snapshot_dir.mkdir(parents=True, exist_ok=True)
 
             planned_outputs = plan_atlas_outputs(args.mode, scan_id=None)
@@ -240,9 +243,15 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             # Map the planned outputs to the full paths, but let planner just return file names
             planned_paths = {k: snapshot_dir / v for k, v in planned_outputs.items()}
 
-            # For the registry, we'll store the relative path from the CWD
-            # so the SQLite index references the files correctly.
-            registry_artifacts = {k: str(v) for k, v in planned_paths.items()}
+            # For the registry, we'll store the relative path from the canonical atlas base
+            # so the SQLite index references the files correctly regardless of CWD.
+            registry_artifacts = {}
+            for k, v in planned_paths.items():
+                try:
+                    registry_artifacts[k] = str(v.relative_to(atlas_base))
+                except ValueError:
+                    # Fallback to absolute if it's not under atlas_base
+                    registry_artifacts[k] = str(v)
 
             print(f"Scanning: {scan_root} (Mode: {args.mode})")
             print("This may take a while depending on the filesystem...")
