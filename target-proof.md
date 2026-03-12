@@ -30,12 +30,11 @@
   - `test_context_bundle_extracts_snippet_correctly`
 
 ### 5. Abgrenzung / Status
-- [x] **Erledigt (Phase 4):**
-  - `query_trace.json` (wurde bereits im vorherigen PR eingeführt, jetzt verifiziert im Kontext).
-  - `query_context_bundle.json` Schema und Build-Logik referenziert im kanonischen Query Result.
-  - Trennung Hit/Evidence/Context (`build_context_bundle`).
-  - Deterministische Context-Expansion (`_expand_context`).
-  - Provenance-first (explizit `range_ref` vs `derived_range_ref` und `provenance_type` im Context-Bundle).
-  - Output-Profile als reine Projektionen (`agent_minimal`, `ui_navigation`).
-- [ ] **Noch offen / Nicht in diesem Scope:**
-  - API/Service-Integration (`API/UI-ready Struktur` ist zwar vorbereitet als Output, aber die echten Service-Endpunkte kommen erst in Phase 7).
+- [x] **Erledigt:**
+  - `query_trace.json` Schema-Feld ist vorhanden und wird durch die Runtime generiert.
+  - Grundlegendes `query_context_bundle.json` Schema (eingebettet im Query-Result) samt Build-Logik (`build_context_bundle`, `_expand_context`) ist vorhanden und separiert Evidence von Context.
+  - `--output-profile` CLI-Flags für initiale Projection-Logik.
+- [ ] **Noch offen / Nicht in diesem PR (Phase 4 bleibt als Gesamtziel un-abgehakt):**
+  - Eigenständige Context-Bundle Artefaktisierung (außerhalb des Query-Results als komplett eigenständiges Repo-Artefakt).
+  - API/Service-Integration und echtes Context-Bundle Eval.
+  - Phase 4 bleibt in der Roadmap als Ganzes offen, bis alle Sub-Ziele (wie API-Readiness) implementiert sind.

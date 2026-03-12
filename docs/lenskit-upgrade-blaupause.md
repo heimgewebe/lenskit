@@ -1384,7 +1384,7 @@ Wichtige Tests:
 - [ ] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
-- [x] Phase 4 ist fertig, wenn:
+- [ ] Phase 4 ist fertig, wenn:
 * eine Query mehr als rohe Treffer liefert
 * Context-Bundles portabel und provenance-stabil sind
 * Trace Diagnose ermöglicht
@@ -1714,7 +1714,7 @@ Tests:
 Mittlere, semantisch saubere PR-Schnitte:
 
 - [ ] **PR 1 – Graph Runtime Contract** (Graph-Doku, Loader, Explain/Score-Konsistenz, graph-aware Eval)
-- [x] **PR 2 – Query Trace + Context Bundle** (query_trace, query_context_bundle, Hit/Evidence/Context-Trennung, Output-Profile intern)
+- [ ] **PR 2 – Query Trace + Context Bundle** (query_trace, query_context_bundle, Hit/Evidence/Context-Trennung, Output-Profile intern)
 - [ ] **PR 3 – Federation Foundation** (federation_index, Identity-Regeln, Cross-Repo-Links, Konfliktartefakte)
 - [ ] **PR 4 – Federated Query** (föderierte Query, föderiertes Ranking, federation trace, Cross-Repo-Context)
 - [ ] **PR 5 – Agent Control Surface** (Agent Query Contract, API surface, Agent Session Trace, Guardrails)
@@ -1773,7 +1773,7 @@ Gate:
 ## Empfohlene PR-Reihenfolge (Gesamt)
 
 - [x] PR 1: Contract-/Provenance-Härtung
-- [x] PR 2: Query Trace + Context Bundle
+- [ ] PR 2: Query Trace + Context Bundle
 - [x] PR 3: Graph Runtime Konsolidierung
 - [ ] PR 4: Federation Foundation
 - [ ] PR 5: Federated Query + Ranking
@@ -1836,7 +1836,7 @@ Schutzmaßnahmen:
 ## Messbare Meilensteine
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
-- [x] M2: Query Trace + Context Bundle vorhanden
+- [ ] M2: Query Trace + Context Bundle vorhanden
 - [x] M3: Graph-Runtime konsistent und diagnostizierbar
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
