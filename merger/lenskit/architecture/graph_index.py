@@ -1,9 +1,50 @@
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
+import jsonschema
 
 logger = logging.getLogger(__name__)
+
+def load_graph_index(path: Path, expected_sha256: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Loads and validates a graph index.
+    Returns a dict with 'status' (ok, not_found, invalid_json, invalid_schema, stale_or_mismatched, unreadable)
+    and 'graph' (the loaded dict, if successful).
+    """
+    if not path.exists():
+        return {"status": "not_found", "graph": None}
+
+    try:
+        with path.open() as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        return {"status": "invalid_json", "graph": None}
+    except OSError as e:
+        logger.warning("Graph index file unreadable: %s", e)
+        return {"status": "unreadable", "graph": None}
+
+    # Validate against schema
+    schema_path = Path(__file__).parent.parent / "contracts" / "architecture.graph_index.v1.schema.json"
+    if schema_path.exists():
+        try:
+            with schema_path.open() as f:
+                schema = json.load(f)
+            jsonschema.validate(instance=data, schema=schema)
+        except jsonschema.ValidationError as e:
+            logger.warning(f"Graph index schema validation failed: {e}")
+            return {"status": "invalid_schema", "graph": None}
+        except Exception as e:
+            logger.error(f"Error reading/validating graph schema: {e}")
+            return {"status": "invalid_schema", "graph": None}
+
+    # Check staleness if expected_sha256 is provided
+    if expected_sha256:
+        graph_sha = data.get("canonical_dump_index_sha256")
+        if not graph_sha or graph_sha != expected_sha256:
+            return {"status": "stale_or_mismatched", "graph": data}
+
+    return {"status": "ok", "graph": data}
 
 def compile_graph_index(graph_path: Path, entrypoints_path: Path) -> Dict[str, Any]:
     with graph_path.open() as f:

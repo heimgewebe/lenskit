@@ -1025,7 +1025,7 @@ Nach Phase 3 gilt:
 ### 1.3 Arbeitspaket A – Graph-Semantik explizit definieren
 
 Ziel:
-- [ ] Dokumentieren, was der Graph überhaupt bedeutet.
+- [x] Dokumentieren, was der Graph überhaupt bedeutet.
 
 Muss schriftlich festgehalten werden:
 * Was ist ein Node?
@@ -1045,7 +1045,7 @@ node identity, edge semantics, distance semantics, entrypoint semantics, runtime
 ### 1.4 Arbeitspaket B – Graph-Index-Schema härten
 
 Ziel:
-- [ ] graph_index.json soll nicht nur existieren, sondern contractuell erzwungen valide sein.
+- [x] graph_index.json soll nicht nur existieren, sondern contractuell erzwungen valide sein.
 
 Umsetzung:
 Falls noch nicht vorhanden bzw. unvollständig:
@@ -1070,7 +1070,7 @@ Problem:
 Wenn Query und Eval jeweils separat laden/parsen/normalisieren, droht Drift.
 
 Ziel:
-- [ ] Eine zentrale Ladefunktion: `load_graph_index(path) -> validated normalized graph object`
+- [x] Eine zentrale Ladefunktion: `load_graph_index(path) -> validated normalized graph object`
 
 Aufgaben dieser Funktion:
 * Existenz prüfen
@@ -1151,7 +1151,7 @@ Zusätzlich:
 ### 1.9 Arbeitspaket G – Graph-Staleness / Konsistenz prüfen
 
 Ziel:
-- [ ] Ein Graph darf nicht still weiterverwendet werden, wenn seine Inputs nicht mehr passen.
+- [x] Ein Graph darf nicht still weiterverwendet werden, wenn seine Inputs nicht mehr passen.
 
 Möglichkeiten:
 1. Fingerprint der Inputs im Graph speichern
@@ -1174,8 +1174,8 @@ Neue oder geschärfte Tests:
 Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert sich -> Explain zeigt exakt denselben Grund.
 
 ### 1.11 Deliverables Phase 3
-- [ ] 1. Graph-Runtime-Contract-Doku
-- [ ] 2. zentrales Graph-Loader-Modul
+- [x] 1. Graph-Runtime-Contract-Doku
+- [x] 2. zentrales Graph-Loader-Modul
 - [ ] 3. definierte Graph-Score-Formel
 - [ ] 4. Explain/Runtime-Kopplung
 - [ ] 5. graph-aware Eval mit Deltas
