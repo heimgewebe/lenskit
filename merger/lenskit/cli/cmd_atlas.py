@@ -69,21 +69,18 @@ def run_atlas_search(args: argparse.Namespace) -> int:
     try:
         searcher = AtlasSearch(registry_path)
 
-        # Add basic query support
-        query = args.query if hasattr(args, 'query') else None
-
         results = searcher.search(
-            query=query,
-            machine_id=args.machine_id if hasattr(args, 'machine_id') else None,
-            root_id=args.root_id if hasattr(args, 'root_id') else None,
-            snapshot_id=args.snapshot_id if hasattr(args, 'snapshot_id') else None,
-            path_pattern=args.path if hasattr(args, 'path') else None,
-            name_pattern=args.name if hasattr(args, 'name') else None,
-            ext=args.ext if hasattr(args, 'ext') else None,
-            min_size=args.min_size if hasattr(args, 'min_size') else None,
-            max_size=args.max_size if hasattr(args, 'max_size') else None,
-            date_after=args.date_after if hasattr(args, 'date_after') else None,
-            date_before=args.date_before if hasattr(args, 'date_before') else None
+            query=args.query,
+            machine_id=args.machine_id,
+            root_id=args.root_id,
+            snapshot_id=args.snapshot_id,
+            path_pattern=args.path,
+            name_pattern=args.name,
+            ext=args.ext,
+            min_size=args.min_size,
+            max_size=args.max_size,
+            date_after=args.date_after,
+            date_before=args.date_before
         )
 
         # Print results
