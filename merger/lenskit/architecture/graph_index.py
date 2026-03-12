@@ -2,7 +2,10 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
-import jsonschema
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None
 
 logger = logging.getLogger(__name__)
 
@@ -27,16 +30,19 @@ def load_graph_index(path: Path, expected_sha256: Optional[str] = None) -> Dict[
     # Validate against schema
     schema_path = Path(__file__).parent.parent / "contracts" / "architecture.graph_index.v1.schema.json"
     if schema_path.exists():
-        try:
-            with schema_path.open() as f:
-                schema = json.load(f)
-            jsonschema.validate(instance=data, schema=schema)
-        except jsonschema.ValidationError as e:
-            logger.warning(f"Graph index schema validation failed: {e}")
-            return {"status": "invalid_schema", "graph": None}
-        except Exception as e:
-            logger.error(f"Error reading/validating graph schema: {e}")
-            return {"status": "invalid_schema", "graph": None}
+        if jsonschema is None:
+            logger.warning("Schema validation skipped because jsonschema is unavailable in this environment.")
+        else:
+            try:
+                with schema_path.open() as f:
+                    schema = json.load(f)
+                jsonschema.validate(instance=data, schema=schema)
+            except jsonschema.ValidationError as e:
+                logger.warning(f"Graph index schema validation failed: {e}")
+                return {"status": "invalid_schema", "graph": None}
+            except Exception as e:
+                logger.error(f"Error reading/validating graph schema: {e}")
+                return {"status": "invalid_schema", "graph": None}
 
     # Check staleness if expected_sha256 is provided
     if expected_sha256:
