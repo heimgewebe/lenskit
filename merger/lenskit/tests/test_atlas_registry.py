@@ -116,3 +116,35 @@ def test_snapshot_registry(registry):
     # Since both have the exact same created_at, 's2' must strictly appear before 's1'
     assert snapshots[0]["snapshot_id"] == "s2"
     assert snapshots[1]["snapshot_id"] == "s1"
+
+
+def test_delta_registry(registry):
+    registry.register_machine("m1", "host-a")
+    registry.register_root("r1", "m1", "abs_path", "/var/www")
+
+    registry.create_snapshot("s1", "m1", "r1", "hash1", "complete")
+    registry.create_snapshot("s2", "m1", "r1", "hash2", "complete")
+
+    registry.register_delta("delta1", "s1", "s2", "delta_ref.json")
+
+    delta = registry.get_delta("delta1")
+    assert delta is not None
+    assert delta["delta_id"] == "delta1"
+    assert delta["from_snapshot_id"] == "s1"
+    assert delta["to_snapshot_id"] == "s2"
+    assert delta["delta_ref"] == "delta_ref.json"
+    assert "created_at" in delta
+
+    registry.create_snapshot("s3", "m1", "r1", "hash3", "complete")
+    registry.register_delta("delta2", "s2", "s3", "delta_ref2.json")
+
+    # Check ordering by created_at DESC, delta_id DESC
+    cur = registry.conn.cursor()
+    cur.execute("UPDATE deltas SET created_at = '2026-03-10T00:00:00Z' WHERE delta_id = 'delta1'")
+    cur.execute("UPDATE deltas SET created_at = '2026-03-10T00:00:00Z' WHERE delta_id = 'delta2'")
+    registry.conn.commit()
+
+    deltas = registry.list_deltas()
+    assert len(deltas) == 2
+    assert deltas[0]["delta_id"] == "delta2"
+    assert deltas[1]["delta_id"] == "delta1"

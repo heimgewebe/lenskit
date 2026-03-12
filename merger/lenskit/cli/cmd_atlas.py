@@ -32,6 +32,93 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
     print(json.dumps(snapshots, indent=2))
     return 0
 
+def run_atlas_diff(args: argparse.Namespace) -> int:
+    from merger.lenskit.atlas.diff import compute_snapshot_delta
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    try:
+        with AtlasRegistry(registry_path) as registry:
+            delta = compute_snapshot_delta(registry, args.from_snapshot, args.to_snapshot)
+        print(f"Delta: {delta['delta_id']} ({delta['from_snapshot_id']} -> {delta['to_snapshot_id']})")
+        print(f"Summary: {json.dumps(delta['summary'], indent=2)}")
+        print(f"\nNew files: {len(delta['new_files'])}")
+        for f in delta['new_files'][:10]:
+            print(f"  + {f}")
+        if len(delta['new_files']) > 10:
+            print(f"  ... and {len(delta['new_files']) - 10} more")
+
+        print(f"\nRemoved files: {len(delta['removed_files'])}")
+        for f in delta['removed_files'][:10]:
+            print(f"  - {f}")
+        if len(delta['removed_files']) > 10:
+            print(f"  ... and {len(delta['removed_files']) - 10} more")
+
+        print(f"\nChanged files: {len(delta['changed_files'])}")
+        for f in delta['changed_files'][:10]:
+            print(f"  ~ {f}")
+        if len(delta['changed_files']) > 10:
+            print(f"  ... and {len(delta['changed_files']) - 10} more")
+
+        return 0
+    except Exception as e:
+        print(f"Error computing diff: {e}", file=sys.stderr)
+        return 1
+
+def run_atlas_history(args: argparse.Namespace) -> int:
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    try:
+        with AtlasRegistry(registry_path) as registry:
+            snapshots = registry.list_snapshots()
+
+        snapshots = [s for s in snapshots if s["status"] == "complete" and s["machine_id"] == args.machine_id and s["root_id"] == args.root_id]
+
+        if not snapshots:
+            print(f"No complete snapshots found for machine '{args.machine_id}' and root '{args.root_id}'", file=sys.stderr)
+            return 1
+
+        print(f"History for '{args.rel_path}' on machine '{args.machine_id}', root '{args.root_id}':")
+        # Reverse to get chronological order (oldest first) since list_snapshots returns DESC
+        snapshots.reverse()
+
+        last_seen = None
+        for snap in snapshots:
+            inv_ref = snap.get("inventory_ref")
+            if not inv_ref:
+                print(f"Warning: Snapshot '{snap['snapshot_id']}' has no inventory_ref. Skipping.", file=sys.stderr)
+                continue
+            inv_path = Path(inv_ref)
+            if not inv_path.exists():
+                print(f"Warning: Inventory file '{inv_path}' for snapshot '{snap['snapshot_id']}' not found. Skipping.", file=sys.stderr)
+                continue
+
+            file_data = None
+            with open(inv_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip(): continue
+                    item = json.loads(line)
+                    if item.get("rel_path") == args.rel_path:
+                        file_data = item
+                        break
+
+            if file_data:
+                current_state = f"size={file_data.get('size_bytes')}, mtime={file_data.get('mtime')}, symlink={file_data.get('is_symlink')}"
+                if last_seen is None:
+                    print(f"[{snap['created_at']}] {snap['snapshot_id']}: CREATED ({current_state})")
+                elif last_seen != current_state:
+                    print(f"[{snap['created_at']}] {snap['snapshot_id']}: MODIFIED ({current_state})")
+                else:
+                    print(f"[{snap['created_at']}] {snap['snapshot_id']}: UNCHANGED")
+                last_seen = current_state
+            else:
+                if last_seen is not None:
+                    print(f"[{snap['created_at']}] {snap['snapshot_id']}: DELETED")
+                last_seen = None
+
+        return 0
+    except Exception as e:
+        print(f"Error computing history: {e}", file=sys.stderr)
+        return 1
+
+
 def run_atlas_scan(args: argparse.Namespace) -> int:
     try:
         raw_path = os.path.expanduser(args.path)

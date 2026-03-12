@@ -97,6 +97,15 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_roots_parser = atlas_subparsers.add_parser("roots", help="List registered roots")
     atlas_snapshots_parser = atlas_subparsers.add_parser("snapshots", help="List registered snapshots")
 
+    atlas_diff_parser = atlas_subparsers.add_parser("diff", help="Compute delta between two snapshots")
+    atlas_diff_parser.add_argument("from_snapshot", help="The from snapshot ID")
+    atlas_diff_parser.add_argument("to_snapshot", help="The to snapshot ID")
+
+    atlas_history_parser = atlas_subparsers.add_parser("history", help="Show file history across snapshots")
+    atlas_history_parser.add_argument("machine_id", help="The machine ID")
+    atlas_history_parser.add_argument("root_id", help="The root ID")
+    atlas_history_parser.add_argument("rel_path", help="The canonical relative path of the file")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
@@ -134,6 +143,10 @@ def main(args: Optional[List[str]] = None) -> int:
             return cmd_atlas.run_atlas_roots(parsed_args)
         elif parsed_args.atlas_cmd == "snapshots":
             return cmd_atlas.run_atlas_snapshots(parsed_args)
+        elif parsed_args.atlas_cmd == "diff":
+            return cmd_atlas.run_atlas_diff(parsed_args)
+        elif parsed_args.atlas_cmd == "history":
+            return cmd_atlas.run_atlas_history(parsed_args)
         else:
             parser.parse_args(["atlas", "--help"])
             return 0
