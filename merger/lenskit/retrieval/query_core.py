@@ -173,7 +173,8 @@ def execute_query(
         if trace_data:
             trace_data["timings"]["candidate_retrieval_end"] = time.perf_counter()
             trace_data["candidate_count"] = len(rows)
-            trace_data["timings"]["rerank_start"] = time.perf_counter()
+            if is_reranking:
+                trace_data["timings"]["rerank_start"] = time.perf_counter()
 
         results = []
         semantic_enabled = embedding_policy is not None

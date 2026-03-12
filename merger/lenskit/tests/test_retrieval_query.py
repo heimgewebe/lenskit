@@ -548,6 +548,11 @@ def test_query_json_structure_trace(mini_index):
     res = query_core.execute_query(mini_index, query_text="main", k=5, filters={"layer": "core"}, trace=True)
     assert "query_trace" in res
 
+    # Ensure no rerank markers are present when semantic reranking / graph index are missing
+    trace = res["query_trace"]
+    assert "rerank_start" not in trace["timings"]
+    assert "rerank_end" not in trace["timings"]
+
     schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
     with schema_path.open("r", encoding="utf-8") as f:
         schema = json.load(f)
