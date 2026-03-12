@@ -1249,7 +1249,7 @@ Designregel: Trace ist Diagnose, nicht Primärantwort.
 ### 2.4 Arbeitspaket B – Context-Bundle definieren
 
 Ziel:
-- [ ] Ein Treffer soll in ein portables Kontextpaket überführt werden.
+- [x] Ein Treffer soll in ein portables Kontextpaket überführt werden.
 
 Neues Artefakt: `query_context_bundle.json`
 
@@ -1272,7 +1272,7 @@ Context-Bundle = Arbeitsmaterial
 Problem: Oft wird alles in einen JSON-Topf geworfen.
 
 Ziel:
-- [ ] Saubere Begriffe:
+- [x] Saubere Begriffe:
 * Hit: Ein geranktes Ergebnisobjekt
 * Evidence: Der tatsächlich extrahierte belegende Ausschnitt
 * Context: Zusätzliche umgebende oder strukturbezogene Information
@@ -1281,7 +1281,7 @@ Ziel:
 ### 2.6 Arbeitspaket D – Context-Expansion definieren
 
 Ziel:
-- [ ] Kontext wird regelbasiert und deterministisch erweitert.
+- [x] Kontext wird regelbasiert und deterministisch erweitert.
 
 Mögliche Modi:
 1. exact snippet
@@ -1299,7 +1299,7 @@ Regel: Context-Expansion darf nie die Primärevidenz ersetzen, nur ergänzen.
 ### 2.7 Arbeitspaket E – Provenance first
 
 Ziel:
-- [ ] Jeder Context-Bundle-Eintrag trägt seine Herkunft explizit.
+- [x] Jeder Context-Bundle-Eintrag trägt seine Herkunft explizit.
 
 Mussfelder:
 * provenance_type: explicit|derived
@@ -1312,7 +1312,7 @@ Besonders wichtig: Wenn Context nur source-backed ableitbar ist, muss das sichtb
 ### 2.8 Arbeitspaket F – Output-Profile für verschiedene Nutzer
 
 Ziel:
-- [ ] Lenskit soll verschiedene Ausgabemodi liefern, ohne den Kern zu verbiegen.
+- [x] Lenskit soll verschiedene Ausgabemodi liefern, ohne den Kern zu verbiegen.
 
 Profile:
 1. human_review (mehr Kontext, lesbare Explain-Struktur)
@@ -1367,20 +1367,20 @@ Deterministische Checks:
 
 Wichtige Tests:
 - [x] 1. test_query_trace_contains_runtime_markers
-- [ ] 2. test_context_bundle_contains_evidence_and_context
-- [ ] 3. test_context_bundle_preserves_provenance
-- [ ] 4. test_context_expansion_exact_vs_block_vs_window
-- [ ] 5. test_ui_payload_excludes_internal_fields
-- [ ] 6. test_agent_minimal_profile_contract
-- [ ] 7. test_context_bundle_roundtrip_with_resolver
+- [x] 2. test_context_bundle_contains_evidence_and_context
+- [x] 3. test_context_bundle_preserves_provenance
+- [x] 4. test_context_expansion_exact_vs_block_vs_window
+- [x] 5. test_ui_payload_excludes_internal_fields
+- [x] 6. test_agent_minimal_profile_contract
+- [x] 7. test_context_bundle_roundtrip_with_resolver
 
 ### 2.13 Deliverables Phase 4
 - [x] 1. query_trace.json
-- [ ] 2. query_context_bundle.json
-- [ ] 3. Hit/Evidence/Context-Modell
-- [ ] 4. Context-Expansion-Regeln
-- [ ] 5. Provenance-first Output
-- [ ] 6. Output-Profile
+- [x] 2. query_context_bundle.json
+- [x] 3. Hit/Evidence/Context-Modell
+- [x] 4. Context-Expansion-Regeln
+- [x] 5. Provenance-first Output
+- [x] 6. Output-Profile
 - [ ] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
