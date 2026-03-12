@@ -43,13 +43,19 @@ def test_canonical_paths():
         os.chdir(old_cwd)
 
 def test_diff_cwd_independence():
-    """Test that computing a diff uses canonical paths and ignores the process CWD."""
+    """Test that computing a diff uses canonical paths and ignores the process CWD.
+
+    The test models the exact canonical structure:
+    - Registry lives under `atlas/registry/`
+    - Artifacts are relative to the `atlas` base directory.
+    """
     old_cwd = os.getcwd()
 
     with tempfile.TemporaryDirectory() as real_base, tempfile.TemporaryDirectory() as some_cwd:
         try:
             real_base_path = Path(real_base).resolve()
-            registry_path = real_base_path / "registry" / "atlas_registry.sqlite"
+            atlas_base = real_base_path / "atlas"
+            registry_path = atlas_base / "registry" / "atlas_registry.sqlite"
             registry_path.parent.mkdir(parents=True)
 
             # We start in the real base to set things up
@@ -67,27 +73,27 @@ def test_diff_cwd_independence():
                 # Snapshot 1
                 snap1_id = "snap1"
                 registry.create_snapshot(snap1_id, machine_id, root_id, "hash1", "complete")
-                snap1_dir = real_base_path / "machines" / machine_id / "roots" / root_id / "snapshots" / snap1_id
+                snap1_dir = atlas_base / "machines" / machine_id / "roots" / root_id / "snapshots" / snap1_id
                 snap1_dir.mkdir(parents=True)
                 inv1 = snap1_dir / "inventory.jsonl"
                 with open(inv1, "w") as f:
                     f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 10, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
-                # Use relative paths in the registry to simulate actual behavior
-                inv1_rel = str(inv1.relative_to(real_base_path))
+                # Use relative paths in the registry to simulate actual behavior (relative to atlas base)
+                inv1_rel = str(inv1.relative_to(atlas_base))
                 registry.update_snapshot_artifacts(snap1_id, {"inventory": inv1_rel})
 
                 # Snapshot 2
                 snap2_id = "snap2"
                 registry.create_snapshot(snap2_id, machine_id, root_id, "hash2", "complete")
-                snap2_dir = real_base_path / "machines" / machine_id / "roots" / root_id / "snapshots" / snap2_id
+                snap2_dir = atlas_base / "machines" / machine_id / "roots" / root_id / "snapshots" / snap2_id
                 snap2_dir.mkdir(parents=True)
                 inv2 = snap2_dir / "inventory.jsonl"
                 with open(inv2, "w") as f:
                     f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 20, "mtime": "2023-01-02T00:00:00Z", "is_symlink": False}) + "\n")
                     f.write(json.dumps({"rel_path": "file2.txt", "size_bytes": 15, "mtime": "2023-01-02T00:00:00Z", "is_symlink": False}) + "\n")
 
-                inv2_rel = str(inv2.relative_to(real_base_path))
+                inv2_rel = str(inv2.relative_to(atlas_base))
                 registry.update_snapshot_artifacts(snap2_id, {"inventory": inv2_rel})
 
                 # Now switch to a completely different working directory
