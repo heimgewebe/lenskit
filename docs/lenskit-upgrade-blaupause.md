@@ -1322,7 +1322,6 @@ Profile:
 1. human_review (mehr Kontext, lesbare Explain-Struktur)
 2. agent_minimal (kompakter, strikt contract-basiert)
 3. ui_navigation (download-/jump-/preview-fähig)
-4. eval_debug (maximal transparent)
 
 Umsetzung: Nicht vier Engines, sondern ein gemeinsames internes Modell + Renderer/Emitter.
 
