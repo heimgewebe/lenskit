@@ -66,7 +66,7 @@ class AtlasScanner:
                                 raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
                             result[rel_path] = item
                         except (json.JSONDecodeError, KeyError, TypeError) as e:
-                            logger.warning(f"Failed to load {entry_label} entry in {source} at line {line_idx}. Error: {type(e).__name__} - {e}. Skipping line.")
+                            logger.warning(f"Malformed {entry_label} at {source}:{line_idx}. Error: {type(e).__name__} - {e}. Skipping.")
             except OSError as e:
                 logger.warning(f"Failed to load {inventory_label} from {source}: {e}")
         elif isinstance(source, dict):

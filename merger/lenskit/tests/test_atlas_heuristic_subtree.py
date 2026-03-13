@@ -1,6 +1,4 @@
 import json
-import os
-import hashlib
 from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
 
