@@ -22,13 +22,16 @@
 
 ### 4. Test-Beleg
 - Test-Datei: `merger/lenskit/tests/test_context_bundle.py`
-- Alle 7 Tests sind erfolgreich (`PYTHONPATH=. pytest merger/lenskit/tests/test_context_bundle.py` liefert 7 passed):
+- Alle 10 Tests sind erfolgreich (`PYTHONPATH=. pytest merger/lenskit/tests/test_context_bundle.py` liefert 10 passed):
   - `test_context_bundle_contains_evidence_and_context`
   - `test_context_bundle_preserves_provenance`
   - `test_context_expansion_exact_vs_block_vs_window`
   - `test_ui_payload_excludes_internal_fields`
   - `test_agent_minimal_profile_contract`
   - `test_context_bundle_extracts_snippet_correctly`
+  - `test_explicit_exact_mode_bundle_creation`
+  - `test_cli_explicit_bundle_flag`
+  - `test_cli_backward_compatibility`
   - `test_cli_rejects_window_lines_without_window_mode`
 
 ### 5. Abgrenzung / Status
