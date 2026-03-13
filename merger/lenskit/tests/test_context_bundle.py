@@ -51,7 +51,6 @@ def test_context_bundle_contains_evidence_and_context(mini_index):
     assert hit["surrounding_context"] is None
 
     # Contract validation of the explicit bundle schema
-    import jsonschema
     bundle_schema_path = Path(__file__).parent.parent / "contracts" / "query-context-bundle.v1.schema.json"
     bundle_schema = json.loads(bundle_schema_path.read_text(encoding="utf-8"))
     jsonschema.validate(instance=bundle, schema=bundle_schema)
@@ -161,8 +160,15 @@ def test_ui_payload_excludes_internal_fields(mini_index, capsys):
     captured = capsys.readouterr()
     output = json.loads(captured.out)
 
-    # ui_navigation preserves all context bundle fields
+    # ui_navigation preserves all context bundle fields and outputs the bundle projection directly
+    assert "query" in output
     assert "hits" in output
+    assert isinstance(output["hits"], list)
+
+    # Base query-result wrapper should not be present in the projected bundle output
+    assert "engine" not in output
+    assert "count" not in output
+
     assert "explain" in output["hits"][0]
 
     # Explicitly check that no internal hit fields (like _raw_content) leaked

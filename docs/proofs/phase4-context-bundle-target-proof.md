@@ -32,10 +32,10 @@
 
 ### 5. Abgrenzung / Status
 - [x] **Erledigt:**
-  - `query_trace.json` Schema-Feld ist vorhanden und wird durch die Runtime generiert.
+  - `query_trace.json` Schema-Feld ist vorhanden und wird durch die Runtime generiert (Materialisierung in der CLI per `--trace`).
   - Grundlegendes `query_context_bundle.json` Schema (eingebettet im Query-Result) samt Build-Logik (`build_context_bundle`, `_expand_context`) ist vorhanden und separiert Evidence von Context.
-  - `--output-profile` CLI-Flags für initiale Projection-Logik.
+  - `--output-profile` CLI-Flags für initiale Projection-Logik als materialisierte CLI-Ausgabe.
 - [ ] **Noch offen / Nicht in diesem PR (Phase 4 bleibt als Gesamtziel un-abgehakt):**
-  - Eigenständige Context-Bundle Artefaktisierung (außerhalb des Query-Results als komplett eigenständiges Repo-Artefakt).
+  - Eigenständige Context-Bundle Artefakt-Persistenz / Write-Layer (falls künftig außerhalb der Projektion/Einbettung gewünscht).
   - API/Service-Integration und echtes Context-Bundle Eval.
   - Phase 4 bleibt in der Roadmap als Ganzes offen, bis alle Sub-Ziele (wie API-Readiness) implementiert sind.

@@ -1379,8 +1379,8 @@ Wichtige Tests:
 - [x] 7. test_context_bundle_extracts_snippet_correctly
 
 ### 2.13 Deliverables Phase 4
-- [x] 1. query_trace.json
-- [x] 2. query_context_bundle.json
+- [x] 1. query_trace.json (projiziert / CLI)
+- [x] 2. query_context_bundle.json (projiziert / CLI)
 - [x] 3. Hit/Evidence/Context-Modell
 - [x] 4. Context-Expansion-Regeln
 - [x] 5. Provenance-first Output
