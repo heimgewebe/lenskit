@@ -205,7 +205,6 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         short_hash = hashlib.md5(config_str.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
 
         incremental_inventory = None
-        incremental_dirs_inventory = None
         previous_scan_config_hash = None
         if args.incremental:
             snapshots = registry.list_snapshots()
@@ -219,10 +218,6 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
                         incremental_inventory = inv_path
                     else:
                         print(f"Warning: Incremental requested, but previous inventory file not found: {inv_path}", file=sys.stderr)
-                if latest_snap.get("dirs_ref"):
-                    dirs_path = resolve_artifact_ref(atlas_base, latest_snap["dirs_ref"])
-                    if dirs_path.exists():
-                        incremental_dirs_inventory = dirs_path
             else:
                 print("Warning: Incremental requested, but no complete prior snapshot found for this root.", file=sys.stderr)
 
@@ -236,7 +231,6 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             snapshot_id=None, # Will inject directly later once hash is computed
             enable_content_stats=(args.mode == "content"),
             incremental_inventory=incremental_inventory,
-            incremental_dirs_inventory=incremental_dirs_inventory,
             previous_scan_config_hash=previous_scan_config_hash,
             current_scan_config_hash=short_hash
         )

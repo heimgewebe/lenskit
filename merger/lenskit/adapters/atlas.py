@@ -55,7 +55,6 @@ class AtlasScanner:
                  snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
                  enable_content_stats: bool = False,
                  incremental_inventory: Optional[Union[Dict[str, Any], Path]] = None,
-                 incremental_dirs_inventory: Optional[Union[Dict[str, Any], Path]] = None,
                  previous_scan_config_hash: Optional[str] = None,
                  current_scan_config_hash: Optional[str] = None):
         self.root = root
@@ -97,26 +96,6 @@ class AtlasScanner:
                     logger.warning(f"Failed to load incremental inventory from {incremental_inventory}: {e}")
             elif isinstance(incremental_inventory, dict):
                 self.incremental_inventory = incremental_inventory
-
-        self.incremental_dirs_inventory = {}
-        if incremental_dirs_inventory:
-            if isinstance(incremental_dirs_inventory, Path):
-                try:
-                    with incremental_dirs_inventory.open("r", encoding="utf-8") as f:
-                        for line_idx, line in enumerate(f, start=1):
-                            if not line.strip(): continue
-                            try:
-                                item = json.loads(line)
-                                rel_path = item["rel_path"]
-                                if not isinstance(rel_path, str):
-                                    raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
-                                self.incremental_dirs_inventory[rel_path] = item
-                            except (json.JSONDecodeError, KeyError, TypeError) as e:
-                                logger.warning(f"Failed to load incremental dirs entry in {incremental_dirs_inventory} at line {line_idx}. Error: {type(e).__name__} - {e}. Skipping line.")
-                except OSError as e:
-                    logger.warning(f"Failed to load incremental dirs inventory from {incremental_dirs_inventory}: {e}")
-            elif isinstance(incremental_dirs_inventory, dict):
-                self.incremental_dirs_inventory = incremental_dirs_inventory
 
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
@@ -291,10 +270,11 @@ class AtlasScanner:
         # For topology we keep track of nodes
         topology_nodes = {}
 
-        # Directory aggregates for subtree skipping
+        # Directory aggregates for directory rollup statistics
         # path -> { 'n_files': int, 'n_dirs': int, 'bytes': int, 'max_descendant_mtime': str, 'mtime': str }
-        # Only collect if we actually need them (writing dirs file or doing incremental dir check)
-        collect_dir_aggregates = bool(dirs_inventory_file or self.incremental_dirs_inventory)
+        # Only collect if we actually need them (writing dirs file).
+        # Note: These aggregates are strictly for producing the dirs.jsonl artifact, NOT for performing subtree skipping yet.
+        collect_dir_aggregates = bool(dirs_inventory_file)
         dir_aggregates: Dict[str, Dict[str, Any]] = {} if collect_dir_aggregates else None
 
         try:
