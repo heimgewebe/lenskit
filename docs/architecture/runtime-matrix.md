@@ -16,9 +16,9 @@ Diese Matrix dokumentiert den tatsächlichen, aktuellen Implementierungsstand im
 ## Bemerkungen zur Runtime
 
 1.  **Graph Loader (`load_graph_index`):**
-    Nutzt eine strenge Policy (Fail-Closed Validierung): Schlägt Schema-Check, JSON-Format oder Staleness-Check fehl, crasht das Programm nicht, sondern markiert das Signal mit `graph_used = False` und dem jeweiligen `graph_status` (`not_found`, `invalid_schema` etc.). Der Ranker läuft mit Baseline weiter (Graceful Degradation). Dies ist absolut korrekt dokumentiert im Explain.
+    Nutzt eine Fail-Closed Validierung: Schlägt Schema-Check, JSON-Format oder Staleness-Check fehl, crasht das Programm nicht, sondern markiert das Signal mit `graph_used = False` und dem jeweiligen `graph_status` (`not_found`, `invalid_schema` etc.). Der Ranker läuft daraufhin mit der Baseline weiter. Dieses Verhalten wird im Explain über `graph_used` und `graph_status` signalisiert.
 2.  **Context Builder (`query_core`):**
-    Trennt sauber zwischen "Hit" (Ranking-Modell), "Evidence" (Matched Chunk/Snippet) und "Context" (Surrounding, Graph-Neighbors).
+    Trennt zwischen "Hit" (Ranking-Modell), "Evidence" (Matched Chunk/Snippet) und "Context" (Surrounding, Graph-Neighbors).
 3.  **Output Profiles:**
     Output-Profile (z.B. `agent_minimal`, `ui_navigation`, `human_review`) verändern nicht das zugrunde liegende Ranking, sondern filtern die Projektion (Reduktionslogik in `query_core`).
 
