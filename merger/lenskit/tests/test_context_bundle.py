@@ -219,3 +219,29 @@ def test_context_bundle_extracts_snippet_correctly(mini_index):
     # Ensuring snippet exists (representing the raw extracted content)
     assert isinstance(hit["resolved_code_snippet"], str)
     assert "hello world" in hit["resolved_code_snippet"]
+
+def test_cli_rejects_window_lines_without_window_mode(mini_index, capsys):
+    from merger.lenskit.cli import cmd_query
+    import argparse
+
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=1,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=False,
+        graph_index=None,
+        graph_weights=None,
+        test_penalty=0.75,
+        output_profile=None,
+        context_mode="exact",
+        context_window_lines=5
+    )
+
+    ret = cmd_query.run_query(args)
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "--context-window-lines requires --context-mode window" in captured.err

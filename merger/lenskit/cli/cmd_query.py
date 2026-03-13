@@ -54,6 +54,10 @@ def run_query(args: argparse.Namespace) -> int:
             print("Error: --context-mode window requires --context-window-lines > 0", file=sys.stderr)
             return 1
 
+        if context_window_lines > 0 and context_mode != "window":
+            print("Error: --context-window-lines requires --context-mode window", file=sys.stderr)
+            return 1
+
         build_context = bool(output_profile) or context_mode != "exact" or context_window_lines > 0
 
         result = execute_query(
