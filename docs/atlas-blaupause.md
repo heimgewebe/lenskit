@@ -896,8 +896,8 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
-- [x] MIME-Typ-Erkennung verbessern
-- [x] Encoding-Erkennung einführen
+- [x] MIME-Typ-Schätzung via Extension ergänzen
+- [x] UTF-8-basierte Encoding-Bestimmung ergänzen
 - [x] line_count erfassen
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
