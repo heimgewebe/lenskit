@@ -55,6 +55,7 @@ class AtlasScanner:
                  snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
                  enable_content_stats: bool = False,
                  incremental_inventory: Optional[Union[Dict[str, Any], Path]] = None,
+                 incremental_dirs_inventory: Optional[Union[Dict[str, Any], Path]] = None,
                  previous_scan_config_hash: Optional[str] = None,
                  current_scan_config_hash: Optional[str] = None):
         self.root = root
@@ -97,6 +98,26 @@ class AtlasScanner:
             elif isinstance(incremental_inventory, dict):
                 self.incremental_inventory = incremental_inventory
 
+        self.incremental_dirs_inventory = {}
+        if incremental_dirs_inventory:
+            if isinstance(incremental_dirs_inventory, Path):
+                try:
+                    with incremental_dirs_inventory.open("r", encoding="utf-8") as f:
+                        for line_idx, line in enumerate(f, start=1):
+                            if not line.strip(): continue
+                            try:
+                                item = json.loads(line)
+                                rel_path = item["rel_path"]
+                                if not isinstance(rel_path, str):
+                                    raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
+                                self.incremental_dirs_inventory[rel_path] = item
+                            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                                logger.warning(f"Failed to load incremental dirs entry in {incremental_dirs_inventory} at line {line_idx}. Error: {type(e).__name__} - {e}. Skipping line.")
+                except OSError as e:
+                    logger.warning(f"Failed to load incremental dirs inventory from {incremental_dirs_inventory}: {e}")
+            elif isinstance(incremental_dirs_inventory, dict):
+                self.incremental_dirs_inventory = incremental_dirs_inventory
+
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
             default_excludes = ["**/.git", "**/.venv"]
@@ -126,7 +147,8 @@ class AtlasScanner:
             "delta": {},
             "incremental": {
                 "reused_files_count": 0,
-                "skipped_analysis_count": 0
+                "skipped_analysis_count": 0,
+                "heuristic_subtree_matches": 0
             },
             "active_excludes": self.exclude_globs,
             "truncated": {
@@ -403,6 +425,31 @@ class AtlasScanner:
                 dir_depths[rel_path_str] = depth
                 dir_signal_counts[rel_path_str] = len(workspace_signals)
 
+                # Calculate deterministic fingerprint of direct children (names and types)
+                children_signatures = []
+                for f, _ in kept_files:
+                    children_signatures.append(f"F:{f}")
+                for d in dirs:
+                    children_signatures.append(f"D:{d}")
+                children_signatures.sort()
+                # Handle possible invalid utf-8 sequences in filenames using surrogateescape
+                fingerprint_data = "|".join(children_signatures).encode('utf-8', errors='surrogateescape')
+                direct_children_fingerprint = hashlib.md5(fingerprint_data, usedforsecurity=False).hexdigest() # nosec B303
+
+                # Heuristic match detection (diagnostics only, no traversal pruning yet)
+                if self.incremental_dirs_inventory and not self.config_changed:
+                    prev_dir = self.incremental_dirs_inventory.get(rel_path_str)
+                    if prev_dir:
+                        if (prev_dir.get("mtime") == dir_mtime and
+                            prev_dir.get("n_files") == len(kept_files) and
+                            prev_dir.get("n_dirs") == len(dirs) and
+                            prev_dir.get("direct_children_fingerprint") == direct_children_fingerprint):
+
+                            self.stats["incremental"]["heuristic_subtree_matches"] += 1
+                            # We explicitly DO NOT prune traversal (dirs[:] = []) here because
+                            # direct_children_fingerprint + mtime + counts cannot guarantee
+                            # that descendants have not silently changed (recursive blindness).
+
                 if collect_dir_aggregates:
                     dir_aggregates[rel_path_str] = {
                         "rel_path": rel_path_str,
@@ -413,7 +460,8 @@ class AtlasScanner:
                         "subtree_file_count": len(kept_files),
                         "subtree_dir_count": len(dirs), # Will accumulate (counts descendants without self)
                         "subtree_total_bytes": 0, # Will accumulate
-                        "max_descendant_mtime": dir_mtime
+                        "max_descendant_mtime": dir_mtime,
+                        "direct_children_fingerprint": direct_children_fingerprint
                     }
 
                 self.stats["truncated"]["dirs_seen"] += 1
