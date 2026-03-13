@@ -212,8 +212,8 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             # Find the latest complete snapshot for this root
             latest_snap = next((s for s in snapshots if s["status"] == "complete" and s["machine_id"] == machine_id and s["root_id"] == root_id), None)
             if latest_snap:
+                previous_scan_config_hash = latest_snap.get("scan_config_hash")
                 if latest_snap.get("inventory_ref"):
-                    previous_scan_config_hash = latest_snap.get("scan_config_hash")
                     inv_path = resolve_artifact_ref(atlas_base, latest_snap["inventory_ref"])
                     if inv_path.exists():
                         incremental_inventory = inv_path

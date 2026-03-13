@@ -288,13 +288,14 @@ class AtlasScanner:
         text_files_count = 0
         binary_files_count = 0
 
-        # Directory aggregates for subtree skipping
-        # path -> { 'n_files': int, 'n_dirs': int, 'bytes': int, 'max_descendant_mtime': str, 'mtime': str }
-        dir_aggregates: Dict[str, Dict[str, Any]] = {}
-        dir_relations: Dict[str, List[str]] = {} # path -> list of child dir paths
-
         # For topology we keep track of nodes
         topology_nodes = {}
+
+        # Directory aggregates for subtree skipping
+        # path -> { 'n_files': int, 'n_dirs': int, 'bytes': int, 'max_descendant_mtime': str, 'mtime': str }
+        # Only collect if we actually need them (writing dirs file or doing incremental dir check)
+        collect_dir_aggregates = bool(dirs_inventory_file or self.incremental_dirs_inventory)
+        dir_aggregates: Dict[str, Dict[str, Any]] = {} if collect_dir_aggregates else None
 
         try:
             for root, dirs, files in os.walk(self.root, topdown=True, followlinks=False):
@@ -408,18 +409,6 @@ class AtlasScanner:
 
                 dir_mtime = datetime.fromtimestamp(current_root.stat().st_mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
 
-                # Heuristic: Check if directory is probably reusable based on previous directory aggregates.
-                # Since mtime on directories is notoriously unstable for recursive changes,
-                # we only assume it's probably reusable if the dir's own mtime matches AND
-                # the file count/dir count exactly matches the previous aggregate.
-                # If so, we can use this hint to conservatively skip heavy analysis (like content/text probing) for child files.
-                dir_probably_reusable = False
-                prev_dir_entry = self.incremental_dirs_inventory.get(rel_path_str)
-                if prev_dir_entry and not self.config_changed:
-                    if prev_dir_entry.get("mtime") == dir_mtime:
-                        if prev_dir_entry.get("n_files") == len(kept_files) and prev_dir_entry.get("n_dirs") == len(dirs):
-                            dir_probably_reusable = True
-
                 # Track for topology
                 topology_nodes[rel_path_str] = {
                     "path": rel_path_str,
@@ -431,18 +420,17 @@ class AtlasScanner:
                 dir_depths[rel_path_str] = depth
                 dir_signal_counts[rel_path_str] = len(workspace_signals)
 
-                dir_relations[rel_path_str] = [prefix + d for d in dirs]
-
-                dir_aggregates[rel_path_str] = {
-                    "rel_path": rel_path_str,
-                    "depth": depth,
-                    "n_files": len(kept_files), # direct children
-                    "n_dirs": len(dirs), # direct children
-                    "mtime": dir_mtime,
-                    "subtree_file_count": len(kept_files),
-                    "subtree_total_bytes": 0, # Will accumulate
-                    "max_descendant_mtime": dir_mtime
-                }
+                if collect_dir_aggregates:
+                    dir_aggregates[rel_path_str] = {
+                        "rel_path": rel_path_str,
+                        "depth": depth,
+                        "n_files": len(kept_files), # direct children
+                        "n_dirs": len(dirs), # direct children
+                        "mtime": dir_mtime,
+                        "subtree_file_count": len(kept_files),
+                        "subtree_total_bytes": 0, # Will accumulate
+                        "max_descendant_mtime": dir_mtime
+                    }
 
                 self.stats["truncated"]["dirs_seen"] += 1
 
@@ -482,7 +470,7 @@ class AtlasScanner:
                         dir_bytes += size
 
                         # Update aggregate max mtime
-                        if mtime_iso > dir_aggregates[rel_path_str]["max_descendant_mtime"]:
+                        if collect_dir_aggregates and mtime_iso > dir_aggregates[rel_path_str]["max_descendant_mtime"]:
                             dir_aggregates[rel_path_str]["max_descendant_mtime"] = mtime_iso
 
                         is_txt = None
@@ -494,16 +482,9 @@ class AtlasScanner:
                         if prev_entry and prev_entry.get("size_bytes") == size:
                             # If size matches but mtime changed, or we just want to be sure, we can selectively hash
                             # Here, if mtime matches, we assume reuse.
-                            # If the directory aggregate suggests it's probably reusable, we can be more confident.
                             if prev_entry.get("mtime") == mtime_iso:
                                 is_reused = True
-                            elif dir_probably_reusable:
-                                # Directory seems untouched structurally, so an mtime bump might just be a touch/chmod.
-                                # We still verify with a quick hash if available, or just re-hash it.
-                                # But we don't blindly skip.
-                                pass
-
-                            if not is_reused:
+                            else:
                                 # Selective Hash for disambiguation (if size matches but mtime changed, maybe it was just touched)
                                 # Only hash if file is < 1MB to avoid heavy IO
                                 if size < 1024 * 1024 and "quick_hash" in prev_entry:
@@ -589,13 +570,14 @@ class AtlasScanner:
 
                 self.stats["total_dirs"] += 1
                 dir_sizes[rel_path_str] = dir_bytes
-                dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
+                if collect_dir_aggregates:
+                    dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
 
         finally:
             if inv_f: inv_f.close()
 
             # Process aggregates bottom-up
-            if dir_aggregates:
+            if collect_dir_aggregates and dir_aggregates:
                 # Sort paths by depth descending so we process leaves first
                 sorted_dirs_by_depth = sorted(dir_aggregates.keys(), key=lambda p: dir_aggregates[p]["depth"], reverse=True)
                 for p in sorted_dirs_by_depth:
