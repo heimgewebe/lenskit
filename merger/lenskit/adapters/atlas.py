@@ -55,6 +55,7 @@ class AtlasScanner:
                  snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
                  enable_content_stats: bool = False,
                  incremental_inventory: Optional[Union[Dict[str, Any], Path]] = None,
+                 incremental_dirs_inventory: Optional[Union[Dict[str, Any], Path]] = None,
                  previous_scan_config_hash: Optional[str] = None,
                  current_scan_config_hash: Optional[str] = None):
         self.root = root
@@ -97,6 +98,26 @@ class AtlasScanner:
             elif isinstance(incremental_inventory, dict):
                 self.incremental_inventory = incremental_inventory
 
+        self.incremental_dirs_inventory = {}
+        if incremental_dirs_inventory:
+            if isinstance(incremental_dirs_inventory, Path):
+                try:
+                    with incremental_dirs_inventory.open("r", encoding="utf-8") as f:
+                        for line_idx, line in enumerate(f, start=1):
+                            if not line.strip(): continue
+                            try:
+                                item = json.loads(line)
+                                rel_path = item["rel_path"]
+                                if not isinstance(rel_path, str):
+                                    raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
+                                self.incremental_dirs_inventory[rel_path] = item
+                            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                                logger.warning(f"Failed to load incremental dirs entry in {incremental_dirs_inventory} at line {line_idx}. Error: {type(e).__name__} - {e}. Skipping line.")
+                except OSError as e:
+                    logger.warning(f"Failed to load incremental dirs inventory from {incremental_dirs_inventory}: {e}")
+            elif isinstance(incremental_dirs_inventory, dict):
+                self.incremental_dirs_inventory = incremental_dirs_inventory
+
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
             default_excludes = ["**/.git", "**/.venv"]
@@ -126,7 +147,10 @@ class AtlasScanner:
             "delta": {},
             "incremental": {
                 "reused_files_count": 0,
-                "skipped_analysis_count": 0
+                "skipped_analysis_count": 0,
+                "skipped_subtrees_count": 0,
+                "skipped_subtree_files_estimate": 0,
+                "skipped_subtree_bytes_estimate": 0
             },
             "active_excludes": self.exclude_globs,
             "truncated": {
@@ -389,6 +413,76 @@ class AtlasScanner:
 
                 dir_mtime = datetime.fromtimestamp(current_root.stat().st_mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
 
+                # Generate deterministic fingerprint for direct children to strengthen pruning confidence
+                # Format: sort([ "d:dirname", "f:filename.txt" ])
+                child_sigs = [f"d:{d}" for d in dirs] + [f"f:{f}" for f, _ in kept_files]
+                child_sigs.sort()
+                sig_str = "|".join(child_sigs)
+                direct_children_fingerprint = hashlib.md5(sig_str.encode("utf-8", errors="replace"), usedforsecurity=False).hexdigest() # nosec B303
+
+                # Evaluate Conservative Subtree Skipping
+                can_skip_subtree = False
+                prev_dir_entry = self.incremental_dirs_inventory.get(rel_path_str)
+
+                # We can't skip the root directory "." itself easily without breaking the whole process/stats setup.
+                if rel_path_str != "." and prev_dir_entry and not self.config_changed:
+                    # Check direct signals
+                    if prev_dir_entry.get("mtime") == dir_mtime and \
+                       prev_dir_entry.get("n_files") == len(kept_files) and \
+                       prev_dir_entry.get("n_dirs") == len(dirs) and \
+                       prev_dir_entry.get("direct_children_fingerprint") == direct_children_fingerprint:
+                        can_skip_subtree = True
+
+                if can_skip_subtree:
+                    self.stats["incremental"]["skipped_subtrees_count"] += 1
+
+                    est_files = prev_dir_entry.get("subtree_file_count", 0)
+                    est_bytes = prev_dir_entry.get("subtree_total_bytes", 0)
+                    est_dirs = prev_dir_entry.get("subtree_dir_count", prev_dir_entry.get("n_dirs", 0))
+
+                    self.stats["incremental"]["skipped_subtree_files_estimate"] += est_files
+                    self.stats["incremental"]["skipped_subtree_bytes_estimate"] += est_bytes
+
+                    # Also include the files in the global stats estimate to keep totals accurate
+                    self.stats["total_files"] += est_files
+                    self.stats["total_bytes"] += est_bytes
+                    self.stats["total_dirs"] += est_dirs
+
+                    # Update local aggregates from previous run since we won't traverse
+                    if collect_dir_aggregates:
+                        # Copy the dict so we don't mutate the cached version
+                        prev_copy = dict(prev_dir_entry)
+                        prev_copy["_pre_aggregated"] = True
+                        dir_aggregates[rel_path_str] = prev_copy
+                        dir_sizes[rel_path_str] = est_bytes
+
+                    # Prune the descent
+                    dirs[:] = []
+
+                    # We must inject all previously known entries under this subtree into the new inventory
+                    # so that the snapshot remains complete. We do this by searching `incremental_inventory`.
+                    # Note: doing a prefix search on the entire inventory dictionary is safe but O(N).
+                    # A proper interval tree or ordered lookup is better, but a dict iteration is fine for MVP.
+                    prefix_match = f"{rel_path_str}/"
+
+                    for old_f_rel, old_f_entry in self.incremental_inventory.items():
+                        if old_f_rel.startswith(prefix_match) or old_f_rel == rel_path_str:
+                            # Avoid duplicates, though old_f_rel shouldn't hit rel_path_str if it's a file
+                            if inv_f:
+                                inv_f.write(json.dumps(old_f_entry, ensure_ascii=True, sort_keys=True) + "\n")
+
+                    # Track descendant directory artifacts
+                    if collect_dir_aggregates:
+                        for old_d_rel, old_d_entry in self.incremental_dirs_inventory.items():
+                            if old_d_rel.startswith(prefix_match):
+                                if old_d_rel not in dir_aggregates:
+                                    d_copy = dict(old_d_entry)
+                                    d_copy["_pre_aggregated"] = True
+                                    dir_aggregates[old_d_rel] = d_copy
+
+                    # We skip processing the direct files in the current loop iteration
+                    continue
+
                 # Track for topology
                 topology_nodes[rel_path_str] = {
                     "path": rel_path_str,
@@ -407,7 +501,9 @@ class AtlasScanner:
                         "n_files": len(kept_files), # direct children
                         "n_dirs": len(dirs), # direct children
                         "mtime": dir_mtime,
+                        "direct_children_fingerprint": direct_children_fingerprint,
                         "subtree_file_count": len(kept_files),
+                        "subtree_dir_count": len(dirs), # Will accumulate
                         "subtree_total_bytes": 0, # Will accumulate
                         "max_descendant_mtime": dir_mtime
                     }
@@ -573,16 +669,21 @@ class AtlasScanner:
                         parent_agg = dir_aggregates[parent_path]
                         child_agg = dir_aggregates[p]
 
-                        parent_agg["subtree_file_count"] += child_agg["subtree_file_count"]
-                        parent_agg["subtree_total_bytes"] += child_agg["subtree_total_bytes"]
-                        if child_agg["max_descendant_mtime"] > parent_agg["max_descendant_mtime"]:
-                            parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
+                        # Only add child stats to parent if parent is NOT already fully aggregated from a previous run
+                        if not parent_agg.get("_pre_aggregated"):
+                            parent_agg["subtree_file_count"] += child_agg["subtree_file_count"]
+                            parent_agg["subtree_dir_count"] += child_agg.get("subtree_dir_count", child_agg.get("n_dirs", 0))
+                            parent_agg["subtree_total_bytes"] += child_agg["subtree_total_bytes"]
+                            if child_agg["max_descendant_mtime"] > parent_agg["max_descendant_mtime"]:
+                                parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
 
             # Write dir inventory if requested
             if dirs_inv_f:
                 try:
-                    for p in sorted(dir_aggregates.keys()): # Output sorted by path or arbitrary? Arbitrary is fine, let's sort
-                        dirs_inv_f.write(json.dumps(dir_aggregates[p], ensure_ascii=True, sort_keys=True) + "\n")
+                    for p in sorted(dir_aggregates.keys()):
+                        out_dict = dict(dir_aggregates[p])
+                        out_dict.pop("_pre_aggregated", None)
+                        dirs_inv_f.write(json.dumps(out_dict, ensure_ascii=True, sort_keys=True) + "\n")
                 finally:
                     dirs_inv_f.close()
 
