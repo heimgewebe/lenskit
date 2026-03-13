@@ -45,8 +45,8 @@ def test_load_schema_success(tmp_path):
     with patch("merger.lenskit.cli.pr_schau_verify.SCHEMA_PATH", schema_file):
         assert load_schema() == schema_content
 
-def test_load_schema_missing_file(tmp_path):
-    """Verify load_schema calls _fail (exits) when the schema file is missing."""
+def test_load_schema_missing_file(tmp_path, capsys):
+    """Verify load_schema calls _fail (exits) and prints error when the schema file is missing."""
     missing_file = tmp_path / "missing.json"
 
     with patch("merger.lenskit.cli.pr_schau_verify.SCHEMA_PATH", missing_file):
@@ -54,8 +54,11 @@ def test_load_schema_missing_file(tmp_path):
             load_schema()
         assert excinfo.value.code == 1
 
-def test_load_schema_invalid_json(tmp_path):
-    """Verify load_schema calls _fail (exits) when the schema file contains invalid JSON."""
+    captured = capsys.readouterr()
+    assert "Schema not found" in captured.err
+
+def test_load_schema_invalid_json(tmp_path, capsys):
+    """Verify load_schema calls _fail (exits) and prints error when the schema file contains invalid JSON."""
     invalid_file = tmp_path / "invalid.json"
     invalid_file.write_text("not json", encoding="utf-8")
 
@@ -63,3 +66,6 @@ def test_load_schema_invalid_json(tmp_path):
         with pytest.raises(SystemExit) as excinfo:
             load_schema()
         assert excinfo.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "Failed to load schema" in captured.err
