@@ -562,10 +562,9 @@ def execute_query(
         if build_context:
             raw_contents = {}
             for r in rows:
-                try:
+                r_keys = r.keys()
+                if "chunk_id" in r_keys and "content" in r_keys:
                     raw_contents[r["chunk_id"]] = r["content"]
-                except IndexError:
-                    pass
             context_bundle = build_context_bundle(
                 query_text=query_text,
                 results=results[:k],
