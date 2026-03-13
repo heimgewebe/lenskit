@@ -82,45 +82,59 @@ def execute_query(
             # FTS Query: Escape double quotes
             cleaned_q = routed_query.replace('"', '""')
 
-            scoring_expr = "bm25(chunks_fts)"
-
             # Check if source_file exists in schema to support backwards compatibility
             # If not, we don't query it.
             cursor = conn.execute("PRAGMA table_info(chunks)")
             columns = [row["name"] for row in cursor.fetchall()]
-            source_file_col = "c.source_file, " if "source_file" in columns else ""
+            has_source_file = "source_file" in columns
 
-            base_sql = f"""
-                SELECT
-                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref, {source_file_col}chunks_fts.content,
-                    {scoring_expr} as score
-                FROM chunks_fts
-                JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
-                WHERE chunks_fts MATCH ?
-            """
+            if has_source_file:
+                base_sql = """
+                    SELECT
+                        c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
+                        c.layer, c.artifact_type, c.content_range_ref, c.source_file, chunks_fts.content,
+                        bm25(chunks_fts) as score
+                    FROM chunks_fts
+                    JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
+                    WHERE chunks_fts MATCH ?
+                """
+            else:
+                base_sql = """
+                    SELECT
+                        c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
+                        c.layer, c.artifact_type, c.content_range_ref, chunks_fts.content,
+                        bm25(chunks_fts) as score
+                    FROM chunks_fts
+                    JOIN chunks c ON c.chunk_id = chunks_fts.chunk_id
+                    WHERE chunks_fts MATCH ?
+                """
 
             params.append(cleaned_q)
             fts_query_str = cleaned_q
             where_clauses.append("1=1") # Placeholder for appending ANDs easily
-
-            # BM25: lower is better
-            order_clause = "ORDER BY score ASC, c.repo_id ASC, c.path ASC, c.start_line ASC"
         else:
             # Metadata only query
             cursor = conn.execute("PRAGMA table_info(chunks)")
             columns = [row["name"] for row in cursor.fetchall()]
-            source_file_col = "c.source_file, " if "source_file" in columns else ""
+            has_source_file = "source_file" in columns
 
-            base_sql = f"""
-                SELECT
-                    c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
-                    c.layer, c.artifact_type, c.content_range_ref, {source_file_col}'' as content,
-                    0 as score
-                FROM chunks c
-            """
+            if has_source_file:
+                base_sql = """
+                    SELECT
+                        c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
+                        c.layer, c.artifact_type, c.content_range_ref, c.source_file, '' as content,
+                        0 as score
+                    FROM chunks c
+                """
+            else:
+                base_sql = """
+                    SELECT
+                        c.chunk_id, c.repo_id, c.path, c.start_line, c.end_line, c.start_byte, c.end_byte, c.content_sha256,
+                        c.layer, c.artifact_type, c.content_range_ref, '' as content,
+                        0 as score
+                    FROM chunks c
+                """
             where_clauses.append("1=1")
-            order_clause = "ORDER BY c.repo_id, c.path, c.start_line"
 
         # Add metadata filters
         if filters.get("repo"):
@@ -164,7 +178,13 @@ def execute_query(
         is_reranking = embedding_policy is not None or graph_index_path is not None
         fetch_k = max(k, 50) if is_reranking else k
 
-        base_sql += f" {order_clause} LIMIT ?"
+        # Append ordering and limit
+        if query_text:
+            # BM25: lower is better
+            base_sql += " ORDER BY score ASC, c.repo_id ASC, c.path ASC, c.start_line ASC LIMIT ?"
+        else:
+            base_sql += " ORDER BY c.repo_id, c.path, c.start_line LIMIT ?"
+
         params.append(fetch_k)
 
         cursor = conn.execute(base_sql, params)
