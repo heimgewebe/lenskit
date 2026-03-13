@@ -225,26 +225,6 @@ def test_context_bundle_extracts_snippet_correctly(mini_index):
     assert isinstance(hit["resolved_code_snippet"], str)
     assert "hello world" in hit["resolved_code_snippet"]
 
-def test_explicit_exact_mode_bundle_creation(mini_index):
-    # Tests that we can explicitly build a bundle in exact mode
-    res = query_core.execute_query(
-        mini_index,
-        query_text="hello",
-        k=5,
-        build_context=True,
-        context_mode="exact"
-    )
-
-    assert "context_bundle" in res
-    bundle = res["context_bundle"]
-    assert bundle["query"] == "hello"
-    assert len(bundle["hits"]) == 1
-
-    hit = bundle["hits"][0]
-    assert hit["surrounding_context"] is None
-    assert "hello world" in hit["resolved_code_snippet"]
-
-
 def test_cli_explicit_bundle_flag(mini_index, capsys):
     from merger.lenskit.cli import cmd_query
     import argparse

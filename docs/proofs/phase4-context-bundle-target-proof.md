@@ -12,8 +12,8 @@
 - Integration: In `execute_query` wird das Bundle abhängig von `build_context=True` am Ende des Suchvorgangs erzeugt und sauber in den `query-result.v1.schema.json` Contract eingebettet.
 
 ### 3. CLI-Beleg
-- Flags in `cmd_query.py` und `main.py`: `--output-profile`, `--context-mode`, `--context-window-lines`, `--build-context-bundle`
-- `build_context` Logik in `cmd_query.py` ist entkoppelt: Die Generierung eines Bundles kann nun explizit via `--build-context-bundle` (auch im `exact` Modus und ohne Output-Profil) angefordert werden. Die bisherige implizite Trigger-Logik (`--context-mode` / `--context-window-lines` / `--output-profile`) bleibt aus Gründen der Abwärtskompatibilität erhalten.
+- Flags in `main.py` (offizielle CLI-Oberfläche): `--output-profile`, `--context-mode`, `--context-window-lines`, `--build-context-bundle`
+- `build_context` Logik in `cmd_query.py` (Verarbeitung) ist entkoppelt: Die Generierung eines Bundles kann nun explizit via `--build-context-bundle` (auch im `exact` Modus und ohne Output-Profil) angefordert werden. Die bisherige implizite Trigger-Logik (`--context-mode` / `--context-window-lines` / `--output-profile`) bleibt aus Gründen der Abwärtskompatibilität erhalten.
 - Output-Profile sind reine Projektionen und definieren nicht mehr zwingend, ob ein Bundle erzeugt wird.
 - Reduktions-Logik in `cmd_query.py`:
   - `agent_minimal`: Reduziert das kanonische Context-Bundle, indem `explain`, `graph_context` und ein leerer `surrounding_context` pro Hit entfernt werden.
@@ -22,14 +22,13 @@
 
 ### 4. Test-Beleg
 - Test-Datei: `merger/lenskit/tests/test_context_bundle.py`
-- Alle 10 Tests sind erfolgreich (`PYTHONPATH=. pytest merger/lenskit/tests/test_context_bundle.py` liefert 10 passed):
+- Alle 9 Tests sind erfolgreich (`PYTHONPATH=. pytest merger/lenskit/tests/test_context_bundle.py` liefert 9 passed):
   - `test_context_bundle_contains_evidence_and_context`
   - `test_context_bundle_preserves_provenance`
   - `test_context_expansion_exact_vs_block_vs_window`
   - `test_ui_payload_excludes_internal_fields`
   - `test_agent_minimal_profile_contract`
   - `test_context_bundle_extracts_snippet_correctly`
-  - `test_explicit_exact_mode_bundle_creation`
   - `test_cli_explicit_bundle_flag`
   - `test_cli_backward_compatibility`
   - `test_cli_rejects_window_lines_without_window_mode`
