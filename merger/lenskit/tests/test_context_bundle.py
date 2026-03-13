@@ -225,6 +225,94 @@ def test_context_bundle_extracts_snippet_correctly(mini_index):
     assert isinstance(hit["resolved_code_snippet"], str)
     assert "hello world" in hit["resolved_code_snippet"]
 
+def test_explicit_exact_mode_bundle_creation(mini_index):
+    # Tests that we can explicitly build a bundle in exact mode
+    res = query_core.execute_query(
+        mini_index,
+        query_text="hello",
+        k=5,
+        build_context=True,
+        context_mode="exact"
+    )
+
+    assert "context_bundle" in res
+    bundle = res["context_bundle"]
+    assert bundle["query"] == "hello"
+    assert len(bundle["hits"]) == 1
+
+    hit = bundle["hits"][0]
+    assert hit["surrounding_context"] is None
+    assert "hello world" in hit["resolved_code_snippet"]
+
+
+def test_cli_explicit_bundle_flag(mini_index, capsys):
+    from merger.lenskit.cli import cmd_query
+    import argparse
+
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=1,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=False,
+        graph_index=None,
+        graph_weights=None,
+        test_penalty=0.75,
+        output_profile=None,
+        context_mode="exact",
+        context_window_lines=0,
+        build_context_bundle=True
+    )
+
+    ret = cmd_query.run_query(args)
+    assert ret == 0
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    # When emit is json and no output_profile is set, we expect the base query result structure,
+    # but the context_bundle should be included because build_context_bundle=True.
+    assert "engine" in output
+    assert "context_bundle" in output
+    assert output["context_bundle"]["hits"][0]["surrounding_context"] is None
+
+
+def test_cli_backward_compatibility(mini_index, capsys):
+    from merger.lenskit.cli import cmd_query
+    import argparse
+
+    # Use window mode implicitly to trigger bundle creation
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=1,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=False,
+        graph_index=None,
+        graph_weights=None,
+        test_penalty=0.75,
+        output_profile=None,
+        context_mode="window",
+        context_window_lines=5,
+        build_context_bundle=False
+    )
+
+    ret = cmd_query.run_query(args)
+    assert ret == 0
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert "engine" in output
+    assert "context_bundle" in output
+    # Validate window mode context was fetched
+    assert output["context_bundle"]["hits"][0]["surrounding_context"] is not None
+
+
 def test_cli_rejects_window_lines_without_window_mode(mini_index, capsys):
     from merger.lenskit.cli import cmd_query
     import argparse

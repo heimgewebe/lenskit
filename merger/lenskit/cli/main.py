@@ -41,6 +41,7 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--graph-index", help="Path to graph_index.json to enable graph-aware reranking")
     query_parser.add_argument("--graph-weights", help='JSON string of graph weights (e.g. \'{"w_bm25": 0.65}\')')
     query_parser.add_argument("--test-penalty", type=float, default=0.75, help="Score penalty multiplier for test files")
+    query_parser.add_argument("--build-context-bundle", action="store_true", help="Explicitly build context bundle")
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")
