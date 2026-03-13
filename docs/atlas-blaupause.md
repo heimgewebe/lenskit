@@ -870,7 +870,8 @@ Ziel: Große Roots effizient aktualisierbar machen.
 - [x] mtime-/size-Heuristik definieren
 - [x] inode/device optional erfassen
 - [x] selektives Hashing-Modell festlegen
-- [ ] unveränderte Teilbäume überspringen können (Vorerst deaktiviert. Nur `mtime` und counts sind ohne rekursiven Hash nicht robust genug gegen stille Inhaltsänderungen)
+- [x] heuristische Teilbaum-Kandidaten erkennen (`mtime`, counts, `direct_children_fingerprint`) ohne Traversal-Abbruch
+- [ ] sicheren Teilbaum-Skip ermöglichen (benötigt rekursiven Hash oder externes Änderungsorakel wie Watcher)
 - [x] `scan_config_hash` wirksam in Reuse-Logik einbeziehen
 - [x] Basis-Incremental-Metriken erfassen
 - [x] CLI: `atlas scan --incremental`

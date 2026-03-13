@@ -49,12 +49,37 @@ class AtlasScanner:
         "lost+found/**"
     ]
 
+    @staticmethod
+    def _load_jsonl_inventory_map(source: Optional[Union[Dict[str, Any], Path]], inventory_label: str, entry_label: str) -> Dict[str, Any]:
+        result = {}
+        if not source:
+            return result
+        if isinstance(source, Path):
+            try:
+                with source.open("r", encoding="utf-8") as f:
+                    for line_idx, line in enumerate(f, start=1):
+                        if not line.strip(): continue
+                        try:
+                            item = json.loads(line)
+                            rel_path = item.get("rel_path")
+                            if not isinstance(rel_path, str):
+                                raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
+                            result[rel_path] = item
+                        except (json.JSONDecodeError, KeyError, TypeError) as e:
+                            logger.warning(f"Malformed {entry_label} at {source}:{line_idx}. Error: {type(e).__name__} - {e}. Skipping.")
+            except OSError as e:
+                logger.warning(f"Failed to load {inventory_label} from {source}: {e}")
+        elif isinstance(source, dict):
+            result = source
+        return result
+
     def __init__(self, root: Path, max_depth: int = 6, max_entries: int = 200000,
                  exclude_globs: List[str] = None, inventory_strict: bool = False,
                  no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024,
                  snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
                  enable_content_stats: bool = False,
                  incremental_inventory: Optional[Union[Dict[str, Any], Path]] = None,
+                 incremental_dirs_inventory: Optional[Union[Dict[str, Any], Path]] = None,
                  previous_scan_config_hash: Optional[str] = None,
                  current_scan_config_hash: Optional[str] = None):
         self.root = root
@@ -77,25 +102,8 @@ class AtlasScanner:
             if self.previous_scan_config_hash != self.current_scan_config_hash:
                 self.config_changed = True
 
-        self.incremental_inventory = {}
-        if incremental_inventory:
-            if isinstance(incremental_inventory, Path):
-                try:
-                    with incremental_inventory.open("r", encoding="utf-8") as f:
-                        for line_idx, line in enumerate(f, start=1):
-                            if not line.strip(): continue
-                            try:
-                                item = json.loads(line)
-                                rel_path = item["rel_path"]
-                                if not isinstance(rel_path, str):
-                                    raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
-                                self.incremental_inventory[rel_path] = item
-                            except (json.JSONDecodeError, KeyError, TypeError) as e:
-                                logger.warning(f"Failed to load incremental inventory entry in {incremental_inventory} at line {line_idx}. Error: {type(e).__name__} - {e}. Skipping line.")
-                except OSError as e:
-                    logger.warning(f"Failed to load incremental inventory from {incremental_inventory}: {e}")
-            elif isinstance(incremental_inventory, dict):
-                self.incremental_inventory = incremental_inventory
+        self.incremental_inventory = self._load_jsonl_inventory_map(incremental_inventory, "incremental inventory", "incremental inventory")
+        self.incremental_dirs_inventory = self._load_jsonl_inventory_map(incremental_dirs_inventory, "incremental dirs inventory", "incremental dirs")
 
         if self.inventory_strict:
             # Minimal excludes for strict inventory: only git and venv
@@ -126,7 +134,8 @@ class AtlasScanner:
             "delta": {},
             "incremental": {
                 "reused_files_count": 0,
-                "skipped_analysis_count": 0
+                "skipped_analysis_count": 0,
+                "heuristic_subtree_matches": 0
             },
             "active_excludes": self.exclude_globs,
             "truncated": {
@@ -403,6 +412,42 @@ class AtlasScanner:
                 dir_depths[rel_path_str] = depth
                 dir_signal_counts[rel_path_str] = len(workspace_signals)
 
+                need_fingerprint = collect_dir_aggregates or (self.incremental_dirs_inventory and not self.config_changed)
+                direct_children_fingerprint = None
+
+                if need_fingerprint:
+                    # Calculate deterministic fingerprint of direct children (names and types)
+                    children_signatures = []
+                    for f, _ in kept_files:
+                        children_signatures.append(f"F:{f}")
+                    for d in dirs:
+                        children_signatures.append(f"D:{d}")
+                    children_signatures.sort()
+                    # Use canonical JSON serialization to prevent delimiter ambiguity if filename contains '|'
+                    children_signatures_json = json.dumps(
+                        children_signatures,
+                        ensure_ascii=False,
+                        separators=(",", ":")
+                    )
+                    # Handle possible invalid utf-8 sequences in filenames using surrogateescape
+                    fingerprint_data = children_signatures_json.encode('utf-8', errors='surrogateescape')
+                    direct_children_fingerprint = hashlib.md5(fingerprint_data, usedforsecurity=False).hexdigest() # nosec B303
+
+                # Heuristic subtree candidate detection.
+                # We intentionally DO NOT prune traversal (no `dirs[:] = []`) here.
+                # mtime + counts + direct_children_fingerprint cannot guarantee
+                # that deeper descendants have not changed (POSIX directory mtime is recursively blind).
+                # This is purely for diagnostic and analytical purposes.
+                if self.incremental_dirs_inventory and not self.config_changed and direct_children_fingerprint is not None:
+                    prev_dir = self.incremental_dirs_inventory.get(rel_path_str)
+                    if prev_dir:
+                        if (prev_dir.get("mtime") == dir_mtime and
+                            prev_dir.get("n_files") == len(kept_files) and
+                            prev_dir.get("n_dirs") == len(dirs) and
+                            prev_dir.get("direct_children_fingerprint") == direct_children_fingerprint):
+
+                            self.stats["incremental"]["heuristic_subtree_matches"] += 1
+
                 if collect_dir_aggregates:
                     dir_aggregates[rel_path_str] = {
                         "rel_path": rel_path_str,
@@ -413,7 +458,8 @@ class AtlasScanner:
                         "subtree_file_count": len(kept_files),
                         "subtree_dir_count": len(dirs), # Will accumulate (counts descendants without self)
                         "subtree_total_bytes": 0, # Will accumulate
-                        "max_descendant_mtime": dir_mtime
+                        "max_descendant_mtime": dir_mtime,
+                        "direct_children_fingerprint": direct_children_fingerprint
                     }
 
                 self.stats["truncated"]["dirs_seen"] += 1
