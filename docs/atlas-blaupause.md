@@ -869,9 +869,9 @@ Ziel: Große Roots effizient aktualisierbar machen.
 - [x] Re-Scan gegen letzten Snapshot vorbereiten
 - [x] mtime-/size-Heuristik definieren
 - [x] inode/device optional erfassen
-- [ ] selektives Hashing-Modell festlegen
+- [x] selektives Hashing-Modell festlegen
 - [ ] unveränderte Teilbäume überspringen können
-- [ ] `scan_config_hash` wirksam in Reuse-Logik einbeziehen
+- [x] `scan_config_hash` wirksam in Reuse-Logik einbeziehen
 - [x] Basis-Incremental-Metriken erfassen
 - [x] CLI: `atlas scan --incremental`
 - [x] Regressionstests für inkrementelles Verhalten ergänzen
