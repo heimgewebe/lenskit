@@ -127,3 +127,55 @@ def test_heuristic_subtree_config_changed(tmp_path: Path):
 
     # Must be 0 because config changed
     assert res2["stats"]["incremental"]["heuristic_subtree_matches"] == 0
+
+def test_heuristic_subtree_delimiter_collision(tmp_path: Path):
+    """
+    Test E - Beweist, dass das Fingerprint-Encoding nicht durch Trennzeichen in Dateinamen
+    (wie '|') verwirrt wird (delimiter collision).
+    """
+    import platform
+    if platform.system() == "Windows":
+        # Windows doesn't allow '|' in filenames easily
+        return
+
+    # Scenario 1: two files: "a" and "b|c"
+    dir1 = tmp_path / "dir1"
+    dir1.mkdir()
+    (dir1 / "a").write_text("a")
+    (dir1 / "b|c").write_text("b|c")
+
+    # Scenario 2: two files: "a|b" and "c"
+    dir2 = tmp_path / "dir2"
+    dir2.mkdir()
+    (dir2 / "a|b").write_text("a|b")
+    (dir2 / "c").write_text("c")
+
+    # If the fingerprint used simple '|' joining, both might yield "F:a|F:b|c" vs "F:a|b|F:c"
+    # which when joined with '|' becomes "F:a|F:b|c" and "F:a|b|F:c" (actually different strings).
+    # Wait, a better collision for "|"-joined is:
+    # "a" and "b|F:c" -> "F:a|F:b|F:c"
+    # "a|F:b" and "c" -> "F:a|F:b|F:c"
+    # Let's test EXACTLY this collision!
+    dir3 = tmp_path / "dir3"
+    dir3.mkdir()
+    (dir3 / "a").write_text("1")
+    (dir3 / "b|F:c").write_text("2")
+
+    dir4 = tmp_path / "dir4"
+    dir4.mkdir()
+    (dir4 / "a|F:b").write_text("1")
+    (dir4 / "c").write_text("2")
+
+    dirs_file1 = tmp_path / "dirs1.jsonl"
+    scanner1 = AtlasScanner(tmp_path, snapshot_id="snap1")
+    scanner1.scan(dirs_inventory_file=dirs_file1)
+
+    with open(dirs_file1, "r") as f:
+        lines = [json.loads(line) for line in f]
+
+    fp3 = next(item["direct_children_fingerprint"] for item in lines if item["rel_path"] == "dir3")
+    fp4 = next(item["direct_children_fingerprint"] for item in lines if item["rel_path"] == "dir4")
+
+    # They MUST NOT match, because they are structurally different sets of files.
+    # The JSON serialization prevents the injection attack.
+    assert fp3 != fp4
