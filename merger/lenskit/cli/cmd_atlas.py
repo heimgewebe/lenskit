@@ -72,6 +72,7 @@ def run_atlas_search(args: argparse.Namespace) -> int:
 
         results = searcher.search(
             query=args.query,
+            content_query=args.content_query,
             machine_id=args.machine_id,
             root_id=args.root_id,
             snapshot_id=args.snapshot_id,
@@ -87,6 +88,8 @@ def run_atlas_search(args: argparse.Namespace) -> int:
         # Print results
         for r in results:
             print(f"[{r.get('machine_id')}][{r.get('root_id')}] {r.get('rel_path')} ({r.get('size_bytes')} bytes) - {r.get('mtime')}")
+            if r.get('snippet'):
+                print(f"  Snippet: {r['snippet']}")
 
         print(f"\nTotal results: {len(results)}")
 
