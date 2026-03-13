@@ -2,7 +2,6 @@ import time
 import sys
 import os
 from pathlib import Path
-import tempfile
 
 # Add root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
