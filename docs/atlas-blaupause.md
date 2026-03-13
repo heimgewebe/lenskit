@@ -896,15 +896,15 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
-- [ ] MIME-Typ-Erkennung verbessern
-- [ ] Encoding-Erkennung einführen
-- [ ] line_count erfassen
+- [x] MIME-Typ-Erkennung verbessern
+- [x] Encoding-Erkennung einführen
+- [x] line_count erfassen
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
 - [ ] Binary-/Huge-file-Strategie klären
-- [ ] Tests für modeabhängige Inhaltsfelder ergänzen
+- [x] Tests für modeabhängige Inhaltsfelder ergänzen
 
 **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
 
