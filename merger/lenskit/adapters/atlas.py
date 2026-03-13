@@ -568,15 +568,7 @@ class AtlasScanner:
                                                 line_count = lc
                                                 file_encoding = "utf-8"
                                         except UnicodeDecodeError:
-                                            try:
-                                                with f_path.open("r", encoding="latin-1") as tf:
-                                                    lc = 0
-                                                    for _ in tf:
-                                                        lc += 1
-                                                    line_count = lc
-                                                    file_encoding = "latin-1"
-                                            except Exception:
-                                                pass
+                                            pass
                                         except Exception:
                                             pass
                                 else:
@@ -627,7 +619,8 @@ class AtlasScanner:
 
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
-                            if is_txt is not None:
+
+                            if self.enable_content_stats and is_txt is not None:
                                 entry["is_text"] = is_txt
                                 if file_encoding:
                                     entry["encoding"] = file_encoding
