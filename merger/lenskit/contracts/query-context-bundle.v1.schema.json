@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/query-context-bundle.v1.schema.json",
+  "title": "Query Context Bundle (query-context-bundle v1.0)",
+  "description": "Portable context bundle representing query results with their evidence and expanded context.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "query",
+    "hits"
+  ],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The search query text."
+    },
+    "hits": {
+      "type": "array",
+      "description": "The contextualized hits.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hit_identity",
+          "file",
+          "path",
+          "range",
+          "score",
+          "resolved_code_snippet",
+          "provenance_type",
+          "bundle_source_references"
+        ],
+        "properties": {
+          "hit_identity": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "range": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "explain": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "resolved_code_snippet": {
+            "type": "string"
+          },
+          "surrounding_context": {
+            "type": ["string", "null"]
+          },
+          "graph_context": {
+            "type": ["object", "null"],
+            "additionalProperties": true
+          },
+          "provenance_type": {
+            "type": "string",
+            "enum": ["explicit", "derived"]
+          },
+          "range_ref": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "derived_range_ref": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "bundle_source_references": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

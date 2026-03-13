@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 import json
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from .router import route_query
 from ..core.range_resolver import build_derived_range_ref
@@ -31,7 +31,10 @@ def execute_query(
     graph_index_path: Optional[Path] = None,
     graph_weights: Optional[Dict[str, float]] = None,
     test_penalty: float = 0.75,
-    trace: bool = False
+    trace: bool = False,
+    build_context: bool = False,
+    context_mode: str = "exact",
+    context_window_lines: int = 0
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -556,6 +559,23 @@ def execute_query(
                 explain_block["top_k_scoring"] = [{"chunk_id": r["chunk_id"], "score": r["score"]} for r in results[:k]]
             out["explain"] = explain_block
 
+        if build_context:
+            raw_contents = {}
+            for r in rows:
+                try:
+                    raw_contents[r["chunk_id"]] = r["content"]
+                except IndexError:
+                    pass
+            context_bundle = build_context_bundle(
+                query_text=query_text,
+                results=results[:k],
+                raw_contents=raw_contents,
+                db_conn=conn,
+                context_mode=context_mode,
+                context_window_lines=context_window_lines
+            )
+            out["context_bundle"] = context_bundle
+
         if trace_data:
             trace_data["timings"]["context_explain_end"] = time.perf_counter()
             trace_data["timings"]["end"] = time.perf_counter()
@@ -578,3 +598,122 @@ def execute_query(
     finally:
         if conn:
             conn.close()
+
+def _expand_context(db_conn: sqlite3.Connection, chunk_id: str, file_path: str, start_line: int, end_line: int, context_mode: str, context_window_lines: int) -> Optional[str]:
+    """Expands context based on the requested mode."""
+    if context_mode == "exact":
+        return None
+
+    try:
+        # In FTS schema, content is in chunks_fts, not chunks directly.
+        if context_mode == "file":
+            # Fetch the entire file content
+            # We can find all chunks for this file and stitch them, or just fetch from chunks
+            cursor = db_conn.execute(
+                "SELECT f.content, c.start_line FROM chunks c JOIN chunks_fts f ON c.chunk_id = f.chunk_id WHERE c.path = ? ORDER BY c.start_line ASC",
+                (file_path,)
+            )
+            rows = cursor.fetchall()
+            if rows:
+                lines = []
+                for r in rows:
+                    if r["content"]:
+                        lines.append(r["content"])
+                return "\n".join(lines)
+            return None
+
+        if context_mode == "window" and context_window_lines > 0:
+            exp_start = max(1, start_line - context_window_lines)
+            exp_end = end_line + context_window_lines
+            # Simplistic expansion: fetch overlapping chunks from DB. In reality, requires source code file read.
+            # Using DB chunks for a rough expansion logic.
+            cursor = db_conn.execute(
+                "SELECT f.content FROM chunks c JOIN chunks_fts f ON c.chunk_id = f.chunk_id WHERE c.path = ? AND c.start_line <= ? AND c.end_line >= ? ORDER BY c.start_line ASC",
+                (file_path, exp_end, exp_start)
+            )
+            rows = cursor.fetchall()
+            if rows:
+                return "\n".join(r["content"] for r in rows if r["content"])
+            return None
+
+        if context_mode == "block":
+            # Just fetch the chunk itself for now, as real block logic requires tree-sitter or similar
+            # Which is handled upstream during chunking.
+            return None
+
+    except sqlite3.OperationalError as e:
+        # Silently degrade if context expansion fails
+        pass
+
+    return None
+
+def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_contents: Dict[str, str], db_conn: sqlite3.Connection, context_mode: str = "exact", context_window_lines: int = 0) -> Dict[str, Any]:
+    """
+    Builds a query_context_bundle.json compliant structure from a list of hits.
+    Translates raw hits into a separated Evidence/Context model.
+    """
+    bundle = {
+        "query": query_text,
+        "hits": []
+    }
+
+    for idx, hit in enumerate(results):
+        # Extract explicit vs derived provenance
+        prov_type = "derived"
+        if "range_ref" in hit:
+            prov_type = "explicit"
+
+        refs = []
+        if "range_ref" in hit and hit["range_ref"]:
+            refs.append(hit["range_ref"].get("file_path", hit.get("path")))
+        elif "derived_range_ref" in hit and hit["derived_range_ref"]:
+            refs.append(hit["derived_range_ref"].get("file_path", hit.get("path")))
+        else:
+            refs.append(hit.get("path", ""))
+
+        hit_ctx = {
+            "hit_identity": hit.get("chunk_id", f"hit_{idx}"),
+            "file": hit.get("path", ""),
+            "path": hit.get("path", ""),
+            "range": hit.get("range", ""),
+            "score": hit.get("final_score", hit.get("score", 0)),
+            "explain": hit.get("why", {}),
+            "resolved_code_snippet": raw_contents.get(hit.get("chunk_id"), ""),
+            "surrounding_context": None, # Will populate in Expansion Logic
+            "graph_context": hit.get("why", {}).get("diagnostics", {}).get("graph"),
+            "provenance_type": prov_type,
+            "bundle_source_references": refs
+        }
+
+        # Expand context if requested
+        if context_mode != "exact" and db_conn:
+            # Reconstruct start_line and end_line from range string "Lstart-Lend"
+            start_l, end_l = 1, 1
+            if hit_ctx["range"].startswith("L"):
+                parts = hit_ctx["range"][1:].split("-L")
+            else:
+                parts = hit_ctx["range"].split("-")
+
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                start_l, end_l = int(parts[0]), int(parts[1])
+
+            ctx = _expand_context(
+                db_conn,
+                hit.get("chunk_id", ""),
+                hit.get("path", ""),
+                start_l,
+                end_l,
+                context_mode,
+                context_window_lines
+            )
+            if ctx:
+                hit_ctx["surrounding_context"] = ctx
+
+        if "range_ref" in hit:
+            hit_ctx["range_ref"] = hit["range_ref"]
+        elif "derived_range_ref" in hit:
+            hit_ctx["derived_range_ref"] = hit["derived_range_ref"]
+
+        bundle["hits"].append(hit_ctx)
+
+    return bundle

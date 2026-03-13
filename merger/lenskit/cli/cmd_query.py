@@ -46,6 +46,20 @@ def run_query(args: argparse.Namespace) -> int:
                 print("Error: Invalid JSON for --graph-weights", file=sys.stderr)
                 return 1
 
+        output_profile = getattr(args, "output_profile", None)
+        context_mode = getattr(args, "context_mode", "exact")
+        context_window_lines = getattr(args, "context_window_lines", 0)
+
+        if context_mode == "window" and context_window_lines <= 0:
+            print("Error: --context-mode window requires --context-window-lines > 0", file=sys.stderr)
+            return 1
+
+        if context_window_lines > 0 and context_mode != "window":
+            print("Error: --context-window-lines requires --context-mode window", file=sys.stderr)
+            return 1
+
+        build_context = bool(output_profile) or context_mode != "exact" or context_window_lines > 0
+
         result = execute_query(
             index_path=index_path,
             query_text=args.q,
@@ -57,7 +71,10 @@ def run_query(args: argparse.Namespace) -> int:
             graph_index_path=Path(args.graph_index) if getattr(args, "graph_index", None) else None,
             graph_weights=graph_weights_dict,
             test_penalty=getattr(args, "test_penalty", 0.75),
-            trace=getattr(args, "trace", False)
+            trace=getattr(args, "trace", False),
+            build_context=build_context,
+            context_mode=context_mode,
+            context_window_lines=context_window_lines
         )
 
         if getattr(args, "trace", False) and "query_trace" in result:
@@ -71,7 +88,23 @@ def run_query(args: argparse.Namespace) -> int:
         return 1
 
     if args.emit == "json":
-        print(json.dumps(result, indent=2))
+        output_profile = getattr(args, "output_profile", None)
+        if output_profile and "context_bundle" in result:
+            bundle = result["context_bundle"]
+            if output_profile == "agent_minimal":
+                # Agent minimal strips explain blocks from individual hits and returns only essentials
+                for hit in bundle["hits"]:
+                    hit.pop("explain", None)
+                    hit.pop("graph_context", None)
+                    if "surrounding_context" in hit and hit["surrounding_context"] is None:
+                        hit.pop("surrounding_context", None)
+            elif output_profile == "ui_navigation":
+                # Include download links or identifiers for ui
+                pass # Structure already ui-ready based on chunk_id/file
+
+            print(json.dumps(bundle, indent=2))
+        else:
+            print(json.dumps(result, indent=2))
         return 0
     else:
         print(f"Found {result['count']} chunks for '{result['query']}'")
