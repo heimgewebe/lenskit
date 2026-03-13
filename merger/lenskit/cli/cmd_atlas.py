@@ -196,17 +196,28 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         # Configure Snapshot Identity
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
+        # Determine effective scan config hash BEFORE instantiating Scanner
+        # so we can pass it down for proper cache invalidation.
+        temp_scanner = AtlasScanner(root=scan_root, exclude_globs=exclude_globs if exclude_globs else None, no_default_excludes=args.no_default_excludes, max_file_size=max_file_size)
+        eff_excludes = temp_scanner.exclude_globs
+        eff_ex_str = ",".join(sorted(eff_excludes))
+        config_str = f"mode={args.mode}|depth={args.depth}|limit={args.limit}|ex={eff_ex_str}|maxfs={max_file_size}"
+        short_hash = hashlib.md5(config_str.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
+
         incremental_inventory = None
+        previous_scan_config_hash = None
         if args.incremental:
             snapshots = registry.list_snapshots()
             # Find the latest complete snapshot for this root
             latest_snap = next((s for s in snapshots if s["status"] == "complete" and s["machine_id"] == machine_id and s["root_id"] == root_id), None)
-            if latest_snap and latest_snap.get("inventory_ref"):
-                inv_path = resolve_artifact_ref(atlas_base, latest_snap["inventory_ref"])
-                if inv_path.exists():
-                    incremental_inventory = inv_path
-                else:
-                    print(f"Warning: Incremental requested, but previous inventory file not found: {inv_path}", file=sys.stderr)
+            if latest_snap:
+                previous_scan_config_hash = latest_snap.get("scan_config_hash")
+                if latest_snap.get("inventory_ref"):
+                    inv_path = resolve_artifact_ref(atlas_base, latest_snap["inventory_ref"])
+                    if inv_path.exists():
+                        incremental_inventory = inv_path
+                    else:
+                        print(f"Warning: Incremental requested, but previous inventory file not found: {inv_path}", file=sys.stderr)
             else:
                 print("Warning: Incremental requested, but no complete prior snapshot found for this root.", file=sys.stderr)
 
@@ -219,14 +230,11 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             max_file_size=max_file_size,
             snapshot_id=None, # Will inject directly later once hash is computed
             enable_content_stats=(args.mode == "content"),
-            incremental_inventory=incremental_inventory
+            incremental_inventory=incremental_inventory,
+            previous_scan_config_hash=previous_scan_config_hash,
+            current_scan_config_hash=short_hash
         )
 
-        # Determine effective scan config hash based on Scanner state
-        eff_excludes = scanner.exclude_globs
-        eff_ex_str = ",".join(sorted(eff_excludes))
-        config_str = f"mode={args.mode}|depth={args.depth}|limit={args.limit}|ex={eff_ex_str}|maxfs={max_file_size}"
-        short_hash = hashlib.md5(config_str.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
 
         snapshot_id = f"snap_{machine_id}__{root_id}__{timestamp}__{short_hash}"
         scanner.snapshot_id = snapshot_id

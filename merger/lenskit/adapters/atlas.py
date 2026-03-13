@@ -54,7 +54,9 @@ class AtlasScanner:
                  no_default_excludes: bool = False, max_file_size: Optional[int] = 50 * 1024 * 1024,
                  snapshot_id: Optional[str] = None, compare_to_snapshot_id: Optional[str] = None,
                  enable_content_stats: bool = False,
-                 incremental_inventory: Optional[Union[Dict[str, Any], Path]] = None):
+                 incremental_inventory: Optional[Union[Dict[str, Any], Path]] = None,
+                 previous_scan_config_hash: Optional[str] = None,
+                 current_scan_config_hash: Optional[str] = None):
         self.root = root
         self.max_depth = max_depth
         self.max_entries = max_entries
@@ -66,6 +68,14 @@ class AtlasScanner:
         self.snapshot_id = snapshot_id
         self.compare_to_snapshot_id = compare_to_snapshot_id
         self.enable_content_stats = enable_content_stats
+        self.previous_scan_config_hash = previous_scan_config_hash
+        self.current_scan_config_hash = current_scan_config_hash
+
+        # If the scan configuration has changed, we must ignore content analysis from the previous inventory
+        self.config_changed = False
+        if self.previous_scan_config_hash and self.current_scan_config_hash:
+            if self.previous_scan_config_hash != self.current_scan_config_hash:
+                self.config_changed = True
 
         self.incremental_inventory = {}
         if incremental_inventory:
@@ -260,6 +270,13 @@ class AtlasScanner:
         # For topology we keep track of nodes
         topology_nodes = {}
 
+        # Directory aggregates for directory rollup statistics
+        # path -> { 'n_files': int, 'n_dirs': int, 'bytes': int, 'max_descendant_mtime': str, 'mtime': str }
+        # Only collect if we actually need them (writing dirs file).
+        # Note: These aggregates are strictly for producing the dirs.jsonl artifact, NOT for performing subtree skipping yet.
+        collect_dir_aggregates = bool(dirs_inventory_file)
+        dir_aggregates: Dict[str, Dict[str, Any]] = {} if collect_dir_aggregates else None
+
         try:
             for root, dirs, files in os.walk(self.root, topdown=True, followlinks=False):
                 current_root = Path(root)
@@ -370,6 +387,8 @@ class AtlasScanner:
                     if not self._is_excluded(f_rel):
                         kept_files.append((f, f_rel))
 
+                dir_mtime = datetime.fromtimestamp(current_root.stat().st_mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
+
                 # Track for topology
                 topology_nodes[rel_path_str] = {
                     "path": rel_path_str,
@@ -381,19 +400,17 @@ class AtlasScanner:
                 dir_depths[rel_path_str] = depth
                 dir_signal_counts[rel_path_str] = len(workspace_signals)
 
-                # Directory Inventory
-                if dirs_inv_f:
-                    entry = {
+                if collect_dir_aggregates:
+                    dir_aggregates[rel_path_str] = {
                         "rel_path": rel_path_str,
                         "depth": depth,
-                        "n_files": len(kept_files),
-                        "n_dirs": len(dirs),
-                        # bytes will be populated post-loop or via separate logic?
-                        # For pure inventory, structure is key.
-                        # We can't know recursive bytes here yet.
-                        "mtime": datetime.fromtimestamp(current_root.stat().st_mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
+                        "n_files": len(kept_files), # direct children
+                        "n_dirs": len(dirs), # direct children
+                        "mtime": dir_mtime,
+                        "subtree_file_count": len(kept_files),
+                        "subtree_total_bytes": 0, # Will accumulate
+                        "max_descendant_mtime": dir_mtime
                     }
-                    dirs_inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                 self.stats["truncated"]["dirs_seen"] += 1
 
@@ -432,20 +449,51 @@ class AtlasScanner:
 
                         dir_bytes += size
 
+                        # Update aggregate max mtime
+                        if collect_dir_aggregates and mtime_iso > dir_aggregates[rel_path_str]["max_descendant_mtime"]:
+                            dir_aggregates[rel_path_str]["max_descendant_mtime"] = mtime_iso
+
                         is_txt = None
 
                         # Incremental reuse heuristic
                         prev_entry = self.incremental_inventory.get(f_rel)
                         is_reused = False
-                        if prev_entry and prev_entry.get("size_bytes") == size and prev_entry.get("mtime") == mtime_iso:
-                            is_reused = True
-                            self.stats["incremental"]["reused_files_count"] += 1
-                            if "is_text" in prev_entry:
-                                is_txt = prev_entry["is_text"]
-                                self.stats["incremental"]["skipped_analysis_count"] += 1
+                        file_hash = None
+                        if prev_entry and prev_entry.get("size_bytes") == size:
+                            # If size matches but mtime changed, or we just want to be sure, we can selectively hash
+                            # Here, if mtime matches, we assume reuse.
+                            if prev_entry.get("mtime") == mtime_iso:
+                                is_reused = True
+                            else:
+                                # Selective Hash for disambiguation (if size matches but mtime changed, maybe it was just touched)
+                                # Only hash if file is < 1MB to avoid heavy IO
+                                if size < 1024 * 1024 and "quick_hash" in prev_entry:
+                                    try:
+                                        with f_path.open("rb") as hf:
+                                            # Read first and last 4KB
+                                            hf.seek(0)
+                                            head = hf.read(4096)
+                                            if size > 4096:
+                                                hf.seek(-min(4096, size - 4096), 2)
+                                                tail = hf.read(4096)
+                                            else:
+                                                tail = b""
+                                            file_hash = hashlib.md5(head + tail, usedforsecurity=False).hexdigest() # nosec B303
+                                        if file_hash == prev_entry["quick_hash"]:
+                                            is_reused = True
+                                    except OSError:
+                                        pass
+
+                            if is_reused:
+                                self.stats["incremental"]["reused_files_count"] += 1
+                                if "is_text" in prev_entry and not self.config_changed:
+                                    is_txt = prev_entry["is_text"]
+                                    self.stats["incremental"]["skipped_analysis_count"] += 1
+                                if "quick_hash" in prev_entry and not file_hash:
+                                    file_hash = prev_entry["quick_hash"]
 
                         if self.enable_content_stats:
-                            if not is_reused or is_txt is None:
+                            if not is_reused or is_txt is None or self.config_changed:
                                 is_txt = is_probably_text(f_path, size)
 
                             if is_txt:
@@ -469,6 +517,25 @@ class AtlasScanner:
                                 "inode": inode,
                                 "device": device
                             }
+
+                            # Conditionally generate quick_hash for small files if not reused
+                            if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
+                                try:
+                                    with f_path.open("rb") as hf:
+                                        hf.seek(0)
+                                        head = hf.read(4096)
+                                        if size > 4096:
+                                            hf.seek(-min(4096, size - 4096), 2)
+                                            tail = hf.read(4096)
+                                        else:
+                                            tail = b""
+                                        file_hash = hashlib.md5(head + tail, usedforsecurity=False).hexdigest() # nosec B303
+                                except OSError:
+                                    pass
+
+                            if file_hash:
+                                entry["quick_hash"] = file_hash
+
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
                             if is_txt is not None:
@@ -483,10 +550,41 @@ class AtlasScanner:
 
                 self.stats["total_dirs"] += 1
                 dir_sizes[rel_path_str] = dir_bytes
+                if collect_dir_aggregates:
+                    dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
 
         finally:
             if inv_f: inv_f.close()
-            if dirs_inv_f: dirs_inv_f.close()
+
+            # Process aggregates bottom-up
+            if collect_dir_aggregates and dir_aggregates:
+                # Sort paths by depth descending so we process leaves first
+                sorted_dirs_by_depth = sorted(dir_aggregates.keys(), key=lambda p: dir_aggregates[p]["depth"], reverse=True)
+                for p in sorted_dirs_by_depth:
+                    if p == ".":
+                        continue
+                    parent_path = str(Path(p).parent)
+                    if parent_path == ".":
+                        parent_path = "." # ensure consistent key
+                    else:
+                        parent_path = parent_path.replace("\\", "/") # POSIX sanity
+
+                    if parent_path in dir_aggregates:
+                        parent_agg = dir_aggregates[parent_path]
+                        child_agg = dir_aggregates[p]
+
+                        parent_agg["subtree_file_count"] += child_agg["subtree_file_count"]
+                        parent_agg["subtree_total_bytes"] += child_agg["subtree_total_bytes"]
+                        if child_agg["max_descendant_mtime"] > parent_agg["max_descendant_mtime"]:
+                            parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
+
+            # Write dir inventory if requested
+            if dirs_inv_f:
+                try:
+                    for p in sorted(dir_aggregates.keys()): # Output sorted by path or arbitrary? Arbitrary is fine, let's sort
+                        dirs_inv_f.write(json.dumps(dir_aggregates[p], ensure_ascii=True, sort_keys=True) + "\n")
+                finally:
+                    dirs_inv_f.close()
 
         # Update stats
         if depth_limit_hit:
