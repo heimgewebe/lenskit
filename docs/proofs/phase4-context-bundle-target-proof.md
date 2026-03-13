@@ -12,11 +12,12 @@
 - Integration: In `execute_query` wird das Bundle abhängig von `build_context=True` am Ende des Suchvorgangs erzeugt und sauber in den `query-result.v1.schema.json` Contract eingebettet.
 
 ### 3. CLI-Beleg
-- Flags in `cmd_query.py` und `main.py`: `--output-profile`, `--context-mode`, `--context-window-lines`
+- Flags in `cmd_query.py` und `main.py`: `--output-profile`, `--context-mode`, `--context-window-lines`, `--trace`
 - `build_context` Logik in `cmd_query.py` ist unabhängig vom Vorhandensein eines Output-Profiles und reagiert auch, wenn lediglich `--context-mode` oder `--context-window-lines` aktiviert werden.
 - Reduktions-Logik in `cmd_query.py`:
   - `agent_minimal`: Reduziert das kanonische Context-Bundle, indem `explain`, `graph_context` und ein leerer `surrounding_context` pro Hit entfernt werden.
   - `ui_navigation`: Behält das komplette kanonische Bundle als Datenmodell für die Ansicht bei.
+  - *Anmerkung*: `eval_debug` wurde bewusst nicht als Profil exposed, da dieses keine eigenständige Semantik besitzt, um API-Lecks zu vermeiden (Option A).
   - Das Basis-Bundle bleibt davon unberührt. Profile sind reine Ausgabe-Projektionen (Render-Schicht).
 
 ### 4. Test-Beleg

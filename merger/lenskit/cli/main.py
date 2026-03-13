@@ -41,6 +41,10 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--graph-index", help="Path to graph_index.json to enable graph-aware reranking")
     query_parser.add_argument("--graph-weights", help='JSON string of graph weights (e.g. \'{"w_bm25": 0.65}\')')
     query_parser.add_argument("--test-penalty", type=float, default=0.75, help="Score penalty multiplier for test files")
+    query_parser.add_argument("--output-profile", choices=["human_review", "agent_minimal", "ui_navigation"], help="Format of the context bundle. Only applies when emitting json.")
+    query_parser.add_argument("--context-mode", choices=["exact", "block", "window", "file"], default="exact", help="Expansion mode for the context bundle")
+    query_parser.add_argument("--context-window-lines", type=int, default=0, help="Lines to expand around snippet when using window mode")
+    query_parser.add_argument("--trace", action="store_true", help="Emit query_trace.json diagnostic artifact")
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")
