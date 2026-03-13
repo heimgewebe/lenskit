@@ -306,6 +306,7 @@ def test_incremental_scan_directory_aggregates_rollup(tmp_path: Path):
     gc = dirs_data["child_dir/grandchild_dir"]
     assert gc["n_files"] == 1
     assert gc["subtree_file_count"] == 1
+    assert gc["subtree_dir_count"] == 0
     assert gc["subtree_total_bytes"] == 30
     assert gc["max_descendant_mtime"] == expected_max_mtime
 
@@ -314,6 +315,7 @@ def test_incremental_scan_directory_aggregates_rollup(tmp_path: Path):
     assert cd["n_files"] == 1
     assert cd["n_dirs"] == 1
     assert cd["subtree_file_count"] == 2
+    assert cd["subtree_dir_count"] == 1
     assert cd["subtree_total_bytes"] == 50
     assert cd["max_descendant_mtime"] == expected_max_mtime
 
@@ -322,5 +324,6 @@ def test_incremental_scan_directory_aggregates_rollup(tmp_path: Path):
     assert rd["n_files"] == 1
     assert rd["n_dirs"] == 1
     assert rd["subtree_file_count"] == 3
+    assert rd["subtree_dir_count"] == 2
     assert rd["subtree_total_bytes"] == 60
     assert rd["max_descendant_mtime"] == expected_max_mtime

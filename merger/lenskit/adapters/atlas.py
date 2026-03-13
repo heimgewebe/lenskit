@@ -389,6 +389,9 @@ class AtlasScanner:
 
                 dir_mtime = datetime.fromtimestamp(current_root.stat().st_mtime, timezone.utc).isoformat().replace('+00:00', 'Z')
 
+                # Note: Subtree skipping based on mtime/counts is currently disabled.
+                # It is not robust enough against silent descendant changes without a stronger tree hash.
+
                 # Track for topology
                 topology_nodes[rel_path_str] = {
                     "path": rel_path_str,
@@ -408,6 +411,7 @@ class AtlasScanner:
                         "n_dirs": len(dirs), # direct children
                         "mtime": dir_mtime,
                         "subtree_file_count": len(kept_files),
+                        "subtree_dir_count": len(dirs), # Will accumulate (counts descendants without self)
                         "subtree_total_bytes": 0, # Will accumulate
                         "max_descendant_mtime": dir_mtime
                     }
@@ -574,6 +578,7 @@ class AtlasScanner:
                         child_agg = dir_aggregates[p]
 
                         parent_agg["subtree_file_count"] += child_agg["subtree_file_count"]
+                        parent_agg["subtree_dir_count"] += child_agg.get("subtree_dir_count", child_agg.get("n_dirs", 0))
                         parent_agg["subtree_total_bytes"] += child_agg["subtree_total_bytes"]
                         if child_agg["max_descendant_mtime"] > parent_agg["max_descendant_mtime"]:
                             parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
@@ -581,7 +586,7 @@ class AtlasScanner:
             # Write dir inventory if requested
             if dirs_inv_f:
                 try:
-                    for p in sorted(dir_aggregates.keys()): # Output sorted by path or arbitrary? Arbitrary is fine, let's sort
+                    for p in sorted(dir_aggregates.keys()):
                         dirs_inv_f.write(json.dumps(dir_aggregates[p], ensure_ascii=True, sort_keys=True) + "\n")
                 finally:
                     dirs_inv_f.close()
