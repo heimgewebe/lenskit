@@ -1329,7 +1329,7 @@ Umsetzung: Nicht vier Engines, sondern ein gemeinsames internes Modell + Rendere
 ### 2.9 Arbeitspaket G – Service/API-Integration vorbereiten
 
 Ziel:
-- [x] Die Runtime-Artefakte müssen sauber in HTTP/API überführbar sein.
+- [ ] Die Runtime-Artefakte müssen sauber in HTTP/API überführbar sein.
 
 API-Ziele:
 * query submit
@@ -1343,7 +1343,7 @@ Wichtig: API darf keine privaten internen Hilfsfelder ungefiltert nach außen le
 ### 2.10 Arbeitspaket H – WebUI minimal produktisieren
 
 Ziel:
-- [x] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche.
+- [ ] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche.
 
 Minimale Features:
 * Query eingeben
@@ -1359,7 +1359,7 @@ Sehr sinnvoll: Badge-System (lexical, graph, semantic, explicit provenance, deri
 ### 2.11 Arbeitspaket I – Context-Bundle-Eval
 
 Ziel:
-- [x] Nicht nur Rankingqualität, sondern auch Kontextnutzbarkeit prüfen.
+- [ ] Nicht nur Rankingqualität, sondern auch Kontextnutzbarkeit prüfen.
 
 Deterministische Checks:
 * resolver roundtrip
@@ -1385,10 +1385,10 @@ Wichtige Tests:
 - [x] 4. Context-Expansion-Regeln
 - [x] 5. Provenance-first Output
 - [x] 6. Output-Profile
-- [x] 7. API/UI-ready Struktur
+- [ ] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
-- [x] Phase 4 ist fertig, wenn:
+- [ ] Phase 4 ist fertig, wenn:
 * eine Query mehr als rohe Treffer liefert
 * Context-Bundles portabel und provenance-stabil sind
 * Trace Diagnose ermöglicht
