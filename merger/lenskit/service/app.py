@@ -453,10 +453,24 @@ def api_query(request: QueryRequest):
     if not art:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {request.index_id}")
 
-    # Resolve artifact path
-    if "index_sqlite" not in art.paths:
+    # Resolve artifact path (canonical key is sqlite_index, fallback to index_sqlite for legacy test compat)
+    filename = art.paths.get("sqlite_index") or art.paths.get("index_sqlite")
+    if not filename:
          raise HTTPException(status_code=400, detail="Artifact does not contain an SQLite index")
-    index_path = Path(art.paths["index_sqlite"])
+
+    # Use the established artifact base directory logic
+    if art.merges_dir:
+        p = Path(art.merges_dir)
+        merges_dir = (Path(art.hub) / p) if not p.is_absolute() else p
+    elif getattr(art.params, "merges_dir", None):
+        p = Path(art.params.merges_dir)
+        merges_dir = (Path(art.hub) / p) if not p.is_absolute() else p
+    else:
+        # Avoid direct circular imports if possible, or replicate the fallback
+        merges_dir = Path(art.hub) / "merges"
+    merges_dir = merges_dir.resolve()
+
+    index_path = merges_dir / filename
     if not index_path.exists():
          raise HTTPException(status_code=404, detail="Index file missing on disk")
 

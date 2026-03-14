@@ -43,8 +43,8 @@ def test_api_query_valid(mini_index):
     from merger.lenskit.service.app import state
 
     req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub="test", repos=["repo"], created_at="now", paths={}, params=req)
-    art.paths["index_sqlite"] = str(mini_index)
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = mini_index.name
     state.job_store.add_artifact(art)
 
     request_data = {
@@ -72,8 +72,8 @@ def test_api_query_agent_minimal(mini_index):
     from merger.lenskit.service.models import Artifact, JobRequest
     from merger.lenskit.service.app import state
     req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub="test", repos=["repo"], created_at="now", paths={}, params=req)
-    art.paths["index_sqlite"] = str(mini_index)
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = mini_index.name
     state.job_store.add_artifact(art)
 
     request_data = {
@@ -101,8 +101,8 @@ def test_api_query_context_bundle(mini_index):
     from merger.lenskit.service.models import Artifact, JobRequest
     from merger.lenskit.service.app import state
     req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub="test", repos=["repo"], created_at="now", paths={}, params=req)
-    art.paths["index_sqlite"] = str(mini_index)
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = mini_index.name
     state.job_store.add_artifact(art)
 
     request_data = {
@@ -124,8 +124,8 @@ def test_api_query_trace(mini_index):
     from merger.lenskit.service.models import Artifact, JobRequest
     from merger.lenskit.service.app import state
     req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub="test", repos=["repo"], created_at="now", paths={}, params=req)
-    art.paths["index_sqlite"] = str(mini_index)
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = mini_index.name
     state.job_store.add_artifact(art)
 
     request_data = {
@@ -147,8 +147,8 @@ def test_api_query_invalid_params(mini_index):
     from merger.lenskit.service.models import Artifact, JobRequest
     from merger.lenskit.service.app import state
     req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub="test", repos=["repo"], created_at="now", paths={}, params=req)
-    art.paths["index_sqlite"] = str(mini_index)
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = mini_index.name
     state.job_store.add_artifact(art)
 
     request_data = {
