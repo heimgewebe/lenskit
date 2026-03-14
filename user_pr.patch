@@ -1,0 +1,596 @@
+diff --git a/docs/architecture/artifact-inventory.md b/docs/architecture/artifact-inventory.md
+new file mode 100644
+index 00000000..90b37f2e
+--- /dev/null
++++ b/docs/architecture/artifact-inventory.md
+@@ -0,0 +1,27 @@
++# Lenskit Artefakt-Inventar
++
++Dieses Inventar dokumentiert die primären und abgeleiteten Artefakte von Lenskit, wie sie aktuell in `merger/lenskit/` implementiert und durch Verträge (Contracts) abgesichert sind. Es ist Teil des Phase 0 Re-Audits (siehe auch [Inkonsistenzen-Liste](inconsistencies.md) und [Runtime-Matrix](runtime-matrix.md)).
++
++| Artefaktname / Dateiname | Rolle (Konzept) | Erzeuger (Producer) | Verbraucher (Consumer) | Verbundenes Schema | Manifest Visibility | Runtime Usage |
++| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
++| `*.canonical.md` | `canonical_md` | `core.merge` | Mensch, LLMs (direkt), Bundle Manifest | - | Ja | Indirekt (als Bundle-Fallback) |
++| `chunk_index.jsonl` | `chunk_index_jsonl` | `core.chunker` | `retrieval.index_db` | - | Ja | Index-Aufbau |
++| `index.sqlite` | `sqlite_index` | `retrieval.index_db` | `retrieval.query_core`, `eval_core` | - | Ja (als `.index.sqlite`) | FTS5 Ranking, Chunk Retrieval |
++| `dump_index.json` | `dump_index_json` | `core.merge` | `retrieval.index_db` | - | Ja | Initialer Index-Bau |
++| `index_sidecar.json` | `index_sidecar_json` | `core.merge` | Agents, WebUI, CLI, Lenskit Service | `bundle-manifest.v1.schema.json` | Meta | Verknüpfung der Artefakte |
++| `graph_index.json` | `graph_index_json` | `architecture.graph_index` | `retrieval.query_core`, `eval_core` | `architecture.graph_index.v1.schema.json` | Ja | Graph Penalty/Bonus, Semantic Eval |
++| `architecture_graph.json`| `architecture_summary` | `architecture.import_graph` | `architecture.graph_index` | `architecture.graph.v1.schema.json` | Ja | Erzeugung des Index |
++| `query_context_bundle.json`| `context_bundle` | `retrieval.query_core` | CLI, WebUI, Agents | `query-context-bundle.v1.schema.json` | Nein (Runtime Output) | Context Expansion, UI Display |
++| `query_trace.json` | `query_trace` | `retrieval.query_core` | Debug CLI, Evaluatoren | Teil von `query-result.v1.schema.json` | Nein (Runtime Output) | Ranking-Analyse (via `--trace`) |
++| `retrieval_eval.json` | `retrieval_eval_json` | `retrieval.eval_core` | CI, Entwickler | `retrieval-eval.v1.schema.json` | Nein | Evaluierungsmetriken |
++| `pr-schau-delta.json` | `delta_json` | `core.pr_schau_bundle` | PR-Schau Frontends, Agents | `pr-schau-delta.v1.schema.json` | Optional | Code-Review Differentials |
++| `entrypoints.json` | `entrypoints` | `architecture.entrypoints` | `architecture.graph_index` | `entrypoints.v1.schema.json` | Ja | Berechnung des Graph-Boosts |
++
++## Anmerkungen zur Artefaktarchitektur
++
++1. **`query_trace.json` vs. `context_bundle`:**
++   In der aktuellen Implementierung ist der *Query Trace* konzeptionell als ein Teilfeld `query_trace` im `query-result.v1.schema.json` eingebettet und nicht primär als freistehendes Artefakt angelegt. Die Datei `query_trace.json` wird lediglich durch die CLI als Extrakt via `--trace` flag geschrieben.
++2. **`query_context_bundle.json`:**
++   Das Context Bundle fungiert als Erweiterung des rohen Treffer-Sets und liefert neben dem Hit auch das *Evidence* (den Snippet) und die umgebenden *Contexts* (wie `graph_context`). Es ist als reines Runtime-Objekt (`context_bundle`) innerhalb des `query-result.v1.schema.json` via `$ref` zu `query-context-bundle.v1.schema.json` formell erlaubt und wird auf Runtime-Level (`cmd_query.py` und Output-Profile) eingebettet projiziert.
++3. **Fehlende Phase-5-Artefakte:**
++   `federation_index.json`, `cross_repo_links.json`, `federation_conflicts.json` existieren derzeit nicht. Föderationsmechanismen sind nicht implementiert.
+diff --git a/docs/architecture/inconsistencies.md b/docs/architecture/inconsistencies.md
+new file mode 100644
+index 00000000..1060e279
+--- /dev/null
++++ b/docs/architecture/inconsistencies.md
+@@ -0,0 +1,57 @@
++# Offene Inkonsistenzen-Liste (Lenskit Phase 0)
++
++Stand: Phase 0 Re-Audit (Implementierungsstand von Phase 1 bis 4)
++
++Diese Liste dokumentiert systematisch die Lücken zwischen der visionären Zielarchitektur (Blaupause), der aktuellen Code-Basis (`merger/lenskit/`) und der tatsächlichen Testabdeckung. Ziel ist es, den Ist-Zustand als Vermessungsprotokoll belastbar darzustellen.
++
++## 0. Methodik des Re-Audits
++
++Dieses Dokument und die begleitenden Vermessungsartefakte ([Runtime-Matrix](runtime-matrix.md), [Contracts-Matrix](../contracts/contracts-matrix.md), [Test-Matrix](../testing/test-matrix.md), sowie das [Artefakt-Inventar](artifact-inventory.md)) bilden gemeinsam das Phase 0 Re-Audit und sind das Ergebnis eines strukturellen Code-Audits.
++*   **Was wurde geprüft:** Die Datei- und Funktionsstruktur unter `merger/lenskit/core/`, `retrieval/` und `architecture/` sowie die JSON-Schemas unter `merger/lenskit/contracts/`.
++*   **Was gilt als "abgedeckt" / "implementiert":** Ein Feature gilt als strukturell implementiert, wenn es im Code existiert (z. B. `load_graph_index`), in Verträgen repräsentiert ist (`ArtifactRole`) und durch einen zielgerichteten Unit-Test (z. B. `test_graph_index.py`, `test_context_bundle.py`) prinzipiell verifiziert wird.
++*   **Was dieses Audit NICHT behauptet:** Eine "strukturelle Abdeckung" ist kein Nachweis für fehlerfreie, repo-übergreifende End-to-End-Robustheit (z. B. in extremen Edge-Cases oder tiefen Agenten-Feedbackschleifen). Eine stille Interpolation fehlender Robustheit findet in diesem Protokoll ausdrücklich nicht statt. Wo dieser Vorbehalt existiert, werden Features in den Blaupausen wieder de-markiert oder sprachlich qualifiziert.
++
++## 1. Was ist formal implementiert, dokumentiert und methodisch belegt?
++*(Diese Aspekte sind durch Code, Contracts und spezifische Test-Invarianten strukturell nachgewiesen)*
++
++*   **Artefakt-Zentrierung & Contracts (Phase 1):** Die Kernartefakte (`canonical_md`, `chunk_index.jsonl`, `index.sqlite`, `dump_index.json`, `index_sidecar.json`) werden konsistent und deterministisch erzeugt. Die Manifest-Rollen (`ArtifactRoles`) decken sich exakt mit dem `bundle-manifest.v1.schema.json`. Ein `Role-Completeness-Check` schützt vor Enum-Drift.
++*   **Query-Runtime & Explain (Phase 2):** Die `execute_query` Pipeline in `query_core.py` ist gestuft (Parse, Retrieve, Rerank, Provenance, Explain). Der Score (z.B. BM25) spiegelt sich in den Explain-Daten wider. Fehlerpfade verwenden Fallback-Marker statt stillem Abbruch.
++*   **Graph-Runtime (Phase 3):**
++    *   `load_graph_index` lädt und normalisiert den Graphen zentral (Fail-Closed).
++    *   Das Explain-Objekt zeigt `graph_used`, `graph_status`, `distance` und `graph_bonus` präzise an.
++    *   Eval (`test_eval_graph_delta_reporting`) berichtet Deltas (`baseline_mrr` vs `graph_mrr`).
++    *   Staleness (`canonical_dump_index_sha256`) wird beim Laden verifiziert (`stale_or_mismatched`).
++*   **Context-Bundle & Output-Profile (Phase 4, strukturell):**
++    *   Hit, Evidence (Snippet) und Context (`graph_context`) sind getrennt.
++    *   Context-Expansion (exact, window) ist implementiert und erzeugt gültige JSON-Strukturen.
++    *   Die Provenance (explicit `range_ref` vs derived `derived_range_ref`) bleibt stabil.
++    *   Output-Profile (`human_review`, `agent_minimal`, `ui_navigation`) filtern interne Status-Variablen heraus.
++
++## 2. Was ist in der Blaupause abgehakt, aber "nur" strukturell oder unvollständig belegt?
++*(Hier drohte Architektur-Drift durch vorzeitige "Fertig"-Meldungen. Diese Punkte wurden in der Blaupause wieder de-markiert)*
++
++*   **API/UI-ready Struktur & WebUI (Phase 4):**
++    *   *Befund:* API-Endpunkte (FastAPI, `service/app.py`) und ein rudimentäres WebUI (`app.js`, `index.html` mit Badges) existieren strukturell.
++    *   *Lücke:* Ein vollständiger, repo-weiter End-to-End-Nachweis der API-Sicherheit, Skalierbarkeit und Produktionsreife fehlt in der aktuellen Testsuite. Die UI/Agent-Integration ist im aktuellen Audit durch Tests nicht vollends abgedeckt. Die entsprechenden Roadmap-Punkte und das Gate für Phase 4 wurden daher in der Blaupause de-markiert.
++*   **Context-Nutzbarkeit (Phase 4):**
++    *   *Befund:* Tests für Context-Bundles prüfen Output-Profile auf korrekte Struktur und Datenfilterung (`test_ui_payload_excludes_internal_fields`).
++    *   *Lücke:* Dies belegt formale Strukturkonformität laut Schema. Ein umfassender Beleg für die inhaltliche "Kontextnutzbarkeit" (z. B. in realen Agenten-Feedbackschleifen) fehlt in der Test-Matrix jedoch, weshalb auch dieses Ziel nicht als "robust abgeschlossen" markiert werden darf.
++
++## 3. Was fehlt komplett (Echte Inkonsistenzen / Nicht-Ziele)?
++*(Diese Aspekte sind in der Blaupause definiert, aber im Code nicht existent)*
++
++*   **Phase 5 (Cross-Repo-Knowledge-Layer):** Weder Modelle (`federation_index.json`, `cross_repo_links.json`, `federation_conflicts.json`) noch Code für föderierte Queries (`federated_query`) existieren. Lenskit ist Stand jetzt eine strikt lokalisierte (Single-Repo/Single-Bundle) Query-Runtime.
++*   **Phase 6 (Agent Control Surface - Session Trace):** Ein explizites `agent_query_session.json` (Session Trace) Artefakt wird noch nicht geschrieben, obwohl ein HTTP API-Endpoint existiert.
++
++## 4. Methodischer Rückbau (Atlas-Überreichweite)
++*(Erklärung zur bewussten Re-Audit-Korrektur in Phase 5 Inhaltsanreicherung)*
++
++In vorherigen Implementierungsschritten wurden Features wie MIME-Typ-Erkennung, Encoding und line_count als vollständig abgeschlossen gemeldet. Dieses Audit hat gezeigt, dass die Implementierung den Architekturanspruch nicht erfüllte:
++*   MIME-Erkennung basierte ausschließlich auf fehleranfälliger Extension-Schätzung.
++*   Encoding verließ sich lediglich auf einen simplen UTF-8 Success-Check.
++*   Dazugehörige Tests (`test_atlas_content_fields.py`) prüften lediglich den `content`-Modus, nicht die generelle Robustheit bei großen Datenmengen.
++
++Dieser Fall ist ein exemplarisches Ergebnis der Audit-Methodik: Die Blaupause (sowie der Code) wurde bewusst zurückgebaut und de-markiert. Die Funktionen waren nicht "nie da", sie waren lediglich durch die aktuellen Tests nicht als architektonisch belastbar ausweisbar. Sie werden in Zukunft methodisch sauber und testgetrieben neu aufgesetzt.
++
++## 5. Architektonische Zusammenfassung
++Die Grundlagen der Phase 1 bis 3 und wesentliche Strukturbausteine der Phase 4 sind für isolierte, lokale Bundles nachvollziehbar implementiert und reduzieren den Drift vor der Cross-Repo-Komplexität erheblich. Für die verbleibenden Gates der Phase 4 (insbesondere API/UI-Struktur und tatsächliche Agenten-Sicherheit) sind jedoch stärkere Integrationstests erforderlich. Die Föderation (Phase 5) bleibt komplett offen und stellt eine eigenständige neue Komplexitätsstufe dar.
+diff --git a/docs/architecture/runtime-matrix.md b/docs/architecture/runtime-matrix.md
+new file mode 100644
+index 00000000..bfc10b15
+--- /dev/null
++++ b/docs/architecture/runtime-matrix.md
+@@ -0,0 +1,27 @@
++# Lenskit Runtime-Matrix
++
++Diese Matrix dokumentiert den tatsächlichen, aktuellen Implementierungsstand im Repository (`merger/lenskit/`). Sie erfasst, welche Module welche Artefakte aufnehmen, verarbeiten, ausgeben, und welche Fallback-Pfade oder Fehlerbehandlungsmechanismen existieren.
++
++| Modul (Prozess) | Liest (Artefakt / Daten) | Schreibt (Artefakt / Output) | Manifest-Nutzung | Contract-Nutzung | Fallback / Fehlertyp | Stiller oder expliziter Fehler |
++| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
++| **`core.merge` (Ingestion)** | Repository Dateisystem, Profilkonfigurationen | `canonical_md`, `dump_index.json`, `index_sidecar.json`, `.index.sqlite` | Ja (Baut `index_sidecar.json`) | Validiert Rollen gegen Constants. | CWD-Fallback (bei absolutem CWD-Mode). | Explizit. Fehler in der Extraktion (z.B. ParseError) werden geloggt, aber fortgesetzt. |
++| **`retrieval.index_db` (DB Build)** | `chunk_index.jsonl`, `dump_index.json` | `index.sqlite` | Nein | Minimal (DB Schema) | Keine. Bricht bei defekten Chunks/JSONL ab. | Explizit. |
++| **`architecture.graph_index`** | `architecture_graph.json` | `graph_index.json` (bzw. Dictionary-Memory) | Nein | Valides Schema (`architecture.graph_index.v1.schema.json`) | Status-Codes: `not_found`, `invalid_schema`, `invalid_json`, `stale_or_mismatched` | **Explizit (Status im Explain).** |
++| **`retrieval.query_core` (Ranking)** | `index.sqlite`, `graph_index.json`, User Query | `query-result.v1.schema.json` compliant Dict, `query_context_bundle.json` | Nein (Direkt DB) | Output Profiling (Context Bundle) | FTS5 Query Expansion Fallback (OR). Graph Fallback (Status Flag). | Explizit. Stiller Fallback bei lexikalischem Token-Mangel, aber markiert im Explain. |
++| **`retrieval.eval_core` (Eval)** | `index.sqlite`, `graph_index.json`, `eval_queries.md` | `retrieval_eval.json` (Metrik Report) | Nein | Output Validierung (`retrieval-eval.v1.schema.json`) | Graph Missing (Baseline wird evaluiert, Graph Skip). | Explizit. Deltas werden in Metriken gezeigt (`baseline_mrr` vs `graph_mrr`). |
++| **`core.range_resolver`** | `.index.sqlite` (oder File System), `range_ref` | Snippets (Resolved Code) | Indirekt (Nutzt `.index.sqlite`) | Prüft `range-ref.v1.schema.json` Attribute | Source-Backed-Fallback (`derived_range_ref`) wenn Bundle-Backed fehlschlägt. | Explizit (Provenance Type wechselt). |
++| **`service.app` (API Backend)** | `index.sqlite` (via Runner Jobs), UI Files | HTTP JSON Responses, static UI | Ja (für Job Management) | API Contracts (Pydantic Models) | Job Cancel/Fail Status. HTTP 404, 500. | Explizit. API gibt `JobResponse` mit Log-Referenz zurück. |
++| **`cli.cmd_query` (CLI)** | `index.sqlite`, Query Args | stdout/JSON, Context Bundle (`query_trace`) | Nein | Wandelt Result in CLI Formate um. | Output Profile Fallbacks (z.B. Context Window ignorieren wenn Mode nicht `window`). | Explizit. |
++
++## Bemerkungen zur Runtime
++
++1.  **Graph Loader (`load_graph_index`):**
++    Nutzt eine Fail-Closed Validierung: Schlägt Schema-Check, JSON-Format oder Staleness-Check fehl, crasht das Programm nicht, sondern markiert das Signal mit `graph_used = False` und dem jeweiligen `graph_status` (`not_found`, `invalid_schema` etc.). Der Ranker läuft daraufhin mit der Baseline weiter. Dieses Verhalten wird im Explain über `graph_used` und `graph_status` signalisiert.
++2.  **Context Builder (`query_core`):**
++    Trennt zwischen "Hit" (Ranking-Modell), "Evidence" (Matched Chunk/Snippet) und "Context" (Surrounding, Graph-Neighbors).
++3.  **Output Profiles:**
++    Output-Profile (z.B. `agent_minimal`, `ui_navigation`, `human_review`) verändern nicht das zugrunde liegende Ranking, sondern filtern die Projektion (Reduktionslogik in `query_core`).
++
++## Bekannte Lücken (Runtime Matrix)
++
++-   **Phase 5 (Cross-Repo-Föderation):** Föderierte Queries existieren nicht in der Runtime. Eine Query-Föderation (`federation_index`, `federated_query`) über mehrere Bundles hinweg ist nicht implementiert. Die Runtime ist isoliert pro Repository/Bundle.
+diff --git a/docs/architecture/system-map.lenskit.md b/docs/architecture/system-map.lenskit.md
+new file mode 100644
+index 00000000..225ff524
+--- /dev/null
++++ b/docs/architecture/system-map.lenskit.md
+@@ -0,0 +1,85 @@
++# Lenskit Systemkarte
++
++## 1. Systemachsen
++
++Diese Karte ordnet die Kernmodule von Lenskit den architektonischen Systemachsen zu, basierend auf dem aktuellen Implementierungsstand im Repository (`merger/lenskit/`).
++
++### Achse 1: Build & Ingestion (Scan → Extract → Chunk → Bundle)
++- **`merger.lenskit.core.merge`**
++  - **Zweck:** Orchestriert den gesamten Build-Prozess. Traversiert das Repository, filtert nach Pattern/Größe/Modus, stößt Extraktion und Chunking an und erzeugt die finalen Artefakte.
++  - **Inputs:** Verzeichnisbaum (Dateien), Konfigurationsprofile, Regex-Muster, Output-Pfad.
++  - **Outputs:** `canonical_md` (Markdown-Dump), `index_sidecar.json`, `.index.sqlite`.
++  - **Abhängige Schemas:** `bundle-manifest.v1.schema.json`
++  - **Runtime-Nutzer:** Indizierungs- und Agent-Systeme, Entwickler.
++
++- **`merger.lenskit.core.chunker`**
++  - **Zweck:** Bricht Code in LLM-kompatible Segmente herunter.
++  - **Inputs:** Quelldateien, Block-Metadaten.
++  - **Outputs:** Chunk-Artefakte (`chunk_index.jsonl`).
++  - **Runtime-Nutzer:** Retrieval-Indizes (FTS5).
++
++- **`merger.lenskit.core.extractor`**
++  - **Zweck:** Analysiert Quelldateien und extrahiert strukturierte Daten (Klassen, Funktionen, Dokumentation).
++  - **Inputs:** Quelldateien.
++  - **Outputs:** Extrahierte Baumstrukturen, Token- und Zeilen-Offsets.
++  - **Runtime-Nutzer:** Chunker, Range-Resolver.
++
++- **`merger.lenskit.core.pr_schau_bundle`**
++  - **Zweck:** Analysiert Git-Deltas und verknüpft sie mit Code-Chunks für Review-Ansichten.
++  - **Inputs:** `git diff`, Quellcode.
++  - **Outputs:** PR-Schau Delta Bundles (`pr-schau-delta.json`).
++  - **Abhängige Schemas:** `pr-schau-delta.v1.schema.json`, `pr-schau.v1.schema.json`.
++
++### Achse 2: Runtime & Retrieval (Query, Eval, Explain)
++- **`merger.lenskit.retrieval.query_core`**
++  - **Zweck:** Stellt die primäre Retrieval-Engine und Agent-Schnittstelle bereit. Führt die eigentliche Suche über Indizes aus, verarbeitet Graph-Signale, erzeugt Diagnostik-Spuren und wendet Output-Profile an.
++  - **Inputs:** Query-String, `index.sqlite`, `graph_index.json`, Output-Profile, Filter.
++  - **Outputs:** `query-result.v1.schema.json` compliant Dict, Context Bundles (inkl. `query_trace`).
++  - **Abhängige Schemas:** `query-result.v1.schema.json`, `query-context-bundle.v1.schema.json`.
++  - **Runtime-Nutzer:** API-Service (`merger.lenskit.service.app`), CLI (`cmd_query.py`), Evaluierung.
++
++- **`merger.lenskit.retrieval.eval_core`**
++  - **Zweck:** Orchestriert Retrieval-Evaluierungen über strukturierte Testsets. Erzeugt Deltas zwischen Baseline und erweiterten Pipelines (z.B. Graph).
++  - **Inputs:** `eval_queries.md`, `index.sqlite`, `graph_index.json`.
++  - **Outputs:** Metrik-Report (`retrieval-eval.v1.schema.json`).
++  - **Abhängige Schemas:** `retrieval-eval.v1.schema.json`.
++  - **Runtime-Nutzer:** CLI (`cmd_eval.py`), CI-Pipelines.
++
++- **`merger.lenskit.retrieval.index_db`**
++  - **Zweck:** Baut und verwaltet die SQLite FTS5 Datenbank aus den rohen Dump- oder Chunk-Indizes.
++  - **Inputs:** `dump_index.json`, `chunk_index.jsonl`.
++  - **Outputs:** `index.sqlite` (mit FTS5 Tabellen).
++  - **Runtime-Nutzer:** `query_core`, `eval_core`.
++
++- **`merger.lenskit.core.range_resolver`**
++  - **Zweck:** Löst Quellcode-Ausschnitte über Dateigrenzen oder strukturelle Verweise (`range_ref`) präzise auf.
++  - **Inputs:** Range References, File System (Source-backed) oder Bundle (Bundle-backed).
++  - **Outputs:** Aufgelöste Code-Ausschnitte (Snippets), Provenienz-Typisierung (`explicit` vs `derived`).
++  - **Abhängige Schemas:** `range-ref.v1.schema.json`.
++  - **Runtime-Nutzer:** `query_core` (beim Bau des `context_bundle`), `merge.py`.
++
++### Achse 3: Struktur & Graph
++- **`merger.lenskit.architecture.graph_index`**
++  - **Zweck:** Baut, persistiert und lädt den systemweiten Architektur-Graphen. Normalisiert Status und Schema.
++  - **Inputs:** `architecture_graph.json` (bzw. Quellcode), Entrypoints.
++  - **Outputs:** Normalisiertes Graph-Index Objekt (für Memory) bzw. `architecture.graph_index.v1.schema.json` Artefakt.
++  - **Abhängige Schemas:** `architecture.graph_index.v1.schema.json`.
++  - **Runtime-Nutzer:** `query_core`, `eval_core`.
++
++### Achse 4: API, UI & Service
++- **`merger.lenskit.service.app`**
++  - **Zweck:** FastAPI Backend für die Lenskit-Dienste, Agenten-Integration und UI-Bereitstellung.
++  - **Inputs:** HTTP Requests, persistierte Lenskit Bundles / Atlas Metarepos.
++  - **Outputs:** HTTP Responses (JSON), statische UI Files.
++  - **Runtime-Nutzer:** Agenten, WebUI, Pythonista RepoLens Frontend.
++
++## 2. Abgedeckte Kernverträge (Contracts)
++Die Systemkommunikation läuft über JSON Schemas in `merger/lenskit/contracts/`.
++- `query-result.v1.schema.json` (Runtime → Consumer)
++- `query-context-bundle.v1.schema.json` (Agent Context, oft eingebettet im Query Result)
++- `bundle-manifest.v1.schema.json` (Build → Runtime)
++- `architecture.graph_index.v1.schema.json` (Struktur → Retrieval)
++- `range-ref.v1.schema.json` (Build/Resolver → Provenienz-Sicherheit)
++
++## 3. Bekannte Lücken (Systemkarte)
++- **Phase 5 (Cross-Repo):** Föderations-Module (z.B. `federation_index.py`, `federation_links.json`) existieren derzeit nicht im Quellbaum. Die Query-Runtime ist rein lokal auf ein Index-Artefakt beschränkt.
+diff --git a/docs/atlas-blaupause.md b/docs/atlas-blaupause.md
+index 9dd51ca5..4120f32f 100644
+--- a/docs/atlas-blaupause.md
++++ b/docs/atlas-blaupause.md
+@@ -896,15 +896,18 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
+
+ ### Phase 5 — Inhaltsanreicherung
+ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
+-- [x] MIME-Typ-Schätzung via Extension ergänzen
+-- [x] UTF-8-basierte Encoding-Bestimmung ergänzen
+-- [x] line_count erfassen
++
++*(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
++
++- [ ] MIME-Typ-Erkennung (bisher nur heuristische Extension-Schätzung) belastbar ausbauen
++- [ ] Encoding-Erkennung (nicht nur pauschaler UTF-8 Fallback) einführen
++- [ ] line_count jenseits des content-Modus robust erfassen
+ - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
+ - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
+ - [ ] Preview-/Chunk-Artefakte definieren
+ - [ ] Content-Policy pro Root ermöglichen
+ - [ ] Binary-/Huge-file-Strategie klären
+-- [x] Tests für modeabhängige Inhaltsfelder ergänzen
++- [ ] Tests für modeabhängige Inhaltsfelder ergänzen (vorheriger `test_atlas_content_fields.py` war methodisch zu dünn)
+
+ **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
+
+diff --git a/docs/contracts/contracts-matrix.md b/docs/contracts/contracts-matrix.md
+new file mode 100644
+index 00000000..c5ba831f
+--- /dev/null
++++ b/docs/contracts/contracts-matrix.md
+@@ -0,0 +1,36 @@
++# Lenskit Contracts-Matrix
++
++Diese Matrix dokumentiert die Verbindungen zwischen Systemrollen, Schemata, Abhängigkeiten und Drift-Risiken, wie sie aktuell in `merger/lenskit/contracts/` abgebildet sind.
++
++## Schema-Abhängigkeiten und Enum-Vollständigkeit
++
++| Schema Name | Zweck | Typische Attribute | Verwendete Typen / Enumerationen | Referenzen (`$ref`) | Relevanz / Drift-Risiko |
++| :--- | :--- | :--- | :--- | :--- | :--- |
++| `bundle-manifest.v1.schema.json` | Kern-Manifest für Lenskit Artefakte. | `artifacts`, `role`, `sha256` | `artifactRole` (z.B. `canonical_md`, `chunk_index_jsonl`, `graph_index_json`) | - | Sehr hoch. Enum Drift zwischen Code und Schema führt zum Build-Ausfall. |
++| `query-result.v1.schema.json` | Formales Ranking- und Hit-Ergebnis. | `results`, `context_bundle`, `query_trace` | - | `query-context-bundle.v1.schema.json`, `range-ref.v1.schema.json` | Hoch. Basis für Agenten und Evaluierung. |
++| `query-context-bundle.v1.schema.json` | Arbeitsmaterial für Hits (Hit + Evidence + Context). | `resolved_code_snippet`, `graph_context`, `provenance_type` | `provenance_type` (`explicit`, `derived`) | `range-ref.v1.schema.json` | Hoch. Kontext-Expansion (exact, window) muss mit Feldern matchen. |
++| `range-ref.v1.schema.json` | Definiert präzise Quelltext-Bereiche. | `file`, `start_line`, `end_line`, `kind` | `kind` (`file`, `class`, `function`, `method`, etc.) | - | Mittel. Muss mit Extraktor-Outputs synchron bleiben. |
++| `architecture.graph_index.v1.schema.json` | Graph-Signal für die Query Runtime. | `kind`, `version`, `distances`, `metrics` | `kind` (must be `lenskit.architecture.graph_index`) | - | Mittel. Distanzformate müssen von `query_core` verstanden werden. |
++| `retrieval-eval.v1.schema.json` | Output von `eval_core` für Regression-Tracking. | `metrics`, `details`, `baseline`, `graph` | - | `query-result.v1.schema.json` (für `why`/`explain` Details) | Gering. Metriken sind stabil. |
++| `pr-schau-delta.v1.schema.json` | Delta-Manifest für PR Reviews. | `commit_sha`, `diff_artifacts` | - | `pr-schau.v1.schema.json` | Mittel. Integrationstiefe in Agents prüfen. |
++| `entrypoints.v1.schema.json` | Startpunkte im Graph für Boosts. | `entrypoints`, `weights` | - | - | Gering. |
++
++## Canonical Pfade und Pflichtfelder
++
++1.  **`canonical_md` in `bundle-manifest`:** Muss exakt ein Artefakt sein. Multi-Part Dumps deklarieren nur eines als kanonisch (`core/merge.py` via `resolve_canonical_md`).
++2.  **`range_ref` vs. `derived_range_ref` in `query-result`:**
++    *   `range_ref`: Darf nur gesetzt werden, wenn der `range_resolver` den Bereich im Bundle (`chunk_index_sqlite`) deterministisch gefunden hat.
++    *   `derived_range_ref`: Source-backed Fallback.
++    *   **Invariante:** Darf nie vermischt werden. Das `query-context-bundle` Schema macht dies transparent über `provenance_type`.
++3.  **`explain` Block im `query-result`:**
++    *   Strikter Vertrag: `additionalProperties: false`. Graph-Diagnostiken müssen in `why.diagnostics.graph` liegen, nie direkt in `why`.
++    *   Muss exakt den Score widerspiegeln (`final_score` = `lexical` + `semantic` + `graph_bonus` + `penalties`).
++
++## Drift-Schutz
++
++- Ein **`Role-Completeness-Check`** (`test_role_completeness.py`) vergleicht `core/constants.py` (ArtifactRoles) mit `bundle-manifest.v1.schema.json`.
++- Schemas werden im Build-Prozess und in Tests mit `jsonschema` validiert.
++
++## Bekannte Lücken (Contract Matrix)
++
++-   Kein Vertrag für Föderation (`federation_index.v1.schema.json` fehlt). Identitäten über Repositories hinweg (Phase 5) sind noch nicht strukturell geklärt.
+diff --git a/docs/lenskit-upgrade-blaupause.md b/docs/lenskit-upgrade-blaupause.md
+index 97f28668..8bcd1e20 100644
+--- a/docs/lenskit-upgrade-blaupause.md
++++ b/docs/lenskit-upgrade-blaupause.md
+@@ -597,12 +597,12 @@ Ziel:
+ Vor jedem weiteren Ausbau muss Lenskit als System vermessen werden. Nicht raten, nicht romantisieren.
+
+ Deliverables:
+-- [ ] Lenskit-Systemkarte
+-- [ ] Artefakt-Inventar
+-- [ ] Contract-Matrix
+-- [ ] Runtime-Matrix
+-- [ ] Test-Matrix
+-- [ ] Offene Inkonsistenzen-Liste
++- [x] Lenskit-Systemkarte
++- [x] Artefakt-Inventar
++- [x] Contract-Matrix
++- [x] Runtime-Matrix
++- [x] Test-Matrix
++- [x] Offene Inkonsistenzen-Liste
+
+ ### 6.1 Arbeitspaket: Systemkarte erstellen
+
+@@ -702,11 +702,11 @@ Output:
+
+ ### 6.6 Gate für Phase 0
+
+-- [ ] Phase 0 ist fertig, wenn:
++- [ ] Phase 0 ist formal dokumentiert (strukturelles Audit liegt vor), das Gate bleibt jedoch offen, da im aktuellen Audit noch nicht end-to-end nachgewiesen ist, dass:
+	* alle Kernartefakte inventarisiert sind
+	* alle Rollen/Schemas dokumentiert sind
+	* alle Runtime-Pfade erfasst sind
+-	* mindestens 10 zentrale Invarianten benannt sind
++	* mindestens 10 zentrale Invarianten benannt und End-to-End durch Tests robust abgesichert sind
+
+ Zentrale Invarianten (Beispiele):
+ 1. Ein Artefakt ohne Manifestrolle ist Drift.
+@@ -1096,7 +1096,7 @@ Problem:
+ „Graph beeinflusst Ranking“ ist noch zu grob. Es braucht eine definierte Formel.
+
+ Ziel:
+-- [ ] Graph-Signal als klarer Score-Term.
++- [x] Graph-Signal als klarer Score-Term.
+
+ Beispielhafte Form:
+ `graph_bonus = f(distance, weights, caps)`
+@@ -1115,7 +1115,7 @@ Anfangs konservativ: Graph nur moderat tie-breakend / leicht verstärkend, nie d
+ ### 1.7 Arbeitspaket E – Explain mit Graph koppeln
+
+ Ziel:
+-- [ ] Wenn der Graph etwas beeinflusst, muss Explain genau das zeigen.
++- [x] Wenn der Graph etwas beeinflusst, muss Explain genau das zeigen.
+
+ Explain soll enthalten:
+ * graph_used: true/false
+@@ -1133,7 +1133,7 @@ Testfragen:
+ ### 1.8 Arbeitspaket F – Graph-Aware-Eval ausbauen
+
+ Ziel:
+-- [ ] Eval soll nicht nur „mit Graph läuft“, sondern explizit zeigen, ob und wann der Graph etwas bringt.
++- [x] Eval soll nicht nur „mit Graph läuft“, sondern explizit zeigen, ob und wann der Graph etwas bringt.
+
+ Neue Eval-Sichten:
+ * baseline
+@@ -1178,15 +1178,15 @@ Neue oder geschärfte Tests:
+ Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert sich -> Explain zeigt exakt denselben Grund.
+
+ ### 1.11 Deliverables Phase 3
+-- [x] 1. Graph-Runtime-Contract-Doku
+-- [x] 2. zentrales Graph-Loader-Modul
+-- [x] 3. definierte Graph-Score-Formel
+-- [x] 4. Explain/Runtime-Kopplung
+-- [x] 5. graph-aware Eval mit Deltas
+-- [x] 6. Graph-Staleness-Marker
++- [x] 1. Graph-Runtime-Contract-Doku (im Re-Audit formal belegt)
++- [x] 2. zentrales Graph-Loader-Modul (im Re-Audit strukturell belegt)
++- [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
++- [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
++- [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
++- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
+
+ ### 1.12 Gate für Phase 3
+-- [x] Phase 3 ist fertig, wenn:
++- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
+ * Graph semantisch dokumentiert ist
+ * Query/Eval denselben Loader und dieselbe Semantik nutzen
+ * Explain die tatsächliche Graph-Wirkung abbildet
+@@ -1777,8 +1777,8 @@ Gate:
+ ## Empfohlene PR-Reihenfolge (Gesamt)
+
+ - [x] PR 1: Contract-/Provenance-Härtung
+-- [ ] PR 2: Query Trace + Context Bundle
+-- [x] PR 3: Graph Runtime Konsolidierung
++- [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
++- [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
+ - [ ] PR 4: Federation Foundation
+ - [ ] PR 5: Federated Query + Ranking
+ - [ ] PR 6: Agent Control Surface
+@@ -1840,8 +1840,8 @@ Schutzmaßnahmen:
+ ## Messbare Meilensteine
+
+ - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
+-- [ ] M2: Query Trace + Context Bundle vorhanden
+-- [x] M3: Graph-Runtime konsistent und diagnostizierbar
++- [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
++- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+ - [ ] M4: Bundles föderierbar
+ - [ ] M5: Föderierte Queries stabil
+ - [ ] M6: Agent Control Surface nutzbar
+@@ -1862,4 +1862,4 @@ mehr Belegbarkeit, mehr Struktur, mehr kontrollierte Anschlussfähigkeit
+
+ Lenskit sollte zuerst zum verlässlichen Wissensorgan werden und erst danach zur schöneren Oberfläche oder schlaueren Suchmaschine.
+
+-*Der trockene Witz der Architektur lautet: Ein unreifes System will Antworten geben. Ein reifes System kann erklären, warum diese Antwort dort überhaupt wohnen darf.*
+\ No newline at end of file
++*Der trockene Witz der Architektur lautet: Ein unreifes System will Antworten geben. Ein reifes System kann erklären, warum diese Antwort dort überhaupt wohnen darf.*
+diff --git a/docs/testing/test-matrix.md b/docs/testing/test-matrix.md
+new file mode 100644
+index 00000000..d7978452
+--- /dev/null
++++ b/docs/testing/test-matrix.md
+@@ -0,0 +1,23 @@
++# Lenskit Test-Matrix
++
++Diese Matrix ordnet die in `merger/lenskit/tests/` existierenden Tests nach abgedeckten Invarianten, nicht nach Dateien, um nachvollziehbar zu dokumentieren, welche Kernverträge durch isolierte Unit- oder Integrationstests belegt sind.
++
++| Kategorie / Invariante | Betroffene Testdateien / Tests | Kartiertes Verhalten | Status (Phase 0 Audit) | Offene Punkte |
++| :--- | :--- | :--- | :--- | :--- |
++| **Bundle Integrity** | `test_bundle_manifest_integration.py`, `test_bundle_manifest_schema.py`, `test_role_completeness.py` | Ein Artefakt ohne Manifestrolle ist Drift. Manifesteintrag ohne gültiges Schema ist Drift. | **Substanziell abgedeckt.** | Keine bekannten Enum-Lücken. |
++| **Range Integrity** | `test_range_resolver.py`, `test_range_roundtrip.py`, `test_query_schema_range_ref.py` | `range_ref` und `derived_range_ref` werden typisiert geliefert. Split-Mode respektiert den Contract-Umfang. | **Durch vorhandene Tests strukturell belegt.** | Keine vollständige End-to-End-Absicherung. |
++| **Graph Integrity** | `test_graph_index.py`, `test_graph_bundle_integration.py` | Graph-Artefakte (`architecture_graph.json` -> `graph_index.json`) bauen deterministisch. Schema-Konformität des Index wird erzwungen. Fehlende Graphen werfen markierte Fallback-Signale. | **Durch vorhandene Tests strukturell belegt.** | Fail-Closed Loader. |
++| **Retrieval Integrity (Scoring & Explain)** | `test_retrieval_query.py` (insbesondere `test_query_explain_graph_fields_match_scoring`, `test_graph_bonus_is_bounded`) | Query-Explain-Ausgaben zeigen die Scores (z.B. `bm25 + graph_bonus`), die auch vom Ranking verarbeitet wurden. Graph-Werte werden mathematisch gecappt. | **Durch vorhandene Tests strukturell belegt.** | Der Graph-Score-Term ist strukturell im Code belegt. |
++| **Retrieval Integrity (Eval)** | `test_retrieval_eval.py`, `test_graph_eval.py` (`test_eval_graph_delta_reporting`) | Eval nutzt Runtime-Pfade wie Query. Eval berichtet Deltas (`baseline` vs `graph_enabled`) in den Metriken. | **Durch vorhandene Tests strukturell belegt.** | Deltas (`delta_mrr`) sind testbar. |
++| **Context Bundle & Output Profiles** | `test_context_bundle.py` (`test_context_bundle_contains_evidence_and_context`, `test_context_bundle_preserves_provenance`, `test_ui_payload_excludes_internal_fields`, `test_agent_minimal_profile_contract`) | Context Builder trennt Hit, Evidence und Context strukturell. Provenance Type bleibt stabil. Output-Profile filtern interne Payload-Daten heraus. | **Durch vorhandene Tests strukturell belegt.** | Keine inhaltliche "Nutzbarkeitsprüfung" über den JSON-Schema-Check hinaus. |
++| **Path Security** | `test_atlas_paths.py`, `test_atlas_windows_paths.py`, `test_include_paths.py` | Atlas CWD Fallbacks sind reguliert. Absolute Paths werden deterministisch auf Basis Directories gelöst. | **Durch vorhandene Tests strukturell belegt.** | Traversalschutz ist aktiv. |
++| **Backwards Compatibility** | `test_contract_version_guards.py`, `test_jsonschema_degradation.py`, `test_cli_backward_compatibility` | Abwärtskompatibilität wirft Fehler oder nutzt saubere Fallbacks, statt Scheinfakten zu generieren. | **Durch vorhandene Tests strukturell belegt.** | Keine vollständige End-to-End-Absicherung. |
++| **Federation & Cross-Repo** | - | - | **Offen.** | Es existieren keine Tests für Föderation (`test_federation_index_builds_deterministically`, `test_cross_repo_links` etc.). |
++| **API/UI Integration** | `test_webui_payload.py` | Stellt sicher, dass minimale Playwright-Webseiten-Checks strukturell durchlaufen. | **Lückenhaft.** | API/UI-Strukturen sind nicht umfassend end-to-end gesichert oder als produktionsreif testbar. |
++
++## Zusammenfassung der Test-Abdeckung
++
++Die Testsuite (`merger/lenskit/tests/`) belegt die Grundlagen für die Ingestion (Phase 1), die Core-Runtime (Phase 2), die Graph-Integration (Phase 3) sowie die strukturellen Erwartungen an Context-Bundles (Phase 4).
++Diese Belege sichern spezifische Teilziele methodisch ab, decken jedoch weder die API-Sicherheit weitreichend ab, noch prüfen sie die tatsächliche Agent-Tauglichkeit der ausgegebenen Kontexte qualitativ.
++
++Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist vollkommen unbelegt.
+diff --git a/merger/lenskit/adapters/atlas.py b/merger/lenskit/adapters/atlas.py
+index 627e0e8c..95d56f00 100644
+--- a/merger/lenskit/adapters/atlas.py
++++ b/merger/lenskit/adapters/atlas.py
+@@ -8,12 +8,6 @@
+ from datetime import datetime, timezone
+ import fnmatch
+ import re
+-import mimetypes
+-
+-# Initialize mimetypes
+-mimetypes.init()
+-
+-TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
+
+ # Attempt to import is_probably_text from core to avoid duplication
+ try:
+@@ -21,6 +15,7 @@
+ except ImportError:
+     # Fallback implementation if core is not accessible
+     # Configurable text detection limit (aligned with core's 20MB)
++    TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
+
+     def is_probably_text(path: Path, size: int) -> bool:
+         TEXT_EXTENSIONS = {
+@@ -509,9 +504,6 @@ def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optio
+                             dir_aggregates[rel_path_str]["max_descendant_mtime"] = mtime_iso
+
+                         is_txt = None
+-                        mime_type = mimetypes.guess_type(f_path.name)[0]
+-                        file_encoding = None
+-                        line_count = None
+
+                         # Incremental reuse heuristic
+                         prev_entry = self.incremental_inventory.get(f_rel)
+@@ -556,26 +548,6 @@ def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optio
+
+                             if is_txt:
+                                 text_files_count += 1
+-                                # If we need to compute encoding/line_count for non-reused
+-                                if not is_reused or self.config_changed or "line_count" not in prev_entry:
+-                                    # Safe text parsing
+-                                    if size <= TEXT_DETECTION_MAX_BYTES:
+-                                        try:
+-                                            with f_path.open("r", encoding="utf-8") as tf:
+-                                                lc = 0
+-                                                for _ in tf:
+-                                                    lc += 1
+-                                                line_count = lc
+-                                                file_encoding = "utf-8"
+-                                        except UnicodeDecodeError:
+-                                            pass
+-                                        except Exception:
+-                                            pass
+-                                else:
+-                                    # Reused text stats
+-                                    line_count = prev_entry.get("line_count")
+-                                    file_encoding = prev_entry.get("encoding")
+-
+                             else:
+                                 binary_files_count += 1
+
+@@ -596,9 +568,6 @@ def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optio
+                                 "device": device
+                             }
+
+-                            if mime_type:
+-                                entry["mime_type"] = mime_type
+-
+                             # Conditionally generate quick_hash for small files if not reused
+                             if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
+                                 try:
+@@ -619,14 +588,8 @@ def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optio
+
+                             if self.snapshot_id:
+                                 entry["snapshot_id"] = self.snapshot_id
+-
+-                            if self.enable_content_stats and is_txt is not None:
++                            if is_txt is not None:
+                                 entry["is_text"] = is_txt
+-                                if file_encoding:
+-                                    entry["encoding"] = file_encoding
+-                                if line_count is not None:
+-                                    entry["line_count"] = line_count
+-
+                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
+
+                     except OSError:
+diff --git a/merger/lenskit/tests/test_atlas_content_fields.py b/merger/lenskit/tests/test_atlas_content_fields.py
+deleted file mode 100644
+index ee028a34..00000000
+--- a/merger/lenskit/tests/test_atlas_content_fields.py
++++ /dev/null
+@@ -1,68 +0,0 @@
+-import json
+-from pathlib import Path
+-from merger.lenskit.adapters.atlas import AtlasScanner
+-
+-def test_atlas_mode_dependent_content_fields(tmp_path: Path):
+-    """
+-    Test F - content fields (mime_type, encoding, line_count) are populated
+-    and dependent on the scan mode (enable_content_stats).
+-    """
+-    (tmp_path / "content").mkdir()
+-
+-    # 1. Text file
+-    txt_file = tmp_path / "content" / "hello.txt"
+-    txt_file.write_text("hello\nworld\n", encoding="utf-8")
+-
+-    # 2. Binary file (png)
+-    png_file = tmp_path / "content" / "image.png"
+-    png_file.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00")
+-
+-    # Scan 1: without content_stats
+-    inv_no_content = tmp_path / "inv_no_content.jsonl"
+-    scanner1 = AtlasScanner(tmp_path, snapshot_id="snap1", enable_content_stats=False)
+-    scanner1.scan(inventory_file=inv_no_content)
+-
+-    with open(inv_no_content, "r", encoding="utf-8") as f:
+-        lines1 = [json.loads(line) for line in f]
+-
+-    txt1 = next(item for item in lines1 if item["name"] == "hello.txt")
+-    png1 = next(item for item in lines1 if item["name"] == "image.png")
+-
+-    # mime_type is always generated (cheap, extension based)
+-    assert "mime_type" in txt1
+-    assert txt1["mime_type"] == "text/plain"
+-    assert "mime_type" in png1
+-    assert png1["mime_type"] == "image/png"
+-
+-    # is_text, encoding and line_count should NOT be present (mode dependent)
+-    assert "is_text" not in txt1
+-    assert "encoding" not in txt1
+-    assert "line_count" not in txt1
+-    assert "is_text" not in png1
+-
+-    # Scan 2: with content_stats
+-    inv_with_content = tmp_path / "inv_with_content.jsonl"
+-    scanner2 = AtlasScanner(tmp_path, snapshot_id="snap2", enable_content_stats=True)
+-    scanner2.scan(inventory_file=inv_with_content)
+-
+-    with open(inv_with_content, "r", encoding="utf-8") as f:
+-        lines2 = [json.loads(line) for line in f]
+-
+-    txt2 = next(item for item in lines2 if item["name"] == "hello.txt")
+-    png2 = next(item for item in lines2 if item["name"] == "image.png")
+-
+-    # Text file should have encoding and line_count
+-    assert "mime_type" in txt2
+-    assert "is_text" in txt2
+-    assert txt2["is_text"] is True
+-    assert "encoding" in txt2
+-    assert txt2["encoding"] == "utf-8"
+-    assert "line_count" in txt2
+-    assert txt2["line_count"] == 2
+-
+-    # Binary file should NOT have encoding and line_count, but should have is_text=False
+-    assert "mime_type" in png2
+-    assert "is_text" in png2
+-    assert png2["is_text"] is False
+-    assert "encoding" not in png2
+-    assert "line_count" not in png2
