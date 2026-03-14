@@ -298,6 +298,8 @@ def execute_query(
         expected_sha256 = _read_expected_graph_sha256(conn)
 
         if graph_index_path:
+            if not graph_index_path.exists():
+                raise RuntimeError(f"Explicitly provided graph index file does not exist: {graph_index_path}")
             res = load_graph_index(graph_index_path, expected_sha256=expected_sha256)
             graph_status = res["status"]
             if graph_status in ("ok", "stale_or_mismatched"):

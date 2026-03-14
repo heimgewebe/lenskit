@@ -79,8 +79,8 @@ def test_graph_rerank(mini_index_with_graph):
 def test_graph_fallback(mini_index_with_graph):
     db_path, graph_index_path = mini_index_with_graph
 
-    res_fallback = query_core.execute_query(db_path, query_text="hello", k=10, explain=True, graph_index_path=Path("nonexistent.json"))
-    assert "ranker" not in res_fallback["explain"]
+    with pytest.raises(RuntimeError, match="Explicitly provided graph index file does not exist"):
+        query_core.execute_query(db_path, query_text="hello", k=10, explain=True, graph_index_path=Path("nonexistent.json"))
 
     res = query_core.execute_query(db_path, query_text="hello", k=10, explain=True, graph_index_path=None)
     assert "ranker" not in res["explain"]

@@ -161,3 +161,105 @@ def test_api_query_invalid_params(mini_index):
     response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
     assert response.status_code == 400
     assert "requires" in response.json()["detail"]
+
+def test_api_query_trace_wrapper(mini_index):
+    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
+    from merger.lenskit.service.models import Artifact, JobRequest
+    from merger.lenskit.service.app import state
+    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = mini_index.name
+    state.job_store.add_artifact(art)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    assert "query_trace" in data
+    assert "query_trace" not in data["context_bundle"]
+
+    hit = data["context_bundle"]["hits"][0]
+    # Agent minimal should strip explain and surrounding_context (if null)
+    assert "explain" not in hit
+    assert "graph_context" not in hit
+    assert "surrounding_context" not in hit
+
+def test_api_query_relative_merges_dir(mini_index):
+    service_app.init_service(hub_path=Path(mini_index.parent.parent), token="test_token")
+    from merger.lenskit.service.models import Artifact, JobRequest
+    from merger.lenskit.service.app import state
+    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
+    # Relative merges dir
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=mini_index.parent.name)
+    art.paths["sqlite_index"] = mini_index.name
+    state.job_store.add_artifact(art)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "explain": True, "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+def test_api_query_missing_sqlite_key():
+    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
+    from merger.lenskit.service.models import Artifact, JobRequest
+    from merger.lenskit.service.app import state
+    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
+    art = Artifact(id="test", job_id="test", hub="/tmp", repos=["repo"], created_at="now", paths={}, params=req)
+    state.job_store.add_artifact(art)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello"
+    }
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 400
+    assert "does not contain an SQLite index" in response.json()["detail"]
+
+def test_api_query_legacy_index_sqlite_key(mini_index):
+    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
+    from merger.lenskit.service.models import Artifact, JobRequest
+    from merger.lenskit.service.app import state
+    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["index_sqlite"] = mini_index.name
+    state.job_store.add_artifact(art)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "stale_policy": "ignore"
+    }
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+def test_api_query_file_not_found(mini_index):
+    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
+    from merger.lenskit.service.models import Artifact, JobRequest
+    from merger.lenskit.service.app import state
+    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = "does_not_exist.sqlite"
+    state.job_store.add_artifact(art)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "stale_policy": "ignore"
+    }
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 404

@@ -42,7 +42,7 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--graph-weights", help='JSON string of graph weights (e.g. \'{"w_bm25": 0.65}\')')
     query_parser.add_argument("--test-penalty", type=float, default=0.75, help="Score penalty multiplier for test files")
     query_parser.add_argument("--build-context-bundle", action="store_true", help="Explicitly build context bundle")
-    query_parser.add_argument("--output-profile", choices=["human_review", "agent_minimal", "ui_navigation", "eval_debug"], help="Projection profile for the query result")
+    query_parser.add_argument("--output-profile", choices=["human_review", "agent_minimal", "ui_navigation"], help="Projection profile for the query result")
     query_parser.add_argument("--context-mode", choices=["exact", "block", "window", "file"], default="exact", help="Context expansion mode")
     query_parser.add_argument("--context-window-lines", type=int, default=0, help="Number of lines to expand in window mode")
 
