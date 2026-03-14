@@ -11,8 +11,8 @@ Dieses Inventar dokumentiert die primären und abgeleiteten Artefakte von Lenski
 | `index_sidecar.json` | `index_sidecar_json` | `core.merge` | Agents, WebUI, CLI, Lenskit Service | `bundle-manifest.v1.schema.json` | Meta | Verknüpfung der Artefakte |
 | `graph_index.json` | `graph_index_json` | `architecture.graph_index` | `retrieval.query_core`, `eval_core` | `architecture.graph_index.v1.schema.json` | Ja | Graph Penalty/Bonus, Semantic Eval |
 | `architecture_graph.json`| `architecture_summary` | `architecture.import_graph` | `architecture.graph_index` | `architecture.graph.v1.schema.json` | Ja | Erzeugung des Index |
-| `query_context_bundle.json`| - (Embedded) | `retrieval.query_core` | CLI, WebUI, Agents | `query-context-bundle.v1.schema.json` | Nein (Runtime Output) | Context Expansion, UI Display |
-| `query_trace.json` | - (Embedded) | `retrieval.query_core` | Debug CLI, Evaluatoren | `query-result.v1.schema.json` | Nein (Runtime Output) | Ranking-Analyse (via `--trace`) |
+| `query_context_bundle.json`| - (Runtime Payload) | `retrieval.query_core` | CLI, WebUI, Agents | `query-context-bundle.v1.schema.json` | Nein (Runtime Output) | Context Expansion, UI Display |
+| `query_trace.json` | - (Runtime Payload) | `retrieval.query_core` | Debug CLI, Evaluatoren | `query-result.v1.schema.json` | Nein (Runtime Output) | Ranking-Analyse (via `--trace`) |
 | `retrieval_eval.json` | `retrieval_eval_json` | `retrieval.eval_core` | CI, Entwickler | `retrieval-eval.v1.schema.json` | Nein | Evaluierungsmetriken |
 | `pr-schau-delta.json` | `delta_json` | `core.pr_schau_bundle` | PR-Schau Frontends, Agents | `pr-schau-delta.v1.schema.json` | Optional | Code-Review Differentials |
 | `entrypoints.json` | `entrypoints` | `architecture.entrypoints` | `architecture.graph_index` | `entrypoints.v1.schema.json` | Ja | Berechnung des Graph-Boosts |
