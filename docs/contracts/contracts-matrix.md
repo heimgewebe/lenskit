@@ -19,7 +19,7 @@ Diese Matrix dokumentiert die Verbindungen zwischen Systemrollen, Schemata, Abh√
 
 1.  **`canonical_md` in `bundle-manifest`:** Muss exakt ein Artefakt sein. Multi-Part Dumps deklarieren nur eines als kanonisch (`core/merge.py` via `resolve_canonical_md`).
 2.  **`range_ref` vs. `derived_range_ref` in `query-result`:**
-    *   `range_ref`: Darf nur gesetzt werden, wenn der `range_resolver` den Bereich im Bundle (`chunk_index_sqlite`) deterministisch gefunden hat.
+    *   `range_ref`: Darf nur gesetzt werden, wenn der `range_resolver` den Bereich im Bundle (`sqlite_index`) deterministisch gefunden hat.
     *   `derived_range_ref`: Source-backed Fallback.
     *   **Invariante:** Darf nie vermischt werden. Das `query-context-bundle` Schema macht dies transparent √ºber `provenance_type`.
 3.  **`explain` Block im `query-result`:**
