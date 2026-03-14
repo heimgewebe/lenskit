@@ -702,7 +702,7 @@ Output:
 
 ### 6.6 Gate für Phase 0
 
-- [ ] Phase 0 ist formal dokumentiert (strukturelles Audit liegt vor), das Gate gilt aber erst als vollständig passiert, wenn:
+- [ ] Phase 0 ist formal dokumentiert (strukturelles Audit liegt vor), das Gate bleibt jedoch offen, da im aktuellen Audit noch nicht end-to-end nachgewiesen ist, dass:
 	* alle Kernartefakte inventarisiert sind
 	* alle Rollen/Schemas dokumentiert sind
 	* alle Runtime-Pfade erfasst sind
@@ -1178,15 +1178,15 @@ Neue oder geschärfte Tests:
 Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert sich -> Explain zeigt exakt denselben Grund.
 
 ### 1.11 Deliverables Phase 3
-- [x] 1. Graph-Runtime-Contract-Doku (formal dokumentiert)
-- [x] 2. zentrales Graph-Loader-Modul (strukturell implementiert)
-- [x] 3. definierte Graph-Score-Formel (mathematisch gecappt, strukturell implementiert)
-- [x] 4. Explain/Runtime-Kopplung (strukturell implementiert)
-- [x] 5. graph-aware Eval mit Deltas (strukturell implementiert)
-- [ ] 6. Graph-Staleness-Marker (nur teilweise, End-to-End-Staleness-Recovery fehlt)
+- [x] 1. Graph-Runtime-Contract-Doku (im Re-Audit formal belegt)
+- [x] 2. zentrales Graph-Loader-Modul (im Re-Audit strukturell belegt)
+- [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
+- [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
+- [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
+- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
 
 ### 1.12 Gate für Phase 3
-- [ ] Phase 3 ist formal dokumentiert und in Teilen strukturell implementiert, aber das Gate bleibt offen bis zur End-to-End-Absicherung:
+- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
 * Graph semantisch dokumentiert ist
 * Query/Eval denselben Loader und dieselbe Semantik nutzen
 * Explain die tatsächliche Graph-Wirkung abbildet
@@ -1777,8 +1777,8 @@ Gate:
 ## Empfohlene PR-Reihenfolge (Gesamt)
 
 - [x] PR 1: Contract-/Provenance-Härtung
-- [ ] PR 2: Query Trace + Context Bundle (strukturell vorhanden)
-- [ ] PR 3: Graph Runtime Konsolidierung (strukturell vorhanden, benötigt End-to-End-Härtung)
+- [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
+- [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
 - [ ] PR 4: Federation Foundation
 - [ ] PR 5: Federated Query + Ranking
 - [ ] PR 6: Agent Control Surface
@@ -1840,8 +1840,8 @@ Schutzmaßnahmen:
 ## Messbare Meilensteine
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
-- [ ] M2: Query Trace + Context Bundle vorhanden (strukturell vorhanden, wartet auf finale End-to-End-Abnahme)
-- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (strukturell vorhanden, wartet auf finale End-to-End-Abnahme)
+- [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar

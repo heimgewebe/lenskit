@@ -32,10 +32,10 @@ Dieses Dokument und die begleitenden Vermessungsartefakte ([Runtime-Matrix](runt
 
 *   **API/UI-ready Struktur & WebUI (Phase 4):**
     *   *Befund:* API-Endpunkte (FastAPI, `service/app.py`) und ein rudimentäres WebUI (`app.js`, `index.html` mit Badges) existieren strukturell.
-    *   *Lücke:* Ein vollständiger, repo-weiter End-to-End-Nachweis der API-Sicherheit, Skalierbarkeit und echten Produktionsreife fehlt in der aktuellen Testsuite. Die UI/Agent-Integration ist methodisch nur im Ansatz belegt. Die entsprechenden Roadmap-Punkte und das Gate für Phase 4 wurden zurückgenommen.
+    *   *Lücke:* Ein vollständiger, repo-weiter End-to-End-Nachweis der API-Sicherheit, Skalierbarkeit und Produktionsreife fehlt in der aktuellen Testsuite. Die UI/Agent-Integration ist im aktuellen Audit durch Tests nicht vollends abgedeckt. Die entsprechenden Roadmap-Punkte und das Gate für Phase 4 wurden daher in der Blaupause de-markiert.
 *   **Context-Nutzbarkeit (Phase 4):**
     *   *Befund:* Tests für Context-Bundles prüfen Output-Profile auf korrekte Struktur und Datenfilterung (`test_ui_payload_excludes_internal_fields`).
-    *   *Lücke:* Dies belegt formale Strukturkonformität, ist aber kein umfassender Beleg für inhaltliche oder ergonomische "Kontextnutzbarkeit" im Sinne von Agenten-Feedbackschleifen.
+    *   *Lücke:* Dies belegt formale Strukturkonformität laut Schema. Ein umfassender Beleg für die inhaltliche "Kontextnutzbarkeit" (z. B. in realen Agenten-Feedbackschleifen) fehlt in der Test-Matrix jedoch, weshalb auch dieses Ziel nicht als "robust abgeschlossen" markiert werden darf.
 
 ## 3. Was fehlt komplett (Echte Inkonsistenzen / Nicht-Ziele)?
 *(Diese Aspekte sind in der Blaupause definiert, aber im Code nicht existent)*
@@ -51,7 +51,7 @@ In vorherigen Implementierungsschritten wurden Features wie MIME-Typ-Erkennung, 
 *   Encoding verließ sich lediglich auf einen simplen UTF-8 Success-Check.
 *   Dazugehörige Tests (`test_atlas_content_fields.py`) prüften lediglich den `content`-Modus, nicht die generelle Robustheit bei großen Datenmengen.
 
-Dieser Fall ist ein exemplarisches Ergebnis der Audit-Methodik: Die Blaupause (sowie der Code) wurde bewusst zurückgebaut und de-markiert. Die Funktionen waren nicht "nie da", sie waren lediglich architektonisch noch nicht belastbar genug. Sie werden später methodisch sauber und testgetrieben neu aufgesetzt.
+Dieser Fall ist ein exemplarisches Ergebnis der Audit-Methodik: Die Blaupause (sowie der Code) wurde bewusst zurückgebaut und de-markiert. Die Funktionen waren nicht "nie da", sie waren lediglich durch die aktuellen Tests nicht als architektonisch belastbar ausweisbar. Sie werden in Zukunft methodisch sauber und testgetrieben neu aufgesetzt.
 
 ## 5. Architektonische Zusammenfassung
 Die Grundlagen der Phase 1 bis 3 und wesentliche Strukturbausteine der Phase 4 sind für isolierte, lokale Bundles nachvollziehbar implementiert und reduzieren den Drift vor der Cross-Repo-Komplexität erheblich. Für die verbleibenden Gates der Phase 4 (insbesondere API/UI-Struktur und tatsächliche Agenten-Sicherheit) sind jedoch stärkere Integrationstests erforderlich. Die Föderation (Phase 5) bleibt komplett offen und stellt eine eigenständige neue Komplexitätsstufe dar.
