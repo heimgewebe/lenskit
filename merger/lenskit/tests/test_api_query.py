@@ -263,3 +263,22 @@ def test_api_query_file_not_found(mini_index):
     }
     response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
     assert response.status_code == 404
+
+def test_api_query_graph_index_not_found(mini_index):
+    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
+    from merger.lenskit.service.models import Artifact, JobRequest
+    from merger.lenskit.service.app import state
+    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
+    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
+    art.paths["sqlite_index"] = mini_index.name
+    state.job_store.add_artifact(art)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "stale_policy": "ignore",
+        "graph_index": "does_not_exist.json"
+    }
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 404
+    assert "graph index" in response.json()["detail"].lower()

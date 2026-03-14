@@ -486,10 +486,15 @@ def api_query(request: QueryRequest):
         "artifact_type": request.artifact_type
     }
 
+    def _is_safe_filename(name: str) -> bool:
+        if not name or name in {".", ".."}:
+            return False
+        p = Path(name)
+        return p.name == name and not p.is_absolute()
+
     policy_instance = None
     if request.embedding_policy:
-        # Prevent path traversal by only allowing specific known files from the merges dir
-        if "/" in request.embedding_policy or "\\" in request.embedding_policy:
+        if not _is_safe_filename(request.embedding_policy):
             raise HTTPException(status_code=400, detail="Invalid embedding_policy path")
         policy_path = index_path.parent / request.embedding_policy
         try:
@@ -499,10 +504,11 @@ def api_query(request: QueryRequest):
 
     graph_index_path = None
     if request.graph_index:
-        # Prevent path traversal by only allowing specific known files from the merges dir
-        if "/" in request.graph_index or "\\" in request.graph_index:
+        if not _is_safe_filename(request.graph_index):
             raise HTTPException(status_code=400, detail="Invalid graph_index path")
         graph_index_path = index_path.parent / request.graph_index
+        if not graph_index_path.exists():
+            raise HTTPException(status_code=404, detail="Explicitly provided graph index file does not exist")
 
     if request.context_mode == "window" and request.context_window_lines <= 0:
         raise HTTPException(status_code=400, detail="--context-mode window requires --context-window-lines > 0")
