@@ -99,6 +99,7 @@ def main():
     atlas_search_parser.add_argument("--max-size", type=int, help="Filter by maximum size in bytes")
     atlas_search_parser.add_argument("--date-after", help="Filter by modified date after (ISO format)")
     atlas_search_parser.add_argument("--date-before", help="Filter by modified date before (ISO format)")
+    atlas_search_parser.add_argument("--content-query", help="Filter by file content (full text search within matched text files)")
 
     # Architecture command
     arch_parser = subparsers.add_parser("architecture", help="Extract architectural views of a repository")

@@ -81,12 +81,15 @@ def run_atlas_search(args: argparse.Namespace) -> int:
             min_size=args.min_size,
             max_size=args.max_size,
             date_after=args.date_after,
-            date_before=args.date_before
+            date_before=args.date_before,
+            content_query=getattr(args, 'content_query', None)
         )
 
         # Print results
         for r in results:
             print(f"[{r.get('machine_id')}][{r.get('root_id')}] {r.get('rel_path')} ({r.get('size_bytes')} bytes) - {r.get('mtime')}")
+            if 'content_snippet' in r:
+                print(f"  Snippet: {r['content_snippet']}")
 
         print(f"\nTotal results: {len(results)}")
 

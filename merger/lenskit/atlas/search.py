@@ -28,7 +28,8 @@ class AtlasSearch:
                min_size: Optional[int] = None,
                max_size: Optional[int] = None,
                date_after: Optional[str] = None,
-               date_before: Optional[str] = None) -> List[Dict[str, Any]]:
+               date_before: Optional[str] = None,
+               content_query: Optional[str] = None) -> List[Dict[str, Any]]:
 
         # Open registry to find the appropriate snapshots
         try:
@@ -38,6 +39,7 @@ class AtlasSearch:
                     root_id=root_id,
                     snapshot_id=snapshot_id
                 )
+                roots_cache = {r['root_id']: r for r in registry.list_roots()}
         except Exception as e:
             print(f"[atlas-search] warning: failed to connect to registry {self.registry_db_path}: {e}", file=sys.stderr)
             return []
@@ -127,6 +129,53 @@ class AtlasSearch:
                                 name_lower = item.get('name', '').lower()
                                 path_lower = item.get('rel_path', '').lower()
                                 if q_lower not in name_lower and q_lower not in path_lower:
+                                    continue
+
+                            if content_query:
+                                root = roots_cache.get(snap['root_id'])
+                                if not root:
+                                    continue
+                                root_val = root.get('root_value')
+                                if not root_val:
+                                    continue
+
+                                # Resolve full path
+                                full_path = Path(root_val) / item.get('rel_path', '')
+
+                                # Apply limits
+                                size = item.get('size_bytes', 0)
+                                if size > 20 * 1024 * 1024: # TEXT_DETECTION_MAX_BYTES
+                                    continue
+
+                                # Verify text
+                                is_text_flag = item.get('is_text')
+                                if is_text_flag is False:
+                                    continue
+
+                                if is_text_flag is None:
+                                    # Heuristic
+                                    from merger.lenskit.adapters.atlas import is_probably_text
+                                    if not is_probably_text(full_path, size):
+                                        continue
+
+                                # Read content and check for query
+                                try:
+                                    with open(full_path, 'r', encoding='utf-8') as f_content:
+                                        file_content = f_content.read()
+                                        if content_query.lower() not in file_content.lower():
+                                            continue
+
+                                        # Extract snippet
+                                        lines = file_content.splitlines()
+                                        snippet = ""
+                                        for i, line in enumerate(lines):
+                                            if content_query.lower() in line.lower():
+                                                snippet = line.strip()
+                                                break
+                                        if snippet:
+                                            item['content_snippet'] = snippet
+                                except Exception as e:
+                                    # Ignore files we cannot read for content search
                                     continue
 
                             # Enrich result with snapshot context

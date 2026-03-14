@@ -887,10 +887,10 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 - [x] Name-Search implementieren
 - [x] Extension-/MIME-Search implementieren
 - [x] Größen-/Datumsfilter implementieren
-- [ ] Content-Search implementieren
+- [x] Content-Search implementieren
 - [x] Scope-Filter (machine, root, snapshot) implementieren
 - [x] CLI: `atlas search`
-- [ ] Preview-/Snippet-Format definieren
+- [x] Preview-/Snippet-Format definieren
 
 **Stop-Kriterium**: Atlas kann Dateibestände und Inhalte über Registry + Index reproduzierbar durchsuchen.
 

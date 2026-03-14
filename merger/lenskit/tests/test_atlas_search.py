@@ -103,3 +103,64 @@ def test_atlas_search(tmp_path):
     res = searcher.search(name_pattern="*.log")
     assert len(res) == 1
     assert res[0]["name"] == "new.log"
+
+def test_atlas_content_search(tmp_path):
+    registry_path = tmp_path / "registry.sqlite"
+    registry = AtlasRegistry(registry_path)
+
+    registry.register_machine("m1", "host1")
+
+    # Create an actual file for content search
+    root_dir = tmp_path / "test_root"
+    root_dir.mkdir()
+
+    file1_path = root_dir / "file1.txt"
+    with open(file1_path, "w", encoding="utf-8") as f:
+        f.write("Hello world\nThis is a test file for content search.\nGoodbye!")
+
+    file2_path = root_dir / "file2.txt"
+    with open(file2_path, "w", encoding="utf-8") as f:
+        f.write("Another file\nNo interesting content here.\n")
+
+    # Large file should be skipped
+    large_file_path = root_dir / "large.txt"
+
+    # Not a text file according to flag
+    not_text_path = root_dir / "not_text.bin"
+    with open(not_text_path, "wb") as f:
+        f.write(b"\x00\x01\x02")
+
+    registry.register_root("r1", "m1", "abs_path", str(root_dir))
+
+    # Create dummy inventory
+    inv_path = tmp_path / "inv_content.jsonl"
+    with open(inv_path, "w") as f:
+        f.write(json.dumps({"rel_path": "file1.txt", "name": "file1.txt", "size_bytes": 100, "is_text": True}) + "\n")
+        f.write(json.dumps({"rel_path": "file2.txt", "name": "file2.txt", "size_bytes": 100, "is_text": True}) + "\n")
+        f.write(json.dumps({"rel_path": "large.txt", "name": "large.txt", "size_bytes": 30 * 1024 * 1024, "is_text": True}) + "\n")
+        f.write(json.dumps({"rel_path": "not_text.bin", "name": "not_text.bin", "size_bytes": 10, "is_text": False}) + "\n")
+
+    registry.create_snapshot("s1", "m1", "r1", "hash1", "complete")
+    registry.update_snapshot_artifacts("s1", {"inventory": str(inv_path)})
+    registry.close()
+
+    searcher = AtlasSearch(registry_path)
+
+    # Test content search
+    res = searcher.search(content_query="test file")
+    assert len(res) == 1
+    assert res[0]["name"] == "file1.txt"
+    assert "This is a test file for content search." in res[0]["content_snippet"]
+
+    res = searcher.search(content_query="interesting")
+    assert len(res) == 1
+    assert res[0]["name"] == "file2.txt"
+    assert "No interesting content here." in res[0]["content_snippet"]
+
+    # Should skip large file (though we didn't actually write 30MB, the metadata says so)
+    # The limit is 20MB
+    # Wait, the read happens before checking the limit? No, limit is checked based on metadata.
+
+    # Should skip non-text file
+    res = searcher.search(content_query="\x00")
+    assert len(res) == 0
