@@ -489,6 +489,8 @@ def api_query(request: QueryRequest):
     def _is_safe_filename(name: str) -> bool:
         if not name or name in {".", ".."}:
             return False
+        if "/" in name or "\\" in name or ":" in name:
+            return False
         p = Path(name)
         return p.name == name and not p.is_absolute()
 
