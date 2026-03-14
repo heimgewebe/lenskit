@@ -16,7 +16,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse
+from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, QueryRequest
 from .jobstore import JobStore
 from .runner import JobRunner
 from .logging_provider import LogProvider, FileLogProvider
@@ -441,6 +441,89 @@ def api_prescan(request: PrescanRequest):
         logger.exception(f"Prescan failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/query", dependencies=[Depends(verify_token)])
+def api_query(request: QueryRequest):
+    from ..retrieval.query_core import execute_query
+    from ..retrieval.output_projection import project_output
+    from ..cli.stale_check import check_stale_index
+    from ..cli.policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
+
+    art = state.job_store.get_artifact(request.index_id)
+    if not art:
+        raise HTTPException(status_code=404, detail=f"Artifact not found: {request.index_id}")
+
+    # Resolve artifact path
+    if "index_sqlite" not in art.paths:
+         raise HTTPException(status_code=400, detail="Artifact does not contain an SQLite index")
+    index_path = Path(art.paths["index_sqlite"])
+    if not index_path.exists():
+         raise HTTPException(status_code=404, detail="Index file missing on disk")
+
+    is_stale = check_stale_index(index_path, stale_policy=request.stale_policy)
+    if is_stale and request.stale_policy == "fail":
+         raise HTTPException(status_code=400, detail="Index is stale")
+
+    applied_filters = {
+        "repo": request.repo,
+        "path": request.path,
+        "ext": request.ext,
+        "layer": request.layer,
+        "artifact_type": request.artifact_type
+    }
+
+    policy_instance = None
+    if request.embedding_policy:
+        # Prevent path traversal by only allowing specific known files from the merges dir
+        if "/" in request.embedding_policy or "\\" in request.embedding_policy:
+            raise HTTPException(status_code=400, detail="Invalid embedding_policy path")
+        policy_path = index_path.parent / request.embedding_policy
+        try:
+            policy_instance = load_and_validate_embedding_policy(policy_path)
+        except EmbeddingPolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    graph_index_path = None
+    if request.graph_index:
+        # Prevent path traversal by only allowing specific known files from the merges dir
+        if "/" in request.graph_index or "\\" in request.graph_index:
+            raise HTTPException(status_code=400, detail="Invalid graph_index path")
+        graph_index_path = index_path.parent / request.graph_index
+
+    if request.context_mode == "window" and request.context_window_lines <= 0:
+        raise HTTPException(status_code=400, detail="--context-mode window requires --context-window-lines > 0")
+
+    if request.context_window_lines > 0 and request.context_mode != "window":
+        raise HTTPException(status_code=400, detail="--context-window-lines requires --context-mode window")
+
+    build_context = (
+        request.build_context_bundle
+        or bool(request.output_profile)
+        or request.context_mode != "exact"
+        or request.context_window_lines > 0
+    )
+
+    try:
+        result = execute_query(
+            index_path=index_path,
+            query_text=request.q,
+            k=request.k,
+            filters=applied_filters,
+            embedding_policy=policy_instance,
+            explain=request.explain,
+            overmatch_guard=request.overmatch_guard,
+            graph_index_path=graph_index_path,
+            graph_weights=request.graph_weights,
+            test_penalty=request.test_penalty,
+            trace=request.trace,
+            build_context=build_context,
+            context_mode=request.context_mode,
+            context_window_lines=request.context_window_lines
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return project_output(result, request.output_profile)
 
 @app.post("/api/jobs", response_model=Job, dependencies=[Depends(verify_token)])
 def create_job(request: JobRequest):

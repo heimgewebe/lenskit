@@ -648,7 +648,7 @@ def _expand_context(db_conn: sqlite3.Connection, chunk_id: str, file_path: str, 
 
 def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_contents: Dict[str, str], db_conn: sqlite3.Connection, context_mode: str = "exact", context_window_lines: int = 0) -> Dict[str, Any]:
     """
-    Builds a query_context_bundle.json compliant structure from a list of hits.
+    Builds a query_context_bundle_json compliant structure from a list of hits.
     Translates raw hits into a separated Evidence/Context model.
     """
     bundle = {

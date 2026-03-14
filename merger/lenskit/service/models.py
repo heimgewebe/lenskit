@@ -226,3 +226,25 @@ class FSRoot(BaseModel):
 
 class FSRootsResponse(BaseModel):
     roots: List[FSRoot]
+
+class QueryRequest(BaseModel):
+    index_id: str
+    q: str
+    k: int = 10
+    repo: Optional[str] = None
+    path: Optional[str] = None
+    ext: Optional[str] = None
+    layer: Optional[str] = None
+    artifact_type: Optional[str] = None
+    output_profile: Optional[Literal["human_review", "agent_minimal", "ui_navigation", "eval_debug"]] = None
+    context_mode: Literal["exact", "block", "window", "file"] = "exact"
+    context_window_lines: int = 0
+    build_context_bundle: bool = False
+    explain: bool = False
+    trace: bool = False
+    embedding_policy: Optional[str] = None
+    graph_index: Optional[str] = None
+    graph_weights: Optional[Dict[str, float]] = None
+    stale_policy: Literal["fail", "warn", "ignore"] = "fail"
+    test_penalty: float = 0.75
+    overmatch_guard: bool = False

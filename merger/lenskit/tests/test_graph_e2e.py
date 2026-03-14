@@ -51,6 +51,12 @@ def test_graph_e2e_compile_and_query(tmp_path):
     dump_path.write_text(json.dumps({"dummy": "data"}))
     index_db.build_index(dump_path, chunk_path, db_path)
 
+    import hashlib
+    with open(dump_path, "rb") as df:
+         db_hash = hashlib.sha256(df.read()).hexdigest()
+    graph_index["canonical_dump_index_sha256"] = db_hash
+    gi_path.write_text(json.dumps(graph_index))
+
     res = query_core.execute_query(db_path, query_text="func", k=10, explain=True, graph_index_path=gi_path)
 
     order = [r["path"] for r in res["results"]]
