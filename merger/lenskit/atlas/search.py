@@ -5,6 +5,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import fnmatch
 
+TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
+
 from merger.lenskit.atlas.registry import AtlasRegistry
 from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
 
@@ -71,6 +73,8 @@ class AtlasSearch:
         # If ext doesn't start with '.', add it to match how it's stored
         if ext and not ext.startswith('.'):
             ext = f".{ext}"
+
+        content_query_lower = content_query.lower() if content_query else None
 
         for snap in snapshots:
             inv_ref = snap.get("inventory_ref")
@@ -139,25 +143,42 @@ class AtlasSearch:
                                 if not root_val:
                                     continue
 
+                                # Guard 1: Skip if inventory explicitly says it's a symlink
+                                if item.get('is_symlink'):
+                                    continue
+
                                 # Safe path resolution to prevent traversal
                                 root_path = Path(root_val).resolve()
                                 rel_path = item.get('rel_path', '')
+
+                                # Guard 2: Form candidate path and check it before resolve
+                                candidate_path = root_path / rel_path
+
                                 try:
-                                    # strict=False because it might be a broken symlink or deleted file
-                                    full_path = (root_path / rel_path).resolve(strict=False)
-                                    # Must be strictly within root
-                                    full_path.relative_to(root_path)
-                                except ValueError:
-                                    # Escaped the root directory
+                                    if candidate_path.is_symlink():
+                                        continue
+                                except OSError:
+                                    # Defensively handle file system access errors
                                     continue
 
-                                if not full_path.exists() or full_path.is_symlink():
+                                try:
+                                    # strict=False because it might be a broken symlink or deleted file
+                                    full_path = candidate_path.resolve(strict=False)
+                                    # Must be strictly within root
+                                    full_path.relative_to(root_path)
+                                except (ValueError, OSError, RuntimeError):
+                                    # Escaped the root directory or file system error
+                                    continue
+
+                                # Guard 3: Ensure the resolved file actually exists and didn't become a symlink mid-flight
+                                try:
+                                    if not full_path.is_file() or full_path.is_symlink():
+                                        continue
+                                except OSError:
                                     continue
 
                                 # Apply limits
                                 size = item.get('size_bytes', 0)
-                                # Import the max size constant to ensure parity
-                                TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
                                 if size > TEXT_DETECTION_MAX_BYTES:
                                     continue
 
@@ -174,12 +195,11 @@ class AtlasSearch:
 
                                 # Read content and check for query iteratively (line-by-line)
                                 try:
-                                    q_lower = content_query.lower()
                                     matched = False
                                     snippet = ""
                                     with open(full_path, 'r', encoding='utf-8', errors='replace') as f_content:
                                         for line in f_content:
-                                            if q_lower in line.lower():
+                                            if content_query_lower in line.lower():
                                                 matched = True
                                                 snippet = line.strip()
                                                 if len(snippet) > 200:

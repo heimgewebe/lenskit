@@ -892,7 +892,7 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 - [x] CLI: `atlas search`
 - [x] Preview-/Snippet-Format definieren (erste Match-Zeile, getrimmt auf max. 200 Zeichen)
 
-**Stop-Kriterium**: Atlas kann Dateibestände und Inhalte über Registry + Index reproduzierbar durchsuchen.
+**Stop-Kriterium**: Dateibestände sind reproduzierbar über Registry + Index durchsuchbar. Inhaltssuche erfolgt best-effort über das Live-Dateisystem innerhalb der durch Snapshot/Root vorgefilterten Kandidatenmenge (keine strenge Snapshot-Reproduzierbarkeit).
 
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
