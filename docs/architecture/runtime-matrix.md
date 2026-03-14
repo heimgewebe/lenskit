@@ -11,7 +11,7 @@ Diese Matrix dokumentiert den tatsächlichen, aktuellen Implementierungsstand im
 | **`retrieval.eval_core` (Eval)** | `index.sqlite`, `graph_index.json`, `eval_queries.md` | `retrieval_eval.json` (Metrik Report) | Nein | Output Validierung (`retrieval-eval.v1.schema.json`) | Graph Missing (Baseline wird evaluiert, Graph Skip). | Explizit. Deltas werden in Metriken gezeigt (`baseline_mrr` vs `graph_mrr`). |
 | **`core.range_resolver`** | `.index.sqlite` (oder File System), `range_ref` | Snippets (Resolved Code) | Indirekt (Nutzt `.index.sqlite`) | Prüft `range-ref.v1.schema.json` Attribute | Source-Backed-Fallback (`derived_range_ref`) wenn Bundle-Backed fehlschlägt. | Explizit (Provenance Type wechselt). |
 | **`service.app` (API Backend)** | `index.sqlite` (via Runner Jobs), UI Files | HTTP JSON Responses, static UI | Ja (für Job Management) | API Contracts (Pydantic Models) | Job Cancel/Fail Status. HTTP 404, 500. | Explizit. API gibt `JobResponse` mit Log-Referenz zurück. |
-| **`cli.cmd_query` (CLI)** | `index.sqlite`, Query Args | stdout/JSON, Context Bundle (`query_trace`) | Nein | Wandelt Result in CLI Formate um. | Output Profile Fallbacks (z.B. Context Window ignorieren wenn Mode nicht `window`). | Explizit. |
+| **`cli.cmd_query` (CLI)** | `index.sqlite`, Query Args | stdout/JSON, optionale Projektionen (`query_trace.json`, `query_context_bundle.json`) | Nein | Wandelt Result in CLI Formate um. | Output Profile Fallbacks (z.B. Context Window ignorieren wenn Mode nicht `window`). | Explizit. |
 
 ## Bemerkungen zur Runtime
 

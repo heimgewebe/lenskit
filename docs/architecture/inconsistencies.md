@@ -20,7 +20,7 @@ Diese Liste dokumentiert systematisch die Lücken zwischen der visionären Ziela
     *   Die Provenance (explicit `range_ref` vs derived `derived_range_ref`) bleibt stabil.
     *   Output-Profile (`human_review`, `agent_minimal`, `ui_navigation`) filtern interne Status-Variablen heraus.
 
-## 2. Was ist in der Blaupause abgehakt, aber "nur" strukturell oder unvollständig belegt?
+## 2. Was war in der Blaupause abgehakt, aber "nur" strukturell oder unvollständig belegt?
 *(Hier drohte Architektur-Drift durch vorzeitige "Fertig"-Meldungen. Diese Punkte wurden in der Blaupause wieder de-markiert)*
 
 *   **API/UI-ready Struktur & WebUI (Phase 4):**
