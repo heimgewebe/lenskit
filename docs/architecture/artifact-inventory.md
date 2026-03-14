@@ -2,13 +2,13 @@
 
 Dieses Inventar dokumentiert die primären und abgeleiteten Artefakte von Lenskit, wie sie aktuell in `merger/lenskit/` implementiert und durch Verträge (Contracts) abgesichert sind.
 
-| Artefaktname / Dateiname | Rolle (Konzept) | Erzeuger (Producer) | Verbraucher (Consumer) | Verbundenes Schema | Manifest Visibility | Runtime Usage |
+| Artefaktname / Dateiname | Artefaktrolle / Dateiform | Erzeuger (Producer) | Verbraucher (Consumer) | Verbundenes Schema | Manifest Visibility | Runtime Usage |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `*.canonical.md` | `canonical_md` | `core.merge` | Mensch, LLMs (direkt), Bundle Manifest | - | Ja | Indirekt (als Bundle-Fallback) |
-| `chunk_index.jsonl` | `chunk_index_jsonl` | `core.chunker` | `retrieval.index_db` | - | Ja | Index-Aufbau |
-| `index.sqlite` | `sqlite_index` | `retrieval.index_db` | `retrieval.query_core`, `eval_core` | - | Ja (als `.index.sqlite`) | FTS5 Ranking, Chunk Retrieval |
-| `dump_index.json` | `dump_index_json` | `core.merge` | `retrieval.index_db` | - | Ja | Initialer Index-Bau |
-| `index_sidecar.json` | `index_sidecar_json` | `core.merge` | Agents, WebUI, CLI, Lenskit Service | `bundle-manifest.v1.schema.json` | Meta | Verknüpfung der Artefakte |
+| `*.chunk_index.jsonl` | `chunk_index_jsonl` | `core.chunker` | `retrieval.index_db` | - | Ja | Index-Aufbau |
+| `*.index.sqlite` | `sqlite_index` | `retrieval.index_db` | `retrieval.query_core`, `eval_core` | - | Ja (als `.index.sqlite`) | FTS5 Ranking, Chunk Retrieval |
+| `*.dump_index.json` | `dump_index_json` | `core.merge` | `retrieval.index_db` | - | Ja | Initialer Index-Bau |
+| `*.index_sidecar.json` | `index_sidecar_json` | `core.merge` | Agents, WebUI, CLI, Lenskit Service | `bundle-manifest.v1.schema.json` | Meta | Verknüpfung der Artefakte |
 | `graph_index.json` | `graph_index_json` | `architecture.graph_index` | `retrieval.query_core`, `eval_core` | `architecture.graph_index.v1.schema.json` | Ja | Graph Penalty/Bonus, Semantic Eval |
 | `architecture_graph.json`| `architecture_summary` | `architecture.import_graph` | `architecture.graph_index` | `architecture.graph.v1.schema.json` | Ja | Erzeugung des Index |
 | `query_context_bundle.json`| - (Runtime Payload) | `retrieval.query_core` | CLI, WebUI, Agents | `query-context-bundle.v1.schema.json` | Nein (Runtime Output) | Context Expansion, UI Display |

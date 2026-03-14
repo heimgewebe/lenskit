@@ -588,7 +588,7 @@ class AtlasScanner:
 
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
-                            if is_txt is not None:
+                            if self.enable_content_stats and is_txt is not None:
                                 entry["is_text"] = is_txt
                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
