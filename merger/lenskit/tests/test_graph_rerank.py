@@ -74,6 +74,7 @@ def test_graph_rerank(mini_index_with_graph):
     assert "entrypoint_boost" not in res_graph["results"][1]["why_list"]
 
     assert res_graph["results"][3]["layer"] == "test"
+    # why_list is only appended to the result object if it is non-empty. For test layer entries without other bonuses, it can be absent.
     assert "not_test" not in res_graph["results"][3].get("why_list", [])
 
 def test_graph_fallback(mini_index_with_graph):

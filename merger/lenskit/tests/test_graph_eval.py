@@ -99,10 +99,11 @@ def test_missing_graph_index_raises(eval_env, capsys):
     )
 
     ret = cmd_eval.run_eval(args)
-    # The eval script might return 0 if it just logged the error within the evaluation loop.
-    assert ret in (0, 1)
+    # Eval core logs the explicit exception as a Semantic Run Error but continues processing returning a valid metrics JSON.
+    assert ret == 0
     captured = capsys.readouterr()
-    assert "Explicitly provided graph index file does not exist" in captured.out
+    output = json.loads(captured.out)
+    assert "Explicitly provided graph index file does not exist" in output["details"][0]["error"]
 
 def test_eval_graph_delta_reporting(eval_env, capsys):
     args = argparse.Namespace(
