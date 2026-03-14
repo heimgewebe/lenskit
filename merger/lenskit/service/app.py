@@ -462,7 +462,7 @@ def api_query(request: QueryRequest):
     if art.merges_dir:
         p = Path(art.merges_dir)
         merges_dir = (Path(art.hub) / p) if not p.is_absolute() else p
-    elif getattr(art.params, "merges_dir", None):
+    elif getattr(art.params, "merges_dir", None) and art.params.merges_dir:
         p = Path(art.params.merges_dir)
         merges_dir = (Path(art.hub) / p) if not p.is_absolute() else p
     else:
