@@ -1329,7 +1329,7 @@ Umsetzung: Nicht vier Engines, sondern ein gemeinsames internes Modell + Rendere
 ### 2.9 Arbeitspaket G – Service/API-Integration vorbereiten
 
 Ziel:
-- [ ] Die Runtime-Artefakte müssen sauber in HTTP/API überführbar sein.
+- [x] Die Runtime-Artefakte müssen sauber in HTTP/API überführbar sein.
 
 API-Ziele:
 * query submit

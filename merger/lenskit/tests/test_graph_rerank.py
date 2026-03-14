@@ -25,12 +25,25 @@ def mini_index_with_graph(tmp_path):
 
     index_db.build_index(dump_path, chunk_path, db_path)
 
+    import hashlib
+    with open(dump_path, "rb") as df:
+        db_hash = hashlib.sha256(df.read()).hexdigest()
+
     graph_index = {
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": "test_run",
+        "canonical_dump_index_sha256": db_hash,
         "distances": {
             "file:src/entry.py": 0,
             "file:src/util.py": 1,
             "file:src/deep.py": 2,
             "file:tests/test_entry.py": -1
+        },
+        "metrics": {
+            "entrypoint_count": 1,
+            "nodes_reachable": 3,
+            "unreachable_nodes": 1
         }
     }
     graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
@@ -61,7 +74,8 @@ def test_graph_rerank(mini_index_with_graph):
     assert "entrypoint_boost" not in res_graph["results"][1]["why_list"]
 
     assert res_graph["results"][3]["layer"] == "test"
-    assert "not_test" not in res_graph["results"][3]["why_list"]
+    # why_list is only appended to the result object if it is non-empty. For test layer entries without other bonuses, it can be absent.
+    assert "not_test" not in res_graph["results"][3].get("why_list", [])
 
 def test_graph_fallback(mini_index_with_graph):
     db_path, graph_index_path = mini_index_with_graph

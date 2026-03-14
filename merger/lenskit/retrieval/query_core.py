@@ -298,6 +298,8 @@ def execute_query(
         expected_sha256 = _read_expected_graph_sha256(conn)
 
         if graph_index_path:
+            if not graph_index_path.exists():
+                raise RuntimeError(f"Explicitly provided graph index file does not exist: {graph_index_path}")
             res = load_graph_index(graph_index_path, expected_sha256=expected_sha256)
             graph_status = res["status"]
             if graph_status in ("ok", "stale_or_mismatched"):
@@ -648,7 +650,7 @@ def _expand_context(db_conn: sqlite3.Connection, chunk_id: str, file_path: str, 
 
 def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_contents: Dict[str, str], db_conn: sqlite3.Connection, context_mode: str = "exact", context_window_lines: int = 0) -> Dict[str, Any]:
     """
-    Builds a query_context_bundle.json compliant structure from a list of hits.
+    Builds a query_context_bundle_json compliant structure from a list of hits.
     Translates raw hits into a separated Evidence/Context model.
     """
     bundle = {
