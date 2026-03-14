@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional, Pattern, Union, Tuple
 from datetime import datetime, timezone
 import fnmatch
 import re
+import mimetypes
 
 # Attempt to import is_probably_text from core to avoid duplication
 try:
@@ -34,6 +35,53 @@ except ImportError:
                 return b"\x00" not in chunk
         except OSError:
             return False
+
+def detect_mime_type(path: Path) -> Optional[str]:
+    """
+    Robust MIME type detection using mimetypes and magic bytes fallback.
+    """
+    mime_type, _ = mimetypes.guess_type(str(path))
+
+    # If mimetypes can't guess or returns a generic type, check magic bytes
+    if not mime_type or mime_type == 'application/octet-stream':
+        try:
+            with path.open('rb') as f:
+                head = f.read(512)
+
+            if not head:
+                return "inode/x-empty"
+
+            # Basic magic byte signatures
+            if head.startswith(b'%PDF-'):
+                return 'application/pdf'
+            elif head.startswith(b'\x89PNG\r\n\x1a\n'):
+                return 'image/png'
+            elif head.startswith(b'\xff\xd8\xff'):
+                return 'image/jpeg'
+            elif head.startswith(b'GIF87a') or head.startswith(b'GIF89a'):
+                return 'image/gif'
+            elif head.startswith(b'PK\x03\x04'):
+                return 'application/zip'
+            elif head.startswith(b'\x1f\x8b\x08'):
+                return 'application/gzip'
+            elif head.startswith(b'Rar!\x1a\x07\x00') or head.startswith(b'Rar!\x1a\x07\x01\x00'):
+                return 'application/x-rar-compressed'
+            elif head.startswith(b'\x00\x00\x00\x18ftyp') or head.startswith(b'\x00\x00\x00 ftyp'):
+                return 'video/mp4'
+            elif b'ftypmp42' in head[:16] or b'ftypisom' in head[:16]:
+                return 'video/mp4'
+            elif head.startswith(b'\x1aE\xdf\xa3'):
+                return 'video/webm'
+
+            # If we still don't know, use the null byte heuristic for text vs binary
+            if b'\x00' in head:
+                return 'application/octet-stream'
+            else:
+                return 'text/plain'
+        except OSError:
+            return None
+
+    return mime_type
 
 logger = logging.getLogger(__name__)
 
@@ -504,6 +552,7 @@ class AtlasScanner:
                             dir_aggregates[rel_path_str]["max_descendant_mtime"] = mtime_iso
 
                         is_txt = None
+                        mime_type = None
 
                         # Incremental reuse heuristic
                         prev_entry = self.incremental_inventory.get(f_rel)
@@ -536,15 +585,21 @@ class AtlasScanner:
 
                             if is_reused:
                                 self.stats["incremental"]["reused_files_count"] += 1
-                                if "is_text" in prev_entry and not self.config_changed:
-                                    is_txt = prev_entry["is_text"]
-                                    self.stats["incremental"]["skipped_analysis_count"] += 1
+                                if not self.config_changed:
+                                    if "is_text" in prev_entry:
+                                        is_txt = prev_entry["is_text"]
+                                        self.stats["incremental"]["skipped_analysis_count"] += 1
+                                    if "mime_type" in prev_entry:
+                                        mime_type = prev_entry["mime_type"]
                                 if "quick_hash" in prev_entry and not file_hash:
                                     file_hash = prev_entry["quick_hash"]
 
                         if self.enable_content_stats:
                             if not is_reused or is_txt is None or self.config_changed:
                                 is_txt = is_probably_text(f_path, size)
+
+                            if not is_reused or mime_type is None or self.config_changed:
+                                mime_type = detect_mime_type(f_path)
 
                             if is_txt:
                                 text_files_count += 1
@@ -588,8 +643,11 @@ class AtlasScanner:
 
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
-                            if self.enable_content_stats and is_txt is not None:
-                                entry["is_text"] = is_txt
+                            if self.enable_content_stats:
+                                if is_txt is not None:
+                                    entry["is_text"] = is_txt
+                                if mime_type is not None:
+                                    entry["mime_type"] = mime_type
                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                     except OSError:
