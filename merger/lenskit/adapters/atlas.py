@@ -8,12 +8,6 @@ from typing import List, Dict, Any, Optional, Pattern, Union, Tuple
 from datetime import datetime, timezone
 import fnmatch
 import re
-import mimetypes
-
-# Initialize mimetypes
-mimetypes.init()
-
-TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
 
 # Attempt to import is_probably_text from core to avoid duplication
 try:
@@ -21,6 +15,7 @@ try:
 except ImportError:
     # Fallback implementation if core is not accessible
     # Configurable text detection limit (aligned with core's 20MB)
+    TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
 
     def is_probably_text(path: Path, size: int) -> bool:
         TEXT_EXTENSIONS = {
@@ -509,9 +504,6 @@ class AtlasScanner:
                             dir_aggregates[rel_path_str]["max_descendant_mtime"] = mtime_iso
 
                         is_txt = None
-                        mime_type = mimetypes.guess_type(f_path.name)[0]
-                        file_encoding = None
-                        line_count = None
 
                         # Incremental reuse heuristic
                         prev_entry = self.incremental_inventory.get(f_rel)
@@ -556,26 +548,6 @@ class AtlasScanner:
 
                             if is_txt:
                                 text_files_count += 1
-                                # If we need to compute encoding/line_count for non-reused
-                                if not is_reused or self.config_changed or "line_count" not in prev_entry:
-                                    # Safe text parsing
-                                    if size <= TEXT_DETECTION_MAX_BYTES:
-                                        try:
-                                            with f_path.open("r", encoding="utf-8") as tf:
-                                                lc = 0
-                                                for _ in tf:
-                                                    lc += 1
-                                                line_count = lc
-                                                file_encoding = "utf-8"
-                                        except UnicodeDecodeError:
-                                            pass
-                                        except Exception:
-                                            pass
-                                else:
-                                    # Reused text stats
-                                    line_count = prev_entry.get("line_count")
-                                    file_encoding = prev_entry.get("encoding")
-
                             else:
                                 binary_files_count += 1
 
@@ -595,9 +567,6 @@ class AtlasScanner:
                                 "inode": inode,
                                 "device": device
                             }
-
-                            if mime_type:
-                                entry["mime_type"] = mime_type
 
                             # Conditionally generate quick_hash for small files if not reused
                             if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
@@ -619,14 +588,8 @@ class AtlasScanner:
 
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
-
                             if self.enable_content_stats and is_txt is not None:
                                 entry["is_text"] = is_txt
-                                if file_encoding:
-                                    entry["encoding"] = file_encoding
-                                if line_count is not None:
-                                    entry["line_count"] = line_count
-
                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                     except OSError:
