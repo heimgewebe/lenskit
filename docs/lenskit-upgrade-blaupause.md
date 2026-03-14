@@ -702,11 +702,11 @@ Output:
 
 ### 6.6 Gate für Phase 0
 
-- [x] Phase 0 ist fertig, wenn:
+- [ ] Phase 0 ist formal dokumentiert (strukturelles Audit liegt vor), aber inhaltlich erst dann vollständig abgeschlossen, wenn:
 	* alle Kernartefakte inventarisiert sind
 	* alle Rollen/Schemas dokumentiert sind
 	* alle Runtime-Pfade erfasst sind
-	* mindestens 10 zentrale Invarianten benannt sind
+	* mindestens 10 zentrale Invarianten benannt und End-to-End durch Tests bewiesen sind
 
 Zentrale Invarianten (Beispiele):
 1. Ein Artefakt ohne Manifestrolle ist Drift.
@@ -1178,15 +1178,15 @@ Neue oder geschärfte Tests:
 Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert sich -> Explain zeigt exakt denselben Grund.
 
 ### 1.11 Deliverables Phase 3
-- [x] 1. Graph-Runtime-Contract-Doku
-- [x] 2. zentrales Graph-Loader-Modul
-- [x] 3. definierte Graph-Score-Formel
-- [x] 4. Explain/Runtime-Kopplung
-- [x] 5. graph-aware Eval mit Deltas
-- [x] 6. Graph-Staleness-Marker
+- [x] 1. Graph-Runtime-Contract-Doku (strukturell dokumentiert)
+- [x] 2. zentrales Graph-Loader-Modul (strukturell implementiert)
+- [x] 3. definierte Graph-Score-Formel (mathematisch gecappt, implementiert)
+- [x] 4. Explain/Runtime-Kopplung (implementiert)
+- [x] 5. graph-aware Eval mit Deltas (implementiert)
+- [ ] 6. Graph-Staleness-Marker (in Ladefunktion implementiert, aber End-to-End-Staleness-Recovery noch nicht vollends robust)
 
 ### 1.12 Gate für Phase 3
-- [x] Phase 3 ist fertig, wenn:
+- [ ] Phase 3 ist strukturell fertig, wartet aber noch auf End-to-End Testabsicherung der Graph-Staleness-Recovery, wenn:
 * Graph semantisch dokumentiert ist
 * Query/Eval denselben Loader und dieselbe Semantik nutzen
 * Explain die tatsächliche Graph-Wirkung abbildet
@@ -1777,8 +1777,8 @@ Gate:
 ## Empfohlene PR-Reihenfolge (Gesamt)
 
 - [x] PR 1: Contract-/Provenance-Härtung
-- [ ] PR 2: Query Trace + Context Bundle
-- [x] PR 3: Graph Runtime Konsolidierung
+- [ ] PR 2: Query Trace + Context Bundle (teilweise implementiert)
+- [ ] PR 3: Graph Runtime Konsolidierung (strukturell implementiert, benötigt Finale Härtung)
 - [ ] PR 4: Federation Foundation
 - [ ] PR 5: Federated Query + Ranking
 - [ ] PR 6: Agent Control Surface
@@ -1841,7 +1841,7 @@ Schutzmaßnahmen:
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
 - [ ] M2: Query Trace + Context Bundle vorhanden
-- [x] M3: Graph-Runtime konsistent und diagnostizierbar
+- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (strukturell vorhanden, wartet auf finale End-to-End-Abnahme)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar

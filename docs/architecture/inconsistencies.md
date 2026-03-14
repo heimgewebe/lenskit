@@ -4,6 +4,13 @@ Stand: Phase 0 Re-Audit (Implementierungsstand von Phase 1 bis 4)
 
 Diese Liste dokumentiert systematisch die Lücken zwischen der visionären Zielarchitektur (Blaupause), der aktuellen Code-Basis (`merger/lenskit/`) und der tatsächlichen Testabdeckung. Ziel ist es, den Ist-Zustand als Vermessungsprotokoll belastbar darzustellen.
 
+## 0. Methodik des Re-Audits
+
+Dieses Dokument und die begleitenden Matrizen (`runtime-matrix.md`, `contracts-matrix.md`, `test-matrix.md`) sind das Ergebnis eines strukturellen Code-Audits.
+*   **Was wurde geprüft:** Die Datei- und Funktionsstruktur unter `merger/lenskit/core/`, `retrieval/` und `architecture/` sowie die JSON-Schemas unter `merger/lenskit/contracts/`.
+*   **Was gilt als "abgedeckt" / "implementiert":** Ein Feature gilt als strukturell implementiert, wenn es im Code existiert (z. B. `load_graph_index`), in Verträgen repräsentiert ist (`ArtifactRole`) und durch einen zielgerichteten Unit-Test (z. B. `test_graph_index.py`, `test_context_bundle.py`) prinzipiell verifiziert wird.
+*   **Was dieses Audit NICHT behauptet:** Eine "strukturelle Abdeckung" ist kein Nachweis für fehlerfreie, repo-übergreifende End-to-End-Robustheit (z. B. in extremen Edge-Cases oder tiefen Agenten-Feedbackschleifen). Wo dieser Vorbehalt existiert, werden Features in den Blaupausen wieder de-markiert oder qualifiziert.
+
 ## 1. Was ist implementiert, dokumentiert und methodisch belegt?
 *(Diese Aspekte sind durch Code, Contracts und spezifische Test-Invarianten nachgewiesen)*
 
@@ -36,5 +43,14 @@ Diese Liste dokumentiert systematisch die Lücken zwischen der visionären Ziela
 *   **Phase 5 (Cross-Repo-Knowledge-Layer):** Weder Modelle (`federation_index.json`, `cross_repo_links.json`, `federation_conflicts.json`) noch Code für föderierte Queries (`federated_query`) existieren. Lenskit ist Stand jetzt eine strikt lokalisierte (Single-Repo/Single-Bundle) Query-Runtime.
 *   **Phase 6 (Agent Control Surface - Session Trace):** Ein explizites `agent_query_session.json` (Session Trace) Artefakt wird noch nicht geschrieben, obwohl ein HTTP API-Endpoint existiert.
 
-## 4. Architektonische Zusammenfassung
+## 4. Methodischer Rückbau (Atlas-Überreichweite)
+*(Erklärung zur bewussten Re-Audit-Korrektur in Phase 5 Inhaltsanreicherung)*
+
+In vorherigen Implementierungsschritten wurden Features wie MIME-Typ-Erkennung, Encoding und line_count als vollständig abgeschlossen gemeldet. Dieses Audit hat gezeigt, dass die Implementierung den Architekturanspruch nicht erfüllte:
+*   MIME-Erkennung basierte ausschließlich auf fehleranfälliger Extension-Schätzung.
+*   Encoding verließ sich lediglich auf einen simplen UTF-8 Success-Check.
+*   Dazugehörige Tests (`test_atlas_content_fields.py`) prüften lediglich den `content`-Modus, nicht die generelle Robustheit bei großen Datenmengen.
+Die Blaupause (sowie der Code) wurde bewusst zurückgebaut und de-markiert, um diese Funktionen später methodisch sauber und testgetrieben neu aufzusetzen.
+
+## 5. Architektonische Zusammenfassung
 Die Grundlagen der Phase 1 bis 3 und wesentliche Strukturbausteine der Phase 4 sind für isolierte, lokale Bundles nachvollziehbar implementiert und reduzieren den Drift vor der Cross-Repo-Komplexität erheblich. Für die verbleibenden Gates der Phase 4 (insbesondere API/UI-Struktur und tatsächliche Agenten-Sicherheit) sind jedoch stärkere Integrationstests erforderlich. Die Föderation (Phase 5) bleibt komplett offen und stellt eine eigenständige neue Komplexitätsstufe dar.

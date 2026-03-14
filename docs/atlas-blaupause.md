@@ -896,15 +896,15 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
-- [ ] MIME-Typ-Erkennung verbessern
-- [ ] Encoding-Erkennung einführen
-- [ ] line_count erfassen
+- [ ] MIME-Typ-Erkennung (bisher nur heuristische Extension-Schätzung) belastbar ausbauen
+- [ ] Encoding-Erkennung (nicht nur pauschaler UTF-8 Fallback) einführen
+- [ ] line_count jenseits des content-Modus robust erfassen
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
 - [ ] Binary-/Huge-file-Strategie klären
-- [ ] Tests für modeabhängige Inhaltsfelder ergänzen
+- [ ] Tests für modeabhängige Inhaltsfelder ergänzen (vorheriger `test_atlas_content_fields.py` war methodisch zu dünn)
 
 **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
 
