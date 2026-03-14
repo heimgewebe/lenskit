@@ -113,7 +113,6 @@ def main(args: Optional[List[str]] = None) -> int:
 
     atlas_search_parser = atlas_subparsers.add_parser("search", help="Search the atlas registry")
     atlas_search_parser.add_argument("--query", help="General search query")
-    atlas_search_parser.add_argument("--content-query", help="Search within file contents")
     atlas_search_parser.add_argument("--machine-id", help="Filter by machine ID")
     atlas_search_parser.add_argument("--root-id", help="Filter by root ID")
     atlas_search_parser.add_argument("--snapshot-id", help="Filter by snapshot ID")

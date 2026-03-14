@@ -597,12 +597,12 @@ Ziel:
 Vor jedem weiteren Ausbau muss Lenskit als System vermessen werden. Nicht raten, nicht romantisieren.
 
 Deliverables:
-- [ ] Lenskit-Systemkarte
-- [ ] Artefakt-Inventar
-- [ ] Contract-Matrix
-- [ ] Runtime-Matrix
-- [ ] Test-Matrix
-- [ ] Offene Inkonsistenzen-Liste
+- [x] Lenskit-Systemkarte
+- [x] Artefakt-Inventar
+- [x] Contract-Matrix
+- [x] Runtime-Matrix
+- [x] Test-Matrix
+- [x] Offene Inkonsistenzen-Liste
 
 ### 6.1 Arbeitspaket: Systemkarte erstellen
 
@@ -702,7 +702,7 @@ Output:
 
 ### 6.6 Gate für Phase 0
 
-- [ ] Phase 0 ist fertig, wenn:
+- [x] Phase 0 ist fertig, wenn:
 	* alle Kernartefakte inventarisiert sind
 	* alle Rollen/Schemas dokumentiert sind
 	* alle Runtime-Pfade erfasst sind
@@ -1096,7 +1096,7 @@ Problem:
 „Graph beeinflusst Ranking“ ist noch zu grob. Es braucht eine definierte Formel.
 
 Ziel:
-- [ ] Graph-Signal als klarer Score-Term.
+- [x] Graph-Signal als klarer Score-Term.
 
 Beispielhafte Form:
 `graph_bonus = f(distance, weights, caps)`
@@ -1115,7 +1115,7 @@ Anfangs konservativ: Graph nur moderat tie-breakend / leicht verstärkend, nie d
 ### 1.7 Arbeitspaket E – Explain mit Graph koppeln
 
 Ziel:
-- [ ] Wenn der Graph etwas beeinflusst, muss Explain genau das zeigen.
+- [x] Wenn der Graph etwas beeinflusst, muss Explain genau das zeigen.
 
 Explain soll enthalten:
 * graph_used: true/false
@@ -1133,7 +1133,7 @@ Testfragen:
 ### 1.8 Arbeitspaket F – Graph-Aware-Eval ausbauen
 
 Ziel:
-- [ ] Eval soll nicht nur „mit Graph läuft“, sondern explizit zeigen, ob und wann der Graph etwas bringt.
+- [x] Eval soll nicht nur „mit Graph läuft“, sondern explizit zeigen, ob und wann der Graph etwas bringt.
 
 Neue Eval-Sichten:
 * baseline

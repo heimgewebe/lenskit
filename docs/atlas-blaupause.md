@@ -887,24 +887,24 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 - [x] Name-Search implementieren
 - [x] Extension-/MIME-Search implementieren
 - [x] Größen-/Datumsfilter implementieren
-- [x] Content-Search implementieren
+- [ ] Content-Search implementieren
 - [x] Scope-Filter (machine, root, snapshot) implementieren
 - [x] CLI: `atlas search`
-- [x] Preview-/Snippet-Format definieren
+- [ ] Preview-/Snippet-Format definieren
 
 **Stop-Kriterium**: Atlas kann Dateibestände und Inhalte über Registry + Index reproduzierbar durchsuchen.
 
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
-- [x] MIME-Typ-Schätzung via Extension ergänzen
-- [x] UTF-8-basierte Encoding-Bestimmung ergänzen
-- [x] line_count erfassen
+- [ ] MIME-Typ-Erkennung verbessern
+- [ ] Encoding-Erkennung einführen
+- [ ] line_count erfassen
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
 - [ ] Binary-/Huge-file-Strategie klären
-- [x] Tests für modeabhängige Inhaltsfelder ergänzen
+- [ ] Tests für modeabhängige Inhaltsfelder ergänzen
 
 **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
 

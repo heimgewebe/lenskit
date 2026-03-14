@@ -19,7 +19,6 @@ class AtlasSearch:
 
     def search(self,
                query: Optional[str] = None,
-               content_query: Optional[str] = None,
                machine_id: Optional[str] = None,
                root_id: Optional[str] = None,
                snapshot_id: Optional[str] = None,
@@ -39,12 +38,6 @@ class AtlasSearch:
                     root_id=root_id,
                     snapshot_id=snapshot_id
                 )
-
-                # Pre-fetch root values for content-search
-                cached_roots = {}
-                if content_query:
-                    for root in registry.list_roots():
-                        cached_roots[root['root_id']] = root['root_value']
         except Exception as e:
             print(f"[atlas-search] warning: failed to connect to registry {self.registry_db_path}: {e}", file=sys.stderr)
             return []
@@ -135,44 +128,6 @@ class AtlasSearch:
                                 path_lower = item.get('rel_path', '').lower()
                                 if q_lower not in name_lower and q_lower not in path_lower:
                                     continue
-
-                            if content_query:
-                                size = item.get('size_bytes', 0)
-                                if size > 20 * 1024 * 1024:
-                                    continue  # Skip files larger than 20MB for content search
-
-                                is_text = item.get('is_text')
-                                if is_text is None:
-                                    # Fallback guess if is_text is not explicitly present
-                                    ext = item.get('ext', '').lower()
-                                    if ext in {'.md', '.txt', '.py', '.js', '.json', '.yml', '.yaml', '.html', '.css', '.csv', '.sh', '.xml', '.toml', '.ini'}:
-                                        is_text = True
-                                    else:
-                                        is_text = False
-
-                                if not is_text:
-                                    continue
-
-                                root_val = cached_roots.get(snap['root_id'])
-                                if not root_val:
-                                    continue
-
-                                file_path = Path(root_val) / item.get('rel_path', '')
-                                try:
-                                    with open(file_path, 'r', encoding='utf-8', errors='replace') as text_file:
-                                        content = text_file.read(size)
-                                except OSError:
-                                    continue
-
-                                idx = content.lower().find(content_query.lower())
-                                if idx == -1:
-                                    continue
-
-                                # Extract snippet
-                                start_idx = max(0, idx - 40)
-                                end_idx = min(len(content), idx + len(content_query) + 40)
-                                snippet_raw = content[start_idx:end_idx].replace('\n', ' ')
-                                item['snippet'] = f"...{snippet_raw}..."
 
                             # Enrich result with snapshot context
                             result_item = dict(item)
