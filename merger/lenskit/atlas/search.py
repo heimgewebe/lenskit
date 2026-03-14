@@ -5,6 +5,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import fnmatch
 
+TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
+
 from merger.lenskit.atlas.registry import AtlasRegistry
 from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
 
@@ -28,7 +30,8 @@ class AtlasSearch:
                min_size: Optional[int] = None,
                max_size: Optional[int] = None,
                date_after: Optional[str] = None,
-               date_before: Optional[str] = None) -> List[Dict[str, Any]]:
+               date_before: Optional[str] = None,
+               content_query: Optional[str] = None) -> List[Dict[str, Any]]:
 
         # Open registry to find the appropriate snapshots
         try:
@@ -38,6 +41,7 @@ class AtlasSearch:
                     root_id=root_id,
                     snapshot_id=snapshot_id
                 )
+                roots_cache = {r['root_id']: r for r in registry.list_roots()}
         except Exception as e:
             print(f"[atlas-search] warning: failed to connect to registry {self.registry_db_path}: {e}", file=sys.stderr)
             return []
@@ -69,6 +73,8 @@ class AtlasSearch:
         # If ext doesn't start with '.', add it to match how it's stored
         if ext and not ext.startswith('.'):
             ext = f".{ext}"
+
+        content_query_lower = content_query.lower() if content_query else None
 
         for snap in snapshots:
             inv_ref = snap.get("inventory_ref")
@@ -127,6 +133,85 @@ class AtlasSearch:
                                 name_lower = item.get('name', '').lower()
                                 path_lower = item.get('rel_path', '').lower()
                                 if q_lower not in name_lower and q_lower not in path_lower:
+                                    continue
+
+                            if content_query:
+                                root = roots_cache.get(snap['root_id'])
+                                if not root:
+                                    continue
+                                root_val = root.get('root_value')
+                                if not root_val:
+                                    continue
+
+                                # Guard 1: Skip if inventory explicitly says it's a symlink
+                                if item.get('is_symlink'):
+                                    continue
+
+                                # Safe path resolution to prevent traversal
+                                root_path = Path(root_val).resolve()
+                                rel_path = item.get('rel_path', '')
+
+                                # Guard 2: Form candidate path and check it before resolve
+                                candidate_path = root_path / rel_path
+
+                                try:
+                                    if candidate_path.is_symlink():
+                                        continue
+                                except OSError:
+                                    # Defensively handle file system access errors
+                                    continue
+
+                                try:
+                                    # strict=False because it might be a broken symlink or deleted file
+                                    full_path = candidate_path.resolve(strict=False)
+                                    # Must be strictly within root
+                                    full_path.relative_to(root_path)
+                                except (ValueError, OSError, RuntimeError):
+                                    # Escaped the root directory or file system error
+                                    continue
+
+                                # Guard 3: Ensure the resolved file actually exists and didn't become a symlink mid-flight
+                                try:
+                                    if not full_path.is_file() or full_path.is_symlink():
+                                        continue
+                                except OSError:
+                                    continue
+
+                                # Apply limits
+                                size = item.get('size_bytes', 0)
+                                if size > TEXT_DETECTION_MAX_BYTES:
+                                    continue
+
+                                # Verify text
+                                is_text_flag = item.get('is_text')
+                                if is_text_flag is False:
+                                    continue
+
+                                if is_text_flag is None:
+                                    # Heuristic
+                                    from merger.lenskit.adapters.atlas import is_probably_text
+                                    if not is_probably_text(full_path, size):
+                                        continue
+
+                                # Read content and check for query iteratively (line-by-line)
+                                try:
+                                    matched = False
+                                    snippet = ""
+                                    with open(full_path, 'r', encoding='utf-8', errors='replace') as f_content:
+                                        for line in f_content:
+                                            if content_query_lower in line.lower():
+                                                matched = True
+                                                snippet = line.strip()
+                                                if len(snippet) > 200:
+                                                    snippet = snippet[:197] + "..."
+                                                break
+                                    if not matched:
+                                        continue
+
+                                    if snippet:
+                                        item['content_snippet'] = snippet
+                                except Exception as e:
+                                    # Ignore files we cannot read for content search
                                     continue
 
                             # Enrich result with snapshot context

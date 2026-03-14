@@ -887,12 +887,12 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 - [x] Name-Search implementieren
 - [x] Extension-/MIME-Search implementieren
 - [x] Größen-/Datumsfilter implementieren
-- [ ] Content-Search implementieren
+- [x] Content-Search implementieren (Hinweis: Volltextsuche liest 'best-effort' vom Live-Filesystem, keine strenge Snapshot-Inhalts-Reproduzierbarkeit)
 - [x] Scope-Filter (machine, root, snapshot) implementieren
 - [x] CLI: `atlas search`
-- [ ] Preview-/Snippet-Format definieren
+- [x] Preview-/Snippet-Format definieren (erste Match-Zeile, getrimmt auf max. 200 Zeichen)
 
-**Stop-Kriterium**: Atlas kann Dateibestände und Inhalte über Registry + Index reproduzierbar durchsuchen.
+**Stop-Kriterium**: Dateibestände sind reproduzierbar über Registry + Index durchsuchbar. Inhaltssuche erfolgt best-effort über das Live-Dateisystem innerhalb der durch Snapshot/Root vorgefilterten Kandidatenmenge (keine strenge Snapshot-Reproduzierbarkeit).
 
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.

@@ -123,6 +123,7 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_search_parser.add_argument("--max-size", type=int, help="Filter by maximum size in bytes")
     atlas_search_parser.add_argument("--date-after", help="Filter by modified date after (ISO format)")
     atlas_search_parser.add_argument("--date-before", help="Filter by modified date before (ISO format)")
+    atlas_search_parser.add_argument("--content-query", help="Filter by file content (full text search within matched text files)")
 
     parsed_args = parser.parse_args(args)
 
