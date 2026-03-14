@@ -22,9 +22,13 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
             # Include download links or identifiers for ui
             pass # Structure already ui-ready based on chunk_id/file
 
-        # Preserve query_trace if it existed in the top-level result
+        # If trace is returned, we must not violate the bundle schema (which forbids additional properties).
+        # We return a wrapper.
         if "query_trace" in res:
-            bundle["query_trace"] = res["query_trace"]
+            return {
+                "context_bundle": bundle,
+                "query_trace": res["query_trace"]
+            }
 
         return bundle
 
