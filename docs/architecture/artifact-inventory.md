@@ -1,6 +1,6 @@
 # Lenskit Artefakt-Inventar
 
-Dieses Inventar dokumentiert die primären und abgeleiteten Artefakte von Lenskit, wie sie aktuell in `merger/lenskit/` implementiert und durch Verträge (Contracts) abgesichert sind.
+Dieses Inventar dokumentiert die primären und abgeleiteten Artefakte von Lenskit, wie sie aktuell in `merger/lenskit/` implementiert und durch Verträge (Contracts) abgesichert sind. Es ist Teil des Phase 0 Re-Audits (siehe auch [Inkonsistenzen-Liste](inconsistencies.md) und [Runtime-Matrix](runtime-matrix.md)).
 
 | Artefaktname / Dateiname | Rolle (Konzept) | Erzeuger (Producer) | Verbraucher (Consumer) | Verbundenes Schema | Manifest Visibility | Runtime Usage |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

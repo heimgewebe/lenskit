@@ -6,13 +6,13 @@ Diese Liste dokumentiert systematisch die Lücken zwischen der visionären Ziela
 
 ## 0. Methodik des Re-Audits
 
-Dieses Dokument und die begleitenden Matrizen (`runtime-matrix.md`, `contracts-matrix.md`, `test-matrix.md`) sind das Ergebnis eines strukturellen Code-Audits.
+Dieses Dokument und die begleitenden Vermessungsartefakte ([Runtime-Matrix](runtime-matrix.md), [Contracts-Matrix](../contracts/contracts-matrix.md), [Test-Matrix](../testing/test-matrix.md), sowie das [Artefakt-Inventar](artifact-inventory.md)) bilden gemeinsam das Phase 0 Re-Audit und sind das Ergebnis eines strukturellen Code-Audits.
 *   **Was wurde geprüft:** Die Datei- und Funktionsstruktur unter `merger/lenskit/core/`, `retrieval/` und `architecture/` sowie die JSON-Schemas unter `merger/lenskit/contracts/`.
 *   **Was gilt als "abgedeckt" / "implementiert":** Ein Feature gilt als strukturell implementiert, wenn es im Code existiert (z. B. `load_graph_index`), in Verträgen repräsentiert ist (`ArtifactRole`) und durch einen zielgerichteten Unit-Test (z. B. `test_graph_index.py`, `test_context_bundle.py`) prinzipiell verifiziert wird.
-*   **Was dieses Audit NICHT behauptet:** Eine "strukturelle Abdeckung" ist kein Nachweis für fehlerfreie, repo-übergreifende End-to-End-Robustheit (z. B. in extremen Edge-Cases oder tiefen Agenten-Feedbackschleifen). Wo dieser Vorbehalt existiert, werden Features in den Blaupausen wieder de-markiert oder qualifiziert.
+*   **Was dieses Audit NICHT behauptet:** Eine "strukturelle Abdeckung" ist kein Nachweis für fehlerfreie, repo-übergreifende End-to-End-Robustheit (z. B. in extremen Edge-Cases oder tiefen Agenten-Feedbackschleifen). Eine stille Interpolation fehlender Robustheit findet in diesem Protokoll ausdrücklich nicht statt. Wo dieser Vorbehalt existiert, werden Features in den Blaupausen wieder de-markiert oder sprachlich qualifiziert.
 
-## 1. Was ist implementiert, dokumentiert und methodisch belegt?
-*(Diese Aspekte sind durch Code, Contracts und spezifische Test-Invarianten nachgewiesen)*
+## 1. Was ist formal implementiert, dokumentiert und methodisch belegt?
+*(Diese Aspekte sind durch Code, Contracts und spezifische Test-Invarianten strukturell nachgewiesen)*
 
 *   **Artefakt-Zentrierung & Contracts (Phase 1):** Die Kernartefakte (`canonical_md`, `chunk_index.jsonl`, `index.sqlite`, `dump_index.json`, `index_sidecar.json`) werden konsistent und deterministisch erzeugt. Die Manifest-Rollen (`ArtifactRoles`) decken sich exakt mit dem `bundle-manifest.v1.schema.json`. Ein `Role-Completeness-Check` schützt vor Enum-Drift.
 *   **Query-Runtime & Explain (Phase 2):** Die `execute_query` Pipeline in `query_core.py` ist gestuft (Parse, Retrieve, Rerank, Provenance, Explain). Der Score (z.B. BM25) spiegelt sich in den Explain-Daten wider. Fehlerpfade verwenden Fallback-Marker statt stillem Abbruch.
@@ -50,7 +50,8 @@ In vorherigen Implementierungsschritten wurden Features wie MIME-Typ-Erkennung, 
 *   MIME-Erkennung basierte ausschließlich auf fehleranfälliger Extension-Schätzung.
 *   Encoding verließ sich lediglich auf einen simplen UTF-8 Success-Check.
 *   Dazugehörige Tests (`test_atlas_content_fields.py`) prüften lediglich den `content`-Modus, nicht die generelle Robustheit bei großen Datenmengen.
-Die Blaupause (sowie der Code) wurde bewusst zurückgebaut und de-markiert, um diese Funktionen später methodisch sauber und testgetrieben neu aufzusetzen.
+
+Dieser Fall ist ein exemplarisches Ergebnis der Audit-Methodik: Die Blaupause (sowie der Code) wurde bewusst zurückgebaut und de-markiert. Die Funktionen waren nicht "nie da", sie waren lediglich architektonisch noch nicht belastbar genug. Sie werden später methodisch sauber und testgetrieben neu aufgesetzt.
 
 ## 5. Architektonische Zusammenfassung
 Die Grundlagen der Phase 1 bis 3 und wesentliche Strukturbausteine der Phase 4 sind für isolierte, lokale Bundles nachvollziehbar implementiert und reduzieren den Drift vor der Cross-Repo-Komplexität erheblich. Für die verbleibenden Gates der Phase 4 (insbesondere API/UI-Struktur und tatsächliche Agenten-Sicherheit) sind jedoch stärkere Integrationstests erforderlich. Die Föderation (Phase 5) bleibt komplett offen und stellt eine eigenständige neue Komplexitätsstufe dar.
