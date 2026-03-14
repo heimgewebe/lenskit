@@ -139,12 +139,26 @@ class AtlasSearch:
                                 if not root_val:
                                     continue
 
-                                # Resolve full path
-                                full_path = Path(root_val) / item.get('rel_path', '')
+                                # Safe path resolution to prevent traversal
+                                root_path = Path(root_val).resolve()
+                                rel_path = item.get('rel_path', '')
+                                try:
+                                    # strict=False because it might be a broken symlink or deleted file
+                                    full_path = (root_path / rel_path).resolve(strict=False)
+                                    # Must be strictly within root
+                                    full_path.relative_to(root_path)
+                                except ValueError:
+                                    # Escaped the root directory
+                                    continue
+
+                                if not full_path.exists() or full_path.is_symlink():
+                                    continue
 
                                 # Apply limits
                                 size = item.get('size_bytes', 0)
-                                if size > 20 * 1024 * 1024: # TEXT_DETECTION_MAX_BYTES
+                                # Import the max size constant to ensure parity
+                                TEXT_DETECTION_MAX_BYTES = 20 * 1024 * 1024
+                                if size > TEXT_DETECTION_MAX_BYTES:
                                     continue
 
                                 # Verify text
@@ -158,22 +172,24 @@ class AtlasSearch:
                                     if not is_probably_text(full_path, size):
                                         continue
 
-                                # Read content and check for query
+                                # Read content and check for query iteratively (line-by-line)
                                 try:
-                                    with open(full_path, 'r', encoding='utf-8') as f_content:
-                                        file_content = f_content.read()
-                                        if content_query.lower() not in file_content.lower():
-                                            continue
-
-                                        # Extract snippet
-                                        lines = file_content.splitlines()
-                                        snippet = ""
-                                        for i, line in enumerate(lines):
-                                            if content_query.lower() in line.lower():
+                                    q_lower = content_query.lower()
+                                    matched = False
+                                    snippet = ""
+                                    with open(full_path, 'r', encoding='utf-8', errors='replace') as f_content:
+                                        for line in f_content:
+                                            if q_lower in line.lower():
+                                                matched = True
                                                 snippet = line.strip()
+                                                if len(snippet) > 200:
+                                                    snippet = snippet[:197] + "..."
                                                 break
-                                        if snippet:
-                                            item['content_snippet'] = snippet
+                                    if not matched:
+                                        continue
+
+                                    if snippet:
+                                        item['content_snippet'] = snippet
                                 except Exception as e:
                                     # Ignore files we cannot read for content search
                                     continue

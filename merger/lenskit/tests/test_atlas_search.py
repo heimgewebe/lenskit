@@ -124,6 +124,11 @@ def test_atlas_content_search(tmp_path):
 
     # Large file should be skipped
     large_file_path = root_dir / "large.txt"
+    # Actually create the large file logic by just adding a smaller file
+    # and relying on the metadata size being faked, but let's actually just make sure it exists
+    with open(large_file_path, "w", encoding="utf-8") as f:
+        f.write("A" * 10)
+        f.write("test file")
 
     # Not a text file according to flag
     not_text_path = root_dir / "not_text.bin"
@@ -137,7 +142,7 @@ def test_atlas_content_search(tmp_path):
     with open(inv_path, "w") as f:
         f.write(json.dumps({"rel_path": "file1.txt", "name": "file1.txt", "size_bytes": 100, "is_text": True}) + "\n")
         f.write(json.dumps({"rel_path": "file2.txt", "name": "file2.txt", "size_bytes": 100, "is_text": True}) + "\n")
-        f.write(json.dumps({"rel_path": "large.txt", "name": "large.txt", "size_bytes": 30 * 1024 * 1024, "is_text": True}) + "\n")
+        f.write(json.dumps({"rel_path": "large.txt", "name": "large.txt", "size_bytes": 20 * 1024 * 1024 + 1024, "is_text": True}) + "\n")
         f.write(json.dumps({"rel_path": "not_text.bin", "name": "not_text.bin", "size_bytes": 10, "is_text": False}) + "\n")
 
     registry.create_snapshot("s1", "m1", "r1", "hash1", "complete")
@@ -156,10 +161,6 @@ def test_atlas_content_search(tmp_path):
     assert len(res) == 1
     assert res[0]["name"] == "file2.txt"
     assert "No interesting content here." in res[0]["content_snippet"]
-
-    # Should skip large file (though we didn't actually write 30MB, the metadata says so)
-    # The limit is 20MB
-    # Wait, the read happens before checking the limit? No, limit is checked based on metadata.
 
     # Should skip non-text file
     res = searcher.search(content_query="\x00")
