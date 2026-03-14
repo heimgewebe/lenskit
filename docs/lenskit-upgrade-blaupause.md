@@ -1606,7 +1606,7 @@ Nach Phase 6 gilt:
 ### 2.3 Arbeitspaket A – Agent Query Contract
 
 Ziel:
-- [ ] Ein formales Request/Response-Modell für Agenten.
+- [x] Ein formales Request/Response-Modell für Agenten (strukturell über QueryRequest und API Contracts belegt, bedarf e2e-Härtung).
 
 Request: intent, query, scope, output_profile, context_mode, explain_level, diagnostics.
 Response: hits, context bundle, provenance, trace reference, warnings, uncertainty markers.
@@ -1616,7 +1616,7 @@ Wichtig: Agenten sollen keine versteckten Default-Zauber triggern. Jeder relevan
 ### 2.4 Arbeitspaket B – Output-Profile für Agenten
 
 Ziel:
-- [ ] Nicht jeder Agent braucht dieselbe Antwortform.
+- [x] Nicht jeder Agent braucht dieselbe Antwortform (Profile wie agent_minimal existieren und strippen überflüssige Felder, andere Profile bedürfen Ausbau).
 
 Profile:
 * lookup_minimal
@@ -1669,7 +1669,7 @@ Inhalt: request contract, resolved bundle set, query trace refs, context bundle 
 ### 2.9 Arbeitspaket G – Service-Endpunkte / MCP-fähige Form
 
 Ziel:
-- [ ] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen.
+- [x] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen (HTTP /api/query existiert strukturell, aber MCP-Schnittstellen an sich fehlen).
 
 Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
 
@@ -1695,8 +1695,8 @@ Tests:
 - [ ] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
-- [ ] 1. Agent Query Contract
-- [ ] 2. Agent Output Profiles
+- [x] 1. Agent Query Contract (für /api/query implementiert und getestet)
+- [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
 - [ ] 5. agent_query_session.json

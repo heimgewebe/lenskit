@@ -34,18 +34,27 @@ def mini_index(tmp_path):
 
 client = TestClient(app)
 
-def test_api_query_valid(mini_index):
-    # Setup state
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-
-    # We must patch get_artifact to return an artifact with the index path
+def setup_test_artifact(mini_index, merges_dir_name=None, key="sqlite_index", filename=None):
+    service_app.init_service(hub_path=Path("/tmp") if not merges_dir_name else Path(mini_index.parent.parent), token="test_token")
     from merger.lenskit.service.models import Artifact, JobRequest
     from merger.lenskit.service.app import state
-
     req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
+
+    hub_str = str(mini_index.parent.parent) if merges_dir_name else "/tmp"
+    merges_dir_val = merges_dir_name if merges_dir_name else str(mini_index.parent)
+
+    art = Artifact(
+        id="test", job_id="test", hub=hub_str, repos=["repo"],
+        created_at="now", paths={}, params=req, merges_dir=merges_dir_val
+    )
+    if key:
+        art.paths[key] = filename if filename else mini_index.name
     state.job_store.add_artifact(art)
+    return art
+
+
+def test_api_query_valid(mini_index):
+    art = setup_test_artifact(mini_index)
 
     request_data = {
         "index_id": art.id,
@@ -68,13 +77,7 @@ def test_api_query_valid(mini_index):
     assert "_raw_content" not in str(data)
 
 def test_api_query_agent_minimal(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index)
 
     request_data = {
         "index_id": art.id,
@@ -97,13 +100,7 @@ def test_api_query_agent_minimal(mini_index):
     assert "surrounding_context" not in hit
 
 def test_api_query_context_bundle(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index)
 
     request_data = {
         "index_id": art.id,
@@ -120,13 +117,7 @@ def test_api_query_context_bundle(mini_index):
     assert "hits" in data["context_bundle"]
 
 def test_api_query_trace(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index)
 
     request_data = {
         "index_id": art.id,
@@ -143,13 +134,7 @@ def test_api_query_trace(mini_index):
     assert "timings" in data["query_trace"]
 
 def test_api_query_invalid_params(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index)
 
     request_data = {
         "index_id": art.id,
@@ -163,13 +148,7 @@ def test_api_query_invalid_params(mini_index):
     assert "requires" in response.json()["detail"]
 
 def test_api_query_trace_wrapper(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index)
 
     request_data = {
         "index_id": art.id,
@@ -195,14 +174,7 @@ def test_api_query_trace_wrapper(mini_index):
     assert "surrounding_context" not in hit
 
 def test_api_query_relative_merges_dir(mini_index):
-    service_app.init_service(hub_path=Path(mini_index.parent.parent), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    # Relative merges dir
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=mini_index.parent.name)
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index, merges_dir_name=mini_index.parent.name)
 
     request_data = {
         "index_id": art.id,
@@ -215,12 +187,7 @@ def test_api_query_relative_merges_dir(mini_index):
     assert response.status_code == 200
 
 def test_api_query_missing_sqlite_key():
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub="/tmp", repos=["repo"], created_at="now", paths={}, params=req)
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index=Path("dummy"), key=None, filename=None)
 
     request_data = {
         "index_id": art.id,
@@ -231,13 +198,7 @@ def test_api_query_missing_sqlite_key():
     assert "does not contain an SQLite index" in response.json()["detail"]
 
 def test_api_query_legacy_index_sqlite_key(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["index_sqlite"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index, key="index_sqlite")
 
     request_data = {
         "index_id": art.id,
@@ -248,13 +209,7 @@ def test_api_query_legacy_index_sqlite_key(mini_index):
     assert response.status_code == 200
 
 def test_api_query_file_not_found(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = "does_not_exist.sqlite"
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index, filename="does_not_exist.sqlite")
 
     request_data = {
         "index_id": art.id,
@@ -265,13 +220,7 @@ def test_api_query_file_not_found(mini_index):
     assert response.status_code == 404
 
 def test_api_query_graph_index_not_found(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index)
 
     request_data = {
         "index_id": art.id,
@@ -284,13 +233,7 @@ def test_api_query_graph_index_not_found(mini_index):
     assert "graph index" in response.json()["detail"].lower()
 
 def test_api_query_invalid_paths(mini_index):
-    service_app.init_service(hub_path=Path("/tmp"), token="test_token")
-    from merger.lenskit.service.models import Artifact, JobRequest
-    from merger.lenskit.service.app import state
-    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
-    art = Artifact(id="test", job_id="test", hub=str(mini_index.parent.parent), repos=["repo"], created_at="now", paths={}, params=req, merges_dir=str(mini_index.parent))
-    art.paths["sqlite_index"] = mini_index.name
-    state.job_store.add_artifact(art)
+    art = setup_test_artifact(mini_index)
 
     # Test backslash (Windows-style traversal attack)
     request_data = {
