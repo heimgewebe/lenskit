@@ -327,3 +327,104 @@ def test_incremental_scan_directory_aggregates_rollup(tmp_path: Path):
     assert rd["subtree_dir_count"] == 2
     assert rd["subtree_total_bytes"] == 60
     assert rd["max_descendant_mtime"] == expected_max_mtime
+
+    # Verify that recursive_hash is properly populated
+    assert "recursive_hash" in gc
+    assert "recursive_hash" in cd
+    assert "recursive_hash" in rd
+
+    # We shouldn't export these internal state tracking variables
+    assert "direct_file_signatures" not in gc
+    assert "child_dir_hashes" not in gc
+
+def test_recursive_hash_determinism_and_bubbling(tmp_path: Path):
+    from merger.lenskit.adapters.atlas import AtlasScanner
+    import json
+
+    root_dir = tmp_path / "test_root_recursive_hash"
+    root_dir.mkdir()
+
+    # Create structure:
+    # root/
+    #   file_a.txt
+    #   child_dir/
+    #     file_b.txt
+
+    file_a = root_dir / "file_a.txt"
+    file_a.write_bytes(b"A_CONTENT")
+
+    child_dir = root_dir / "child_dir"
+    child_dir.mkdir()
+    file_b = child_dir / "file_b.txt"
+    file_b.write_bytes(b"B_CONTENT")
+
+    file_b_stat = file_b.stat()
+
+    # Scan 1
+    dirs_file1 = tmp_path / "dirs1.jsonl"
+    scanner1 = AtlasScanner(root=root_dir, snapshot_id="snap1")
+    scanner1.scan(dirs_inventory_file=dirs_file1)
+
+    dirs_data1 = {}
+    with dirs_file1.open("r", encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line)
+            dirs_data1[item["rel_path"]] = item
+
+    hash_root1 = dirs_data1["."]["recursive_hash"]
+    hash_child1 = dirs_data1["child_dir"]["recursive_hash"]
+
+    # Scan 2 without any changes -> Hashes must be identical
+    dirs_file2 = tmp_path / "dirs2.jsonl"
+    scanner2 = AtlasScanner(root=root_dir, snapshot_id="snap2")
+    scanner2.scan(dirs_inventory_file=dirs_file2)
+
+    dirs_data2 = {}
+    with dirs_file2.open("r", encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line)
+            dirs_data2[item["rel_path"]] = item
+
+    assert dirs_data2["."]["recursive_hash"] == hash_root1
+    assert dirs_data2["child_dir"]["recursive_hash"] == hash_child1
+
+    # Modify deep descendant
+    file_b.write_bytes(b"B_CONTENT_MODIFIED")
+
+    # Scan 3 -> Hashes must bubble up and change
+    dirs_file3 = tmp_path / "dirs3.jsonl"
+    scanner3 = AtlasScanner(root=root_dir, snapshot_id="snap3")
+    scanner3.scan(dirs_inventory_file=dirs_file3)
+
+    dirs_data3 = {}
+    with dirs_file3.open("r", encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line)
+            dirs_data3[item["rel_path"]] = item
+
+    hash_root3 = dirs_data3["."]["recursive_hash"]
+    hash_child3 = dirs_data3["child_dir"]["recursive_hash"]
+
+    # Root hash must change because child changed
+    assert hash_child3 != hash_child1
+    assert hash_root3 != hash_root1
+
+    # Revert the change to see if it produces the same original hash
+    file_b.write_bytes(b"B_CONTENT")
+
+    # We must reset mtime to the original, because mtime is part of the hash
+    import os
+    os.utime(file_b, (file_b_stat.st_atime, file_b_stat.st_mtime))
+
+    # Scan 4 -> Revert
+    dirs_file4 = tmp_path / "dirs4.jsonl"
+    scanner4 = AtlasScanner(root=root_dir, snapshot_id="snap4")
+    scanner4.scan(dirs_inventory_file=dirs_file4)
+
+    dirs_data4 = {}
+    with dirs_file4.open("r", encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line)
+            dirs_data4[item["rel_path"]] = item
+
+    assert dirs_data4["."]["recursive_hash"] == hash_root1
