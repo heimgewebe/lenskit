@@ -594,12 +594,11 @@ class AtlasScanner:
                             if is_reused:
                                 self.stats["incremental"]["reused_files_count"] += 1
                                 if not self.config_changed:
-                                    if self.enable_content_stats:
-                                        if "is_text" in prev_entry:
-                                            is_txt = prev_entry["is_text"]
-                                            self.stats["incremental"]["skipped_analysis_count"] += 1
-                                        if "mime_type" in prev_entry:
-                                            mime_type = prev_entry["mime_type"]
+                                    if "is_text" in prev_entry:
+                                        is_txt = prev_entry["is_text"]
+                                        self.stats["incremental"]["skipped_analysis_count"] += 1
+                                    if self.enable_content_stats and "mime_type" in prev_entry:
+                                        mime_type = prev_entry["mime_type"]
                                 if "quick_hash" in prev_entry and not file_hash:
                                     file_hash = prev_entry["quick_hash"]
 
@@ -607,7 +606,7 @@ class AtlasScanner:
                             if not is_reused or is_txt is None or self.config_changed:
                                 is_txt = is_probably_text(f_path, size)
 
-                            if not is_reused or mime_type is None or self.config_changed:
+                            if self.enable_content_stats and (not is_reused or mime_type is None or self.config_changed):
                                 mime_type = detect_mime_type(f_path)
 
                             if is_txt:

@@ -108,6 +108,29 @@ def test_incremental_mime_reuse(tmp_path: Path):
     # Assert reuse stats
     assert scanner2.stats["incremental"]["reused_files_count"] == 1
 
+from unittest.mock import patch
+
+def test_mime_type_not_calculated_when_stats_disabled(tmp_path: Path):
+    """
+    Test that detect_mime_type is not even called when enable_content_stats=False,
+    saving unnecessary computation.
+    """
+    test_dir = tmp_path / "test_no_calc"
+    test_dir.mkdir()
+    (test_dir / "file.txt").write_text("Hello")
+
+    scanner = AtlasScanner(
+        root=test_dir,
+        snapshot_id="test_snap",
+        enable_content_stats=False
+    )
+
+    with patch("merger.lenskit.adapters.atlas.detect_mime_type") as mock_detect:
+        scanner.scan(inventory_file=tmp_path / "inv.jsonl")
+
+    # Assert that the function was never called
+    mock_detect.assert_not_called()
+
 def test_no_mime_type_incremental_when_stats_disabled(tmp_path: Path):
     """
     Test that even if incremental inventory has mime_type, it is not emitted if enable_content_stats=False.
