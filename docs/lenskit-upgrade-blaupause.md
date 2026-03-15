@@ -1343,7 +1343,7 @@ Wichtig: API darf keine privaten internen Hilfsfelder ungefiltert nach außen le
 ### 2.10 Arbeitspaket H – WebUI minimal produktisieren
 
 Ziel:
-- [ ] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche.
+- [x] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche.
 
 Minimale Features:
 * Query eingeben
@@ -1385,7 +1385,7 @@ Wichtige Tests:
 - [x] 4. Context-Expansion-Regeln
 - [x] 5. Provenance-first Output
 - [x] 6. Output-Profile
-- [ ] 7. API/UI-ready Struktur
+- [x] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
 - [ ] Phase 4 ist fertig, wenn:

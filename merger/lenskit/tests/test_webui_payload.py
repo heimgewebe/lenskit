@@ -316,3 +316,85 @@ def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
 
     assert p["plan_only"] is True
     assert "force_new" not in p, "force_new should be omitted for plan_only jobs"
+
+def test_query_tab_submits_payload(page_with_static: Page):
+    page_with_static.on("request", lambda r: print(f"REQ: {r.method} {r.url}"))
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+
+    payloads = []
+    def handle_query(route: Route):
+        if route.request.method == "POST":
+            data = route.request.post_data_json or json.loads(route.request.post_data)
+            payloads.append(data)
+            route.fulfill(json={
+                "context_bundle": {
+                    "hits": [
+                        {
+                            "file": "src/login.py",
+                            "range": "1-10",
+                            "score": 0.95,
+                            "provenance_type": "explicit",
+                            "explain": {"top_k_scoring": []},
+                            "surrounding_context": "def login():\n    pass",
+                            "graph_context": {"graph_used": True, "distance": 1}
+                        }
+                    ]
+                },
+                "query_trace": {"timings": {}}
+            })
+        else:
+            route.continue_()
+
+    page_with_static.route("**/api/query*", handle_query)
+
+    page_with_static.goto("http://localhost:8000/")
+
+    page_with_static.wait_for_selector("#tab-query")
+
+    # Wait for JS to attach event listeners
+    page_with_static.wait_for_timeout(500)
+
+    # Click the Query tab using standard Playwright locator
+    page_with_static.locator("#tab-query").click()
+
+    page_with_static.wait_for_selector("#queryForm", state="visible")
+
+    # Fill out the form
+    page_with_static.fill("#queryIndexId", "job-1234")
+    page_with_static.fill("#queryText", "find login")
+    page_with_static.fill("#queryK", "5")
+    page_with_static.select_option("#queryContextMode", "window")
+    page_with_static.fill("#queryWindowLines", "3")
+    page_with_static.check("#queryTrace")
+
+    # Submit the query using requestSubmit as requested by code review
+    page_with_static.evaluate("document.getElementById('queryForm').requestSubmit()")
+
+    # Wait for payload to be captured by the route handler
+    def wait_for_query_payload():
+        start = time.time()
+        while time.time() - start < 5:
+            if len(payloads) >= 1: return
+            page_with_static.wait_for_timeout(50)
+        raise TimeoutError(f"Payloads count {len(payloads)} == 0")
+
+    wait_for_query_payload()
+
+    p = payloads[0]
+    assert p["index_id"] == "job-1234"
+    assert p["q"] == "find login"
+    assert p["k"] == 5
+    assert p["context_mode"] == "window"
+    assert p["context_window_lines"] == 3
+    assert p["explain"] is True
+    assert p["trace"] is True
+    assert p["output_profile"] == "ui_navigation"
+
+    # Verify results are rendered
+    page_with_static.wait_for_selector("#queryResults div.bg-gray-800")
+    results_text = page_with_static.text_content("#queryResults")
+    assert "src/login.py" in results_text
+    assert "0.950" in results_text
+    assert "def login():" in results_text
+    assert "Query Trace" in results_text
+    assert "Explain" in results_text
