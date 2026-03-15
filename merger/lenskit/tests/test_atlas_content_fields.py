@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
+
 from merger.lenskit.adapters.atlas import AtlasScanner
 
 def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
@@ -106,4 +108,63 @@ def test_incremental_mime_reuse(tmp_path: Path):
         assert entry["mime_type"] == "text/plain"
 
     # Assert reuse stats
+    assert scanner2.stats["incremental"]["reused_files_count"] == 1
+
+def test_mime_type_not_calculated_when_stats_disabled(tmp_path: Path):
+    """
+    Test that detect_mime_type is not even called when enable_content_stats=False,
+    saving unnecessary computation.
+    """
+    test_dir = tmp_path / "test_no_calc"
+    test_dir.mkdir()
+    (test_dir / "file.txt").write_text("Hello")
+
+    scanner = AtlasScanner(
+        root=test_dir,
+        snapshot_id="test_snap",
+        enable_content_stats=False
+    )
+
+    with patch("merger.lenskit.adapters.atlas.detect_mime_type") as mock_detect:
+        scanner.scan(inventory_file=tmp_path / "inv.jsonl")
+
+    # Assert that the function was never called
+    mock_detect.assert_not_called()
+
+def test_no_mime_type_incremental_when_stats_disabled(tmp_path: Path):
+    """
+    Test that even if incremental inventory has mime_type, it is not emitted if enable_content_stats=False.
+    """
+    test_dir = tmp_path / "test_incremental_disabled"
+    test_dir.mkdir()
+
+    text_file = test_dir / "file.txt"
+    text_file.write_text("Data")
+
+    # Force a previous inventory that HAS content stats
+    inv_file1 = tmp_path / "inventory1.jsonl"
+    scanner1 = AtlasScanner(root=test_dir, snapshot_id="snap1", enable_content_stats=True)
+    scanner1.scan(inventory_file=inv_file1)
+
+    with inv_file1.open("r", encoding="utf-8") as f:
+        entry = json.loads(f.readline())
+        assert "mime_type" in entry
+
+    # Scan again with incremental reuse, but content stats DISABLED
+    inv_file2 = tmp_path / "inventory2.jsonl"
+    scanner2 = AtlasScanner(
+        root=test_dir,
+        snapshot_id="snap2",
+        enable_content_stats=False,
+        incremental_inventory=inv_file1,
+        previous_scan_config_hash="hash1",
+        current_scan_config_hash="hash1"
+    )
+    scanner2.scan(inventory_file=inv_file2)
+
+    with inv_file2.open("r", encoding="utf-8") as f:
+        entry = json.loads(f.readline())
+        assert "mime_type" not in entry
+
+    # The file itself should be counted as reused in terms of base file metadata
     assert scanner2.stats["incremental"]["reused_files_count"] == 1
