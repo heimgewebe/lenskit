@@ -34,20 +34,25 @@ def mini_index(tmp_path):
 
 client = TestClient(app)
 
-def setup_test_artifact(mini_index, merges_dir_name=None, key="sqlite_index", filename=None):
-    service_app.init_service(hub_path=Path("/tmp") if not merges_dir_name else Path(mini_index.parent.parent), token="test_token")
+def setup_test_artifact(mini_index=None, merges_dir_name=None, key="sqlite_index", filename=None):
+    hub_path = Path("/tmp")
+    if mini_index and merges_dir_name:
+        hub_path = Path(mini_index.parent.parent)
+
+    service_app.init_service(hub_path=hub_path, token="test_token")
     from merger.lenskit.service.models import Artifact, JobRequest
     from merger.lenskit.service.app import state
+
     req = JobRequest(repos=["repo"], level="max", mode="gesamt")
 
-    hub_str = str(mini_index.parent.parent) if merges_dir_name else "/tmp"
-    merges_dir_val = merges_dir_name if merges_dir_name else str(mini_index.parent)
+    hub_str = str(mini_index.parent.parent) if (mini_index and merges_dir_name) else "/tmp"
+    merges_dir_val = merges_dir_name if merges_dir_name else (str(mini_index.parent) if mini_index else "/tmp")
 
     art = Artifact(
         id="test", job_id="test", hub=hub_str, repos=["repo"],
         created_at="now", paths={}, params=req, merges_dir=merges_dir_val
     )
-    if key:
+    if key and mini_index:
         art.paths[key] = filename if filename else mini_index.name
     state.job_store.add_artifact(art)
     return art
@@ -187,7 +192,7 @@ def test_api_query_relative_merges_dir(mini_index):
     assert response.status_code == 200
 
 def test_api_query_missing_sqlite_key():
-    art = setup_test_artifact(mini_index=Path("dummy"), key=None, filename=None)
+    art = setup_test_artifact(mini_index=None, key=None)
 
     request_data = {
         "index_id": art.id,

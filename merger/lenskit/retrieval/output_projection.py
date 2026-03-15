@@ -6,10 +6,10 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
     Applies the output profile projection to the query result.
 
     Response Contracts (enforced here and documented in docs/architecture/api_query_contracts.md):
-    - Fall 1 (No Profile): Returns the raw result object (contains 'results' list, not 'hits').
-    - Fall 2 (Profile specified, e.g. 'agent_minimal'): Returns the canonical Context-Bundle
+    - Case 1 (No Profile): Returns the raw result object (contains 'results' list, not 'hits').
+    - Case 2 (Profile specified, e.g. 'agent_minimal'): Returns the canonical Context-Bundle
       structure directly at the top level (contains 'hits' array).
-    - Fall 3 (Profile + Trace): Returns a wrapper {"context_bundle": ..., "query_trace": ...}
+    - Case 3 (Profile + Trace): Returns a wrapper {"context_bundle": ..., "query_trace": ...}
       to ensure the strict Context-Bundle schema is not violated by the trace object.
 
     Args:

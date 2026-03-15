@@ -9,8 +9,13 @@ This document strictly specifies the response structures returned by the `/api/q
 * Returns the raw internal evaluation result.
 * The structure does **not** contain a top-level `hits` array.
 * The structure contains a top-level `results` array with un-projected query artifacts.
-* `context_bundle` and `query_trace` may optionally be present if specifically requested via `build_context_bundle=True` or `trace=True`.
-* Internal fields (e.g., `_raw_content`) are stripped.
+* `context_bundle` appears if context-building is triggered by any of the following:
+    * Explicitly via `build_context_bundle=True`
+    * Implicitly via `output_profile`
+    * Implicitly via `context_mode != "exact"`
+    * Implicitly via `context_window_lines > 0`
+* `query_trace` appears **only** if `trace=True` is explicitly requested.
+* Internal fields used during execution (e.g., `_raw_content`) are deliberately stripped from the result mapping.
 
 ## 2. Projected Context Bundle (With Output Profile)
 **Condition:** `output_profile` is specified (e.g., `agent_minimal`, `ui_navigation`) and `trace` is not requested.

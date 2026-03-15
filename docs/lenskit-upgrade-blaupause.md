@@ -1669,7 +1669,7 @@ Inhalt: request contract, resolved bundle set, query trace refs, context bundle 
 ### 2.9 Arbeitspaket G – Service-Endpunkte / MCP-fähige Form
 
 Ziel:
-- [x] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen (HTTP /api/query existiert strukturell, aber MCP-Schnittstellen an sich fehlen).
+- [ ] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen (HTTP /api/query existiert strukturell, aber MCP-Schnittstellen an sich fehlen).
 
 Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
 
