@@ -11,7 +11,6 @@ This document strictly specifies the response structures returned by the `/api/q
 * The structure contains a top-level `results` array with un-projected query artifacts.
 * `context_bundle` appears if context-building is triggered by any of the following:
     * Explicitly via `build_context_bundle=True`
-    * Implicitly via `output_profile`
     * Implicitly via `context_mode != "exact"`
     * Implicitly via `context_window_lines > 0`
 * `query_trace` appears **only** if `trace=True` is explicitly requested.
