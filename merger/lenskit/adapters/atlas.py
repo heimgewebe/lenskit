@@ -38,7 +38,8 @@ except ImportError:
 
 def detect_mime_type(path: Path) -> Optional[str]:
     """
-    Robust MIME type detection using mimetypes and magic bytes fallback.
+    Best-effort MIME type Erkennung.
+    Dies ist heuristisch mit Magic-Byte-Fallback und explizit nur teilweise gehärtet.
     """
     mime_type, _ = mimetypes.guess_type(str(path))
 
@@ -586,11 +587,12 @@ class AtlasScanner:
                             if is_reused:
                                 self.stats["incremental"]["reused_files_count"] += 1
                                 if not self.config_changed:
-                                    if "is_text" in prev_entry:
-                                        is_txt = prev_entry["is_text"]
-                                        self.stats["incremental"]["skipped_analysis_count"] += 1
-                                    if "mime_type" in prev_entry:
-                                        mime_type = prev_entry["mime_type"]
+                                    if self.enable_content_stats:
+                                        if "is_text" in prev_entry:
+                                            is_txt = prev_entry["is_text"]
+                                            self.stats["incremental"]["skipped_analysis_count"] += 1
+                                        if "mime_type" in prev_entry:
+                                            mime_type = prev_entry["mime_type"]
                                 if "quick_hash" in prev_entry and not file_hash:
                                     file_hash = prev_entry["quick_hash"]
 
