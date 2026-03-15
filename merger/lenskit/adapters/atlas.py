@@ -620,19 +620,38 @@ class AtlasScanner:
                             if size > 10 * 1024 * 1024: # 10MB
                                 large_files.append({"path": f_rel, "size": size})
 
+                        # Conditionally generate quick_hash for small files if not reused and not yet computed
+                        if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
+                            try:
+                                with f_path.open("rb") as hf:
+                                    hf.seek(0)
+                                    head = hf.read(4096)
+                                    if size > 4096:
+                                        hf.seek(-min(4096, size - 4096), 2)
+                                        tail = hf.read(4096)
+                                    else:
+                                        tail = b""
+                                    file_hash = hashlib.md5(head + tail, usedforsecurity=False).hexdigest() # nosec B303
+                            except OSError:
+                                pass
+
                         # Update parent dir aggregate with file signature
                         if collect_dir_aggregates:
-                            # A stable signature: rel_path + size + mtime_iso
-                            # We omit metadata like permissions for now to remain portable, but can be added later
-                            file_sig = f"{f_rel}|{size}|{mtime_iso}"
+                            # Use canonical JSON serialization for stable file signatures
+                            sig_dict = {
+                                "path": f_rel,
+                                "size": size,
+                                "mtime": mtime_iso
+                            }
 
                             h = file_hash
                             if not h and prev_entry and "quick_hash" in prev_entry:
                                 h = prev_entry["quick_hash"]
 
                             if h:
-                                file_sig += f"|{h}"
+                                sig_dict["quick_hash"] = h
 
+                            file_sig = json.dumps(sig_dict, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
                             dir_aggregates[rel_path_str]["direct_file_signatures"].append(file_sig)
 
                         # Inventory Output
@@ -648,21 +667,6 @@ class AtlasScanner:
                                 "inode": inode,
                                 "device": device
                             }
-
-                            # Conditionally generate quick_hash for small files if not reused
-                            if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
-                                try:
-                                    with f_path.open("rb") as hf:
-                                        hf.seek(0)
-                                        head = hf.read(4096)
-                                        if size > 4096:
-                                            hf.seek(-min(4096, size - 4096), 2)
-                                            tail = hf.read(4096)
-                                        else:
-                                            tail = b""
-                                        file_hash = hashlib.md5(head + tail, usedforsecurity=False).hexdigest() # nosec B303
-                                except OSError:
-                                    pass
 
                             if file_hash:
                                 entry["quick_hash"] = file_hash

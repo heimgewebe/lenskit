@@ -428,3 +428,33 @@ def test_recursive_hash_determinism_and_bubbling(tmp_path: Path):
             dirs_data4[item["rel_path"]] = item
 
     assert dirs_data4["."]["recursive_hash"] == hash_root1
+
+    # -----------------------------------------------------
+    # Test "silent content change"
+    # (same size, same mtime, but different content -> quick_hash catches it)
+    # -----------------------------------------------------
+
+    # Overwrite with DIFFERENT content of the EXACT SAME length
+    file_b.write_bytes(b"B_CONTENX")
+
+    # Reset atime/mtime to the original ones
+    os.utime(file_b, (file_b_stat.st_atime, file_b_stat.st_mtime))
+
+    # Scan 5 -> Silent change
+    dirs_file5 = tmp_path / "dirs5.jsonl"
+    scanner5 = AtlasScanner(root=root_dir, snapshot_id="snap5")
+    scanner5.scan(dirs_inventory_file=dirs_file5)
+
+    dirs_data5 = {}
+    with dirs_file5.open("r", encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line)
+            dirs_data5[item["rel_path"]] = item
+
+    hash_root5 = dirs_data5["."]["recursive_hash"]
+    hash_child5 = dirs_data5["child_dir"]["recursive_hash"]
+
+    # The hash should be DIFFERENT from the original (hash_root1)
+    # Because quick_hash captures the altered byte "X".
+    assert hash_child5 != hash_child1
+    assert hash_root5 != hash_root1
