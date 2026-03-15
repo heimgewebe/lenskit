@@ -1298,6 +1298,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('jobForm').addEventListener('submit', startJob);
     document.getElementById('atlasForm').addEventListener('submit', startAtlasJob);
 
+    // Bind query form submission logic
+    const qf = document.getElementById('queryForm');
+    if (qf) {
+        qf.addEventListener('submit', executeQuery);
+    }
+
     // Clear token if user manually edits the root path
     const atlasRootEl = document.getElementById('atlasRoot');
     if (atlasRootEl) {
@@ -1323,6 +1329,140 @@ function switchTab(tabId) {
 
     if (tabId === 'atlas') {
         loadAtlasArtifacts();
+    }
+}
+
+// --- Query Logic ---
+async function executeQuery(e) {
+    if (e && e.preventDefault) {
+        e.preventDefault();
+    }
+    // Default to a query selector if e.target is missing or mock in tests
+    const btn = (e && e.target && e.target.querySelector) ? e.target.querySelector('button[type="submit"]') : document.querySelector('#queryForm button[type="submit"]');
+    const prevText = btn ? btn.innerText : "Execute Query";
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Querying...";
+    }
+
+    const resultsContainer = document.getElementById('queryResults');
+    resultsContainer.innerHTML = '<div class="text-gray-400 italic">Searching...</div>';
+
+    const payload = {
+        index_id: document.getElementById('queryIndexId').value.trim(),
+        q: document.getElementById('queryText').value.trim(),
+        k: parseInt(document.getElementById('queryK').value, 10),
+        context_mode: document.getElementById('queryContextMode').value,
+        context_window_lines: parseInt(document.getElementById('queryWindowLines').value, 10),
+        explain: document.getElementById('queryExplain').checked,
+        trace: document.getElementById('queryTrace').checked,
+        output_profile: "ui_navigation"
+    };
+
+    try {
+        const response = await apiFetch(`${API_BASE}/query`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || `HTTP Error ${response.status}`);
+        }
+
+        const data = await response.json();
+        renderQueryResults(data);
+    } catch (err) {
+        resultsContainer.innerHTML = `<div class="text-red-500 bg-red-900/20 p-4 rounded border border-red-800">Query Failed: ${err.message}</div>`;
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = prevText;
+        }
+    }
+}
+
+function renderQueryResults(data) {
+    const resultsContainer = document.getElementById('queryResults');
+    resultsContainer.innerHTML = '';
+
+    const bundle = data.context_bundle || data;
+    const hits = bundle.hits || [];
+
+    if (hits.length === 0) {
+        resultsContainer.innerHTML = '<div class="text-gray-400 italic">No results found.</div>';
+        return;
+    }
+
+    hits.forEach((hit, idx) => {
+        const score = hit.score ? hit.score.toFixed(3) : "0.000";
+        const graphBadge = hit.graph_context && hit.graph_context.graph_used
+            ? `<span class="bg-purple-900 text-purple-200 text-[10px] px-1 rounded ml-2" title="Graph Distance: ${hit.graph_context.distance}">Graph</span>`
+            : '';
+        const provBadge = `<span class="bg-gray-700 text-gray-300 text-[10px] px-1 rounded ml-2">${hit.provenance_type || 'unknown'}</span>`;
+
+        let explainHtml = '';
+        if (hit.explain && Object.keys(hit.explain).length > 0) {
+             const explainStr = JSON.stringify(hit.explain, null, 2);
+             explainHtml = `
+                 <details class="mt-2 text-xs">
+                     <summary class="cursor-pointer text-gray-400 hover:text-gray-200">Explain</summary>
+                     <pre class="bg-gray-900 p-2 mt-1 rounded border border-gray-700 text-gray-300 overflow-x-auto">${explainStr}</pre>
+                 </details>
+             `;
+        }
+
+        let contextHtml = '';
+        if (hit.surrounding_context) {
+             const ctxText = hit.surrounding_context.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+             contextHtml = `
+                 <div class="mt-2 text-xs">
+                     <div class="text-gray-500 mb-1 uppercase font-bold">Context Preview</div>
+                     <pre class="bg-gray-900 p-2 rounded border border-gray-700 text-gray-300 overflow-x-auto max-h-40">${ctxText}</pre>
+                 </div>
+             `;
+        } else if (hit.resolved_code_snippet) {
+             const snipText = hit.resolved_code_snippet.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+             contextHtml = `
+                 <div class="mt-2 text-xs">
+                     <div class="text-gray-500 mb-1 uppercase font-bold">Exact Match</div>
+                     <pre class="bg-gray-900 p-2 rounded border border-gray-700 text-gray-300 overflow-x-auto max-h-40">${snipText}</pre>
+                 </div>
+             `;
+        }
+
+        const div = document.createElement('div');
+        div.className = "bg-gray-800 p-4 rounded border border-gray-700 mt-4";
+        div.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <div class="font-mono text-sm text-blue-400 break-all">${hit.file} <span class="text-gray-500">:${hit.range}</span></div>
+                <div class="text-xs font-bold text-green-400 bg-green-900/30 px-2 py-1 rounded">Score: ${score}</div>
+            </div>
+            <div class="flex items-center text-xs mb-2">
+                <span class="text-gray-400">Provenance:</span>
+                ${provBadge}
+                ${graphBadge}
+            </div>
+            ${contextHtml}
+            ${explainHtml}
+        `;
+        resultsContainer.appendChild(div);
+    });
+
+    if (data.query_trace) {
+        const traceStr = JSON.stringify(data.query_trace, null, 2);
+        const traceDiv = document.createElement('div');
+        traceDiv.className = "mt-6 border-t border-gray-700 pt-4";
+        traceDiv.innerHTML = `
+            <details class="text-xs">
+                <summary class="cursor-pointer text-yellow-500 hover:text-yellow-400 font-bold uppercase">Query Trace (Diagnostics)</summary>
+                <pre class="bg-gray-900 p-2 mt-2 rounded border border-gray-700 text-gray-300 overflow-x-auto">${traceStr}</pre>
+            </details>
+        `;
+        resultsContainer.appendChild(traceDiv);
     }
 }
 

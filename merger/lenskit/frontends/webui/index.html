@@ -20,6 +20,7 @@
             <nav class="flex space-x-2">
                  <button onclick="switchTab('job')" id="tab-job" class="px-3 py-1 rounded bg-blue-600 text-white font-bold text-sm">Merge</button>
                  <button onclick="switchTab('atlas')" id="tab-atlas" class="px-3 py-1 rounded bg-gray-700 text-gray-300 hover:text-white text-sm">Atlas</button>
+                 <button onclick="switchTab('query')" id="tab-query" class="px-3 py-1 rounded bg-gray-700 text-gray-300 hover:text-white text-sm">Query</button>
             </nav>
             <div class="flex items-center bg-gray-800 rounded p-1 border border-gray-700">
                 <span class="text-xs text-gray-500 px-2 uppercase font-bold">Token</span>
@@ -182,6 +183,71 @@
     </div>
 
     <!-- Atlas Layout -->
+    <!-- Query Tab -->
+    <div id="layout-query" class="layout-view hidden flex-1 min-h-0 flex flex-col md:flex-row gap-4 p-4">
+        <!-- Left: Query Config -->
+        <aside class="w-full md:w-1/3 flex flex-col bg-gray-800 rounded-lg p-4 border border-gray-700 shadow-xl">
+            <h2 class="text-xl mb-4 font-semibold border-b border-gray-700 pb-2">Retrieval / Query</h2>
+
+            <form id="queryForm" class="space-y-4 flex-1 flex flex-col">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Index ID (Job ID)</label>
+                    <input type="text" id="queryIndexId" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm" placeholder="job-1234...">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Query</label>
+                    <textarea id="queryText" rows="3" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500" placeholder="E.g. find login logic..."></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Top-K</label>
+                        <input type="number" id="queryK" value="10" min="1" max="100" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-200">
+                    </div>
+                    <div>
+                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Context Mode</label>
+                         <select id="queryContextMode" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-200">
+                             <option value="exact">Exact</option>
+                             <option value="window">Window</option>
+                             <option value="block">Block</option>
+                             <option value="file">File</option>
+                         </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Window Lines</label>
+                    <input type="number" id="queryWindowLines" value="0" min="0" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-200">
+                </div>
+
+                <div class="flex space-x-4">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="queryExplain" checked class="form-checkbox text-blue-500 bg-gray-900 border-gray-700">
+                        <span class="text-sm">Include Explain</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="queryTrace" class="form-checkbox text-blue-500 bg-gray-900 border-gray-700">
+                        <span class="text-sm">Trace Diagnostics</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mt-auto">Execute Query</button>
+            </form>
+        </aside>
+
+        <!-- Right: Query Results -->
+        <main class="w-full md:w-2/3 flex flex-col bg-gray-800 rounded-lg p-4 border border-gray-700 shadow-xl overflow-hidden">
+             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
+                 <h2 class="text-xl font-semibold">Results</h2>
+             </div>
+             <div id="queryResults" class="flex-1 overflow-y-auto space-y-4 pr-2">
+                 <div class="text-sm text-gray-500 italic">Enter a query to see results.</div>
+             </div>
+        </main>
+    </div>
+
+    <!-- Atlas Tab -->
     <div id="layout-atlas" class="layout-view hidden flex-1 min-h-0 flex flex-col md:flex-row gap-4 p-4">
         <!-- Left: Atlas Config -->
         <aside class="w-full md:w-1/3 flex flex-col bg-gray-800 rounded-lg p-4 border border-gray-700 shadow-xl">
