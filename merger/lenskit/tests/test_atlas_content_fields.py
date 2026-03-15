@@ -63,6 +63,41 @@ def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
     assert "encoding" not in results["random.dat"]
 
 
+def test_count_lines_with_enable_content_stats(tmp_path: Path):
+    """
+    Test that line_count is correctly computed for text files.
+    """
+    test_dir = tmp_path / "test_lines"
+    test_dir.mkdir()
+
+    file1 = test_dir / "file1.txt"
+    file1.write_text("Line 1\nLine 2\nLine 3\n")
+
+    file2 = test_dir / "file2.txt"
+    file2.write_text("Single line")
+
+    file3 = test_dir / "empty.txt"
+    file3.write_text("")
+
+    inv_file = tmp_path / "inventory.jsonl"
+
+    scanner = AtlasScanner(
+        root=test_dir,
+        snapshot_id="test_snap",
+        enable_content_stats=True
+    )
+    scanner.scan(inventory_file=inv_file)
+
+    results = {}
+    with inv_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            entry = json.loads(line)
+            results[entry["name"]] = entry.get("line_count")
+
+    assert results["file1.txt"] == 3
+    assert results["file2.txt"] == 1
+    assert results["empty.txt"] == 0
+
 def test_detect_encoding_with_enable_content_stats(tmp_path: Path):
     """
     Test that encoding is correctly identified for different file encodings.
@@ -126,6 +161,8 @@ def test_no_mime_type_when_content_stats_disabled(tmp_path: Path):
     with inv_file.open("r", encoding="utf-8") as f:
         entry = json.loads(f.readline())
         assert "mime_type" not in entry
+        assert "encoding" not in entry
+        assert "line_count" not in entry
 
 def test_incremental_mime_reuse(tmp_path: Path):
     """
@@ -157,6 +194,7 @@ def test_incremental_mime_reuse(tmp_path: Path):
         entry = json.loads(f.readline())
         assert entry["mime_type"] == "text/plain"
         assert entry["encoding"] == "utf-8"
+        assert entry["line_count"] == 1
 
     # Assert reuse stats
     assert scanner2.stats["incremental"]["reused_files_count"] == 1
@@ -217,6 +255,7 @@ def test_no_mime_type_incremental_when_stats_disabled(tmp_path: Path):
         entry = json.loads(f.readline())
         assert "mime_type" not in entry
         assert "encoding" not in entry
+        assert "line_count" not in entry
 
     # The file itself should be counted as reused in terms of base file metadata
     assert scanner2.stats["incremental"]["reused_files_count"] == 1

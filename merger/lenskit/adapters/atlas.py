@@ -99,6 +99,25 @@ TEXT_MIME_ALLOWLIST = {
     "image/svg+xml"
 }
 
+def count_lines(path: Path, size: int) -> Optional[int]:
+    """
+    Best-effort line count detection.
+
+    Reads the file line-by-line to avoid loading large files into memory.
+    Skips files larger than 20MB to prevent heavy I/O.
+    """
+    if size > 20 * 1024 * 1024:
+        return None
+    try:
+        count = 0
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            for _ in f:
+                count += 1
+        return count
+    except OSError:
+        return None
+
+
 def detect_encoding(path: Path) -> Optional[str]:
     """
     Best-effort encoding detection.
@@ -599,6 +618,7 @@ class AtlasScanner:
                         is_txt = None
                         mime_type = None
                         encoding = None
+                        line_count = None
 
                         # Incremental reuse heuristic
                         prev_entry = self.incremental_inventory.get(f_rel)
@@ -640,6 +660,8 @@ class AtlasScanner:
                                             mime_type = prev_entry["mime_type"]
                                         if "encoding" in prev_entry:
                                             encoding = prev_entry["encoding"]
+                                        if "line_count" in prev_entry:
+                                            line_count = prev_entry["line_count"]
                                 if "quick_hash" in prev_entry and not file_hash:
                                     file_hash = prev_entry["quick_hash"]
 
@@ -658,12 +680,16 @@ class AtlasScanner:
                                 if not is_text_mime:
                                     is_txt = False
                                     encoding = None
+                                    line_count = None
 
                             if is_txt:
                                 text_files_count += 1
                                 # 4. Detect encoding only if it's considered text
                                 if not is_reused or encoding is None or self.config_changed:
                                     encoding = detect_encoding(f_path)
+                                # 5. Detect line count only if it's considered text
+                                if not is_reused or line_count is None or self.config_changed:
+                                    line_count = count_lines(f_path, size)
                             else:
                                 binary_files_count += 1
 
@@ -730,6 +756,8 @@ class AtlasScanner:
                                     entry["mime_type"] = mime_type
                                 if encoding is not None:
                                     entry["encoding"] = encoding
+                                if line_count is not None:
+                                    entry["line_count"] = line_count
                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                     except OSError:
