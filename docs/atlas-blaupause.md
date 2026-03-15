@@ -900,7 +900,7 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 *(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
 
 - [ ] MIME-Typ-Erkennung teilweise gehärtet (Extension + Magic-Byte-Fallback); weitere Robustheit und Formatabdeckung offen
-  - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Es ist heuristisch bzw. scanzeitgebunden und nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
+  - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
 - [ ] Encoding-Erkennung (nicht nur pauschaler UTF-8 Fallback) einführen
 - [ ] line_count jenseits des content-Modus robust erfassen
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML

@@ -38,8 +38,15 @@ except ImportError:
 
 def detect_mime_type(path: Path) -> Optional[str]:
     """
-    Best-effort MIME type Erkennung.
-    Dies ist heuristisch mit Magic-Byte-Fallback und explizit nur teilweise gehärtet.
+    Best-effort MIME type detection.
+
+    Uses `mimetypes.guess_type`, whose results may vary depending on platform and
+    configuration. Falls back to a small set of magic-byte checks and a simple
+    text/binary heuristic.
+
+    This implementation is intentionally heuristic and only partially hardened.
+    It should be treated as a best-effort classification rather than a fully
+    reliable or reproducible MIME identification.
     """
     mime_type, _ = mimetypes.guess_type(str(path))
 
