@@ -4,8 +4,20 @@ import copy
 def project_output(result: Dict[str, Any], output_profile: Optional[str] = None) -> Dict[str, Any]:
     """
     Applies the output profile projection to the query result.
-    If an output profile is specified and a context bundle exists, it returns the projected bundle.
-    Otherwise, it returns the raw result.
+
+    Response Contracts (enforced here and documented in docs/architecture/api_query_contracts.md):
+    - Case 1 (No Profile): Returns the raw result object (contains 'results' list, not 'hits').
+    - Case 2 (Profile specified, e.g. 'agent_minimal'): Returns the canonical Context-Bundle
+      structure directly at the top level (contains 'hits' array).
+    - Case 3 (Profile + Trace): Returns a wrapper {"context_bundle": ..., "query_trace": ...}
+      to ensure the strict Context-Bundle schema is not violated by the trace object.
+
+    Args:
+        result: The raw evaluation result from `execute_query`.
+        output_profile: The desired projection form (e.g. "agent_minimal", "ui_navigation").
+
+    Returns:
+        The projected response dict conforming to the contract.
     """
     res = copy.deepcopy(result)
 
