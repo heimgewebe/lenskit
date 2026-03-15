@@ -745,7 +745,12 @@ class AtlasScanner:
                                 parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
 
                             # Propagate the child's recursive hash to the parent so it can compute its own
-                            parent_agg["child_dir_hashes"].append(f"{p}|{recursive_hash}")
+                            child_sig_dict = {
+                                "path": p,
+                                "recursive_hash": recursive_hash
+                            }
+                            child_sig = json.dumps(child_sig_dict, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+                            parent_agg["child_dir_hashes"].append(child_sig)
 
                 # Clean up internal hashing fields before output
                 for p in dir_aggregates:
