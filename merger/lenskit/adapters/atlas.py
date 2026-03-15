@@ -515,7 +515,10 @@ class AtlasScanner:
                         "subtree_dir_count": len(dirs), # Will accumulate (counts descendants without self)
                         "subtree_total_bytes": 0, # Will accumulate
                         "max_descendant_mtime": dir_mtime,
-                        "direct_children_fingerprint": direct_children_fingerprint
+                        "direct_children_fingerprint": direct_children_fingerprint,
+                        "direct_file_signatures": [], # Will hold stable file signatures for hashing
+                        "child_dir_hashes": [], # Will accumulate child dir recursive hashes
+                        "recursive_hash": None # Will be computed bottom-up
                     }
 
                 self.stats["truncated"]["dirs_seen"] += 1
@@ -617,6 +620,40 @@ class AtlasScanner:
                             if size > 10 * 1024 * 1024: # 10MB
                                 large_files.append({"path": f_rel, "size": size})
 
+                        # Conditionally generate quick_hash for small files if not reused and not yet computed
+                        if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
+                            try:
+                                with f_path.open("rb") as hf:
+                                    hf.seek(0)
+                                    head = hf.read(4096)
+                                    if size > 4096:
+                                        hf.seek(-min(4096, size - 4096), 2)
+                                        tail = hf.read(4096)
+                                    else:
+                                        tail = b""
+                                    file_hash = hashlib.md5(head + tail, usedforsecurity=False).hexdigest() # nosec B303
+                            except OSError:
+                                pass
+
+                        # Update parent dir aggregate with file signature
+                        if collect_dir_aggregates:
+                            # Use canonical JSON serialization for stable file signatures
+                            sig_dict = {
+                                "path": f_rel,
+                                "size": size,
+                                "mtime": mtime_iso
+                            }
+
+                            h = file_hash
+                            if not h and prev_entry and "quick_hash" in prev_entry:
+                                h = prev_entry["quick_hash"]
+
+                            if h:
+                                sig_dict["quick_hash"] = h
+
+                            file_sig = json.dumps(sig_dict, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+                            dir_aggregates[rel_path_str]["direct_file_signatures"].append(file_sig)
+
                         # Inventory Output
                         if inv_f:
                             # Use reused relative path string
@@ -630,21 +667,6 @@ class AtlasScanner:
                                 "inode": inode,
                                 "device": device
                             }
-
-                            # Conditionally generate quick_hash for small files if not reused
-                            if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
-                                try:
-                                    with f_path.open("rb") as hf:
-                                        hf.seek(0)
-                                        head = hf.read(4096)
-                                        if size > 4096:
-                                            hf.seek(-min(4096, size - 4096), 2)
-                                            tail = hf.read(4096)
-                                        else:
-                                            tail = b""
-                                        file_hash = hashlib.md5(head + tail, usedforsecurity=False).hexdigest() # nosec B303
-                                except OSError:
-                                    pass
 
                             if file_hash:
                                 entry["quick_hash"] = file_hash
@@ -676,24 +698,64 @@ class AtlasScanner:
             if collect_dir_aggregates and dir_aggregates:
                 # Sort paths by depth descending so we process leaves first
                 sorted_dirs_by_depth = sorted(dir_aggregates.keys(), key=lambda p: dir_aggregates[p]["depth"], reverse=True)
+
                 for p in sorted_dirs_by_depth:
-                    if p == ".":
-                        continue
-                    parent_path = str(Path(p).parent)
-                    if parent_path == ".":
-                        parent_path = "." # ensure consistent key
-                    else:
-                        parent_path = parent_path.replace("\\", "/") # POSIX sanity
+                    current_agg = dir_aggregates[p]
 
-                    if parent_path in dir_aggregates:
-                        parent_agg = dir_aggregates[parent_path]
-                        child_agg = dir_aggregates[p]
+                    # 1. Compute bottom-up recursive_hash for THIS directory
+                    dir_hash_components = []
 
-                        parent_agg["subtree_file_count"] += child_agg["subtree_file_count"]
-                        parent_agg["subtree_dir_count"] += child_agg.get("subtree_dir_count", child_agg.get("n_dirs", 0))
-                        parent_agg["subtree_total_bytes"] += child_agg["subtree_total_bytes"]
-                        if child_agg["max_descendant_mtime"] > parent_agg["max_descendant_mtime"]:
-                            parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
+                    # A) Direct file signatures (sorted for stability)
+                    sorted_files = sorted(current_agg["direct_file_signatures"])
+                    for fsig in sorted_files:
+                        dir_hash_components.append(f"F:{fsig}")
+
+                    # B) Child directory hashes (sorted for stability)
+                    sorted_child_hashes = sorted(current_agg["child_dir_hashes"])
+                    for dsig in sorted_child_hashes:
+                        dir_hash_components.append(f"D:{dsig}")
+
+                    # C) Direct properties of this directory (optional, but good for tracking structural identity)
+                    dir_hash_components.append(f"R:{current_agg['rel_path']}")
+                    if current_agg["direct_children_fingerprint"]:
+                        dir_hash_components.append(f"FP:{current_agg['direct_children_fingerprint']}")
+
+                    # Produce hash
+                    hash_input = json.dumps(dir_hash_components, ensure_ascii=False, separators=(",", ":")).encode("utf-8", errors="surrogateescape")
+                    recursive_hash = hashlib.md5(hash_input, usedforsecurity=False).hexdigest() # nosec B303
+
+                    current_agg["recursive_hash"] = recursive_hash
+
+                    # 2. Bubble up to parent
+                    if p != ".":
+                        parent_path = str(Path(p).parent)
+                        if parent_path == ".":
+                            parent_path = "." # ensure consistent key
+                        else:
+                            parent_path = parent_path.replace("\\", "/") # POSIX sanity
+
+                        if parent_path in dir_aggregates:
+                            parent_agg = dir_aggregates[parent_path]
+                            child_agg = current_agg
+
+                            parent_agg["subtree_file_count"] += child_agg["subtree_file_count"]
+                            parent_agg["subtree_dir_count"] += child_agg.get("subtree_dir_count", child_agg.get("n_dirs", 0))
+                            parent_agg["subtree_total_bytes"] += child_agg["subtree_total_bytes"]
+                            if child_agg["max_descendant_mtime"] > parent_agg["max_descendant_mtime"]:
+                                parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
+
+                            # Propagate the child's recursive hash to the parent so it can compute its own
+                            child_sig_dict = {
+                                "path": p,
+                                "recursive_hash": recursive_hash
+                            }
+                            child_sig = json.dumps(child_sig_dict, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+                            parent_agg["child_dir_hashes"].append(child_sig)
+
+                # Clean up internal hashing fields before output
+                for p in dir_aggregates:
+                    del dir_aggregates[p]["direct_file_signatures"]
+                    del dir_aggregates[p]["child_dir_hashes"]
 
             # Write dir inventory if requested
             if dirs_inv_f:

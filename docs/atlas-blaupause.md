@@ -871,7 +871,8 @@ Ziel: Große Roots effizient aktualisierbar machen.
 - [x] inode/device optional erfassen
 - [x] selektives Hashing-Modell festlegen
 - [x] heuristische Teilbaum-Kandidaten erkennen (`mtime`, counts, `direct_children_fingerprint`) ohne Traversal-Abbruch
-- [ ] sicheren Teilbaum-Skip ermöglichen (benötigt rekursiven Hash oder externes Änderungsorakel wie Watcher)
+- [ ] sicheren Teilbaum-Skip ermöglichen (benötigt externes Änderungsorakel wie Watcher)
+  - *Methodischer Rückbau/Klärung: Der `recursive_hash` wurde als bottom-up Artefakt für Integrität und Vergleich eingeführt, ist aber ohne Orakel kein magischer Vorab-Skipper. Der eigentliche Skip (`dirs[:] = []`) bleibt deaktiviert, bis ein echtes Change-Oracle existiert. Zudem ist der Hash ein Vergleichsartefakt innerhalb des selektiven Hashing-Modells und damit nicht für alle Dateien zwingend rein inhaltsbasiert.*
 - [x] `scan_config_hash` wirksam in Reuse-Logik einbeziehen
 - [x] Basis-Incremental-Metriken erfassen
 - [x] CLI: `atlas scan --incremental`
