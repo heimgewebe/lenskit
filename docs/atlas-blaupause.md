@@ -899,6 +899,12 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 
 *(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
 
+*Semantische Einordnung (Content Fields):*
+- `mime_type`: best-effort Feld, heuristisch bzw. scanzeitgebunden, nicht vollständig reproduzierbar.
+- `is_text`: heuristisch / scanzeitabhängig.
+- Inhaltssuche über Live-Dateisystem: runtime-/filesystem-gebunden.
+- Snapshot-Inventar: reproduzierbar für Inventardaten, nicht automatisch für spätere Live-Inhalte.
+
 - [ ] MIME-Typ-Erkennung teilweise gehärtet (Extension + Magic-Byte-Fallback); weitere Robustheit und Formatabdeckung offen
 - [ ] Encoding-Erkennung (nicht nur pauschaler UTF-8 Fallback) einführen
 - [ ] line_count jenseits des content-Modus robust erfassen
