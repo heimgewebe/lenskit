@@ -902,7 +902,8 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 
 - [ ] MIME-Typ-Erkennung teilweise gehärtet (Extension + Magic-Byte-Fallback); weitere Robustheit und Formatabdeckung offen
   - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
-- [x] Encoding-Erkennung (nicht nur pauschaler UTF-8 Fallback) einführen
+- [ ] Encoding-Erkennung teilweise gehärtet (kleines best-effort Set); weitere Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
+  - *Semantische Notiz: `encoding` ist ein best-effort Feld basierend auf einer 4KB-Heuristik. Es ist keine garantierte Klassifikation.*
 - [ ] line_count jenseits des content-Modus robust erfassen
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
