@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
+
 from merger.lenskit.adapters.atlas import AtlasScanner
 
 def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
@@ -107,8 +109,6 @@ def test_incremental_mime_reuse(tmp_path: Path):
 
     # Assert reuse stats
     assert scanner2.stats["incremental"]["reused_files_count"] == 1
-
-from unittest.mock import patch
 
 def test_mime_type_not_calculated_when_stats_disabled(tmp_path: Path):
     """
