@@ -91,6 +91,40 @@ def detect_mime_type(path: Path) -> Optional[str]:
 
     return mime_type
 
+
+TEXT_MIME_ALLOWLIST = {
+    "application/json",
+    "application/xml",
+    "application/javascript",
+    "image/svg+xml"
+}
+
+def detect_encoding(path: Path) -> Optional[str]:
+    """
+    Best-effort encoding detection.
+
+    Reads the first 4096 bytes and attempts to decode it using a few common encodings.
+    """
+    try:
+        with path.open("rb") as f:
+            chunk = f.read(4096)
+
+        if not chunk:
+            return "utf-8"  # Empty files are technically valid utf-8
+
+        # Try a few common encodings in order of likelihood
+        for enc in ["utf-8", "utf-16", "windows-1252", "iso-8859-1"]:
+            try:
+                chunk.decode(enc)
+                return enc
+            except UnicodeDecodeError:
+                continue
+
+        return None  # Couldn't reliably detect
+    except OSError:
+        return None
+
+
 logger = logging.getLogger(__name__)
 
 class AtlasScanner:
@@ -564,6 +598,7 @@ class AtlasScanner:
 
                         is_txt = None
                         mime_type = None
+                        encoding = None
 
                         # Incremental reuse heuristic
                         prev_entry = self.incremental_inventory.get(f_rel)
@@ -600,20 +635,35 @@ class AtlasScanner:
                                     if "is_text" in prev_entry:
                                         is_txt = prev_entry["is_text"]
                                         self.stats["incremental"]["skipped_analysis_count"] += 1
-                                    if self.enable_content_stats and "mime_type" in prev_entry:
-                                        mime_type = prev_entry["mime_type"]
+                                    if self.enable_content_stats:
+                                        if "mime_type" in prev_entry:
+                                            mime_type = prev_entry["mime_type"]
+                                        if "encoding" in prev_entry:
+                                            encoding = prev_entry["encoding"]
                                 if "quick_hash" in prev_entry and not file_hash:
                                     file_hash = prev_entry["quick_hash"]
 
                         if self.enable_content_stats:
+                            # 1. Determine or reuse MIME type
+                            if not is_reused or mime_type is None or self.config_changed:
+                                mime_type = detect_mime_type(f_path)
+
+                            # 2. Determine or reuse is_text
                             if not is_reused or is_txt is None or self.config_changed:
                                 is_txt = is_probably_text(f_path, size)
 
-                            if self.enable_content_stats and (not is_reused or mime_type is None or self.config_changed):
-                                mime_type = detect_mime_type(f_path)
+                            # 3. Restrict text properties based on MIME
+                            if mime_type:
+                                is_text_mime = mime_type.startswith("text/") or mime_type in TEXT_MIME_ALLOWLIST
+                                if not is_text_mime:
+                                    is_txt = False
+                                    encoding = None
 
                             if is_txt:
                                 text_files_count += 1
+                                # 4. Detect encoding only if it's considered text
+                                if not is_reused or encoding is None or self.config_changed:
+                                    encoding = detect_encoding(f_path)
                             else:
                                 binary_files_count += 1
 
@@ -678,6 +728,8 @@ class AtlasScanner:
                                     entry["is_text"] = is_txt
                                 if mime_type is not None:
                                     entry["mime_type"] = mime_type
+                                if encoding is not None:
+                                    entry["encoding"] = encoding
                             inv_f.write(json.dumps(entry, ensure_ascii=True, sort_keys=True) + "\n")
 
                     except OSError:
