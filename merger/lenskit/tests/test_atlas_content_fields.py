@@ -57,9 +57,9 @@ def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
     # Check encodings for text files
     assert results["text_file.txt"].get("encoding") == "utf-8"
     assert results["unknown_text"].get("encoding") == "utf-8"
-    # Note: pdf_no_ext contains b"%PDF-1.4\n...", which is technically valid ascii and valid utf-8,
-    # and it is parsed as text by is_probably_text since it has no null bytes.
-    # We test it's at least one of the expected fields.
+    # PDF is recognized as application/pdf and should NOT get an encoding field,
+    # even though it contains b"%PDF-1.4\n..." without null bytes.
+    assert "encoding" not in results["pdf_no_ext"]
     assert "encoding" not in results["random.dat"]
 
 

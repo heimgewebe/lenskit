@@ -92,6 +92,13 @@ def detect_mime_type(path: Path) -> Optional[str]:
     return mime_type
 
 
+TEXT_MIME_ALLOWLIST = {
+    "application/json",
+    "application/xml",
+    "application/javascript",
+    "image/svg+xml"
+}
+
 def detect_encoding(path: Path) -> Optional[str]:
     """
     Best-effort encoding detection.
@@ -113,7 +120,7 @@ def detect_encoding(path: Path) -> Optional[str]:
             except UnicodeDecodeError:
                 continue
 
-        return None # Couldn't reliably detect
+        return None  # Couldn't reliably detect
     except OSError:
         return None
 
@@ -637,15 +644,25 @@ class AtlasScanner:
                                     file_hash = prev_entry["quick_hash"]
 
                         if self.enable_content_stats:
+                            # 1. Determine or reuse MIME type
+                            if not is_reused or mime_type is None or self.config_changed:
+                                mime_type = detect_mime_type(f_path)
+
+                            # 2. Determine or reuse is_text
                             if not is_reused or is_txt is None or self.config_changed:
                                 is_txt = is_probably_text(f_path, size)
 
-                            if self.enable_content_stats and (not is_reused or mime_type is None or self.config_changed):
-                                mime_type = detect_mime_type(f_path)
+                            # 3. Restrict text properties based on MIME
+                            if mime_type:
+                                is_text_mime = mime_type.startswith("text/") or mime_type in TEXT_MIME_ALLOWLIST
+                                if not is_text_mime:
+                                    is_txt = False
+                                    encoding = None
 
                             if is_txt:
                                 text_files_count += 1
-                                if self.enable_content_stats and (not is_reused or encoding is None or self.config_changed):
+                                # 4. Detect encoding only if it's considered text
+                                if not is_reused or encoding is None or self.config_changed:
                                     encoding = detect_encoding(f_path)
                             else:
                                 binary_files_count += 1
