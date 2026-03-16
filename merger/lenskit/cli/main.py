@@ -130,6 +130,9 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_analyze_dups_parser = atlas_analyze_subparsers.add_parser("duplicates", help="Analyze duplicates in a snapshot")
     atlas_analyze_dups_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
 
+    atlas_analyze_orphans_parser = atlas_analyze_subparsers.add_parser("orphans", help="Analyze orphans in a snapshot")
+    atlas_analyze_orphans_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
