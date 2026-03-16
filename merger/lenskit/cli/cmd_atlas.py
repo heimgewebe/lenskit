@@ -6,6 +6,7 @@ import socket
 import datetime
 import hashlib
 from pathlib import Path
+from typing import Dict, List, Any
 
 from merger.lenskit.adapters.atlas import AtlasScanner, render_atlas_md
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
@@ -97,6 +98,126 @@ def run_atlas_search(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error executing search: {e}", file=sys.stderr)
         return 1
+
+def run_atlas_analyze(args: argparse.Namespace) -> int:
+    if args.analyze_command == "duplicates":
+        return _run_analyze_duplicates(args.snapshot_id)
+    return 1
+
+def _run_analyze_duplicates(snapshot_id: str) -> int:
+    from merger.lenskit.atlas.registry import AtlasRegistry
+    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        snapshot = registry.get_snapshot(snapshot_id)
+        if not snapshot:
+            print(f"Error: Snapshot '{snapshot_id}' not found.", file=sys.stderr)
+            return 1
+
+        if snapshot['status'] != 'complete':
+            print(f"Error: Snapshot '{snapshot_id}' is not complete.", file=sys.stderr)
+            return 1
+
+        root = registry.get_root(snapshot['root_id'])
+        if not root:
+            print(f"Error: Root '{snapshot['root_id']}' not found.", file=sys.stderr)
+            return 1
+
+    if not snapshot.get('inventory_ref'):
+        print(f"Error: Snapshot '{snapshot_id}' has no inventory_ref.", file=sys.stderr)
+        return 1
+
+    base_dir = resolve_atlas_base_dir(registry_path)
+    inventory_path = resolve_artifact_ref(base_dir, snapshot['inventory_ref'])
+
+    if not inventory_path or not inventory_path.exists():
+        print(f"Error: Inventory file not found at {inventory_path}", file=sys.stderr)
+        return 1
+
+    # Phase 1: Group by size
+    size_groups: Dict[int, List[Dict[str, Any]]] = {}
+    with inventory_path.open('r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if entry.get('is_symlink') or entry.get('size_bytes', 0) == 0:
+                continue
+
+            size = entry['size_bytes']
+            if size not in size_groups:
+                size_groups[size] = []
+            size_groups[size].append(entry)
+
+    # Phase 2: Compute full hash for potential duplicates
+    root_path = Path(root['root_value'])
+    duplicates_list = []
+
+    for size, entries in size_groups.items():
+        if len(entries) < 2:
+            continue
+
+        hash_groups: Dict[str, List[Dict[str, Any]]] = {}
+        for entry in entries:
+            # Determine hash: try to compute full sha256 if not present
+            file_hash = entry.get('checksum')
+            if not file_hash:
+                # Need to compute it
+                f_path = root_path / entry['rel_path']
+                if f_path.is_file():
+                    try:
+                        sha256 = hashlib.sha256()
+                        with f_path.open('rb') as hf:
+                            for chunk in iter(lambda: hf.read(8192), b""):
+                                sha256.update(chunk)
+                        file_hash = "sha256:" + sha256.hexdigest()
+                    except OSError:
+                        pass
+
+            if not file_hash and entry.get('quick_hash'):
+                file_hash = "quick:" + entry['quick_hash']
+
+            if file_hash:
+                if file_hash not in hash_groups:
+                    hash_groups[file_hash] = []
+                hash_groups[file_hash].append(entry)
+
+        # Phase 3: Collect duplicates
+        for h, grp in hash_groups.items():
+            if len(grp) > 1:
+                dup_id = f"dup_{hashlib.md5(h.encode('utf-8')).hexdigest()[:12]}" # nosec B303
+                duplicates_list.append({
+                    "duplicate_id": dup_id,
+                    "checksum": h,
+                    "size_bytes": size,
+                    "members": [
+                        {
+                            "machine_id": snapshot['machine_id'],
+                            "root_id": snapshot['root_id'],
+                            "rel_path": e['rel_path']
+                        } for e in grp
+                    ]
+                })
+
+    duplicates_list.sort(key=lambda x: x['size_bytes'], reverse=True)
+
+    report = {
+        "snapshot_id": snapshot_id,
+        "analyzed_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+        "duplicate_groups_count": len(duplicates_list),
+        "total_wasted_bytes": sum(g['size_bytes'] * (len(g['members']) - 1) for g in duplicates_list),
+        "duplicates": duplicates_list
+    }
+
+    # Output to stdout. Future improvement: write to duplicates_ref in DB
+    print(json.dumps(report, indent=2))
+    return 0
 
 def run_atlas_history(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()

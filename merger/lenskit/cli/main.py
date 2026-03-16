@@ -125,6 +125,11 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_search_parser.add_argument("--date-before", help="Filter by modified date before (ISO format)")
     atlas_search_parser.add_argument("--content-query", help="Filter by file content (full text search within matched text files)")
 
+    atlas_analyze_parser = atlas_subparsers.add_parser("analyze", help="Run analysis on a snapshot")
+    atlas_analyze_subparsers = atlas_analyze_parser.add_subparsers(dest="analyze_command", required=True)
+    atlas_analyze_dups_parser = atlas_analyze_subparsers.add_parser("duplicates", help="Analyze duplicates in a snapshot")
+    atlas_analyze_dups_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
@@ -168,6 +173,8 @@ def main(args: Optional[List[str]] = None) -> int:
             return cmd_atlas.run_atlas_history(parsed_args)
         elif parsed_args.atlas_cmd == "search":
             return cmd_atlas.run_atlas_search(parsed_args)
+        elif parsed_args.atlas_cmd == "analyze":
+            return cmd_atlas.run_atlas_analyze(parsed_args)
         else:
             parser.parse_args(["atlas", "--help"])
             return 0
