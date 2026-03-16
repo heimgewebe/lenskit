@@ -193,17 +193,18 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
                 is_verified = False
             # 3. Otherwise compute live SHA256 (confirmed)
             else:
-                f_path = root_path / entry['rel_path']
-                if f_path.is_file():
-                    try:
+                try:
+                    # Securely resolve path and ensure it doesn't escape the root
+                    f_path = (root_path / entry['rel_path']).resolve()
+                    if f_path.is_file() and f_path.is_relative_to(root_path.resolve()):
                         sha256 = hashlib.sha256()
                         with f_path.open('rb') as hf:
                             for chunk in iter(lambda: hf.read(8192), b""):
                                 sha256.update(chunk)
                         grouping_key = f"sha256:{sha256.hexdigest()}"
                         is_verified = True
-                    except OSError:
-                        pass
+                except (OSError, ValueError, RuntimeError):
+                    pass
 
             if grouping_key:
                 if grouping_key not in hash_groups:

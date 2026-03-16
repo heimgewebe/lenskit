@@ -38,6 +38,10 @@ def duplicate_snapshot_setup(tmp_path, monkeypatch):
         file_c = tmp_path / "file_c.txt"
         file_c.write_text("different")
 
+        # A file completely outside of the tmp_path root to test path escape protection
+        outside_file = tmp_path.parent / "outside_escape.txt"
+        outside_file.write_text("hello world")
+
         entries = [
             # Group 1: Confirmed via existing checksum
             {"rel_path": "path/1.txt", "size_bytes": 100, "checksum": "sha256:abc"},
@@ -50,6 +54,8 @@ def duplicate_snapshot_setup(tmp_path, monkeypatch):
             # Group 3: Live hashed (size 11, "hello world")
             {"rel_path": "file_a.txt", "size_bytes": 11},
             {"rel_path": "file_b.txt", "size_bytes": 11},
+            # Malicious traversal attempt pointing outside the root
+            {"rel_path": "../outside_escape.txt", "size_bytes": 11},
 
             # Non-duplicate
             {"rel_path": "file_c.txt", "size_bytes": 9},
