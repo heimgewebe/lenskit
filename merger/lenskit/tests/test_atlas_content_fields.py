@@ -63,6 +63,8 @@ def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
     assert "encoding" not in results["random.dat"]
 
 
+from merger.lenskit.adapters.atlas import count_lines
+
 def test_count_lines_with_enable_content_stats(tmp_path: Path):
     """
     Test that line_count is correctly computed for text files, including non-utf-8 encodings.
@@ -101,6 +103,17 @@ def test_count_lines_with_enable_content_stats(tmp_path: Path):
     assert results["file2.txt"] == 1
     assert results["empty.txt"] == 0
     assert results["utf16.txt"] == 3
+
+def test_count_lines_skips_huge_files(tmp_path: Path):
+    """
+    Test that count_lines skips files larger than 20MB.
+    """
+    huge_file = tmp_path / "huge.txt"
+    huge_file.write_text("Hello\nWorld")
+
+    # Simulate a file size > 20MB without writing 20MB to disk
+    result = count_lines(huge_file, size=21 * 1024 * 1024)
+    assert result is None
 
 def test_detect_encoding_with_enable_content_stats(tmp_path: Path):
     """
