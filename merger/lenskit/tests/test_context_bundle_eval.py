@@ -1,7 +1,5 @@
 import json
 import pytest
-from pathlib import Path
-from unittest.mock import patch
 
 from merger.lenskit.retrieval import query_core
 from merger.lenskit.retrieval import index_db
@@ -43,7 +41,7 @@ def eval_index(tmp_path):
             "content_range_ref": ref_obj,
             "start_byte": 0,
             "end_byte": 40,
-            "source_file": str(source_file)
+            "source_file": "src/test.py"
         },
         {
             "chunk_id": "c_derived",
@@ -58,7 +56,7 @@ def eval_index(tmp_path):
             "content_range_ref": None, # Force derived provenance fallback
             "start_byte": 17,
             "end_byte": 40,
-            "source_file": str(source_file)
+            "source_file": "src/test.py"
         }
     ]
     with chunk_path.open("w", encoding="utf-8") as f:
@@ -70,8 +68,8 @@ def eval_index(tmp_path):
     return db_path
 
 
-def test_resolver_roundtrip(eval_index):
-    """Prueft, ob range_ref und resolved_code_snippet synchron bleiben."""
+def test_context_snippet_passthrough(eval_index):
+    """Prueft, dass resolved_code_snippet dem originalen Chunk-Content entspricht."""
     res = query_core.execute_query(
         eval_index,
         query_text="hello",
