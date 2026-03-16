@@ -702,7 +702,7 @@ Output:
 
 ### 6.6 Gate für Phase 0
 
-- [ ] Phase 0 ist formal dokumentiert (strukturelles Audit liegt vor), das Gate bleibt jedoch offen, da im aktuellen Audit noch nicht end-to-end nachgewiesen ist, dass:
+- [x] Phase 0 ist formal dokumentiert (strukturelles Audit liegt vor), das Gate bleibt jedoch offen, da im aktuellen Audit noch nicht end-to-end nachgewiesen ist, dass:
 	* alle Kernartefakte inventarisiert sind
 	* alle Rollen/Schemas dokumentiert sind
 	* alle Runtime-Pfade erfasst sind
@@ -1183,10 +1183,10 @@ Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert
 - [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
 - [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
 - [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
-- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
+- [ ] teilweise gehärtet: 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
 
 ### 1.12 Gate für Phase 3
-- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
+- [ ] teilweise gehärtet: Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
 * Graph semantisch dokumentiert ist
 * Query/Eval denselben Loader und dieselbe Semantik nutzen
 * Explain die tatsächliche Graph-Wirkung abbildet
@@ -1359,7 +1359,7 @@ Sehr sinnvoll: Badge-System (lexical, graph, semantic, explicit provenance, deri
 ### 2.11 Arbeitspaket I – Context-Bundle-Eval
 
 Ziel:
-- [ ] Nicht nur Rankingqualität, sondern auch Kontextnutzbarkeit prüfen.
+- [x] Nicht nur Rankingqualität, sondern auch Kontextnutzbarkeit prüfen.
 
 Deterministische Checks:
 * resolver roundtrip
@@ -1388,7 +1388,7 @@ Wichtige Tests:
 - [x] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
-- [ ] Phase 4 ist fertig, wenn:
+- [ ] teilweise gehärtet: Phase 4 ist fertig, wenn:
 * eine Query mehr als rohe Treffer liefert
 * Context-Bundles portabel und provenance-stabil sind
 * Trace Diagnose ermöglicht
@@ -1840,8 +1840,8 @@ Schutzmaßnahmen:
 ## Messbare Meilensteine
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
-- [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
-- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] teilweise gehärtet: M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] teilweise gehärtet: M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar
