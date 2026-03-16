@@ -1,5 +1,4 @@
 import json
-import pytest
 import argparse
 from pathlib import Path
 from merger.lenskit.cli.cmd_atlas import run_atlas_analyze
@@ -21,7 +20,7 @@ def test_analyze_orphans_functional(tmp_path: Path, monkeypatch, capsys):
     with AtlasRegistry(registry_path) as registry:
         registry.register_machine("mach_1", "mach_1")
         registry.register_root("root_1", "mach_1", "abs_path", root_val.resolve().as_posix())
-        registry.create_snapshot("snap_1", "mach_1", "root_1", "12345", "running")
+        registry.create_snapshot("snap_1", "mach_1", "root_1", "12345", "complete")
 
         # Setup snapshot inventory using expected directory structure
         snapshot_dir = tmp_path / "atlas" / "machines" / "mach_1" / "roots" / "root_1" / "snapshots" / "snap_1"
@@ -34,7 +33,6 @@ def test_analyze_orphans_functional(tmp_path: Path, monkeypatch, capsys):
             f.write(json.dumps({"rel_path": "file3_dead.txt"}) + "\n")
 
         registry.update_snapshot_artifacts("snap_1", {"inventory": inv_file.relative_to(tmp_path / "atlas").as_posix()})
-        registry.update_snapshot_status("snap_1", "complete")
 
     args = argparse.Namespace(analyze_command="orphans", snapshot_id="snap_1")
     exit_code = run_atlas_analyze(args)
