@@ -923,7 +923,7 @@ Ziel: Atlas wird diagnostisch.
 - [ ] Orphan Detection definieren
 - [ ] analyze disk standardisieren
 - [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
-- [x] analyze orphan implementieren
+- [x] analyze orphans implementieren (als CLI command `atlas analyze orphans <snapshot_id>`)
 - [ ] Oldest-/Largest-Files-Artefakte vereinheitlichen
 - [ ] Cross-root growth reports definieren
 

@@ -153,8 +153,8 @@ def _run_analyze_orphans(snapshot_id: str) -> int:
                 entry = json.loads(line)
                 rel_path = entry.get('rel_path')
                 if rel_path:
-                    # Treat snapshot files as relative to the root_path
-                    snapshot_files.add(str(Path(rel_path)))
+                    # Treat snapshot files directly as canonical string representation
+                    snapshot_files.add(rel_path)
             except json.JSONDecodeError:
                 continue
 
@@ -164,7 +164,7 @@ def _run_analyze_orphans(snapshot_id: str) -> int:
         rel_root = Path(root_dir).relative_to(root_path)
         for name in files:
             rel_file_path = rel_root / name
-            live_files.add(str(rel_file_path))
+            live_files.add(rel_file_path.as_posix())
 
     # Orphans are files in the live system that are not in the snapshot
     orphans = live_files - snapshot_files
