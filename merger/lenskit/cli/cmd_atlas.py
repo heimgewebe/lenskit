@@ -188,8 +188,10 @@ def _run_analyze_orphans(snapshot_id: str) -> int:
 
 
 def _run_analyze_duplicates(snapshot_id: str) -> int:
+    import tempfile
+    import os
     from merger.lenskit.atlas.registry import AtlasRegistry
-    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
+    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
 
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     with AtlasRegistry(registry_path) as registry:
@@ -335,7 +337,33 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
         "duplicates": duplicates_list
     }
 
-    # Output to stdout. Future improvement: write to duplicates_ref in DB
+    # Output to snapshot directory and update registry
+    snapshot_dir = resolve_snapshot_dir(base_dir, snapshot['machine_id'], snapshot['root_id'], snapshot_id)
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    duplicates_path = snapshot_dir / "duplicates.json"
+
+    # Write atomically
+    fd, temp_path = tempfile.mkstemp(dir=str(snapshot_dir), prefix=".tmp_duplicates.json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, str(duplicates_path))
+    except Exception:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+    try:
+        dup_ref = str(duplicates_path.relative_to(base_dir))
+    except ValueError:
+        dup_ref = str(duplicates_path)
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        registry.update_snapshot_artifacts(snapshot_id, {"duplicates": dup_ref})
+
     print(json.dumps(report, indent=2))
     return 0
 
