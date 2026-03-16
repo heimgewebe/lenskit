@@ -8,9 +8,11 @@ UI_DIR = os.path.abspath("merger/lenskit/frontends/webui")
 
 @pytest.fixture
 def page_with_static(page: Page):
+    import os
     # Log console
-    page.on("console", lambda msg: print(f"PAGE LOG: {msg.text}"))
-    page.on("pageerror", lambda exc: print(f"PAGE ERROR: {exc}"))
+    if os.environ.get("DEBUG_PLAYWRIGHT_REQUESTS") == "1":
+        page.on("console", lambda msg: print(f"PAGE LOG: {msg.text}"))
+        page.on("pageerror", lambda exc: print(f"PAGE ERROR: {exc}"))
 
     with open(os.path.join(UI_DIR, "index.html"), "r") as f:
         content = f.read()
@@ -354,10 +356,7 @@ def test_query_tab_submits_payload(page_with_static: Page):
     page_with_static.wait_for_selector("#tab-query")
 
     # Wait for JS to attach event listeners
-    page_with_static.wait_for_function("typeof window.switchTab === 'function'")
-
-    # Add a console listener to see what's failing in evaluate
-    page_with_static.on("console", lambda msg: print(f"PAGE LOG: {msg.text}"))
+    page_with_static.wait_for_function("typeof window.switchTab === 'function' && typeof window.executeQuery === 'function'")
 
     # Switch to the query tab explicitly via application state to avoid headless click flakiness on hidden layout elements
     page_with_static.evaluate("window.switchTab('query')")

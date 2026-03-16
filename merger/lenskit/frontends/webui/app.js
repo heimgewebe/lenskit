@@ -1418,7 +1418,7 @@ async function executeQuery(e) {
 }
 
 function escapeHtml(str) {
-    if (!str) return '';
+    if (str === null || str === undefined) return '';
     return String(str)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -1440,7 +1440,7 @@ function renderQueryResults(data) {
     }
 
     hits.forEach((hit, idx) => {
-        const score = hit.score ? hit.score.toFixed(3) : "0.000";
+        const score = typeof hit.score === 'number' ? hit.score.toFixed(3) : "0.000";
         const graphBadge = hit.graph_context && hit.graph_context.graph_used
             ? `<span class="bg-purple-900 text-purple-200 text-[10px] px-1 rounded ml-2" title="Graph Distance: ${escapeHtml(hit.graph_context.distance)}">Graph</span>`
             : '';
