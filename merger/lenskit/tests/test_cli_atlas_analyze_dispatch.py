@@ -1,5 +1,4 @@
 import pytest
-import argparse
 from merger.lenskit.cli.main import main as lenskit_main
 from merger.lenskit.cli.rlens import main as rlens_main
 

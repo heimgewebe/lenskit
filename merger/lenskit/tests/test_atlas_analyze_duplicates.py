@@ -1,6 +1,5 @@
 import json
 import pytest
-import datetime
 from pathlib import Path
 
 from merger.lenskit.cli.cmd_atlas import _run_analyze_duplicates
