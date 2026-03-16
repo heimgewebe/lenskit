@@ -65,7 +65,7 @@ def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
 
 def test_count_lines_with_enable_content_stats(tmp_path: Path):
     """
-    Test that line_count is correctly computed for text files.
+    Test that line_count is correctly computed for text files, including non-utf-8 encodings.
     """
     test_dir = tmp_path / "test_lines"
     test_dir.mkdir()
@@ -78,6 +78,9 @@ def test_count_lines_with_enable_content_stats(tmp_path: Path):
 
     file3 = test_dir / "empty.txt"
     file3.write_text("")
+
+    file4 = test_dir / "utf16.txt"
+    file4.write_bytes("Line 1\nLine 2\nLine 3\n".encode("utf-16"))
 
     inv_file = tmp_path / "inventory.jsonl"
 
@@ -97,6 +100,7 @@ def test_count_lines_with_enable_content_stats(tmp_path: Path):
     assert results["file1.txt"] == 3
     assert results["file2.txt"] == 1
     assert results["empty.txt"] == 0
+    assert results["utf16.txt"] == 3
 
 def test_detect_encoding_with_enable_content_stats(tmp_path: Path):
     """

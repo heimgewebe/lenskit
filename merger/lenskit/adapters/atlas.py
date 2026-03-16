@@ -99,18 +99,21 @@ TEXT_MIME_ALLOWLIST = {
     "image/svg+xml"
 }
 
-def count_lines(path: Path, size: int) -> Optional[int]:
+def count_lines(path: Path, size: int, encoding: Optional[str] = None) -> Optional[int]:
     """
     Best-effort line count detection.
 
     Reads the file line-by-line to avoid loading large files into memory.
     Skips files larger than 20MB to prevent heavy I/O.
+    Uses the provided encoding, or falls back to utf-8.
     """
     if size > 20 * 1024 * 1024:
         return None
+
+    enc = encoding if encoding else "utf-8"
     try:
         count = 0
-        with path.open("r", encoding="utf-8", errors="replace") as f:
+        with path.open("r", encoding=enc, errors="replace") as f:
             for _ in f:
                 count += 1
         return count
@@ -689,7 +692,7 @@ class AtlasScanner:
                                     encoding = detect_encoding(f_path)
                                 # 5. Detect line count only if it's considered text
                                 if not is_reused or line_count is None or self.config_changed:
-                                    line_count = count_lines(f_path, size)
+                                    line_count = count_lines(f_path, size, encoding=encoding)
                             else:
                                 binary_files_count += 1
 
