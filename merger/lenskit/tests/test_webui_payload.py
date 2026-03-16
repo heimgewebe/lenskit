@@ -324,8 +324,7 @@ def test_query_tab_submits_payload(page_with_static: Page):
     import os
     if os.environ.get("DEBUG_PLAYWRIGHT_REQUESTS") == "1":
         page_with_static.on("request", lambda r: print(f"REQ: {r.method} {r.url}"))
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', \"test-v1\"); sessionStorage.setItem('rlens_reset_once', \"test-v1\");")
-    page_with_static.route("**/api/version", lambda r: r.fulfill(status=404))
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('rlens_state_version', 'test-v1');")
 
     def handle_query(route: Route):
         if route.request.method == "POST":
