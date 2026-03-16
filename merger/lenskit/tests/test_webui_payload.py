@@ -1,3 +1,4 @@
+from playwright.sync_api import expect
 import pytest
 from playwright.sync_api import Page, Route
 import json
@@ -323,7 +324,8 @@ def test_query_tab_submits_payload(page_with_static: Page):
     import os
     if os.environ.get("DEBUG_PLAYWRIGHT_REQUESTS") == "1":
         page_with_static.on("request", lambda r: print(f"REQ: {r.method} {r.url}"))
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', \"test-v1\"); sessionStorage.setItem('rlens_reset_once', \"test-v1\");")
+    page_with_static.route("**/api/version", lambda r: r.fulfill(status=404))
 
     def handle_query(route: Route):
         if route.request.method == "POST":
@@ -367,7 +369,7 @@ def test_query_tab_submits_payload(page_with_static: Page):
     page_with_static.locator("#queryK").fill("5", force=True)
     page_with_static.locator("#queryContextMode").select_option("window", force=True)
     page_with_static.locator("#queryWindowLines").fill("3", force=True)
-    page_with_static.locator("#queryTrace").check(force=True)
+    page_with_static.locator("#queryTrace").evaluate("el => el.checked = true")
 
     with page_with_static.expect_request("**/api/query*", timeout=5000) as req_info:
         # Trigger native form submission to accurately test the UI's submit handling
@@ -385,6 +387,14 @@ def test_query_tab_submits_payload(page_with_static: Page):
     assert p["trace"] is True
     assert p["output_profile"] == "ui_navigation"
 
-    # Note: We do not verify UI rendering via Playwright assertions here because Playwright's `route` handling
-    # in local string injections doesn't faithfully trigger `fetch` promise resolution chains reliably in this environment.
-    # The actual payload submission has been intercepted successfully, which is the primary integration contract.
+    # Verify that the mocked payload is correctly rendered in the UI
+    expect(page_with_static.locator("#queryResults")).to_be_visible()
+
+    # Check for the file path being rendered
+    expect(page_with_static.locator("#queryResults").locator("text=src/login.py")).to_be_visible()
+
+    # Check for score rendering
+    expect(page_with_static.locator("#queryResults").locator("text=Score: 0.950")).to_be_visible()
+
+    # Check for explain block
+    expect(page_with_static.locator("#queryResults").get_by_text("Explain", exact=True)).to_be_visible()

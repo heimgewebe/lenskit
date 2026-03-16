@@ -1429,81 +1429,125 @@ function escapeHtml(str) {
 
 function renderQueryResults(data) {
     const resultsContainer = document.getElementById('queryResults');
-    resultsContainer.innerHTML = '';
+    resultsContainer.textContent = ''; // Clear container cleanly
 
     const bundle = data.context_bundle || data;
     const hits = bundle.hits || [];
 
     if (hits.length === 0) {
-        resultsContainer.innerHTML = '<div class="text-gray-400 italic">No results found.</div>';
+        const noRes = document.createElement('div');
+        noRes.className = "text-gray-400 italic";
+        noRes.textContent = "No results found.";
+        resultsContainer.appendChild(noRes);
         return;
     }
 
     hits.forEach((hit, idx) => {
         const score = typeof hit.score === 'number' ? hit.score.toFixed(3) : "0.000";
-        const graphBadge = hit.graph_context && hit.graph_context.graph_used
-            ? `<span class="bg-purple-900 text-purple-200 text-[10px] px-1 rounded ml-2" title="Graph Distance: ${escapeHtml(hit.graph_context.distance)}">Graph</span>`
-            : '';
-        const provBadge = `<span class="bg-gray-700 text-gray-300 text-[10px] px-1 rounded ml-2">${escapeHtml(hit.provenance_type || 'unknown')}</span>`;
-
-        let explainHtml = '';
-        if (hit.explain && Object.keys(hit.explain).length > 0) {
-             const explainStr = escapeHtml(JSON.stringify(hit.explain, null, 2));
-             explainHtml = `
-                 <details class="mt-2 text-xs">
-                     <summary class="cursor-pointer text-gray-400 hover:text-gray-200">Explain</summary>
-                     <pre class="bg-gray-900 p-2 mt-1 rounded border border-gray-700 text-gray-300 overflow-x-auto">${explainStr}</pre>
-                 </details>
-             `;
-        }
-
-        let contextHtml = '';
-        if (hit.surrounding_context) {
-             const ctxText = escapeHtml(hit.surrounding_context);
-             contextHtml = `
-                 <div class="mt-2 text-xs">
-                     <div class="text-gray-500 mb-1 uppercase font-bold">Context Preview</div>
-                     <pre class="bg-gray-900 p-2 rounded border border-gray-700 text-gray-300 overflow-x-auto max-h-40">${ctxText}</pre>
-                 </div>
-             `;
-        } else if (hit.resolved_code_snippet) {
-             const snipText = escapeHtml(hit.resolved_code_snippet);
-             contextHtml = `
-                 <div class="mt-2 text-xs">
-                     <div class="text-gray-500 mb-1 uppercase font-bold">Exact Match</div>
-                     <pre class="bg-gray-900 p-2 rounded border border-gray-700 text-gray-300 overflow-x-auto max-h-40">${snipText}</pre>
-                 </div>
-             `;
-        }
 
         const div = document.createElement('div');
         div.className = "bg-gray-800 p-4 rounded border border-gray-700 mt-4";
-        div.innerHTML = `
-            <div class="flex justify-between items-start mb-2">
-                <div class="font-mono text-sm text-blue-400 break-all">${escapeHtml(hit.file)} <span class="text-gray-500">:${escapeHtml(hit.range)}</span></div>
-                <div class="text-xs font-bold text-green-400 bg-green-900/30 px-2 py-1 rounded">Score: ${escapeHtml(score)}</div>
-            </div>
-            <div class="flex items-center text-xs mb-2">
-                <span class="text-gray-400">Provenance:</span>
-                ${provBadge}
-                ${graphBadge}
-            </div>
-            ${contextHtml}
-            ${explainHtml}
-        `;
+
+        // Header: Path and Score
+        const headerDiv = document.createElement('div');
+        headerDiv.className = "flex justify-between items-start mb-2";
+
+        const pathDiv = document.createElement('div');
+        pathDiv.className = "font-mono text-sm text-blue-400 break-all";
+        pathDiv.textContent = hit.file || 'unknown';
+        const rangeSpan = document.createElement('span');
+        rangeSpan.className = "text-gray-500 ml-1";
+        rangeSpan.textContent = `:${hit.range || ''}`;
+        pathDiv.appendChild(rangeSpan);
+
+        const scoreDiv = document.createElement('div');
+        scoreDiv.className = "text-xs font-bold text-green-400 bg-green-900/30 px-2 py-1 rounded";
+        scoreDiv.textContent = `Score: ${score}`;
+
+        headerDiv.appendChild(pathDiv);
+        headerDiv.appendChild(scoreDiv);
+        div.appendChild(headerDiv);
+
+        // Metadata: Provenance and Graph Badge
+        const metaDiv = document.createElement('div');
+        metaDiv.className = "flex items-center text-xs mb-2";
+
+        const provLabel = document.createElement('span');
+        provLabel.className = "text-gray-400";
+        provLabel.textContent = "Provenance:";
+        metaDiv.appendChild(provLabel);
+
+        const provBadge = document.createElement('span');
+        provBadge.className = "bg-gray-700 text-gray-300 text-[10px] px-1 rounded ml-2";
+        provBadge.textContent = hit.provenance_type || 'unknown';
+        metaDiv.appendChild(provBadge);
+
+        if (hit.graph_context && hit.graph_context.graph_used) {
+            const graphBadge = document.createElement('span');
+            graphBadge.className = "bg-purple-900 text-purple-200 text-[10px] px-1 rounded ml-2";
+            graphBadge.title = `Graph Distance: ${hit.graph_context.distance}`;
+            graphBadge.textContent = "Graph";
+            metaDiv.appendChild(graphBadge);
+        }
+        div.appendChild(metaDiv);
+
+        // Context / Snippet
+        if (hit.surrounding_context || hit.resolved_code_snippet) {
+            const ctxWrap = document.createElement('div');
+            ctxWrap.className = "mt-2 text-xs";
+
+            const ctxLabel = document.createElement('div');
+            ctxLabel.className = "text-gray-500 mb-1 uppercase font-bold";
+            ctxLabel.textContent = hit.surrounding_context ? "Context Preview" : "Exact Match";
+            ctxWrap.appendChild(ctxLabel);
+
+            const ctxPre = document.createElement('pre');
+            ctxPre.className = "bg-gray-900 p-2 rounded border border-gray-700 text-gray-300 overflow-x-auto max-h-40";
+            ctxPre.textContent = hit.surrounding_context || hit.resolved_code_snippet;
+            ctxWrap.appendChild(ctxPre);
+
+            div.appendChild(ctxWrap);
+        }
+
+        // Explain
+        if (hit.explain && Object.keys(hit.explain).length > 0) {
+            const expDetails = document.createElement('details');
+            expDetails.className = "mt-2 text-xs";
+
+            const expSummary = document.createElement('summary');
+            expSummary.className = "cursor-pointer text-gray-400 hover:text-gray-200";
+            expSummary.textContent = "Explain";
+            expDetails.appendChild(expSummary);
+
+            const expPre = document.createElement('pre');
+            expPre.className = "bg-gray-900 p-2 mt-1 rounded border border-gray-700 text-gray-300 overflow-x-auto";
+            expPre.textContent = JSON.stringify(hit.explain, null, 2);
+            expDetails.appendChild(expPre);
+
+            div.appendChild(expDetails);
+        }
+
         resultsContainer.appendChild(div);
     });
 
     if (data.query_trace) {
-        const traceStr = escapeHtml(JSON.stringify(data.query_trace, null, 2));
         const traceDiv = document.createElement('div');
         traceDiv.className = "mt-6 border-t border-gray-700 pt-4";
-        traceDiv.innerHTML = `
-            <details class="text-xs">
-                <summary class="cursor-pointer text-yellow-500 hover:text-yellow-400 font-bold uppercase">Query Trace (Diagnostics)</summary>
-                <pre class="bg-gray-900 p-2 mt-2 rounded border border-gray-700 text-gray-300 overflow-x-auto">${traceStr}</pre>
-            </details>
-        `;
+
+        const traceDetails = document.createElement('details');
+        traceDetails.className = "text-xs";
+
+        const traceSummary = document.createElement('summary');
+        traceSummary.className = "cursor-pointer text-yellow-500 hover:text-yellow-400 font-bold uppercase";
+        traceSummary.textContent = "Query Trace (Diagnostics)";
+        traceDetails.appendChild(traceSummary);
+
+        const tracePre = document.createElement('pre');
+        tracePre.className = "bg-gray-900 p-2 mt-2 rounded border border-gray-700 text-gray-300 overflow-x-auto";
+        tracePre.textContent = JSON.stringify(data.query_trace, null, 2);
+        traceDetails.appendChild(tracePre);
+
+        traceDiv.appendChild(traceDetails);
         resultsContainer.appendChild(traceDiv);
     }
 }
