@@ -1343,7 +1343,7 @@ Wichtig: API darf keine privaten internen Hilfsfelder ungefiltert nach außen le
 ### 2.10 Arbeitspaket H – WebUI minimal produktisieren
 
 Ziel:
-- [ ] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche.
+- [x] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche (strukturell erreicht, Render-/UX-Härtung offen).
 
 Minimale Features:
 * Query eingeben
@@ -1385,7 +1385,7 @@ Wichtige Tests:
 - [x] 4. Context-Expansion-Regeln
 - [x] 5. Provenance-first Output
 - [x] 6. Output-Profile
-- [ ] 7. API/UI-ready Struktur
+- [x] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
 - [ ] Phase 4 ist fertig, wenn:
@@ -1695,8 +1695,8 @@ Tests:
 - [ ] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
-- [x] 1. Agent Query Contract (für /api/query implementiert und getestet)
-- [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
+- [ ] 1. Agent Query Contract (für /api/query implementiert und getestet)
+- [ ] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
 - [ ] 5. agent_query_session.json
