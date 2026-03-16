@@ -118,3 +118,20 @@ def test_analyze_duplicates_differentiates_groups(duplicate_snapshot_setup, caps
     assert group_11["checksum"].startswith("sha256:")
     assert "quick_hash" not in group_11
     assert len(group_11["members"]) == 2
+
+    # Check persistence
+    atlas_base = registry_path.parent.parent
+    duplicates_path = atlas_base / "machines" / "test-machine" / "roots" / "test-root" / "snapshots" / snap_id / "duplicates.json"
+
+    assert duplicates_path.exists()
+
+    with duplicates_path.open() as f:
+        data = json.load(f)
+
+    assert "duplicates" in data
+
+    with AtlasRegistry(registry_path) as registry:
+        snap = registry.get_snapshot(snap_id)
+
+    assert snap["duplicates_ref"] is not None
+    assert snap["duplicates_ref"].endswith("duplicates.json")

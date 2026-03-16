@@ -5,6 +5,7 @@ import os
 import socket
 import datetime
 import hashlib
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Any
 
@@ -188,8 +189,6 @@ def _run_analyze_orphans(snapshot_id: str) -> int:
 
 
 def _run_analyze_duplicates(snapshot_id: str) -> int:
-    import tempfile
-    import os
     from merger.lenskit.atlas.registry import AtlasRegistry
     from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
 
@@ -356,9 +355,9 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
         raise
 
     try:
-        dup_ref = str(duplicates_path.relative_to(base_dir))
+        dup_ref = duplicates_path.relative_to(base_dir).as_posix()
     except ValueError:
-        dup_ref = str(duplicates_path)
+        dup_ref = duplicates_path.as_posix()
 
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     with AtlasRegistry(registry_path) as registry:
