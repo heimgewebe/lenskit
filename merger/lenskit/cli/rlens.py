@@ -106,6 +106,9 @@ def main():
     atlas_analyze_dups_parser = atlas_analyze_subparsers.add_parser("duplicates", help="Analyze duplicates in a snapshot")
     atlas_analyze_dups_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
 
+    atlas_analyze_orphans_parser = atlas_analyze_subparsers.add_parser("orphans", help="Analyze orphans in a snapshot")
+    atlas_analyze_orphans_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
+
     # Architecture command
     arch_parser = subparsers.add_parser("architecture", help="Extract architectural views of a repository")
     arch_parser.add_argument("repo", nargs="?", default=".", help="The repository path to scan (default: current directory)")

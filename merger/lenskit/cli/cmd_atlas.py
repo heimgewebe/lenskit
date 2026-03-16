@@ -102,7 +102,90 @@ def run_atlas_search(args: argparse.Namespace) -> int:
 def run_atlas_analyze(args: argparse.Namespace) -> int:
     if args.analyze_command == "duplicates":
         return _run_analyze_duplicates(args.snapshot_id)
+    if args.analyze_command == "orphans":
+        return _run_analyze_orphans(args.snapshot_id)
     return 1
+
+def _run_analyze_orphans(snapshot_id: str) -> int:
+    from merger.lenskit.atlas.registry import AtlasRegistry
+    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        snapshot = registry.get_snapshot(snapshot_id)
+        if not snapshot:
+            print(f"Error: Snapshot '{snapshot_id}' not found.", file=sys.stderr)
+            return 1
+
+        if snapshot['status'] != 'complete':
+            print(f"Error: Snapshot '{snapshot_id}' is not complete.", file=sys.stderr)
+            return 1
+
+        root = registry.get_root(snapshot['root_id'])
+        if not root:
+            print(f"Error: Root '{snapshot['root_id']}' not found.", file=sys.stderr)
+            return 1
+
+    if not snapshot.get('inventory_ref'):
+        print(f"Error: Snapshot '{snapshot_id}' has no inventory_ref.", file=sys.stderr)
+        return 1
+
+    base_dir = resolve_atlas_base_dir(registry_path)
+    inventory_path = resolve_artifact_ref(base_dir, snapshot['inventory_ref'])
+
+    if not inventory_path or not inventory_path.exists():
+        print(f"Error: Inventory file not found at {inventory_path}", file=sys.stderr)
+        return 1
+
+    root_path = Path(root['root_value'])
+    if not root_path.exists() or not root_path.is_dir():
+        print(f"Error: Root path '{root_path}' does not exist or is not a directory.", file=sys.stderr)
+        return 1
+
+    # Load files from the snapshot
+    snapshot_files = set()
+    with inventory_path.open('r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                rel_path = entry.get('rel_path')
+                if rel_path:
+                    # Treat snapshot files directly as canonical string representation
+                    snapshot_files.add(rel_path)
+            except json.JSONDecodeError:
+                continue
+
+    # Load live files from the root
+    live_files = set()
+    for root_dir, dirs, files in os.walk(root_path):
+        rel_root = Path(root_dir).relative_to(root_path)
+        for name in files:
+            rel_file_path = rel_root / name
+            live_files.add(rel_file_path.as_posix())
+
+    # Orphans are files in the live system that are not in the snapshot
+    orphans = live_files - snapshot_files
+    # Dead files are files in the snapshot that are not in the live system
+    dead_files = snapshot_files - live_files
+
+    report = {
+        "snapshot_id": snapshot_id,
+        "analyzed_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+        "root_path": str(root_path),
+        "total_live_files": len(live_files),
+        "total_snapshot_files": len(snapshot_files),
+        "orphan_count": len(orphans),
+        "dead_file_count": len(dead_files),
+        "orphans": sorted(list(orphans)),
+        "dead_files": sorted(list(dead_files))
+    }
+
+    print(json.dumps(report, indent=2))
+    return 0
+
 
 def _run_analyze_duplicates(snapshot_id: str) -> int:
     from merger.lenskit.atlas.registry import AtlasRegistry
