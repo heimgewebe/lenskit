@@ -135,7 +135,7 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
         print(f"Error: Inventory file not found at {inventory_path}", file=sys.stderr)
         return 1
 
-    # Phase 1: Group by size
+    # Phase 1: Group by size using minimal entries
     size_groups: Dict[int, List[Dict[str, Any]]] = {}
     with inventory_path.open('r', encoding='utf-8') as f:
         for line in f:
@@ -153,7 +153,15 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
             size = entry['size_bytes']
             if size not in size_groups:
                 size_groups[size] = []
-            size_groups[size].append(entry)
+
+            # Store only what is needed
+            min_entry = {
+                "rel_path": entry.get('rel_path'),
+                "size_bytes": size,
+                "quick_hash": entry.get('quick_hash'),
+                "checksum": entry.get('checksum')
+            }
+            size_groups[size].append(min_entry)
 
     # Phase 2: Compute full hash for potential duplicates
     root_path = Path(root['root_value'])
@@ -163,12 +171,22 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
         if len(entries) < 2:
             continue
 
-        hash_groups: Dict[str, List[Dict[str, Any]]] = {}
+        hash_groups: Dict[str, Dict[str, Any]] = {}
         for entry in entries:
-            # Determine hash: try to compute full sha256 if not present
-            file_hash = entry.get('checksum')
-            if not file_hash:
-                # Need to compute it
+            # Determine grouping hash and its verification status
+            grouping_key = None
+            is_verified = False
+
+            # 1. Use existing checksum if present
+            if entry.get('checksum'):
+                grouping_key = entry['checksum']
+                is_verified = True
+            # 2. Otherwise use existing quick_hash (heuristic)
+            elif entry.get('quick_hash'):
+                grouping_key = f"quick:{entry['quick_hash']}"
+                is_verified = False
+            # 3. Otherwise compute live SHA256 (confirmed)
+            else:
                 f_path = root_path / entry['rel_path']
                 if f_path.is_file():
                     try:
@@ -176,25 +194,30 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
                         with f_path.open('rb') as hf:
                             for chunk in iter(lambda: hf.read(8192), b""):
                                 sha256.update(chunk)
-                        file_hash = "sha256:" + sha256.hexdigest()
+                        grouping_key = f"sha256:{sha256.hexdigest()}"
+                        is_verified = True
                     except OSError:
                         pass
 
-            if not file_hash and entry.get('quick_hash'):
-                file_hash = "quick:" + entry['quick_hash']
-
-            if file_hash:
-                if file_hash not in hash_groups:
-                    hash_groups[file_hash] = []
-                hash_groups[file_hash].append(entry)
+            if grouping_key:
+                if grouping_key not in hash_groups:
+                    hash_groups[grouping_key] = {"verified": is_verified, "members": []}
+                # Demote verification status if a group mixes confirmed and heuristic hashes
+                # (Though with our prefixing, a "quick:" will never match a "sha256:")
+                if not is_verified:
+                    hash_groups[grouping_key]["verified"] = False
+                hash_groups[grouping_key]["members"].append(entry)
 
         # Phase 3: Collect duplicates
-        for h, grp in hash_groups.items():
+        for h, grp_data in hash_groups.items():
+            grp = grp_data["members"]
+            is_verified = grp_data["verified"]
             if len(grp) > 1:
-                dup_id = f"dup_{hashlib.md5(h.encode('utf-8')).hexdigest()[:12]}" # nosec B303
-                duplicates_list.append({
+                dup_id = f"dup_{hashlib.sha256(h.encode('utf-8')).hexdigest()[:12]}"
+
+                dup_entry = {
                     "duplicate_id": dup_id,
-                    "checksum": h,
+                    "checksum_verified": is_verified,
                     "size_bytes": size,
                     "members": [
                         {
@@ -203,7 +226,14 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
                             "rel_path": e['rel_path']
                         } for e in grp
                     ]
-                })
+                }
+
+                if is_verified:
+                    dup_entry["checksum"] = h
+                else:
+                    dup_entry["quick_hash"] = h.replace("quick:", "", 1) if h.startswith("quick:") else h
+
+                duplicates_list.append(dup_entry)
 
     duplicates_list.sort(key=lambda x: x['size_bytes'], reverse=True)
 

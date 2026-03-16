@@ -101,6 +101,11 @@ def main():
     atlas_search_parser.add_argument("--date-before", help="Filter by modified date before (ISO format)")
     atlas_search_parser.add_argument("--content-query", help="Filter by file content (full text search within matched text files)")
 
+    atlas_analyze_parser = atlas_subparsers.add_parser("analyze", help="Run analysis on a snapshot")
+    atlas_analyze_subparsers = atlas_analyze_parser.add_subparsers(dest="analyze_command", required=True)
+    atlas_analyze_dups_parser = atlas_analyze_subparsers.add_parser("duplicates", help="Analyze duplicates in a snapshot")
+    atlas_analyze_dups_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
+
     # Architecture command
     arch_parser = subparsers.add_parser("architecture", help="Extract architectural views of a repository")
     arch_parser.add_argument("repo", nargs="?", default=".", help="The repository path to scan (default: current directory)")
@@ -137,6 +142,8 @@ def main():
             sys.exit(cmd_atlas.run_atlas_history(args))
         elif args.atlas_cmd == "search":
             sys.exit(cmd_atlas.run_atlas_search(args))
+        elif args.atlas_cmd == "analyze":
+            sys.exit(cmd_atlas.run_atlas_analyze(args))
         else:
             parser.parse_args(["atlas", "--help"])
             sys.exit(0)
