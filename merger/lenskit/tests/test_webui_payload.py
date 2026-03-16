@@ -325,11 +325,8 @@ def test_query_tab_submits_payload(page_with_static: Page):
         page_with_static.on("request", lambda r: print(f"REQ: {r.method} {r.url}"))
     page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
 
-    payloads = []
     def handle_query(route: Route):
         if route.request.method == "POST":
-            data = route.request.post_data_json or json.loads(route.request.post_data)
-            payloads.append(data)
             route.fulfill(status=200, json={
                 "context_bundle": {
                     "hits": [
@@ -372,21 +369,13 @@ def test_query_tab_submits_payload(page_with_static: Page):
     page_with_static.locator("#queryWindowLines").fill("3", force=True)
     page_with_static.locator("#queryTrace").check(force=True)
 
-    with page_with_static.expect_request("**/api/query*", timeout=5000):
+    with page_with_static.expect_request("**/api/query*", timeout=5000) as req_info:
         # Trigger native form submission to accurately test the UI's submit handling
         page_with_static.evaluate("document.getElementById('queryForm').requestSubmit()")
 
-    # Wait for payload to be captured by the route handler
-    def wait_for_query_payload():
-        start = time.time()
-        while time.time() - start < 5:
-            if len(payloads) >= 1: return
-            page_with_static.wait_for_timeout(50)
-        raise TimeoutError(f"Payloads count {len(payloads)} == 0")
+    req = req_info.value
+    p = req.post_data_json or json.loads(req.post_data)
 
-    wait_for_query_payload()
-
-    p = payloads[0]
     assert p["index_id"] == "job-1234"
     assert p["q"] == "find login"
     assert p["k"] == 5
