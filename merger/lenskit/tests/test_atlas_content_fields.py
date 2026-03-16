@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from merger.lenskit.adapters.atlas import AtlasScanner
+from merger.lenskit.adapters.atlas import AtlasScanner, count_lines
 
 def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
     """
@@ -62,8 +62,6 @@ def test_detect_mime_type_with_enable_content_stats(tmp_path: Path):
     assert "encoding" not in results["pdf_no_ext"]
     assert "encoding" not in results["random.dat"]
 
-
-from merger.lenskit.adapters.atlas import count_lines
 
 def test_count_lines_with_enable_content_stats(tmp_path: Path):
     """
