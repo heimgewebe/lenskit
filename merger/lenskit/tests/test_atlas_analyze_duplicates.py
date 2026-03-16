@@ -72,28 +72,17 @@ def test_analyze_duplicates_differentiates_groups(duplicate_snapshot_setup, caps
     # We need to run the inner function and capture stdout
     import merger.lenskit.cli.cmd_atlas
 
-    # Mocking the registry path resolution inside _run_analyze_duplicates
-    original_path = Path
+    # Monkeypatch the module-level registry path resolution instead of the global Path class
+    # cmd_atlas relies on Path("atlas/registry/atlas_registry.sqlite").resolve()
+    # To intercept this without replacing `Path` entirely, we can mock `Path.resolve` just for this string
 
-    class MockPath:
-        def __init__(self, *args):
-            if args and args[0] == "atlas/registry/atlas_registry.sqlite":
-                self.is_registry = True
-            else:
-                self.is_registry = False
-                self._path = original_path(*args)
+    original_resolve = Path.resolve
+    def mock_resolve(self, *args, **kwargs):
+        if str(self) == "atlas/registry/atlas_registry.sqlite":
+            return registry_path
+        return original_resolve(self, *args, **kwargs)
 
-        def resolve(self):
-            if self.is_registry:
-                return registry_path
-            return self._path.resolve()
-
-        def __truediv__(self, other):
-            if not self.is_registry:
-                return self._path / other
-            raise ValueError("Should not divide registry mock path")
-
-    monkeypatch.setattr(merger.lenskit.cli.cmd_atlas, "Path", MockPath)
+    monkeypatch.setattr(Path, "resolve", mock_resolve)
 
     exit_code = _run_analyze_duplicates(snap_id)
     assert exit_code == 0

@@ -150,13 +150,19 @@ def _run_analyze_duplicates(snapshot_id: str) -> int:
             if entry.get('is_symlink') or entry.get('size_bytes', 0) == 0:
                 continue
 
-            size = entry['size_bytes']
+            rel_path = entry.get('rel_path')
+            size = entry.get('size_bytes')
+
+            # Defensive guard: skip invalid entries
+            if not rel_path or not isinstance(size, int):
+                continue
+
             if size not in size_groups:
                 size_groups[size] = []
 
             # Store only what is needed
             min_entry = {
-                "rel_path": entry.get('rel_path'),
+                "rel_path": rel_path,
                 "size_bytes": size,
                 "quick_hash": entry.get('quick_hash'),
                 "checksum": entry.get('checksum')
