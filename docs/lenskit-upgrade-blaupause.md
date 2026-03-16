@@ -1343,7 +1343,7 @@ Wichtig: API darf keine privaten internen Hilfsfelder ungefiltert nach außen le
 ### 2.10 Arbeitspaket H – WebUI minimal produktisieren
 
 Ziel:
-- [x] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche (strukturell erreicht, Render-/UX-Härtung offen).
+- [x] WebUI nicht als Spielzeug, sondern als Inspektionsoberfläche (strukturell erreicht, grundlegende DOM-Härtung abgeschlossen).
 
 Minimale Features:
 * Query eingeben

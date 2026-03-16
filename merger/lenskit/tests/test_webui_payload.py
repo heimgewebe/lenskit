@@ -369,11 +369,10 @@ def test_query_tab_submits_payload(page_with_static: Page):
     page_with_static.locator("#queryK").fill("5", force=True)
     page_with_static.locator("#queryContextMode").select_option("window", force=True)
     page_with_static.locator("#queryWindowLines").fill("3", force=True)
-    page_with_static.locator("#queryTrace").evaluate("el => el.checked = true")
+    page_with_static.locator("#queryTrace").check(force=True)
 
     with page_with_static.expect_request("**/api/query*", timeout=5000) as req_info:
-        # Trigger native form submission to accurately test the UI's submit handling
-        page_with_static.evaluate("document.getElementById('queryForm').requestSubmit()")
+        page_with_static.locator("#queryForm button[type='submit']").click(force=True)
 
     req = req_info.value
     p = req.post_data_json or json.loads(req.post_data)

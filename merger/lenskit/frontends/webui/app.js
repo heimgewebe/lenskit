@@ -1417,15 +1417,6 @@ async function executeQuery(e) {
     }
 }
 
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
 
 function renderQueryResults(data) {
     const resultsContainer = document.getElementById('queryResults');
@@ -1442,7 +1433,7 @@ function renderQueryResults(data) {
         return;
     }
 
-    hits.forEach((hit, idx) => {
+    hits.forEach((hit) => {
         const score = typeof hit.score === 'number' ? hit.score.toFixed(3) : "0.000";
 
         const div = document.createElement('div');
