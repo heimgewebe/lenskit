@@ -1695,8 +1695,8 @@ Tests:
 - [ ] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
-- [x] 1. Agent Query Contract (für /api/query implementiert und getestet)
-- [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
+- [ ] 1. Agent Query Contract (für /api/query implementiert und getestet)
+- [ ] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
 - [ ] 5. agent_query_session.json

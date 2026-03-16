@@ -1316,16 +1316,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 // --- Tabs ---
 function switchTab(tabId) {
     document.querySelectorAll('.layout-view').forEach(el => el.classList.add('hidden'));
-    document.getElementById(`layout-${tabId}`).classList.remove('hidden');
+    const layoutEl = document.getElementById(`layout-${tabId}`);
+    if (layoutEl) {
+        layoutEl.classList.remove('hidden');
+    }
 
-    // Toggle active state on buttons
-    document.getElementById('tab-job').className = tabId === 'job'
-        ? "px-3 py-1 rounded bg-blue-600 text-white font-bold text-sm"
-        : "px-3 py-1 rounded bg-gray-700 text-gray-300 hover:text-white text-sm";
-
-    document.getElementById('tab-atlas').className = tabId === 'atlas'
-        ? "px-3 py-1 rounded bg-blue-600 text-white font-bold text-sm"
-        : "px-3 py-1 rounded bg-gray-700 text-gray-300 hover:text-white text-sm";
+    // Toggle active state dynamically for all tabs
+    const allTabs = ['job', 'atlas', 'query'];
+    allTabs.forEach(id => {
+        const tabEl = document.getElementById(`tab-${id}`);
+        if (tabEl) {
+            tabEl.className = tabId === id
+                ? "px-3 py-1 rounded bg-blue-600 text-white font-bold text-sm"
+                : "px-3 py-1 rounded bg-gray-700 text-gray-300 hover:text-white text-sm";
+        }
+    });
 
     if (tabId === 'atlas') {
         loadAtlasArtifacts();
@@ -1348,12 +1353,35 @@ async function executeQuery(e) {
     const resultsContainer = document.getElementById('queryResults');
     resultsContainer.innerHTML = '<div class="text-gray-400 italic">Searching...</div>';
 
+    const kVal = parseInt(document.getElementById('queryK').value, 10);
+    const windowLinesVal = parseInt(document.getElementById('queryWindowLines').value, 10);
+
+    if (Number.isNaN(kVal) || kVal < 1) {
+        resultsContainer.innerHTML = '';
+        const errDiv = document.createElement('div');
+        errDiv.className = "text-red-500 bg-red-900/20 p-4 rounded border border-red-800";
+        errDiv.textContent = "Query Failed: Top-K must be a valid number >= 1";
+        resultsContainer.appendChild(errDiv);
+        if (btn) { btn.disabled = false; btn.innerText = prevText; }
+        return;
+    }
+
+    if (Number.isNaN(windowLinesVal) || windowLinesVal < 0) {
+        resultsContainer.innerHTML = '';
+        const errDiv = document.createElement('div');
+        errDiv.className = "text-red-500 bg-red-900/20 p-4 rounded border border-red-800";
+        errDiv.textContent = "Query Failed: Window lines must be a valid number >= 0";
+        resultsContainer.appendChild(errDiv);
+        if (btn) { btn.disabled = false; btn.innerText = prevText; }
+        return;
+    }
+
     const payload = {
         index_id: document.getElementById('queryIndexId').value.trim(),
         q: document.getElementById('queryText').value.trim(),
-        k: parseInt(document.getElementById('queryK').value, 10),
+        k: kVal,
         context_mode: document.getElementById('queryContextMode').value,
-        context_window_lines: parseInt(document.getElementById('queryWindowLines').value, 10),
+        context_window_lines: windowLinesVal,
         explain: document.getElementById('queryExplain').checked,
         trace: document.getElementById('queryTrace').checked,
         output_profile: "ui_navigation"
@@ -1376,13 +1404,27 @@ async function executeQuery(e) {
         const data = await response.json();
         renderQueryResults(data);
     } catch (err) {
-        resultsContainer.innerHTML = `<div class="text-red-500 bg-red-900/20 p-4 rounded border border-red-800">Query Failed: ${err.message}</div>`;
+        resultsContainer.innerHTML = '';
+        const errDiv = document.createElement('div');
+        errDiv.className = "text-red-500 bg-red-900/20 p-4 rounded border border-red-800";
+        errDiv.textContent = `Query Failed: ${err.message}`;
+        resultsContainer.appendChild(errDiv);
     } finally {
         if (btn) {
             btn.disabled = false;
             btn.innerText = prevText;
         }
     }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 function renderQueryResults(data) {
@@ -1400,13 +1442,13 @@ function renderQueryResults(data) {
     hits.forEach((hit, idx) => {
         const score = hit.score ? hit.score.toFixed(3) : "0.000";
         const graphBadge = hit.graph_context && hit.graph_context.graph_used
-            ? `<span class="bg-purple-900 text-purple-200 text-[10px] px-1 rounded ml-2" title="Graph Distance: ${hit.graph_context.distance}">Graph</span>`
+            ? `<span class="bg-purple-900 text-purple-200 text-[10px] px-1 rounded ml-2" title="Graph Distance: ${escapeHtml(hit.graph_context.distance)}">Graph</span>`
             : '';
-        const provBadge = `<span class="bg-gray-700 text-gray-300 text-[10px] px-1 rounded ml-2">${hit.provenance_type || 'unknown'}</span>`;
+        const provBadge = `<span class="bg-gray-700 text-gray-300 text-[10px] px-1 rounded ml-2">${escapeHtml(hit.provenance_type || 'unknown')}</span>`;
 
         let explainHtml = '';
         if (hit.explain && Object.keys(hit.explain).length > 0) {
-             const explainStr = JSON.stringify(hit.explain, null, 2);
+             const explainStr = escapeHtml(JSON.stringify(hit.explain, null, 2));
              explainHtml = `
                  <details class="mt-2 text-xs">
                      <summary class="cursor-pointer text-gray-400 hover:text-gray-200">Explain</summary>
@@ -1417,7 +1459,7 @@ function renderQueryResults(data) {
 
         let contextHtml = '';
         if (hit.surrounding_context) {
-             const ctxText = hit.surrounding_context.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+             const ctxText = escapeHtml(hit.surrounding_context);
              contextHtml = `
                  <div class="mt-2 text-xs">
                      <div class="text-gray-500 mb-1 uppercase font-bold">Context Preview</div>
@@ -1425,7 +1467,7 @@ function renderQueryResults(data) {
                  </div>
              `;
         } else if (hit.resolved_code_snippet) {
-             const snipText = hit.resolved_code_snippet.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+             const snipText = escapeHtml(hit.resolved_code_snippet);
              contextHtml = `
                  <div class="mt-2 text-xs">
                      <div class="text-gray-500 mb-1 uppercase font-bold">Exact Match</div>
@@ -1438,8 +1480,8 @@ function renderQueryResults(data) {
         div.className = "bg-gray-800 p-4 rounded border border-gray-700 mt-4";
         div.innerHTML = `
             <div class="flex justify-between items-start mb-2">
-                <div class="font-mono text-sm text-blue-400 break-all">${hit.file} <span class="text-gray-500">:${hit.range}</span></div>
-                <div class="text-xs font-bold text-green-400 bg-green-900/30 px-2 py-1 rounded">Score: ${score}</div>
+                <div class="font-mono text-sm text-blue-400 break-all">${escapeHtml(hit.file)} <span class="text-gray-500">:${escapeHtml(hit.range)}</span></div>
+                <div class="text-xs font-bold text-green-400 bg-green-900/30 px-2 py-1 rounded">Score: ${escapeHtml(score)}</div>
             </div>
             <div class="flex items-center text-xs mb-2">
                 <span class="text-gray-400">Provenance:</span>
@@ -1453,7 +1495,7 @@ function renderQueryResults(data) {
     });
 
     if (data.query_trace) {
-        const traceStr = JSON.stringify(data.query_trace, null, 2);
+        const traceStr = escapeHtml(JSON.stringify(data.query_trace, null, 2));
         const traceDiv = document.createElement('div');
         traceDiv.className = "mt-6 border-t border-gray-700 pt-4";
         traceDiv.innerHTML = `
