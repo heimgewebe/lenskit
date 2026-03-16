@@ -904,13 +904,14 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
   - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
 - [ ] Encoding-Erkennung teilweise gehärtet (kleines best-effort Set); weitere Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
   - *Semantische Notiz: `encoding` ist ein best-effort Feld basierend auf einer 4KB-Heuristik. Es wird nur für plausibel textuelle Inhalte emittiert und ist keine garantierte Klassifikation.*
-- [ ] line_count jenseits des content-Modus robust erfassen
+- [ ] line_count im Content-Modus (`enable_content_stats`) teilweise gehärtet; Verhalten für Non-Content-Scans offen
+  - *Semantische Notiz: `line_count` ist ein best-effort Feld basierend auf zeilenweiser Zählung innerhalb des Content-Modus. Dateien >20MB werden aus Performance-Gründen übersprungen. Die Genauigkeit hängt bei Nicht-UTF-8-Dateien von der best-effort Encoding-Erkennung ab.*
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
 - [ ] Binary-/Huge-file-Strategie klären
-- [ ] Tests für modeabhängige Inhaltsfelder ergänzen (vorheriger `test_atlas_content_fields.py` war methodisch zu dünn)
+- [x] Tests für modeabhängige Inhaltsfelder ergänzen (vorheriger `test_atlas_content_fields.py` war methodisch zu dünn)
 
 **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
 
