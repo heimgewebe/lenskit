@@ -900,11 +900,11 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 
 *(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
 
-- [ ] MIME-Typ-Erkennung teilweise gehärtet (Extension + Magic-Byte-Fallback); weitere Robustheit und Formatabdeckung offen
+- [ ] teilweise gehärtet: MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback); weitere Robustheit und Formatabdeckung offen
   - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
-- [ ] Encoding-Erkennung teilweise gehärtet (kleines best-effort Set); weitere Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
+- [ ] teilweise gehärtet: Encoding-Erkennung (kleines best-effort Set); weitere Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
   - *Semantische Notiz: `encoding` ist ein best-effort Feld basierend auf einer 4KB-Heuristik. Es wird nur für plausibel textuelle Inhalte emittiert und ist keine garantierte Klassifikation.*
-- [ ] line_count im Content-Modus (`enable_content_stats`) teilweise gehärtet; Verhalten für Non-Content-Scans offen
+- [ ] teilweise gehärtet: line_count im Content-Modus (`enable_content_stats`); Verhalten für Non-Content-Scans offen
   - *Semantische Notiz: `line_count` ist ein best-effort Feld basierend auf zeilenweiser Zählung innerhalb des Content-Modus. Dateien >20MB werden aus Performance-Gründen übersprungen. Die Genauigkeit hängt bei Nicht-UTF-8-Dateien von der best-effort Encoding-Erkennung ab.*
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
@@ -918,11 +918,11 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 ### Phase 6 — Analyseartefakte
 Ziel: Atlas wird diagnostisch.
 - [ ] Hotspots erweitern um Growth-/Change-Achsen
-- [ ] Duplicate Detection (size prefilter + hash confirm)
-- [ ] duplicates.json definieren
+- [ ] teilweise gehärtet: Duplicate Detection (size prefilter + hash confirm) (Im CLI `atlas analyze duplicates <snapshot_id>` abrufbar. Unterscheidet heuristische und bestätigte Matches, Offline-Generierung, noch ohne Registry-Integration/Echtzeit.)
+- [ ] teilweise gehärtet: duplicates.json definieren (Im CLI konsistent als JSON generiert, noch nicht formell in Registry integriert)
 - [ ] Orphan Detection definieren
 - [ ] analyze disk standardisieren
-- [ ] analyze duplicates implementieren
+- [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
 - [ ] analyze orphan implementieren
 - [ ] Oldest-/Largest-Files-Artefakte vereinheitlichen
 - [ ] Cross-root growth reports definieren
