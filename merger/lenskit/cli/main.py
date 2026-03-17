@@ -15,6 +15,16 @@ def main(args: Optional[List[str]] = None) -> int:
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    # Federation command
+    # NOTE: These Federation CLI definitions are duplicated in cli/rlens.py.
+    # Keep them in sync to prevent drift.
+    federation_parser = subparsers.add_parser("federation", help="Manage federated cross-repo bundles")
+    federation_subparsers = federation_parser.add_subparsers(dest="federation_command", required=True)
+
+    federation_init_parser = federation_subparsers.add_parser("init", help="Initialize a new federation index")
+    federation_init_parser.add_argument("--id", required=True, help="Unique federation ID (e.g., project name)")
+    federation_init_parser.add_argument("--out", type=str, default="federation_index.json", help="Path to write the new federation index")
+
     # Index command
     index_parser = subparsers.add_parser("index", help="Build or verify retrieval index")
     index_parser.add_argument("--dump", required=True, help="Path to dump_index.json")
@@ -181,6 +191,19 @@ def main(args: Optional[List[str]] = None) -> int:
         else:
             parser.parse_args(["atlas", "--help"])
             return 0
+    elif parsed_args.command == "federation":
+        if parsed_args.federation_command == "init":
+            from merger.lenskit.core.federation import init_federation
+            from pathlib import Path
+            out_path = Path(parsed_args.out)
+            try:
+                init_federation(parsed_args.id, out_path)
+                print(f"Successfully initialized federation index '{parsed_args.id}' at {out_path.as_posix()}")
+                return 0
+            except Exception as e:
+                import sys
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
 
     return 0
 

@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/federation-index.v1.schema.json",
+  "title": "Federation Index (federation-index v1.0)",
+  "description": "Cross-Repo Knowledge Layer configuration linking multiple Lenskit bundles.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "federation_id",
+    "created_at",
+    "updated_at",
+    "bundles"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "repolens.federation.index"
+    },
+    "version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "federation_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique identifier for this federation (e.g., project name)."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bundles": {
+      "type": "array",
+      "description": "List of bundles participating in this federation.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repo_id",
+          "bundle_path"
+        ],
+        "properties": {
+          "repo_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique identity namespace for this repository within the federation."
+          },
+          "bundle_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path or URI to the root of the repository bundle (containing bundle.json)."
+          },
+          "last_fingerprint": {
+            "type": "string",
+            "description": "The canonical_dump_index_sha256 or manifest run_id of the bundle, used for staleness detection."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional roles or classification tags for this bundle in the federation."
+          }
+        }
+      }
+    },
+    "cross_repo_links": {
+      "type": "array",
+      "description": "Optional predefined navigation edges between repos.",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

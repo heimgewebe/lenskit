@@ -1779,7 +1779,7 @@ Gate:
 - [x] PR 1: Contract-/Provenance-Härtung
 - [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
 - [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
-- [ ] PR 4: Federation Foundation
+- [x] PR 4: Federation Foundation (Init + Contract + CLI-Seed)
 - [ ] PR 5: Federated Query + Ranking
 - [ ] PR 6: Agent Control Surface
 - [ ] PR 7: UI / Service Konsolidierung
