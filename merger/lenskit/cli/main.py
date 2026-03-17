@@ -133,6 +133,9 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_analyze_orphans_parser = atlas_analyze_subparsers.add_parser("orphans", help="Analyze orphans in a snapshot")
     atlas_analyze_orphans_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
 
+    atlas_analyze_disk_parser = atlas_analyze_subparsers.add_parser("disk", help="Analyze disk hotspots and old/large files in a snapshot")
+    atlas_analyze_disk_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:

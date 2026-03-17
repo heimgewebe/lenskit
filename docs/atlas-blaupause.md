@@ -918,13 +918,13 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 ### Phase 6 — Analyseartefakte
 Ziel: Atlas wird diagnostisch.
 - [ ] Hotspots erweitern um Growth-/Change-Achsen
-- [ ] teilweise gehärtet: Duplicate Detection (size prefilter + hash confirm) (Im CLI `atlas analyze duplicates <snapshot_id>` abrufbar. Unterscheidet heuristische und bestätigte Matches, Offline-Generierung, noch ohne Registry-Integration/Echtzeit.)
+- [x] teilweise gehärtet: Duplicate Detection (size prefilter + hash confirm) (Im CLI `atlas analyze duplicates <snapshot_id>` abrufbar. Unterscheidet heuristische und bestätigte Matches, Offline-Generierung, noch ohne Registry-Integration/Echtzeit.)
 - [x] teilweise gehärtet: duplicates.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter duplicates_ref hinterlegt)
 - [x] teilweise gehärtet: orphans.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter orphans_ref hinterlegt)
-- [ ] analyze disk standardisieren
+- [x] analyze disk standardisieren
 - [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
 - [x] analyze orphans implementieren (als CLI command `atlas analyze orphans <snapshot_id>`)
-- [ ] Oldest-/Largest-Files-Artefakte vereinheitlichen
+- [x] Oldest-/Largest-Files-Artefakte vereinheitlichen
 - [ ] Cross-root growth reports definieren
 
 **Stop-Kriterium**: Atlas zeigt nicht nur Bestände, sondern konkrete Aufräum-, Speicher- und Vergleichsprobleme.
