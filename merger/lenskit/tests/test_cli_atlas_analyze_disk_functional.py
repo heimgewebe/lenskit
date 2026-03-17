@@ -29,10 +29,12 @@ def test_analyze_disk_functional(tmp_path: Path, monkeypatch, capsys):
             f.write("\n") # Blank line should be skipped
             f.write("invalid json\n") # Should be skipped gracefully
             f.write(json.dumps({"rel_path": "file2.txt", "size_bytes": 500, "mtime": "2022-01-01T12:00:00Z"}) + "\n")
+            f.write(json.dumps({"rel_path": "file3.txt", "size_bytes": "invalid", "mtime": "2024-01-01T12:00:00Z"}) + "\n")
 
         with dirs_file.open("w", encoding="utf-8") as f:
             f.write(json.dumps({"rel_path": "dir1", "subtree_total_bytes": 600, "subtree_file_count": 2}) + "\n")
             f.write(json.dumps({"rel_path": "dir2", "recursive_bytes": 300, "n_files": 1}) + "\n") # Fallbacks
+            f.write(json.dumps({"rel_path": "dir3", "subtree_total_bytes": "null", "subtree_file_count": "none"}) + "\n")
 
         registry.update_snapshot_artifacts("snap_1", {
             "inventory": inv_file.relative_to(tmp_path / "atlas").as_posix(),
@@ -50,28 +52,28 @@ def test_analyze_disk_functional(tmp_path: Path, monkeypatch, capsys):
     with disk_json_path.open("r", encoding="utf-8") as f:
         report = json.load(f)
 
-    assert report["total_files"] == 2
+    assert report["total_files"] == 3
     assert report["total_bytes"] == 600
 
     # Largest files (should be sorted descending)
-    assert len(report["largest_files"]) == 2
+    assert len(report["largest_files"]) == 3
     assert report["largest_files"][0]["path"] == "file2.txt"
     assert report["largest_files"][0]["size"] == 500
 
     # Oldest files (should be sorted ascending by date)
-    assert len(report["oldest_files"]) == 2
+    assert len(report["oldest_files"]) == 3
     assert report["oldest_files"][0]["path"] == "file2.txt"
     assert report["oldest_files"][0]["mtime"] == "2022-01-01T12:00:00Z"
 
     # Largest dirs (descending size)
-    assert len(report["largest_dirs"]) == 2
+    assert len(report["largest_dirs"]) == 3
     assert report["largest_dirs"][0]["path"] == "dir1"
     assert report["largest_dirs"][0]["size"] == 600
     assert report["largest_dirs"][1]["path"] == "dir2"
     assert report["largest_dirs"][1]["size"] == 300
 
     # Most populated dirs (descending count)
-    assert len(report["most_populated_dirs"]) == 2
+    assert len(report["most_populated_dirs"]) == 3
     assert report["most_populated_dirs"][0]["path"] == "dir1"
     assert report["most_populated_dirs"][0]["count"] == 2
     assert report["most_populated_dirs"][1]["path"] == "dir2"

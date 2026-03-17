@@ -666,6 +666,8 @@ def _run_analyze_disk(snapshot_id: str) -> int:
             # but usually they are 0 or small. We keep them but they won't make largest files.
 
             size = item.get("size_bytes", 0)
+            if not isinstance(size, int) or size < 0:
+                size = 0
             mtime = item.get("mtime")
             rel_path = item.get("rel_path", "")
 
@@ -705,7 +707,11 @@ def _run_analyze_disk(snapshot_id: str) -> int:
                     continue
 
                 size = item.get("subtree_total_bytes", item.get("recursive_bytes", 0))
+                if not isinstance(size, int) or size < 0:
+                    size = 0
                 count = item.get("subtree_file_count", item.get("n_files", item.get("kept_file_count", 0)))
+                if not isinstance(count, int) or count < 0:
+                    count = 0
                 rel_path = item.get("rel_path", "")
 
                 largest_dirs.append({"path": rel_path, "size": size})
