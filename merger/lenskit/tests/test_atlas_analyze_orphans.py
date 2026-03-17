@@ -48,7 +48,10 @@ def orphan_snapshot_setup(tmp_path, monkeypatch):
                 f.write(json.dumps(e) + "\n")
 
         # Register artifact
-        registry.update_snapshot_artifacts(snap_id, {"inventory": str(inv_path.relative_to(atlas_base))})
+        registry.update_snapshot_artifacts(
+            snap_id,
+            {"inventory": inv_path.relative_to(atlas_base).as_posix()}
+        )
 
     return registry_path, snap_id
 

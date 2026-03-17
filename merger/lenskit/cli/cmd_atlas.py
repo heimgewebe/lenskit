@@ -189,17 +189,27 @@ def _run_analyze_orphans(snapshot_id: str) -> int:
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     out_path = snapshot_dir / "orphans.json"
 
-    with out_path.open('w', encoding='utf-8') as f:
-        json.dump(report, f, indent=2)
+    fd, temp_path = tempfile.mkstemp(dir=str(snapshot_dir), prefix=".tmp_orphans.json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, str(out_path))
+    except Exception:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
 
     try:
         rel_out = out_path.relative_to(base_dir)
+        ref = rel_out.as_posix()
     except ValueError:
-        rel_out = out_path
+        ref = out_path.as_posix()
 
     # Register in SQLite
     with AtlasRegistry(registry_path) as registry:
-        registry.update_snapshot_artifacts(snapshot_id, {"orphans": str(rel_out)})
+        registry.update_snapshot_artifacts(snapshot_id, {"orphans": ref})
 
     print(json.dumps(report, indent=2))
     return 0
