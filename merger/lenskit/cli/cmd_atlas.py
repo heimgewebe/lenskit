@@ -35,13 +35,37 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
     print(json.dumps(snapshots, indent=2))
     return 0
 
+
+def _resolve_snapshot_ref(ref: str, registry) -> str:
+    if ":" in ref:
+        machine_id, root_value = ref.split(":", 1)
+        # Find matching root
+        target_root_id = None
+        for r in registry.list_roots():
+            if r["machine_id"] == machine_id and r["root_value"] == root_value:
+                target_root_id = r["root_id"]
+                break
+        if not target_root_id:
+            raise ValueError(f"No root found for machine '{machine_id}' and path '{root_value}'")
+
+        snapshots = registry.list_complete_snapshots(root_id=target_root_id)
+        if not snapshots:
+            raise ValueError(f"No complete snapshots found for root '{target_root_id}'")
+        return snapshots[0]["snapshot_id"]
+    return ref
+
 def run_atlas_diff(args: argparse.Namespace) -> int:
     from merger.lenskit.atlas.diff import compute_snapshot_delta
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     try:
         with AtlasRegistry(registry_path) as registry:
-            delta = compute_snapshot_delta(registry, args.from_snapshot, args.to_snapshot)
+            from_snap_id = _resolve_snapshot_ref(args.from_snapshot, registry)
+            to_snap_id = _resolve_snapshot_ref(args.to_snapshot, registry)
+            delta = compute_snapshot_delta(registry, from_snap_id, to_snap_id)
+
         print(f"Delta: {delta['delta_id']} ({delta['from_snapshot_id']} -> {delta['to_snapshot_id']})")
+        if delta.get("is_cross_root"):
+            print("Warning: This is a cross-root delta.")
         print(f"Summary: {json.dumps(delta['summary'], indent=2)}")
         print(f"\nNew files: {len(delta['new_files'])}")
         for f in delta['new_files'][:10]:

@@ -18,11 +18,10 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     if from_snap["status"] != "complete" or to_snap["status"] != "complete":
         raise ValueError("Deltas can only be computed between snapshots with status='complete'.")
 
-    if from_snap["machine_id"] != to_snap["machine_id"] or from_snap["root_id"] != to_snap["root_id"]:
-        raise ValueError("Snapshots must belong to the same machine and root for a direct delta calculation.")
+    is_cross_root = (from_snap["machine_id"] != to_snap["machine_id"]) or (from_snap["root_id"] != to_snap["root_id"])
 
-    machine_id = from_snap["machine_id"]
-    root_id = from_snap["root_id"]
+    machine_id = to_snap["machine_id"]
+    root_id = to_snap["root_id"]
 
     if not getattr(registry, 'db_path', None):
         raise ValueError("Cannot compute snapshot delta without a canonical registry db_path.")
@@ -84,6 +83,7 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
         "from_snapshot_id": from_snap_id,
         "to_snapshot_id": to_snap_id,
         "created_at": created_at,
+        "is_cross_root": is_cross_root,
         "new_files": new_files,
         "removed_files": removed_files,
         "changed_files": changed_files,

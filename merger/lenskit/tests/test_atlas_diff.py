@@ -77,8 +77,31 @@ def test_compute_delta_errors(populated_registry):
     with pytest.raises(ValueError, match="status='complete'"):
         compute_snapshot_delta(populated_registry, "s1", "s_partial")
 
-    populated_registry.register_root("r2", "m1", "abs_path", "/var/lib")
-    populated_registry.create_snapshot("s3", "m1", "r2", "hash3", "complete")
 
-    with pytest.raises(ValueError, match="Snapshots must belong to the same machine and root"):
-        compute_snapshot_delta(populated_registry, "s1", "s3")
+
+def test_cross_machine_delta(temp_workspace, populated_registry):
+    tmp_path, _ = temp_workspace
+
+    populated_registry.register_machine("m2", "otherhost")
+    populated_registry.register_root("r2", "m2", "abs_path", "/var/backup")
+
+    inv3_path = tmp_path / "inv3.jsonl"
+    with open(inv3_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+        f.write(json.dumps({"snapshot_id": "s3", "rel_path": "new.txt", "size_bytes": 50, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+
+    populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
+    populated_registry.update_snapshot_artifacts("s3", {"inventory": str(inv3_path)})
+
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        delta = compute_snapshot_delta(populated_registry, "s1", "s3")
+
+        assert delta["is_cross_root"] is True
+        assert delta["summary"]["new_count"] == 1
+        assert delta["new_files"][0] == "new.txt"
+        assert delta["summary"]["removed_count"] == 2 # b.txt, d.txt
+        assert delta["summary"]["changed_count"] == 0 # a.txt is identical
+    finally:
+        os.chdir(old_cwd)
