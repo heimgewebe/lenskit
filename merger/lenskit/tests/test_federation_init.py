@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 from merger.lenskit.core.federation import init_federation
 from merger.lenskit.cli.main import main as lenskit_main
-import sys
 
 def test_init_federation_core(tmp_path: Path):
     out_path = tmp_path / "fed.json"
@@ -50,7 +49,7 @@ def test_init_federation_structure(tmp_path: Path):
         "bundles",
     }
 
-def test_init_federation_cli_dispatch(tmp_path: Path, monkeypatch, capsys):
+def test_init_federation_cli_dispatch(tmp_path: Path, capsys):
     out_path = tmp_path / "fed_cli.json"
 
     exit_code = lenskit_main(["federation", "init", "--id", "my-fed", "--out", str(out_path)])
@@ -63,3 +62,25 @@ def test_init_federation_cli_dispatch(tmp_path: Path, monkeypatch, capsys):
     with out_path.open() as f:
         data = json.load(f)
         assert data["federation_id"] == "my-fed"
+
+def test_init_federation_rejects_empty_id(tmp_path: Path):
+    with pytest.raises(ValueError) as exc_info:
+        init_federation("", tmp_path / "fed.json")
+    assert "Failed to generate valid federation index schema" in str(exc_info.value)
+
+def test_rlens_federation_init_dispatch(tmp_path: Path, monkeypatch, capsys):
+    out_path = tmp_path / "fed_rlens.json"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["rlens", "federation", "init", "--id", "my-rlens-fed", "--out", str(out_path)]
+    )
+
+    from merger.lenskit.cli import rlens
+
+    with pytest.raises(SystemExit) as exc_info:
+        rlens.main()
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "Successfully initialized federation index 'my-rlens-fed'" in captured.out
+    assert out_path.exists()

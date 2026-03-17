@@ -24,6 +24,7 @@
     },
     "federation_id": {
       "type": "string",
+      "minLength": 1,
       "description": "Unique identifier for this federation (e.g., project name)."
     },
     "created_at": {
@@ -47,10 +48,12 @@
         "properties": {
           "repo_id": {
             "type": "string",
+            "minLength": 1,
             "description": "Unique identity namespace for this repository within the federation."
           },
           "bundle_path": {
             "type": "string",
+            "minLength": 1,
             "description": "Path or URI to the root of the repository bundle (containing bundle.json)."
           },
           "last_fingerprint": {
