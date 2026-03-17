@@ -919,7 +919,7 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 Ziel: Atlas wird diagnostisch.
 - [ ] Hotspots erweitern um Growth-/Change-Achsen
 - [ ] teilweise gehärtet: Duplicate Detection (size prefilter + hash confirm) (Im CLI `atlas analyze duplicates <snapshot_id>` abrufbar. Unterscheidet heuristische und bestätigte Matches, Offline-Generierung, noch ohne Registry-Integration/Echtzeit.)
-- [ ] teilweise gehärtet: duplicates.json definieren (Im CLI konsistent als JSON generiert, noch nicht formell in Registry integriert)
+- [x] teilweise gehärtet: duplicates.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter duplicates_ref hinterlegt)
 - [ ] Orphan Detection definieren
 - [ ] analyze disk standardisieren
 - [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
