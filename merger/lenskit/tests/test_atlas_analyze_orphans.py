@@ -19,8 +19,11 @@ def orphan_snapshot_setup(tmp_path, monkeypatch):
     monkeypatch.setattr(merger.lenskit.atlas.paths, "resolve_atlas_base_dir", mock_resolve_base)
 
     with AtlasRegistry(registry_path) as registry:
+        live_root = tmp_path / "live_root"
+        live_root.mkdir()
+
         registry.register_machine("test-machine", "test-host")
-        registry.register_root("test-root", "test-machine", "abs_path", str(tmp_path))
+        registry.register_root("test-root", "test-machine", "abs_path", str(live_root))
 
         snap_id = "snap_test_123"
         registry.create_snapshot(snap_id, "test-machine", "test-root", "config123", "complete")
@@ -33,8 +36,8 @@ def orphan_snapshot_setup(tmp_path, monkeypatch):
         # File B: Exists in snapshot, missing in live (dead)
         # File C: Missing in snapshot, exists in live (orphan)
 
-        file_a = tmp_path / "file_a.txt"
-        file_c = tmp_path / "file_c.txt"
+        file_a = live_root / "file_a.txt"
+        file_c = live_root / "file_c.txt"
         file_a.write_text("hello world")
         file_c.write_text("new file")
 
@@ -77,13 +80,10 @@ def test_analyze_orphans_differentiates_groups(orphan_snapshot_setup, capsys, mo
 
     assert report["snapshot_id"] == snap_id
 
-    # File C should be orphan + atlas base dir contents might be picked up since atlas/ is under tmp_path
-    assert report["orphan_count"] >= 1
-
-    # We should have at least file_c.txt in orphans, and file_b.txt in dead_files
-    assert "file_c.txt" in report["orphans"]
-    assert "file_b.txt" in report["dead_files"]
+    assert report["orphan_count"] == 1
     assert report["dead_file_count"] == 1
+    assert report["orphans"] == ["file_c.txt"]
+    assert report["dead_files"] == ["file_b.txt"]
 
     # Check persistence
     atlas_base = registry_path.parent.parent
