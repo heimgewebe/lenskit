@@ -1362,7 +1362,7 @@ Ziel:
 - [x] Nicht nur Rankingqualität, sondern auch Kontextnutzbarkeit prüfen.
 
 Deterministische Checks:
-* resolver roundtrip
+* context snippet passthrough / provenance consistency
 * provenance validity
 * context contains expected snippet
 * no silent provenance downgrade
