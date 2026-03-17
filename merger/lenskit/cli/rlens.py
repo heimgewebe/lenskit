@@ -58,6 +58,14 @@ def main():
     parser = argparse.ArgumentParser(prog="rlens")
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
+    # Federation command
+    federation_parser = subparsers.add_parser("federation", help="Manage federated cross-repo bundles")
+    federation_subparsers = federation_parser.add_subparsers(dest="federation_command", required=True)
+
+    federation_init_parser = federation_subparsers.add_parser("init", help="Initialize a new federation index")
+    federation_init_parser.add_argument("--id", required=True, help="Unique federation ID (e.g., project name)")
+    federation_init_parser.add_argument("--out", type=str, default="federation_index.json", help="Path to write the new federation index")
+
     # Atlas command
     # NOTE: These Atlas CLI definitions are duplicated in cli/main.py.
     # Keep them in sync to prevent drift.
@@ -154,6 +162,19 @@ def main():
     if args.command == "architecture":
         from . import cmd_architecture
         sys.exit(cmd_architecture.run_architecture_cmd(args))
+
+    if args.command == "federation":
+        if args.federation_command == "init":
+            from merger.lenskit.core.federation import init_federation
+            from pathlib import Path
+            out_path = Path(args.out)
+            try:
+                init_federation(args.id, out_path)
+                print(f"Successfully initialized federation index '{args.id}' at {out_path.as_posix()}")
+                sys.exit(0)
+            except Exception as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
 
     # 1. Validate Hub Path
     if not args.hub:

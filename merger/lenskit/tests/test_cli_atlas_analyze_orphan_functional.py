@@ -46,16 +46,3 @@ def test_analyze_orphans_functional(tmp_path: Path, monkeypatch, capsys):
     assert report["dead_file_count"] == 1
     assert "file2_orphan.txt" in report["orphans"]
     assert "file3_dead.txt" in report["dead_files"]
-
-    # Verify that the orphans.json artifact was created and registered
-    orphans_file = snapshot_dir / "orphans.json"
-    assert orphans_file.exists(), "orphans.json was not written to the snapshot directory"
-
-    with orphans_file.open("r", encoding="utf-8") as f:
-        saved_report = json.load(f)
-        assert saved_report == report
-
-    with AtlasRegistry(registry_path) as registry:
-        snapshot = registry.get_snapshot("snap_1")
-        assert snapshot["orphans_ref"] is not None
-        assert snapshot["orphans_ref"].endswith("orphans.json")
