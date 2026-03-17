@@ -87,9 +87,102 @@ def test_execute_federated_query_with_trace(federated_setup):
 
     assert "federation_trace" in res
     trace = res["federation_trace"]
+    assert trace["queried_bundles_total"] == 2
+    assert trace["queried_bundles_effective"] == 2
     assert "bundle_status" in trace
     assert trace["bundle_status"]["repo1"] == "ok"
     assert trace["bundle_status"]["repo2"] == "ok"
     assert "bundle_traces" in trace
     assert "repo1" in trace["bundle_traces"]
     assert "repo2" in trace["bundle_traces"]
+
+def test_execute_federated_query_is_deterministic_on_tie(federated_setup):
+    # 'hello' will yield score ties (both are 1 match on exact same text context length usually)
+    # the ranking should be explicitly deterministic based on repo_id -> path -> chunk_id
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    # repo1 comes before repo2
+    assert res["results"][0]["federation_bundle"] == "repo1"
+    assert res["results"][1]["federation_bundle"] == "repo2"
+
+def test_execute_federated_query_marks_missing_index(federated_setup):
+    import os
+    index_db = federated_setup.parent / "repo2" / "chunk_index.index.sqlite"
+    index_db.unlink()
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    assert trace["bundle_status"]["repo2"] == "index_missing"
+    assert trace["queried_bundles_effective"] == 1
+
+def test_execute_federated_query_marks_filtered_out_bundle(federated_setup):
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        filters={"repo": "repo1"},
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    assert trace["bundle_status"]["repo2"] == "filtered_out"
+    assert trace["queried_bundles_effective"] == 1
+
+def test_execute_federated_query_marks_unsupported_bundle_uri(federated_setup):
+    import json
+    # Modify federation index manually to add an unsupported URI
+    with federated_setup.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    data["bundles"].append({"repo_id": "repo3", "bundle_path": "https://example.org/bundles/repo3"})
+    with federated_setup.open("w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    assert trace["bundle_status"]["repo3"] == "bundle_path_unsupported"
+    assert trace["queried_bundles_total"] == 3
+    assert trace["queried_bundles_effective"] == 2
+
+def test_execute_federated_query_not_found(tmp_path):
+    import pytest
+    from merger.lenskit.retrieval.federation_query import execute_federated_query
+
+    missing_path = tmp_path / "missing_fed.json"
+
+    with pytest.raises(FileNotFoundError):
+        execute_federated_query(
+            federation_index_path=missing_path,
+            query_text="hello"
+        )
+
+def test_execute_federated_query_empty_after_filter(federated_setup):
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        filters={"repo": "repo_non_existent"},
+        trace=True
+    )
+
+    assert res["count"] == 0
+    assert res["results"] == []
+    trace = res["federation_trace"]
+    assert trace["bundle_status"]["repo1"] == "filtered_out"
+    assert trace["bundle_status"]["repo2"] == "filtered_out"
+    assert trace["queried_bundles_effective"] == 0

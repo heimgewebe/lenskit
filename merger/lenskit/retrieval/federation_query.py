@@ -29,31 +29,41 @@ def execute_federated_query(
     all_results = []
     bundle_traces = {}
     bundle_status = {}
+    bundle_errors = {}
+
+    queried_bundles_total = len(bundles)
+    queried_bundles_effective = 0
+
+    # Ensure repo filter is removed from local filters to avoid duplicate application
+    # or conflicts if chunk_index repo_id differs from federation repo_id.
+    local_filters = None
+    if filters:
+        local_filters = {k: v for k, v in filters.items() if k != "repo"}
 
     for b in bundles:
         repo_id = b["repo_id"]
-        bundle_path = Path(b["bundle_path"])
+        bundle_path_str = b["bundle_path"]
 
-        # Optional: apply repo filter early
         if filters and filters.get("repo") and filters["repo"] != repo_id:
+            bundle_status[repo_id] = "filtered_out"
             continue
 
+        if "://" in bundle_path_str:
+            bundle_status[repo_id] = "bundle_path_unsupported"
+            continue
+
+        bundle_path = Path(bundle_path_str)
         db_path = bundle_path / "chunk_index.index.sqlite"
         if not db_path.exists():
             bundle_status[repo_id] = "index_missing"
             continue
 
         try:
-            # We don't want to pass `repo` filter to execute_query if we already filtered
-            # by bundle, as it might conflict if the query_core expects it to match `c.repo_id`.
-            # But the chunk index typically has the correct repo_id anyway.
-            # However, if `repo_id` in chunk index differs from `repo_id` in federation, it might break.
-            # Assuming they match or the filter is safe:
             res = execute_query(
                 index_path=db_path,
                 query_text=query_text,
                 k=k,  # Fetch up to k from each bundle to ensure global top-k is accurate
-                filters=filters,
+                filters=local_filters,
                 embedding_policy=embedding_policy,
                 explain=explain,
                 trace=trace,
@@ -66,14 +76,22 @@ def execute_federated_query(
                 all_results.append(hit)
 
             bundle_status[repo_id] = "ok"
+            queried_bundles_effective += 1
             if trace and "query_trace" in res:
                 bundle_traces[repo_id] = res["query_trace"]
 
         except Exception as e:
-            bundle_status[repo_id] = f"error: {str(e)}"
+            bundle_status[repo_id] = "query_error"
+            bundle_errors[repo_id] = str(e)
 
     # Global sort: final_score descending
-    all_results.sort(key=lambda x: (-x.get("final_score", 0), x.get("path", "")))
+    # Tie-breakers: federation_bundle, path, chunk_id to ensure determinism
+    all_results.sort(key=lambda x: (
+        -x.get("final_score", 0),
+        x.get("federation_bundle", ""),
+        x.get("path", ""),
+        x.get("chunk_id", "")
+    ))
     top_k = all_results[:k]
 
     out = {
@@ -86,7 +104,10 @@ def execute_federated_query(
 
     if trace:
         out["federation_trace"] = {
+            "queried_bundles_total": queried_bundles_total,
+            "queried_bundles_effective": queried_bundles_effective,
             "bundle_status": bundle_status,
+            "bundle_errors": bundle_errors,
             "bundle_traces": bundle_traces
         }
 

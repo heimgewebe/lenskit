@@ -1183,15 +1183,15 @@ Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert
 - [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
 - [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
 - [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
-- [x] 6. Graph-Staleness-Marker (nachgewiesen durch `test_graph_staleness_marker` End-to-End)
+- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
 
 ### 1.12 Gate für Phase 3
-- [x] Phase 3 ist end-to-end gesichert und das Gate erfolgreich passiert:
+- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
 * Graph semantisch dokumentiert ist
 * Query/Eval denselben Loader und dieselbe Semantik nutzen
 * Explain die tatsächliche Graph-Wirkung abbildet
 * Graph-Effekt messbar ist
-* Stale/missing Graph nicht mehr still durchrutscht (Marker `stale_or_mismatched` in Query-Runtime verankert)
+* Stale/missing Graph nicht mehr still durchrutscht
 
 ---
 
@@ -1388,7 +1388,7 @@ Wichtige Tests:
 - [x] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
-- [x] Phase 4 ist fertig, da alle E2E-Strukturen validiert wurden:
+- [ ] Phase 4 ist fertig, wenn:
 * eine Query mehr als rohe Treffer liefert
 * Context-Bundles portabel und provenance-stabil sind
 * Trace Diagnose ermöglicht
@@ -1548,8 +1548,8 @@ Ausgabe: `federation_trace.json`
 Wichtige Tests:
 - [x] 1. test_federation_index_builds_deterministically
 - [ ] 2. test_cross_repo_links_are_provenance_backed
-- [x] 3. test_federated_query_preserves_bundle_origin
-- [x] 4. test_federated_ranking_is_stable
+- [ ] 3. test_federated_query_preserves_bundle_origin
+- [ ] 4. test_federated_ranking_is_stable
 - [ ] 5. test_conflicts_are_reported_not_smoothed
 - [ ] 6. test_cross_repo_context_preserves_primary_evidence
 - [ ] 7. test_stale_bundle_is_marked_in_federation_trace
@@ -1558,8 +1558,8 @@ Wichtige Tests:
 - [x] 1. federation_index.json
 - [ ] 2. cross_repo_links.json
 - [ ] 3. federation_conflicts.json
-- [x] 4. federation_trace.json
-- [x] 5. föderierte Query-Schnittstelle
+- [ ] 4. federation_trace.json
+- [ ] 5. föderierte Query-Schnittstelle
 - [ ] 6. bundleübergreifendes Context-Bundle
 - [ ] 7. Identity-/Conflict-Regeln
 
@@ -1777,10 +1777,10 @@ Gate:
 ## Empfohlene PR-Reihenfolge (Gesamt)
 
 - [x] PR 1: Contract-/Provenance-Härtung
-- [x] PR 2: Query Trace + Context Bundle (strukturell und e2e belegt)
-- [x] PR 3: Graph Runtime Konsolidierung (strukturell und e2e belegt)
+- [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
+- [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
 - [x] PR 4: Federation Foundation (Init + Contract + minimale Federation-Verwaltung/CLI)
-- [x] PR 5: Federated Query + Ranking
+- [ ] PR 5: Federated Query + Ranking (angerissen: minimale föderierte Query-Aggregation vorhanden)
 - [ ] PR 6: Agent Control Surface
 - [ ] PR 7: UI / Service Konsolidierung
 - [ ] PR 8: Semantische Erweiterung
@@ -1840,10 +1840,10 @@ Schutzmaßnahmen:
 ## Messbare Meilensteine
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
-- [x] M2: Query Trace + Context Bundle vorhanden (Gate passiert, e2e Tests bestehen)
-- [x] M3: Graph-Runtime konsistent und diagnostizierbar (Gate passiert, Staleness e2e nachgewiesen)
-- [x] M4: Bundles föderierbar
-- [x] M5: Föderierte Queries stabil
+- [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] M4: Bundles föderierbar
+- [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar
 - [ ] M7: UI/Service konsolidiert
 - [ ] M8: Semantischer Layer produktionsreif
