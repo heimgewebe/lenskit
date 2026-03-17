@@ -931,10 +931,11 @@ Ziel: Atlas wird diagnostisch.
 
 ### Phase 7 — Multi-Machine-Atlas
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
-- [x] mehrere Machines sauber registrieren
+- [ ] mehrere Machines sauber registrieren
 - [ ] Root-Namenskonventionen zwischen Hosts vereinheitlichen
 - [x] Cross-machine snapshot diff definieren
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
+  - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot dieser Root auf.*
 - [ ] Backup-gap-Analyse definieren
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [ ] Konfliktfälle (gleiches root label, andere Pfade) definieren

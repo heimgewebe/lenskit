@@ -43,16 +43,24 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     from_files = {}
     with open(from_inv_path, "r", encoding="utf-8") as f:
         for line in f:
-            if not line.strip(): continue
-            item = json.loads(line)
-            from_files[item["rel_path"]] = item
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+                from_files[item["rel_path"]] = item
+            except json.JSONDecodeError:
+                continue
 
     to_files = {}
     with open(to_inv_path, "r", encoding="utf-8") as f:
         for line in f:
-            if not line.strip(): continue
-            item = json.loads(line)
-            to_files[item["rel_path"]] = item
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+                to_files[item["rel_path"]] = item
+            except json.JSONDecodeError:
+                continue
 
     new_files = []
     removed_files = []
@@ -147,16 +155,24 @@ def compute_snapshot_comparison(registry, from_snap_id: str, to_snap_id: str) ->
     from_files = {}
     with open(from_inv_path, "r", encoding="utf-8") as f:
         for line in f:
-            if not line.strip(): continue
-            item = json.loads(line)
-            from_files[item["rel_path"]] = item
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+                from_files[item["rel_path"]] = item
+            except json.JSONDecodeError:
+                continue
 
     to_files = {}
     with open(to_inv_path, "r", encoding="utf-8") as f:
         for line in f:
-            if not line.strip(): continue
-            item = json.loads(line)
-            to_files[item["rel_path"]] = item
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+                to_files[item["rel_path"]] = item
+            except json.JSONDecodeError:
+                continue
 
     new_files = []
     removed_files = []

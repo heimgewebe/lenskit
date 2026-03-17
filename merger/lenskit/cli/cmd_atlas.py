@@ -53,10 +53,10 @@ def _resolve_snapshot_ref(ref: str, registry) -> str:
 
         # Ensure deterministic sort by created_at descending just in case DB defaults shift
         # missing created_at should sink to bottom or error, but they should all have it
-        def safe_date(s):
-            return s.get("created_at", "")
+        def safe_sort_key(s):
+            return (s.get("created_at", ""), s.get("snapshot_id", ""))
 
-        sorted_snaps = sorted(snapshots, key=safe_date, reverse=True)
+        sorted_snaps = sorted(snapshots, key=safe_sort_key, reverse=True)
         return sorted_snaps[0]["snapshot_id"]
     return ref
 

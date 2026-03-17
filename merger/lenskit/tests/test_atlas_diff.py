@@ -120,14 +120,10 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
 
 def test_resolve_snapshot_ref(populated_registry):
     from merger.lenskit.cli.cmd_atlas import _resolve_snapshot_ref
-    import time
 
     # Normal ref
     assert _resolve_snapshot_ref("s1", populated_registry) == "s1"
 
-    # machine:root path finding newest
-    # Right now r1 has s1 and s2. Both created at roughly the same time.
-    # Let's manually set s1 created_at early and s2 later in the DB to test the sort.
     with populated_registry.conn:
         populated_registry.conn.execute("UPDATE snapshots SET created_at = '2023-01-01T00:00:00Z' WHERE snapshot_id = 's1'")
         populated_registry.conn.execute("UPDATE snapshots SET created_at = '2023-01-02T00:00:00Z' WHERE snapshot_id = 's2'")
@@ -135,6 +131,60 @@ def test_resolve_snapshot_ref(populated_registry):
     resolved_id = _resolve_snapshot_ref("m1:/var/www", populated_registry)
     assert resolved_id == "s2" # The newer one
 
+    # Test Tie-breaking logic (same created_at)
+    with populated_registry.conn:
+        populated_registry.conn.execute("UPDATE snapshots SET created_at = '2023-01-02T00:00:00Z' WHERE snapshot_id = 's1'")
+
+    # Both s1 and s2 have exactly '2023-01-02T00:00:00Z'.
+    # secondary sort is by snapshot_id descending. 's2' > 's1', so 's2' should win.
+    resolved_id_tied = _resolve_snapshot_ref("m1:/var/www", populated_registry)
+    assert resolved_id_tied == "s2"
+
     # Not found paths
     with pytest.raises(ValueError, match="No root found"):
         _resolve_snapshot_ref("m1:/nowhere", populated_registry)
+
+    # Empty complete snapshots
+    populated_registry.register_root("r_empty", "m1", "abs_path", "/var/empty")
+    populated_registry.create_snapshot("s_empty", "m1", "r_empty", "h", "running")
+    with pytest.raises(ValueError, match="No complete snapshots found"):
+        _resolve_snapshot_ref("m1:/var/empty", populated_registry)
+
+def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatch):
+    tmp_path, _ = temp_workspace
+    import argparse
+    from merger.lenskit.cli.cmd_atlas import run_atlas_diff
+
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+
+    try:
+        # 1. same-root delta
+        args = argparse.Namespace(from_snapshot="s1", to_snapshot="s2")
+        ret = run_atlas_diff(args)
+        assert ret == 0
+        captured = capsys.readouterr()
+        assert "Mode: same-root-delta" in captured.out
+        assert "Warning: This is a cross-root delta" not in captured.out
+
+        # 2. cross-root comparison
+        populated_registry.register_machine("m2", "other")
+        populated_registry.register_root("r2", "m2", "abs_path", "/var/backup")
+
+        inv3_path = tmp_path / "inv3.jsonl"
+        with open(inv3_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+
+        populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
+        populated_registry.update_snapshot_artifacts("s3", {"inventory": str(inv3_path)})
+
+        args = argparse.Namespace(from_snapshot="s1", to_snapshot="s3")
+        ret = run_atlas_diff(args)
+        assert ret == 0
+        captured = capsys.readouterr()
+        assert "Mode: cross-root-comparison" in captured.out
+        assert "From: m1:/var/www" in captured.out
+        assert "To:   m2:/var/backup" in captured.out
+
+    finally:
+        os.chdir(old_cwd)
