@@ -27,6 +27,29 @@ def test_init_federation_prevents_overwrite(tmp_path: Path):
     with pytest.raises(FileExistsError):
         init_federation("test-fed", out_path)
 
+def test_init_federation_fails_without_schema(tmp_path: Path, monkeypatch):
+    from merger.lenskit.core import federation
+
+    monkeypatch.setattr(federation, "load_federation_schema", lambda: None)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        federation.init_federation("test-fed", tmp_path / "out.json")
+
+    assert "Federation schema missing at expected path" in str(exc_info.value)
+
+def test_init_federation_structure(tmp_path: Path):
+    out = tmp_path / "fed.json"
+    data = init_federation("test-fed", out)
+
+    assert set(data.keys()) == {
+        "kind",
+        "version",
+        "federation_id",
+        "created_at",
+        "updated_at",
+        "bundles",
+    }
+
 def test_init_federation_cli_dispatch(tmp_path: Path, monkeypatch, capsys):
     out_path = tmp_path / "fed_cli.json"
 

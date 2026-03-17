@@ -1,13 +1,13 @@
 import json
 import datetime
 from pathlib import Path
+from typing import Optional
 
 FEDERATION_KIND = "repolens.federation.index"
 FEDERATION_VERSION = "1.0"
 
-def load_federation_schema() -> dict:
+def load_federation_schema() -> Optional[dict]:
     """Loads the federation schema."""
-    import json
     # Attempt to resolve from module path
     module_dir = Path(__file__).parent
     schema_path = module_dir.parent / "contracts" / "federation-index.v1.schema.json"
@@ -28,7 +28,7 @@ def init_federation(federation_id: str, out_path: Path) -> dict:
     # If not, we fail fast.
     schema = load_federation_schema()
     if not schema:
-        raise RuntimeError("Federation index schema not found. Cannot initialize.")
+        raise RuntimeError("Federation schema missing at expected path (contracts/federation-index.v1.schema.json)")
 
     now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 

@@ -16,6 +16,8 @@ def main(args: Optional[List[str]] = None) -> int:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Federation command
+    # NOTE: These Federation CLI definitions are duplicated in cli/rlens.py.
+    # Keep them in sync to prevent drift.
     federation_parser = subparsers.add_parser("federation", help="Manage federated cross-repo bundles")
     federation_subparsers = federation_parser.add_subparsers(dest="federation_command", required=True)
 
