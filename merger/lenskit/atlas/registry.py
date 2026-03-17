@@ -72,7 +72,7 @@ class AtlasRegistry:
                 );
             """)
 
-            # Migration: Ensure duplicates_ref and orphans_ref exist if table was created in earlier version
+            # Migration: Ensure duplicates_ref, orphans_ref, and disk_ref exist if table was created in earlier version
             cur = self.conn.execute("PRAGMA table_info(snapshots)")
             cols = [row["name"] for row in cur.fetchall()]
             if "duplicates_ref" not in cols:

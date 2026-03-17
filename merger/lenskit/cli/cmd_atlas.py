@@ -657,7 +657,10 @@ def _run_analyze_disk(snapshot_id: str) -> int:
     with open(inv_path, "r", encoding="utf-8") as f:
         for line in f:
             if not line.strip(): continue
-            item = json.loads(line)
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
             # Skip symlinks for strict file size counting if desired,
             # but usually they are 0 or small. We keep them but they won't make largest files.
@@ -696,10 +699,13 @@ def _run_analyze_disk(snapshot_id: str) -> int:
         with open(dirs_path, "r", encoding="utf-8") as f:
             for line in f:
                 if not line.strip(): continue
-                item = json.loads(line)
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-                size = item.get("recursive_bytes", 0)
-                count = item.get("kept_file_count", 0)
+                size = item.get("subtree_total_bytes", item.get("recursive_bytes", 0))
+                count = item.get("subtree_file_count", item.get("n_files", item.get("kept_file_count", 0)))
                 rel_path = item.get("rel_path", "")
 
                 largest_dirs.append({"path": rel_path, "size": size})
@@ -745,7 +751,10 @@ def _run_analyze_disk(snapshot_id: str) -> int:
             os.unlink(temp_path)
         raise
 
-    rel_disk = str(disk_path.relative_to(base_dir))
+    try:
+        rel_disk = disk_path.relative_to(base_dir).as_posix()
+    except ValueError:
+        rel_disk = disk_path.as_posix()
     with AtlasRegistry(registry_path) as registry:
         registry.update_snapshot_artifacts(snapshot_id, {"disk": rel_disk})
 
