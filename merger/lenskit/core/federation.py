@@ -61,14 +61,14 @@ def validate_federation(index_path: Path) -> bool:
     if not index_path.exists():
         raise FileNotFoundError(f"Federation index not found at: {index_path.resolve().as_posix()}")
 
-    with index_path.open("r", encoding="utf-8") as f:
-        fed_data = json.load(f)
-
-    # 1. Schema Validation
     schema = load_federation_schema()
     if not schema:
         raise RuntimeError("Federation schema missing at expected path (contracts/federation-index.v1.schema.json)")
 
+    with index_path.open("r", encoding="utf-8") as f:
+        fed_data = json.load(f)
+
+    # 1. Schema Validation
     import jsonschema
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
@@ -101,6 +101,10 @@ def inspect_federation(index_path: Path) -> dict:
     if not index_path.exists():
         raise FileNotFoundError(f"Federation index not found at: {index_path.resolve().as_posix()}")
 
+    schema = load_federation_schema()
+    if not schema:
+        raise RuntimeError("Federation schema missing at expected path (contracts/federation-index.v1.schema.json)")
+
     with index_path.open("r", encoding="utf-8") as f:
         fed_data = json.load(f)
 
@@ -125,6 +129,10 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     if not index_path.exists():
         raise FileNotFoundError(f"Federation index not found at: {index_path.resolve().as_posix()}")
 
+    schema = load_federation_schema()
+    if not schema:
+        raise RuntimeError("Federation schema missing at expected path (contracts/federation-index.v1.schema.json)")
+
     with index_path.open("r", encoding="utf-8") as f:
         fed_data = json.load(f)
 
@@ -132,12 +140,6 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     for bundle in fed_data.get("bundles", []):
         if bundle.get("repo_id") == repo_id:
             raise ValueError(f"repo_id '{repo_id}' already exists in federation index.")
-
-    # Soft check for bundle_path existence (only for likely local paths)
-    if "://" not in bundle_path:
-        bp = Path(bundle_path)
-        if not bp.exists():
-            pass # Keep it quiet in core as per review
 
     # Update state
     now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
@@ -154,13 +156,11 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     fed_data["updated_at"] = now
 
     # Validate against our own schema before writing (fail safe)
-    schema = load_federation_schema()
-    if schema:
-        import jsonschema
-        try:
-            jsonschema.validate(instance=fed_data, schema=schema)
-        except jsonschema.exceptions.ValidationError as e:
-            raise ValueError(f"Failed to generate valid federation index schema after modification: {e}")
+    import jsonschema
+    try:
+        jsonschema.validate(instance=fed_data, schema=schema)
+    except jsonschema.exceptions.ValidationError as e:
+        raise ValueError(f"Failed to generate valid federation index schema after modification: {e}")
 
     with index_path.open("w", encoding="utf-8") as f:
         json.dump(fed_data, f, indent=2, sort_keys=True)

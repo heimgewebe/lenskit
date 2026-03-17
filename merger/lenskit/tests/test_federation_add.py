@@ -40,3 +40,40 @@ def test_add_bundle_duplicate_repo_id(tmp_path: Path):
 def test_add_bundle_index_not_found(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
         add_bundle(tmp_path / "nonexistent.json", "repo-1", str(tmp_path / "b1"))
+
+def test_add_bundle_preserves_opaque_uri_and_relative_paths(tmp_path: Path):
+    index_path = tmp_path / "fed.json"
+    init_federation("opaque-fed", index_path)
+
+    uri = "https://example.org/bundles/repo-a"
+    add_bundle(index_path, "repo-uri", uri)
+
+    rel_path = "bundles/repo-b"
+    add_bundle(index_path, "repo-rel", rel_path)
+
+    with index_path.open() as f:
+        read_data = json.load(f)
+
+    bundles = read_data["bundles"]
+    assert len(bundles) == 2
+
+    # Verify URIs and relative paths are preserved exactly
+    assert bundles[0]["repo_id"] == "repo-uri"
+    assert bundles[0]["bundle_path"] == uri
+
+    assert bundles[1]["repo_id"] == "repo-rel"
+    assert bundles[1]["bundle_path"] == rel_path
+
+def test_add_bundle_fails_without_schema(tmp_path: Path, monkeypatch):
+    index_path = tmp_path / "fed.json"
+    init_federation("schema-fail-fed", index_path)
+
+    from merger.lenskit.core import federation
+
+    # Mock the schema loader to return None
+    monkeypatch.setattr(federation, "load_federation_schema", lambda: None)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        add_bundle(index_path, "repo-fail", "some-path")
+
+    assert "Federation schema missing at expected path" in str(exc_info.value)
