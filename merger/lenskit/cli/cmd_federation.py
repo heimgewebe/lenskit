@@ -27,6 +27,14 @@ def register_federation_commands(subparsers) -> None:
     validate_parser = federation_subparsers.add_parser("validate", help="Validate a federation index")
     validate_parser.add_argument("--index", required=True, help="Path to federation index")
 
+    # query
+    query_parser = federation_subparsers.add_parser("query", help="Query across a federation index")
+    query_parser.add_argument("--index", required=True, help="Path to federation index")
+    query_parser.add_argument("-q", "--query", required=True, help="Query string")
+    query_parser.add_argument("-k", type=int, default=10, help="Number of results to return")
+    query_parser.add_argument("--repo", type=str, help="Filter by repository ID")
+    query_parser.add_argument("--trace", action="store_true", help="Include diagnostic trace")
+
 
 def handle_federation_command(args: argparse.Namespace) -> int:
     """Dispatches federation commands to their respective handlers."""
@@ -75,6 +83,27 @@ def handle_federation_command(args: argparse.Namespace) -> int:
             else:
                 print(f"Federation index at {index_path.as_posix()} is invalid.", file=sys.stderr)
                 return 1
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+    elif args.federation_command == "query":
+        from merger.lenskit.retrieval.federation_query import execute_federated_query
+        index_path = Path(args.index)
+        filters = {}
+        if args.repo:
+            filters["repo"] = args.repo
+
+        try:
+            res = execute_federated_query(
+                index_path,
+                query_text=args.query,
+                k=args.k,
+                filters=filters,
+                trace=args.trace
+            )
+            print(json.dumps(res, indent=2))
+            return 0
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
