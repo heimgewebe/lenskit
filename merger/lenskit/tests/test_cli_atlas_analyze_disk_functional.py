@@ -45,6 +45,10 @@ def test_analyze_disk_functional(tmp_path: Path, monkeypatch, capsys):
     exit_code = run_atlas_analyze(args)
     assert exit_code == 0
 
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    assert report["snapshot_id"] == "snap_1"
+
     # Ensure disk.json was created
     disk_json_path = snapshot_dir / "disk.json"
     assert disk_json_path.exists()

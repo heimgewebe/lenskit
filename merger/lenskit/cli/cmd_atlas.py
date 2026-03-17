@@ -653,7 +653,6 @@ def _run_analyze_disk(snapshot_id: str) -> int:
     total_files = 0
     total_bytes = 0
 
-    print(f"Analyzing disk artifacts for snapshot: {snapshot_id}")
     with open(inv_path, "r", encoding="utf-8") as f:
         for line in f:
             if not line.strip(): continue
@@ -731,6 +730,7 @@ def _run_analyze_disk(snapshot_id: str) -> int:
         most_populated_dirs = most_populated_dirs[:50]
 
     report = {
+        "snapshot_id": snapshot_id,
         "analyzed_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
         "total_files": total_files,
         "total_bytes": total_bytes,
@@ -764,12 +764,6 @@ def _run_analyze_disk(snapshot_id: str) -> int:
     with AtlasRegistry(registry_path) as registry:
         registry.update_snapshot_artifacts(snapshot_id, {"disk": rel_disk})
 
-    print(f"Disk analysis saved to: {disk_path}")
-    print(f"  Total files: {total_files}")
-    print(f"  Total bytes: {total_bytes}")
-    print(f"  Largest file: {largest_files[0]['path']} ({largest_files[0]['size']} bytes)" if largest_files else "  Largest file: N/A")
-    print(f"  Oldest file: {oldest_files[0]['path']} ({oldest_files[0]['mtime']})" if oldest_files else "  Oldest file: N/A")
-    if dirs_path:
-        print(f"  Largest dir: {largest_dirs[0]['path']} ({largest_dirs[0]['size']} bytes)" if largest_dirs else "  Largest dir: N/A")
+    print(json.dumps(report, indent=2))
 
     return 0
