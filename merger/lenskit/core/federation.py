@@ -66,14 +66,14 @@ def validate_federation(index_path: Path) -> bool:
 
     # 1. Schema Validation
     schema = load_federation_schema()
-    if schema:
-        import jsonschema
-        try:
-            jsonschema.validate(instance=fed_data, schema=schema)
-        except jsonschema.exceptions.ValidationError as e:
-            raise ValueError(f"Schema validation failed: {e.message} at path {list(e.path)}")
-    else:
-        print("Warning: Federation schema missing, skipping structural validation.")
+    if not schema:
+        raise RuntimeError("Federation schema missing at expected path (contracts/federation-index.v1.schema.json)")
+
+    import jsonschema
+    try:
+        jsonschema.validate(instance=fed_data, schema=schema)
+    except jsonschema.exceptions.ValidationError as e:
+        raise ValueError(f"Schema validation failed: {e.message} at path {list(e.path)}")
 
     # 2. Logical Constraints
     bundles = fed_data.get("bundles", [])
@@ -133,17 +133,18 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
         if bundle.get("repo_id") == repo_id:
             raise ValueError(f"repo_id '{repo_id}' already exists in federation index.")
 
-    # Soft check for bundle_path existence
-    bp = Path(bundle_path)
-    if not bp.exists():
-        print(f"Warning: Bundle path '{bundle_path}' does not currently exist. Adding anyway.")
+    # Soft check for bundle_path existence (only for likely local paths)
+    if "://" not in bundle_path:
+        bp = Path(bundle_path)
+        if not bp.exists():
+            pass # Keep it quiet in core as per review
 
     # Update state
     now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 
     new_bundle = {
         "repo_id": repo_id,
-        "bundle_path": bp.as_posix() if bp.is_absolute() else str(bp) # preserve raw or convert abs
+        "bundle_path": bundle_path # preserve exactly as passed (opaque string/URI)
     }
 
     if "bundles" not in fed_data:

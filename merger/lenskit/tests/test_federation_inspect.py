@@ -16,8 +16,8 @@ def test_inspect_federation_with_bundles(tmp_path: Path):
     index_path = tmp_path / "fed.json"
     init_federation("test-inspect-fed", index_path)
 
-    add_bundle(index_path, "repo-1", "/tmp/b1")
-    add_bundle(index_path, "repo-2", "/tmp/b2")
+    add_bundle(index_path, "repo-1", str(tmp_path / "b1"))
+    add_bundle(index_path, "repo-2", str(tmp_path / "b2"))
 
     summary = inspect_federation(index_path)
     assert summary["federation_id"] == "test-inspect-fed"

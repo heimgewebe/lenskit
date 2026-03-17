@@ -27,13 +27,16 @@ def test_add_bundle_duplicate_repo_id(tmp_path: Path):
     index_path = tmp_path / "fed.json"
     init_federation("test-dup-fed", index_path)
 
-    add_bundle(index_path, "repo-1", "/tmp/b1")
+    b1_path = str(tmp_path / "b1")
+    b2_path = str(tmp_path / "b2")
+
+    add_bundle(index_path, "repo-1", b1_path)
 
     with pytest.raises(ValueError) as exc_info:
-        add_bundle(index_path, "repo-1", "/tmp/b2")
+        add_bundle(index_path, "repo-1", b2_path)
 
     assert "already exists in federation index" in str(exc_info.value)
 
 def test_add_bundle_index_not_found(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
-        add_bundle(tmp_path / "nonexistent.json", "repo-1", "/tmp/b1")
+        add_bundle(tmp_path / "nonexistent.json", "repo-1", str(tmp_path / "b1"))
