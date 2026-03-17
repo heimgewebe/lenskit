@@ -56,6 +56,7 @@ class AtlasRegistry:
                     hotspots_ref TEXT,
                     workspaces_ref TEXT,
                     duplicates_ref TEXT,
+                    orphans_ref TEXT,
                     FOREIGN KEY(machine_id) REFERENCES machines(machine_id),
                     FOREIGN KEY(root_id) REFERENCES roots(root_id)
                 );
@@ -70,11 +71,13 @@ class AtlasRegistry:
                 );
             """)
 
-            # Migration: Ensure duplicates_ref exists if table was created in earlier version
+            # Migration: Ensure duplicates_ref and orphans_ref exist if table was created in earlier version
             cur = self.conn.execute("PRAGMA table_info(snapshots)")
             cols = [row["name"] for row in cur.fetchall()]
             if "duplicates_ref" not in cols:
                 self.conn.execute("ALTER TABLE snapshots ADD COLUMN duplicates_ref TEXT")
+            if "orphans_ref" not in cols:
+                self.conn.execute("ALTER TABLE snapshots ADD COLUMN orphans_ref TEXT")
 
     def register_machine(self, machine_id: str, hostname: str, labels: Optional[List[str]] = None):
         labels_json = json.dumps(labels) if labels else None
@@ -149,7 +152,7 @@ class AtlasRegistry:
     def update_snapshot_artifacts(self, snapshot_id: str, artifacts: Dict[str, str]):
         set_clauses = []
         params = []
-        for key in ["inventory", "dirs", "summary", "content", "topology", "hotspots", "workspaces", "duplicates"]:
+        for key in ["inventory", "dirs", "summary", "content", "topology", "hotspots", "workspaces", "duplicates", "orphans"]:
             if key in artifacts:
                 set_clauses.append(f"{key}_ref = ?")
                 params.append(artifacts[key])
