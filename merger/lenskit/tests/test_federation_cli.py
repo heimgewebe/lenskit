@@ -136,15 +136,10 @@ def test_federation_query_cli_dispatch(tmp_path: Path, monkeypatch, capsys):
         out_path = tmp_path / "fed.json"
         init_federation("my-fed", out_path)
 
-        monkeypatch.setattr(
-            "sys.argv",
-            ["rlens", "federation", "query", "--index", str(out_path), "-q", "hello"]
-        )
-
         from merger.lenskit.cli import main
 
         try:
-            main.main()
+            main.main(["federation", "query", "--index", str(out_path), "-q", "hello"])
         except SystemExit:
             pass
 

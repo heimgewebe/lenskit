@@ -34,8 +34,9 @@ def execute_federated_query(
     queried_bundles_total = len(bundles)
     queried_bundles_effective = 0
 
-    # Ensure repo filter is removed from local filters to avoid duplicate application
-    # or conflicts if chunk_index repo_id differs from federation repo_id.
+    # repo-Filter wird auf Federation-Ebene angewendet und nicht an execute_query
+    # weitergereicht, um doppelte Ausführung und Fehler zu vermeiden, falls lokale Repos
+    # andere IDs verwenden. Andere Filter werden normal durchgereicht.
     local_filters = None
     if filters:
         local_filters = {k: v for k, v in filters.items() if k != "repo"}
@@ -85,7 +86,8 @@ def execute_federated_query(
             bundle_errors[repo_id] = str(e)
 
     # Global sort: final_score descending
-    # Tie-breakers: federation_bundle, path, chunk_id to ensure determinism
+    # Global sort: final_score descending
+    # Tie-breakers: federation_bundle asc, path asc, chunk_id asc to ensure determinism
     all_results.sort(key=lambda x: (
         -x.get("final_score", 0),
         x.get("federation_bundle", ""),

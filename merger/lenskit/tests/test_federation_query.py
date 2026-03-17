@@ -110,9 +110,8 @@ def test_execute_federated_query_is_deterministic_on_tie(federated_setup):
     assert res["results"][1]["federation_bundle"] == "repo2"
 
 def test_execute_federated_query_marks_missing_index(federated_setup):
-    import os
-    index_db = federated_setup.parent / "repo2" / "chunk_index.index.sqlite"
-    index_db.unlink()
+    bundle_db_path = federated_setup.parent / "repo2" / "chunk_index.index.sqlite"
+    bundle_db_path.unlink()
 
     res = execute_federated_query(
         federation_index_path=federated_setup,
@@ -185,4 +184,24 @@ def test_execute_federated_query_empty_after_filter(federated_setup):
     trace = res["federation_trace"]
     assert trace["bundle_status"]["repo1"] == "filtered_out"
     assert trace["bundle_status"]["repo2"] == "filtered_out"
+    assert trace["queried_bundles_effective"] == 0
+
+def test_execute_federated_query_handles_query_error(federated_setup, monkeypatch):
+    from merger.lenskit.retrieval import federation_query
+
+    def mock_execute_query(*args, **kwargs):
+        raise RuntimeError("Database corruption")
+
+    monkeypatch.setattr(federation_query, "execute_query", mock_execute_query)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    assert trace["bundle_status"]["repo1"] == "query_error"
+    assert "Database corruption" in trace["bundle_errors"]["repo1"]
     assert trace["queried_bundles_effective"] == 0

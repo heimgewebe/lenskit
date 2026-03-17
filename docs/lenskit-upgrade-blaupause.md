@@ -1548,8 +1548,8 @@ Ausgabe: `federation_trace.json`
 Wichtige Tests:
 - [x] 1. test_federation_index_builds_deterministically
 - [ ] 2. test_cross_repo_links_are_provenance_backed
-- [ ] 3. test_federated_query_preserves_bundle_origin
-- [ ] 4. test_federated_ranking_is_stable
+- [ ] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
+- [ ] 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, aber Rank-Stabilität nicht e2e validiert)
 - [ ] 5. test_conflicts_are_reported_not_smoothed
 - [ ] 6. test_cross_repo_context_preserves_primary_evidence
 - [ ] 7. test_stale_bundle_is_marked_in_federation_trace
@@ -1558,8 +1558,8 @@ Wichtige Tests:
 - [x] 1. federation_index.json
 - [ ] 2. cross_repo_links.json
 - [ ] 3. federation_conflicts.json
-- [ ] 4. federation_trace.json
-- [ ] 5. föderierte Query-Schnittstelle
+- [ ] 4. federation_trace.json (strukturell begonnen, aber noch keine End-to-End Metadaten)
+- [ ] 5. föderierte Query-Schnittstelle (erste federierte Query-Aggregation vorhanden, aber Schnittstelle nicht fertig)
 - [ ] 6. bundleübergreifendes Context-Bundle
 - [ ] 7. Identity-/Conflict-Regeln
 
