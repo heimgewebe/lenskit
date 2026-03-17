@@ -105,6 +105,8 @@ def run_atlas_analyze(args: argparse.Namespace) -> int:
         return _run_analyze_duplicates(args.snapshot_id)
     if args.analyze_command == "orphans":
         return _run_analyze_orphans(args.snapshot_id)
+    if args.analyze_command == "disk":
+        return _run_analyze_disk(args.snapshot_id)
     return 1
 
 def _run_analyze_orphans(snapshot_id: str) -> int:
@@ -609,3 +611,159 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
     finally:
         if 'registry' in locals() and registry:
             registry.close()
+
+def _run_analyze_disk(snapshot_id: str) -> int:
+    from merger.lenskit.atlas.registry import AtlasRegistry
+    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        snapshot = registry.get_snapshot(snapshot_id)
+        if not snapshot:
+            print(f"Error: Snapshot '{snapshot_id}' not found.", file=sys.stderr)
+            return 1
+
+        if snapshot['status'] != 'complete':
+            print(f"Error: Snapshot '{snapshot_id}' is not complete.", file=sys.stderr)
+            return 1
+
+        root = registry.get_root(snapshot['root_id'])
+        if not root:
+            print(f"Error: Root '{snapshot['root_id']}' not found.", file=sys.stderr)
+            return 1
+
+    if not snapshot.get('inventory_ref'):
+        print(f"Error: Snapshot '{snapshot_id}' has no inventory_ref. Cannot analyze disk.", file=sys.stderr)
+        return 1
+
+    base_dir = resolve_atlas_base_dir(registry_path)
+    inv_path = resolve_artifact_ref(base_dir, snapshot['inventory_ref'])
+    if not inv_path.exists():
+        print(f"Error: Inventory file '{inv_path}' not found.", file=sys.stderr)
+        return 1
+
+    dirs_path = None
+    if snapshot.get('dirs_ref'):
+        d_path = resolve_artifact_ref(base_dir, snapshot['dirs_ref'])
+        if d_path.exists():
+            dirs_path = d_path
+
+    largest_files = []
+    oldest_files = []
+    total_files = 0
+    total_bytes = 0
+
+    with open(inv_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip(): continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            # Skip symlinks for strict file size counting if desired,
+            # but usually they are 0 or small. We keep them but they won't make largest files.
+
+            size = item.get("size_bytes", 0)
+            if not isinstance(size, int) or size < 0:
+                size = 0
+            mtime = item.get("mtime")
+            rel_path = item.get("rel_path", "")
+
+            total_files += 1
+            total_bytes += size
+
+            largest_files.append({"path": rel_path, "size": size})
+            if mtime:
+                oldest_files.append({"path": rel_path, "mtime": mtime})
+
+            # Keep only top N to save memory
+            if len(largest_files) > 1000:
+                largest_files.sort(key=lambda x: x["size"], reverse=True)
+                largest_files = largest_files[:100]
+
+            if len(oldest_files) > 1000:
+                oldest_files.sort(key=lambda x: x["mtime"])
+                oldest_files = oldest_files[:100]
+
+    # Final sort
+    largest_files.sort(key=lambda x: x["size"], reverse=True)
+    largest_files = largest_files[:50]
+
+    oldest_files.sort(key=lambda x: x["mtime"])
+    oldest_files = oldest_files[:50]
+
+    largest_dirs = []
+    most_populated_dirs = []
+
+    if dirs_path:
+        with open(dirs_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip(): continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                size = item.get("subtree_total_bytes", item.get("recursive_bytes", 0))
+                if not isinstance(size, int) or size < 0:
+                    size = 0
+                count = item.get("subtree_file_count", item.get("n_files", item.get("kept_file_count", 0)))
+                if not isinstance(count, int) or count < 0:
+                    count = 0
+                rel_path = item.get("rel_path", "")
+
+                largest_dirs.append({"path": rel_path, "size": size})
+                most_populated_dirs.append({"path": rel_path, "count": count})
+
+                if len(largest_dirs) > 1000:
+                    largest_dirs.sort(key=lambda x: x["size"], reverse=True)
+                    largest_dirs = largest_dirs[:100]
+                if len(most_populated_dirs) > 1000:
+                    most_populated_dirs.sort(key=lambda x: x["count"], reverse=True)
+                    most_populated_dirs = most_populated_dirs[:100]
+
+        largest_dirs.sort(key=lambda x: x["size"], reverse=True)
+        largest_dirs = largest_dirs[:50]
+
+        most_populated_dirs.sort(key=lambda x: x["count"], reverse=True)
+        most_populated_dirs = most_populated_dirs[:50]
+
+    report = {
+        "snapshot_id": snapshot_id,
+        "analyzed_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+        "total_files": total_files,
+        "total_bytes": total_bytes,
+        "largest_files": largest_files,
+        "oldest_files": oldest_files,
+        "largest_dirs": largest_dirs,
+        "most_populated_dirs": most_populated_dirs
+    }
+
+    # Output to snapshot directory and update registry
+    snapshot_dir = resolve_snapshot_dir(base_dir, snapshot['machine_id'], snapshot['root_id'], snapshot_id)
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    disk_path = snapshot_dir / "disk.json"
+
+    fd, temp_path = tempfile.mkstemp(dir=str(snapshot_dir), prefix=".tmp_disk.json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, str(disk_path))
+    except Exception:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+    try:
+        rel_disk = disk_path.relative_to(base_dir).as_posix()
+    except ValueError:
+        rel_disk = disk_path.as_posix()
+    with AtlasRegistry(registry_path) as registry:
+        registry.update_snapshot_artifacts(snapshot_id, {"disk": rel_disk})
+
+    print(json.dumps(report, indent=2))
+
+    return 0
