@@ -1,6 +1,5 @@
 import pytest
 import json
-import sqlite3
 from pathlib import Path
 
 from merger.lenskit.core.federation import init_federation, add_bundle
@@ -189,8 +188,13 @@ def test_execute_federated_query_empty_after_filter(federated_setup):
 def test_execute_federated_query_handles_query_error(federated_setup, monkeypatch):
     from merger.lenskit.retrieval import federation_query
 
-    def mock_execute_query(*args, **kwargs):
-        raise RuntimeError("Database corruption")
+    original_execute_query = federation_query.execute_query
+
+    def mock_execute_query(index_path, *args, **kwargs):
+        # Nur für repo1 einen Fehler simulieren
+        if "repo1" in str(index_path):
+            raise RuntimeError("Database corruption")
+        return original_execute_query(index_path, *args, **kwargs)
 
     monkeypatch.setattr(federation_query, "execute_query", mock_execute_query)
 
@@ -204,4 +208,7 @@ def test_execute_federated_query_handles_query_error(federated_setup, monkeypatc
     trace = res["federation_trace"]
     assert trace["bundle_status"]["repo1"] == "query_error"
     assert "Database corruption" in trace["bundle_errors"]["repo1"]
-    assert trace["queried_bundles_effective"] == 0
+    assert trace["bundle_status"]["repo2"] == "ok"
+    assert trace["queried_bundles_effective"] == 1
+    # Ein Bundle liefert Ergebnisse
+    assert res["count"] > 0

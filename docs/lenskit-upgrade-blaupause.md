@@ -1546,7 +1546,7 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [x] 1. test_federation_index_builds_deterministically
+- [ ] 1. test_federation_index_builds_deterministically (im Rahmen der Minimalaggregation noch nicht e2e abgesichert)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
 - [ ] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
 - [ ] 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, aber Rank-Stabilität nicht e2e validiert)
@@ -1555,11 +1555,11 @@ Wichtige Tests:
 - [ ] 7. test_stale_bundle_is_marked_in_federation_trace
 
 ### 1.12 Deliverables Phase 5
-- [x] 1. federation_index.json
+- [ ] 1. federation_index.json (Struktur angelegt, aber noch nicht Teil einer umfassenden Architekturschnittstelle)
 - [ ] 2. cross_repo_links.json
 - [ ] 3. federation_conflicts.json
-- [ ] 4. federation_trace.json (strukturell begonnen, aber noch keine End-to-End Metadaten)
-- [ ] 5. föderierte Query-Schnittstelle (erste federierte Query-Aggregation vorhanden, aber Schnittstelle nicht fertig)
+- [ ] 4. federation_trace.json (strukturell begonnen, Minimalaggregation vorhanden)
+- [ ] 5. föderierte Query-Schnittstelle (erste federierte Query-Aggregation vorhanden, Schnittstelle nicht komplett)
 - [ ] 6. bundleübergreifendes Context-Bundle
 - [ ] 7. Identity-/Conflict-Regeln
 

@@ -86,7 +86,6 @@ def execute_federated_query(
             bundle_errors[repo_id] = str(e)
 
     # Global sort: final_score descending
-    # Global sort: final_score descending
     # Tie-breakers: federation_bundle asc, path asc, chunk_id asc to ensure determinism
     all_results.sort(key=lambda x: (
         -x.get("final_score", 0),
@@ -99,7 +98,7 @@ def execute_federated_query(
     out = {
         "query": query_text,
         "k": k,
-        "count": len(top_k),
+        "count": len(top_k),  # Refers to the returned top-k results, not total hits across bundles
         "results": top_k,
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }
