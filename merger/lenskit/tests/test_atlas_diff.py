@@ -77,6 +77,12 @@ def test_compute_delta_errors(populated_registry):
     with pytest.raises(ValueError, match="status='complete'"):
         compute_snapshot_delta(populated_registry, "s1", "s_partial")
 
+    populated_registry.register_root("r2", "m1", "abs_path", "/var/lib")
+    populated_registry.create_snapshot("s3", "m1", "r2", "hash3", "complete")
+
+    with pytest.raises(ValueError, match="Snapshots must belong to the same machine and root"):
+        compute_snapshot_delta(populated_registry, "s1", "s3")
+
 
 
 def test_cross_machine_delta(temp_workspace, populated_registry):
@@ -96,12 +102,39 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        delta = compute_snapshot_delta(populated_registry, "s1", "s3")
+        from merger.lenskit.atlas.diff import compute_snapshot_comparison
+        delta = compute_snapshot_comparison(populated_registry, "s1", "s3")
 
+        assert delta["mode"] == "cross-root-comparison"
         assert delta["is_cross_root"] is True
+        assert delta["from_machine_id"] == "m1"
+        assert delta["to_machine_id"] == "m2"
+        assert delta["from_root_id"] == "r1"
+        assert delta["to_root_id"] == "r2"
         assert delta["summary"]["new_count"] == 1
         assert delta["new_files"][0] == "new.txt"
         assert delta["summary"]["removed_count"] == 2 # b.txt, d.txt
         assert delta["summary"]["changed_count"] == 0 # a.txt is identical
     finally:
         os.chdir(old_cwd)
+
+def test_resolve_snapshot_ref(populated_registry):
+    from merger.lenskit.cli.cmd_atlas import _resolve_snapshot_ref
+    import time
+
+    # Normal ref
+    assert _resolve_snapshot_ref("s1", populated_registry) == "s1"
+
+    # machine:root path finding newest
+    # Right now r1 has s1 and s2. Both created at roughly the same time.
+    # Let's manually set s1 created_at early and s2 later in the DB to test the sort.
+    with populated_registry.conn:
+        populated_registry.conn.execute("UPDATE snapshots SET created_at = '2023-01-01T00:00:00Z' WHERE snapshot_id = 's1'")
+        populated_registry.conn.execute("UPDATE snapshots SET created_at = '2023-01-02T00:00:00Z' WHERE snapshot_id = 's2'")
+
+    resolved_id = _resolve_snapshot_ref("m1:/var/www", populated_registry)
+    assert resolved_id == "s2" # The newer one
+
+    # Not found paths
+    with pytest.raises(ValueError, match="No root found"):
+        _resolve_snapshot_ref("m1:/nowhere", populated_registry)

@@ -39,7 +39,6 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
 def _resolve_snapshot_ref(ref: str, registry) -> str:
     if ":" in ref:
         machine_id, root_value = ref.split(":", 1)
-        # Find matching root
         target_root_id = None
         for r in registry.list_roots():
             if r["machine_id"] == machine_id and r["root_value"] == root_value:
@@ -51,21 +50,45 @@ def _resolve_snapshot_ref(ref: str, registry) -> str:
         snapshots = registry.list_complete_snapshots(root_id=target_root_id)
         if not snapshots:
             raise ValueError(f"No complete snapshots found for root '{target_root_id}'")
-        return snapshots[0]["snapshot_id"]
+
+        # Ensure deterministic sort by created_at descending just in case DB defaults shift
+        # missing created_at should sink to bottom or error, but they should all have it
+        def safe_date(s):
+            return s.get("created_at", "")
+
+        sorted_snaps = sorted(snapshots, key=safe_date, reverse=True)
+        return sorted_snaps[0]["snapshot_id"]
     return ref
 
 def run_atlas_diff(args: argparse.Namespace) -> int:
-    from merger.lenskit.atlas.diff import compute_snapshot_delta
+    from merger.lenskit.atlas.diff import compute_snapshot_delta, compute_snapshot_comparison
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     try:
         with AtlasRegistry(registry_path) as registry:
             from_snap_id = _resolve_snapshot_ref(args.from_snapshot, registry)
             to_snap_id = _resolve_snapshot_ref(args.to_snapshot, registry)
-            delta = compute_snapshot_delta(registry, from_snap_id, to_snap_id)
 
-        print(f"Delta: {delta['delta_id']} ({delta['from_snapshot_id']} -> {delta['to_snapshot_id']})")
-        if delta.get("is_cross_root"):
-            print("Warning: This is a cross-root delta.")
+            from_snap = registry.get_snapshot(from_snap_id)
+            to_snap = registry.get_snapshot(to_snap_id)
+
+            if not from_snap:
+                raise ValueError(f"Snapshot not found: {from_snap_id}")
+            if not to_snap:
+                raise ValueError(f"Snapshot not found: {to_snap_id}")
+
+            if from_snap["machine_id"] == to_snap["machine_id"] and from_snap["root_id"] == to_snap["root_id"]:
+                delta = compute_snapshot_delta(registry, from_snap_id, to_snap_id)
+                print(f"Delta: {delta['delta_id']} ({delta['from_snapshot_id']} -> {delta['to_snapshot_id']})")
+                print(f"Mode: same-root-delta")
+            else:
+                delta = compute_snapshot_comparison(registry, from_snap_id, to_snap_id)
+                print(f"Comparison: {delta['comparison_id']}")
+                print(f"Mode: cross-root-comparison")
+                from_desc = f"{delta['from_machine_id']}:{delta['from_root_value']} ({delta['from_snapshot_id']})"
+                to_desc = f"{delta['to_machine_id']}:{delta['to_root_value']} ({delta['to_snapshot_id']})"
+                print(f"From: {from_desc}")
+                print(f"To:   {to_desc}")
+
         print(f"Summary: {json.dumps(delta['summary'], indent=2)}")
         print(f"\nNew files: {len(delta['new_files'])}")
         for f in delta['new_files'][:10]:
