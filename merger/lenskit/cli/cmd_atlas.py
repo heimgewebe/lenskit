@@ -109,7 +109,7 @@ def run_atlas_analyze(args: argparse.Namespace) -> int:
 
 def _run_analyze_orphans(snapshot_id: str) -> int:
     from merger.lenskit.atlas.registry import AtlasRegistry
-    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
+    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
 
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     with AtlasRegistry(registry_path) as registry:
@@ -183,6 +183,18 @@ def _run_analyze_orphans(snapshot_id: str) -> int:
         "orphans": sorted(list(orphans)),
         "dead_files": sorted(list(dead_files))
     }
+
+    snapshot_dir = resolve_snapshot_dir(base_dir, snapshot['machine_id'], snapshot['root_id'], snapshot_id)
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    orphans_path = snapshot_dir / "orphans.json"
+
+    with orphans_path.open("w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
+
+    with AtlasRegistry(registry_path) as registry:
+        registry.update_snapshot_artifacts(snapshot_id, {
+            "orphans": str(orphans_path.relative_to(base_dir).as_posix())
+        })
 
     print(json.dumps(report, indent=2))
     return 0
