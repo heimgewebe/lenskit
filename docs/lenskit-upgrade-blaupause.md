@@ -1359,10 +1359,10 @@ Sehr sinnvoll: Badge-System (lexical, graph, semantic, explicit provenance, deri
 ### 2.11 Arbeitspaket I – Context-Bundle-Eval
 
 Ziel:
-- [ ] Nicht nur Rankingqualität, sondern auch Kontextnutzbarkeit prüfen.
+- [x] Nicht nur Rankingqualität, sondern auch Kontextnutzbarkeit prüfen.
 
 Deterministische Checks:
-* resolver roundtrip
+* context snippet passthrough / provenance consistency
 * provenance validity
 * context contains expected snippet
 * no silent provenance downgrade
