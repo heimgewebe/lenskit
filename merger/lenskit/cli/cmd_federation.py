@@ -17,7 +17,7 @@ def register_federation_commands(subparsers) -> None:
     add_parser = federation_subparsers.add_parser("add", help="Add a bundle to the federation index")
     add_parser.add_argument("--index", required=True, help="Path to federation index")
     add_parser.add_argument("--repo", required=True, help="Unique repo ID for this bundle")
-    add_parser.add_argument("--bundle", required=True, help="Path to the bundle directory")
+    add_parser.add_argument("--bundle", required=True, help="Path or URI to the bundle root")
 
     # inspect
     inspect_parser = federation_subparsers.add_parser("inspect", help="Inspect a federation index")
