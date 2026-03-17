@@ -25,7 +25,7 @@ def populated_registry(temp_workspace):
             f.write(json.dumps({"snapshot_id": "s1", "rel_path": "b.txt", "size_bytes": 200, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
         reg.create_snapshot("s1", "m1", "r1", "hash1", "complete")
-        reg.update_snapshot_artifacts("s1", {"inventory": str(inv1_path)})
+        reg.update_snapshot_artifacts("s1", {"inventory": inv1_path.as_posix()})
 
         # Write mock inventory 2
         inv2_path = tmp_path / "inv2.jsonl"
@@ -39,7 +39,7 @@ def populated_registry(temp_workspace):
             f.write(json.dumps({"snapshot_id": "s1", "rel_path": "d.txt", "size_bytes": 400, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
         reg.create_snapshot("s2", "m1", "r1", "hash2", "complete")
-        reg.update_snapshot_artifacts("s2", {"inventory": str(inv2_path)})
+        reg.update_snapshot_artifacts("s2", {"inventory": inv2_path.as_posix()})
 
         yield reg
 
@@ -97,7 +97,7 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
         f.write(json.dumps({"snapshot_id": "s3", "rel_path": "new.txt", "size_bytes": 50, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
     populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
-    populated_registry.update_snapshot_artifacts("s3", {"inventory": str(inv3_path)})
+    populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
 
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
@@ -176,7 +176,7 @@ def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatc
             f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
         populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
-        populated_registry.update_snapshot_artifacts("s3", {"inventory": str(inv3_path)})
+        populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
 
         args = argparse.Namespace(from_snapshot="s1", to_snapshot="s3")
         ret = run_atlas_diff(args)
