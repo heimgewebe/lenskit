@@ -95,6 +95,10 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
     with open(inv3_path, "w", encoding="utf-8") as f:
         f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
         f.write(json.dumps({"snapshot_id": "s3", "rel_path": "new.txt", "size_bytes": 50, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+        # Add problematic lines to verify robustness
+        f.write(json.dumps({"size_bytes": 999}) + "\n")
+        f.write(json.dumps({"rel_path": "", "size_bytes": 1}) + "\n")
+        f.write(json.dumps({"rel_path": None, "size_bytes": 1}) + "\n")
 
     populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
     populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
@@ -174,6 +178,7 @@ def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatc
         inv3_path = tmp_path / "inv3.jsonl"
         with open(inv3_path, "w", encoding="utf-8") as f:
             f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+            f.write(json.dumps({"size_bytes": 999}) + "\n")
 
         populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
         populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
