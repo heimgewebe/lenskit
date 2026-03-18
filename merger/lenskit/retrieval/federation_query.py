@@ -16,14 +16,14 @@ def execute_federated_query(
     build_context: bool = False
 ) -> Dict[str, Any]:
     """
-    Executes a query across all bundles defined in a federation index.
-    Results are globally sorted.
+    Executes a minimal federated query aggregation across local bundles referenced by a federation index.
+    This is not a full federated ranking system, but a fan-out mechanism that collects results and sorts them globally.
     """
     if not federation_index_path.exists():
         raise FileNotFoundError(f"Federation index not found at: {federation_index_path.resolve().as_posix()}")
 
     # Diagnose-Gate: Validate structural integrity before accessing keys to avoid KeyErrors mid-flight.
-    # This is a deliberate safety check for the minimal fan-out, not necessarily the final performance architecture.
+    # This is a deliberate safety check for the minimal fan-out, not intended as a highly optimized performance model.
     validate_federation(federation_index_path)
 
     with federation_index_path.open("r", encoding="utf-8") as f:
@@ -100,10 +100,12 @@ def execute_federated_query(
     ))
     top_k = all_results[:k]
 
+    # In a future expansion, it may be useful to separate `total_candidates_found` (across all bundles)
+    # from `returned_results` (len(top_k)), but for now count reflects the final sliced result length.
     out = {
         "query": query_text,
         "k": k,
-        "count": len(top_k),  # Refers to the returned top-k results, not the global total across all bundles
+        "count": len(top_k),  # Refers to the returned top-k results after global slice, not total hits across all bundles
         "results": top_k,
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }

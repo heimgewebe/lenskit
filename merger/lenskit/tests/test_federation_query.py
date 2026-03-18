@@ -97,7 +97,7 @@ def test_execute_federated_query_with_trace(federated_setup):
 
 def test_execute_federated_query_is_deterministic_on_tie(federated_setup):
     # 'hello' will yield score ties.
-    # The ordering should be explicitly deterministic based on repo_id -> path -> chunk_id.
+    # The ordering should be deterministic tie ordering based on repo_id -> path -> chunk_id.
     res = execute_federated_query(
         federation_index_path=federated_setup,
         query_text="hello",

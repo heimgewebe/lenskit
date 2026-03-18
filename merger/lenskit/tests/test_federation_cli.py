@@ -103,8 +103,6 @@ def test_rlens_federation_query_dispatch(tmp_path: Path, monkeypatch, capsys):
     bundle_path.mkdir()
 
     import sqlite3
-    import json
-
     # Minimal CLI smoke fixture: Tests only dispatch and basic output, not the full index build path.
     db_path = bundle_path / "chunk_index.index.sqlite"
     conn = sqlite3.connect(str(db_path))
@@ -144,8 +142,7 @@ def test_federation_query_cli_dispatch(tmp_path: Path, capsys):
     assert ret == 0
 
     captured = capsys.readouterr()
-    import json
     parsed = json.loads(captured.out.strip())
-    # An empty federation returns count == 0 and results == [] successfully.
+    # An empty federation implies a successful, empty query case returning count == 0.
     assert parsed["count"] == 0
     assert parsed["results"] == []
