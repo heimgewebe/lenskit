@@ -132,7 +132,7 @@ def test_rlens_federation_query_dispatch(tmp_path: Path, monkeypatch, capsys):
     assert parsed["count"] == 1
     assert parsed["results"][0]["federation_bundle"] == "repo1"
 
-def test_federation_query_cli_dispatch(tmp_path: Path, monkeypatch, capsys):
+def test_federation_query_cli_dispatch(tmp_path: Path, capsys):
     out_path = tmp_path / "fed.json"
     init_federation("my-fed", out_path)
 
@@ -144,6 +144,6 @@ def test_federation_query_cli_dispatch(tmp_path: Path, monkeypatch, capsys):
 
     captured = capsys.readouterr()
     import json
-    parsed = json.loads(captured.out)
+    parsed = json.loads(captured.out.strip())
     assert parsed["count"] == 0
     assert parsed["results"] == []

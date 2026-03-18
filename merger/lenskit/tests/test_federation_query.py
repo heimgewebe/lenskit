@@ -158,9 +158,6 @@ def test_execute_federated_query_marks_unsupported_bundle_uri(federated_setup):
     assert trace["queried_bundles_effective"] == 2
 
 def test_execute_federated_query_not_found(tmp_path):
-    import pytest
-    from merger.lenskit.retrieval.federation_query import execute_federated_query
-
     missing_path = tmp_path / "missing_fed.json"
 
     with pytest.raises(FileNotFoundError):

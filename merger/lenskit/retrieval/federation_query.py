@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from .query_core import execute_query
+from ..core.federation import validate_federation
 
 def execute_federated_query(
     federation_index_path: Path,
@@ -20,6 +21,9 @@ def execute_federated_query(
     """
     if not federation_index_path.exists():
         raise FileNotFoundError(f"Federation index not found at: {federation_index_path.resolve().as_posix()}")
+
+    # Validate structural integrity before accessing keys to avoid KeyErrors mid-flight
+    validate_federation(federation_index_path)
 
     with federation_index_path.open("r", encoding="utf-8") as f:
         fed_data = json.load(f)
