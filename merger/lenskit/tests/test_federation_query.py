@@ -61,7 +61,7 @@ def test_execute_federated_query(federated_setup):
     assert res["federation_id"] == "test-fed"
     assert res["count"] == 2
 
-    # Verify provenance
+    # Minimal provenance preservation via federation_bundle tagging
     repos = {h["federation_bundle"] for h in res["results"]}
     assert repos == {"repo1", "repo2"}
 
@@ -96,8 +96,8 @@ def test_execute_federated_query_with_trace(federated_setup):
     assert "repo2" in trace["bundle_traces"]
 
 def test_execute_federated_query_is_deterministic_on_tie(federated_setup):
-    # 'hello' will yield score ties (both are 1 match on exact same text context length usually)
-    # the ranking should be explicitly deterministic based on repo_id -> path -> chunk_id
+    # 'hello' will yield score ties.
+    # The ordering should be explicitly deterministic based on repo_id -> path -> chunk_id.
     res = execute_federated_query(
         federation_index_path=federated_setup,
         query_text="hello",
@@ -137,7 +137,6 @@ def test_execute_federated_query_marks_filtered_out_bundle(federated_setup):
     assert trace["queried_bundles_effective"] == 1
 
 def test_execute_federated_query_marks_unsupported_bundle_uri(federated_setup):
-    import json
     # Modify federation index manually to add an unsupported URI
     with federated_setup.open("r", encoding="utf-8") as f:
         data = json.load(f)

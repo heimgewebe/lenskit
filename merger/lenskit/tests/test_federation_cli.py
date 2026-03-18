@@ -105,6 +105,7 @@ def test_rlens_federation_query_dispatch(tmp_path: Path, monkeypatch, capsys):
     import sqlite3
     import json
 
+    # Minimal CLI smoke fixture: Tests only dispatch and basic output, not the full index build path.
     db_path = bundle_path / "chunk_index.index.sqlite"
     conn = sqlite3.connect(str(db_path))
     conn.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(content, chunk_id UNINDEXED);")
@@ -145,5 +146,6 @@ def test_federation_query_cli_dispatch(tmp_path: Path, capsys):
     captured = capsys.readouterr()
     import json
     parsed = json.loads(captured.out.strip())
+    # An empty federation returns count == 0 and results == [] successfully.
     assert parsed["count"] == 0
     assert parsed["results"] == []

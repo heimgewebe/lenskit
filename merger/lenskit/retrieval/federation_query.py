@@ -22,7 +22,8 @@ def execute_federated_query(
     if not federation_index_path.exists():
         raise FileNotFoundError(f"Federation index not found at: {federation_index_path.resolve().as_posix()}")
 
-    # Validate structural integrity before accessing keys to avoid KeyErrors mid-flight
+    # Diagnose-Gate: Validate structural integrity before accessing keys to avoid KeyErrors mid-flight.
+    # This is a deliberate safety check for the minimal fan-out, not necessarily the final performance architecture.
     validate_federation(federation_index_path)
 
     with federation_index_path.open("r", encoding="utf-8") as f:
@@ -90,7 +91,7 @@ def execute_federated_query(
             bundle_errors[repo_id] = str(e)
 
     # Global sort: final_score descending
-    # Tie-breakers: federation_bundle asc, path asc, chunk_id asc to ensure determinism
+    # Tie-breakers: federation_bundle asc, path asc, chunk_id asc to ensure deterministic tie ordering
     all_results.sort(key=lambda x: (
         -x.get("final_score", 0),
         x.get("federation_bundle", ""),
@@ -102,7 +103,7 @@ def execute_federated_query(
     out = {
         "query": query_text,
         "k": k,
-        "count": len(top_k),  # Refers to the returned top-k results, not total hits across bundles
+        "count": len(top_k),  # Refers to the returned top-k results, not the global total across all bundles
         "results": top_k,
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }
