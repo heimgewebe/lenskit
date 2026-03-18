@@ -192,8 +192,9 @@ def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatc
         assert ret == 0
         captured = capsys.readouterr()
         assert "Mode: cross-root-comparison" in captured.out
-        assert "From: m1:/var/www" in captured.out
-        assert "To:   m2:/var/backup" in captured.out
+        # Test explicitly asserts that the resolved snapshot IDs are correctly embedded in the output
+        assert "From: m1:/var/www (s2)" in captured.out
+        assert "To:   m2:/var/backup (s3)" in captured.out
 
     finally:
         os.chdir(old_cwd)

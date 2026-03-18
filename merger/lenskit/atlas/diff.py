@@ -121,6 +121,11 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
 
     return delta
 
+# Drift Note: The `compute_snapshot_comparison` function deliberately duplicates the inventory parsing
+# and file comparison loops from `compute_snapshot_delta`. This maintains strict semantic separation
+# between temporal deltas (same root) and structural comparisons (cross-root) for now.
+# Future refactoring could unify the core comparison logic if it proves fully isomorphic,
+# but currently, keeping them parallel prevents semantic drift and preserves clear contracts.
 def compute_snapshot_comparison(registry, from_snap_id: str, to_snap_id: str) -> Dict[str, Any]:
     from_snap = registry.get_snapshot(from_snap_id)
     to_snap = registry.get_snapshot(to_snap_id)
