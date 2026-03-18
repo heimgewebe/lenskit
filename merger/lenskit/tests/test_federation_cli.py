@@ -102,16 +102,20 @@ def test_rlens_federation_query_dispatch(tmp_path: Path, monkeypatch, capsys):
     bundle_path = tmp_path / "b1"
     bundle_path.mkdir()
 
-    import sqlite3
-    # Minimal CLI smoke fixture: Tests only dispatch and basic output, not the full index build path.
+    from merger.lenskit.retrieval import index_db
+
+    b1_dump = bundle_path / "dump.json"
+    b1_chunks = bundle_path / "chunks.jsonl"
     db_path = bundle_path / "chunk_index.index.sqlite"
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(content, chunk_id UNINDEXED);")
-    conn.execute("CREATE TABLE chunks (chunk_id TEXT PRIMARY KEY, repo_id TEXT, path TEXT, start_line INTEGER, end_line INTEGER, start_byte INTEGER, end_byte INTEGER, content_sha256 TEXT, layer TEXT, artifact_type TEXT, content_range_ref TEXT);")
-    conn.execute("INSERT INTO chunks_fts VALUES ('hello repo1', 'c1');")
-    conn.execute("INSERT INTO chunks VALUES ('c1', 'repo1', 'src/main.py', 1, 1, 0, 10, 'h1', 'core', 'code', NULL);")
-    conn.commit()
-    conn.close()
+
+    chunk_data = [
+        {"chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py", "content": "hello repo1", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1"}
+    ]
+    with b1_chunks.open("w", encoding="utf-8") as f:
+        for c in chunk_data:
+            f.write(json.dumps(c) + "\n")
+    b1_dump.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(b1_dump, b1_chunks, db_path)
 
     add_bundle(out_path, "repo1", str(bundle_path))
 

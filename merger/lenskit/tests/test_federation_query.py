@@ -123,6 +123,35 @@ def test_execute_federated_query_marks_missing_index(federated_setup):
     assert trace["bundle_status"]["repo2"] == "index_missing"
     assert trace["queried_bundles_effective"] == 1
 
+def test_execute_federated_query_filters_repo_locally(federated_setup, monkeypatch):
+    from merger.lenskit.retrieval import federation_query
+
+    captured_filters = []
+    original_execute_query = federation_query.execute_query
+
+    def mock_execute_query(index_path, *args, **kwargs):
+        captured_filters.append(kwargs.get("filters"))
+        return original_execute_query(index_path, *args, **kwargs)
+
+    monkeypatch.setattr(federation_query, "execute_query", mock_execute_query)
+
+    execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        filters={"repo": "repo1", "layer": "core"},
+        trace=True
+    )
+
+    # Ensure execute_query was called at least once
+    assert len(captured_filters) > 0
+    for f in captured_filters:
+        if f is not None:
+            # "repo" should be removed before calling execute_query
+            assert "repo" not in f
+            # other filters like "layer" should be passed down
+            assert f.get("layer") == "core"
+
 def test_execute_federated_query_marks_filtered_out_bundle(federated_setup):
     res = execute_federated_query(
         federation_index_path=federated_setup,
@@ -155,6 +184,24 @@ def test_execute_federated_query_marks_unsupported_bundle_uri(federated_setup):
     assert trace["bundle_status"]["repo3"] == "bundle_path_unsupported"
     assert trace["queried_bundles_total"] == 3
     assert trace["queried_bundles_effective"] == 2
+
+def test_execute_federated_query_fails_on_invalid_structure(federated_setup):
+    with federated_setup.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Invalidate structure by removing a required field (repo_id)
+    if data.get("bundles"):
+        del data["bundles"][0]["repo_id"]
+
+    with federated_setup.open("w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+    with pytest.raises(ValueError) as excinfo:
+        execute_federated_query(
+            federation_index_path=federated_setup,
+            query_text="hello"
+        )
+    assert "Invalid bundle: missing 'repo_id'" in str(excinfo.value) or "validation failed" in str(excinfo.value).lower()
 
 def test_execute_federated_query_not_found(tmp_path):
     missing_path = tmp_path / "missing_fed.json"
