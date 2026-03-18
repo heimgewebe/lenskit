@@ -46,28 +46,36 @@ def populated_registry(temp_workspace):
 def test_compute_snapshot_delta(temp_workspace, populated_registry):
     tmp_path, _ = temp_workspace
 
-    # Run test from tmp_path so the registry artifact paths resolve correctly
-    # based on the current CWD convention for Atlas outputs.
+    # Ensure CWD independence: The paths should resolve relative to registry_db correctly
+    # even if CWD is something else.
+    # The previous test did chdir to tmp_path. Now we run it from a random directory
+    # to explicitly prove CWD independence.
     old_cwd = os.getcwd()
-    os.chdir(tmp_path)
-    try:
-        delta = compute_snapshot_delta(populated_registry, "s1", "s2")
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        os.chdir(td)
+        try:
+            delta = compute_snapshot_delta(populated_registry, "s1", "s2")
 
-        assert len(delta["new_files"]) == 1
-        assert delta["new_files"][0] == "c.txt"
+            assert len(delta["new_files"]) == 1
+            assert delta["new_files"][0] == "c.txt"
+
+            assert len(delta["removed_files"]) == 1
+            assert delta["removed_files"][0] == "d.txt"
+
+            assert len(delta["changed_files"]) == 1
+            assert delta["changed_files"][0] == "b.txt"
+
+            # Check delta in registry
+            reg_deltas = populated_registry.list_deltas()
+            assert len(reg_deltas) == 1
+            assert reg_deltas[0]["delta_id"] == delta["delta_id"]
+        finally:
+            os.chdir(old_cwd)
 
         assert len(delta["removed_files"]) == 1
         assert delta["removed_files"][0] == "d.txt"
 
-        assert len(delta["changed_files"]) == 1
-        assert delta["changed_files"][0] == "b.txt"
-
-        # Check delta in registry
-        reg_deltas = populated_registry.list_deltas()
-        assert len(reg_deltas) == 1
-        assert reg_deltas[0]["delta_id"] == delta["delta_id"]
-    finally:
-        os.chdir(old_cwd)
 
 def test_compute_delta_errors(populated_registry):
     with pytest.raises(ValueError, match="Snapshot not found"):
@@ -96,12 +104,15 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
         f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
         f.write(json.dumps({"snapshot_id": "s3", "rel_path": "new.txt", "size_bytes": 50, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
         # Add problematic lines to verify robustness
-        f.write(json.dumps({"size_bytes": 999}) + "\n")
-        f.write(json.dumps({"rel_path": "", "size_bytes": 1}) + "\n")
-        f.write(json.dumps({"rel_path": None, "size_bytes": 1}) + "\n")
-        f.write(json.dumps(123) + "\n")
-        f.write(json.dumps([]) + "\n")
-        f.write(json.dumps("abc") + "\n")
+        f.write("\n") # empty line
+        f.write("invalid json\n")
+        f.write(json.dumps({"size_bytes": 999}) + "\n") # missing rel_path
+        f.write(json.dumps({"rel_path": "", "size_bytes": 1}) + "\n") # empty rel_path
+        f.write(json.dumps({"rel_path": None, "size_bytes": 1}) + "\n") # none rel_path
+        f.write(json.dumps({"rel_path": 12345, "size_bytes": 1}) + "\n") # int rel_path
+        f.write(json.dumps(123) + "\n") # json number
+        f.write(json.dumps([]) + "\n") # json array
+        f.write(json.dumps("abc") + "\n") # json string
 
     populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
     populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
@@ -168,6 +179,13 @@ def test_resolve_snapshot_ref(populated_registry):
     populated_registry.register_root("r_ambig", "m1", "abs_path", "/var/www/")
     with pytest.raises(ValueError, match="Ambiguous root reference"):
         _resolve_snapshot_ref("m1:/var/www", populated_registry)
+
+    # Cross-verify behavior with trailing slashes vs none in ambiguity
+    with pytest.raises(ValueError, match="Ambiguous root reference"):
+        _resolve_snapshot_ref("m1:/var/www/", populated_registry)
+
+    with pytest.raises(ValueError, match="Ambiguous root reference"):
+        _resolve_snapshot_ref("m1:/var/www/.", populated_registry)
 
 def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatch):
     tmp_path, _ = temp_workspace
