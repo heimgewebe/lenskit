@@ -183,6 +183,15 @@ def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatc
         assert ret == 0
         captured = capsys.readouterr()
         assert "Mode: cross-root-comparison" in captured.out
+        assert "From: m1:/var/www (s1)" in captured.out
+        assert "To:   m2:/var/backup (s3)" in captured.out
+
+        # 3. cross-root comparison using machine:path resolution explicitly
+        args = argparse.Namespace(from_snapshot="m1:/var/www", to_snapshot="m2:/var/backup")
+        ret = run_atlas_diff(args)
+        assert ret == 0
+        captured = capsys.readouterr()
+        assert "Mode: cross-root-comparison" in captured.out
         assert "From: m1:/var/www" in captured.out
         assert "To:   m2:/var/backup" in captured.out
 
