@@ -99,6 +99,9 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
         f.write(json.dumps({"size_bytes": 999}) + "\n")
         f.write(json.dumps({"rel_path": "", "size_bytes": 1}) + "\n")
         f.write(json.dumps({"rel_path": None, "size_bytes": 1}) + "\n")
+        f.write(json.dumps(123) + "\n")
+        f.write(json.dumps([]) + "\n")
+        f.write(json.dumps("abc") + "\n")
 
     populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
     populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
@@ -153,6 +156,18 @@ def test_resolve_snapshot_ref(populated_registry):
     populated_registry.create_snapshot("s_empty", "m1", "r_empty", "h", "running")
     with pytest.raises(ValueError, match="No complete snapshots found"):
         _resolve_snapshot_ref("m1:/var/empty", populated_registry)
+
+    # Trivial path variants matching
+    resolved_slash = _resolve_snapshot_ref("m1:/var/www/", populated_registry)
+    assert resolved_slash == "s2"
+
+    resolved_dot = _resolve_snapshot_ref("m1:/var/www/.", populated_registry)
+    assert resolved_dot == "s2"
+
+    # Ambiguous paths matching
+    populated_registry.register_root("r_ambig", "m1", "abs_path", "/var/www/")
+    with pytest.raises(ValueError, match="Ambiguous root reference"):
+        _resolve_snapshot_ref("m1:/var/www", populated_registry)
 
 def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatch):
     tmp_path, _ = temp_workspace

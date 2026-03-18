@@ -39,13 +39,27 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
 def _resolve_snapshot_ref(ref: str, registry) -> str:
     if ":" in ref:
         machine_id, root_value = ref.split(":", 1)
-        target_root_id = None
+
+        def normalize_path(p: str) -> str:
+            # Conservative normalization for trivial differences (e.g. trailing slashes, /./)
+            # Must not redefine relative/absolute meaning.
+            import posixpath
+            return posixpath.normpath(p)
+
+        target_root_ids = []
+        norm_root_value = normalize_path(root_value)
+
         for r in registry.list_roots():
-            if r["machine_id"] == machine_id and r["root_value"] == root_value:
-                target_root_id = r["root_id"]
-                break
-        if not target_root_id:
+            if r["machine_id"] == machine_id and normalize_path(r["root_value"]) == norm_root_value:
+                target_root_ids.append(r["root_id"])
+
+        if not target_root_ids:
             raise ValueError(f"No root found for machine '{machine_id}' and path '{root_value}'")
+
+        if len(target_root_ids) > 1:
+            raise ValueError(f"Ambiguous root reference: multiple roots match machine '{machine_id}' and path '{root_value}'")
+
+        target_root_id = target_root_ids[0]
 
         snapshots = registry.list_complete_snapshots(root_id=target_root_id)
         if not snapshots:

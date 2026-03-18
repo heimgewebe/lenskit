@@ -47,6 +47,8 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
                 continue
             try:
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    continue
                 rel_path = item.get("rel_path")
                 if not rel_path or not isinstance(rel_path, str):
                     continue
@@ -61,6 +63,8 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
                 continue
             try:
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    continue
                 rel_path = item.get("rel_path")
                 if not rel_path or not isinstance(rel_path, str):
                     continue
@@ -170,6 +174,8 @@ def compute_snapshot_comparison(registry, from_snap_id: str, to_snap_id: str) ->
                 continue
             try:
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    continue
                 rel_path = item.get("rel_path")
                 if not rel_path or not isinstance(rel_path, str):
                     continue
@@ -184,6 +190,8 @@ def compute_snapshot_comparison(registry, from_snap_id: str, to_snap_id: str) ->
                 continue
             try:
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    continue
                 rel_path = item.get("rel_path")
                 if not rel_path or not isinstance(rel_path, str):
                     continue
