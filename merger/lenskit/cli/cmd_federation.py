@@ -90,9 +90,9 @@ def handle_federation_command(args: argparse.Namespace) -> int:
     elif args.federation_command == "query":
         from merger.lenskit.retrieval.federation_query import execute_federated_query
         index_path = Path(args.index)
-        filters = {}
+        filters = None
         if args.repo:
-            filters["repo"] = args.repo
+            filters = {"repo": args.repo}
 
         try:
             res = execute_federated_query(
