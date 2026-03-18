@@ -201,7 +201,9 @@ def test_execute_federated_query_fails_on_invalid_structure(federated_setup):
             federation_index_path=federated_setup,
             query_text="hello"
         )
-    assert "Invalid bundle: missing 'repo_id'" in str(excinfo.value) or "validation failed" in str(excinfo.value).lower()
+    # The validation gate should fail deterministically on the schema check before logical constraints.
+    assert "Schema validation failed" in str(excinfo.value)
+    assert "'repo_id' is a required property" in str(excinfo.value)
 
 def test_execute_federated_query_not_found(tmp_path):
     missing_path = tmp_path / "missing_fed.json"
