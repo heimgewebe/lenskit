@@ -108,6 +108,10 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
         f.write(json.dumps([]) + "\n")
         f.write(json.dumps("abc") + "\n")
 
+        # Inject duplicate valid rel_path to prove "last entry wins" policy
+        f.write(json.dumps({"snapshot_id": "s3", "rel_path": "dup.txt", "size_bytes": 10, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+        f.write(json.dumps({"snapshot_id": "s3", "rel_path": "dup.txt", "size_bytes": 999, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
+
     populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
     populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
 
@@ -125,8 +129,16 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
             assert delta["to_machine_id"] == "m2"
             assert delta["from_root_id"] == "r1"
             assert delta["to_root_id"] == "r2"
-            assert delta["summary"]["new_count"] == 1
-            assert delta["new_files"][0] == "new.txt"
+            assert delta["summary"]["new_count"] == 2
+            assert "new.txt" in delta["new_files"]
+            assert "dup.txt" in delta["new_files"]
+
+            # Since dup.txt is only in 'to', we just need to verify we parsed the latter entry
+            # To actually prove "last wins" impacted logic, we verify its size property explicitly
+            from merger.lenskit.atlas.diff import _load_inventory_index
+            parsed_inv3 = _load_inventory_index(inv3_path)
+            assert parsed_inv3["dup.txt"]["size_bytes"] == 999
+
             assert delta["summary"]["removed_count"] == 2 # b.txt, d.txt
             assert delta["summary"]["changed_count"] == 0 # a.txt is identical
         finally:
