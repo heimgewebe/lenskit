@@ -279,6 +279,55 @@ def test_run_merge_clears_global_filters_for_pool(page_with_static: Page):
     assert p.get("extensions") is None, "extensions must be cleared when pool is active"
     assert p.get("force_new") is True
 
+
+def test_run_merge_clears_global_filters_for_all_pool_selection(page_with_static: Page):
+    """
+    Verifies that global filters are cleared even if the pool selection is 'ALL' (null).
+    """
+    # 1. Setup Pool with explicit 'ALL' selection
+    pool_state = {
+        "repoA": {"raw": None, "compressed": None}
+    }
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.goto("http://localhost:8000/")
+
+    page_with_static.evaluate(f"""
+        const pool = {json.dumps(pool_state)};
+        localStorage.setItem("lenskit.prescan.savedSelections.v1", JSON.stringify(pool));
+    """)
+    page_with_static.reload()
+    page_with_static.wait_for_function("() => window.__rlens_pool_ready === true")
+
+    # 2. Set global filters in UI
+    page_with_static.fill("#pathFilter", "src/")
+
+    # 3. Select Repo
+    page_with_static.check("input[value='repoA']")
+
+    # 4. Capture Payload
+    payloads = []
+    def handle_jobs(route: Route):
+        payloads.append(route.request.post_data_json or json.loads(route.request.post_data))
+        route.fulfill(json={"id": "job-regr-all", "status": "queued"})
+
+    page_with_static.route("**/api/jobs", handle_jobs)
+    page_with_static.click("#jobForm button[type='submit']")
+
+    # Wait for payload
+    start = time.time()
+    while len(payloads) == 0 and time.time() - start < 5:
+        page_with_static.wait_for_timeout(50)
+
+    assert len(payloads) == 1
+    p = payloads[0]
+
+    # 5. Assert Logic:
+    # Even with ALL (null), presence in the pool means an explicit override.
+    assert "repoA" in p["include_paths_by_repo"]
+    assert p["include_paths_by_repo"]["repoA"] is None  # ALL
+    assert p.get("path_filter") is None, "path_filter must be cleared even for ALL pool selections"
+
+
 def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
     """
     Verifies that when 'Plan Only' is checked, the generated payload

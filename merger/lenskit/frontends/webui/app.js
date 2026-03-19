@@ -1091,14 +1091,16 @@ async function startJob(e) {
             return null;
         };
 
-        // Helper to check if repo has a pool override (Any selection in pool)
+        // Helper to check if repo has a pool override (Any selection in pool).
+        // A saved pool entry means this repo is explicitly pool-controlled.
+        // This includes ALL/null selections, not only partial subsets.
         const hasPoolOverride = (repo) => {
             return savedPrescanSelections.has(repo);
         };
 
         // Determine if any pool override is active.
         // If pool selection is active for any repo, we MUST clear global filters
-        // to ensure the explicit selection is honored.
+        // because explicit pool intent supersedes downstream path/extensions filtering.
         const anyPoolOverride = selectedRepos.some(hasPoolOverride);
 
         if (mode === 'pro-repo') {
