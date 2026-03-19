@@ -1,7 +1,9 @@
+import sys
+import pytest
 import sqlite3
-from pathlib import Path
 from merger.lenskit.cli.stale_check import check_stale_index, _compute_file_sha256
 
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Special-character path not supported on Windows filesystems")
 def test_stale_check_with_special_characters_in_path(tmp_path):
     # This test ensures that paths with '?' (which could be used for URI injection)
     # are handled correctly by the stale check logic.
