@@ -816,8 +816,8 @@ Atlas-Artefakte werden deterministisch gegen einen kanonischen Atlas-Basisordner
 - [x] ADR-003 Atlas uses pipeline stages, not monolithic scan flows
 - [x] ADR-004 Repo/workspace detection is annotation only
 - [x] ADR-005 Registry in SQLite, large artifacts as files
-- [x] ADR-007 Canonical Artifact Resolution (Resolving always against registry_db path, independent of CWD)
 - [x] ADR-006 Content enrichment is optional and mode-dependent
+- [x] ADR-007 Canonical Artifact Resolution (Resolving against registry_db path, independent of CWD, specifically proven for diff/comparison paths)
 
 ## 4. Abhakbare Roadmap
 
@@ -827,8 +827,9 @@ Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
 - [x] Machine Contract definieren
 - [x] Root Contract definieren
 - [x] Snapshot Contract definieren
-- [x] Inventory Contract definieren (Inkl. robuster geteilter Parser-Logik für Delta/Comparison)
+- [x] Inventory Contract definieren
 - [x] Delta Contract definieren
+- *Implementierungsnotiz:* Delta und Comparison nutzen nun eine explizite, geteilte, CWD-unabhängige und gegen Fehler (z.B. leere Zeilen, ungültiges JSON) robuste Parser-Logik für das Inventory.
 - [x] Mode Output Contract definieren
 - [x] is_text-Garantie explizit dokumentieren
 - [x] Verzeichnisstruktur offiziell festlegen (als Zielstruktur dokumentiert)

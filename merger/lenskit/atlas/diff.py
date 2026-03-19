@@ -6,7 +6,13 @@ from typing import Dict, Any, List
 
 from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
 
+from typing import Dict, Any, List, Tuple
+
 def _load_inventory_index(inv_path: Path) -> Dict[str, Any]:
+    """
+    Robustly loads a JSONL inventory file line by line into a dictionary keyed by `rel_path`.
+    Skips malformed lines, empty lines, or entries missing a valid string `rel_path`.
+    """
     files = {}
     with open(inv_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -25,7 +31,10 @@ def _load_inventory_index(inv_path: Path) -> Dict[str, Any]:
     return files
 
 
-def _compare_file_sets(from_files: Dict[str, Any], to_files: Dict[str, Any]) -> tuple[List[str], List[str], List[str]]:
+def _compare_file_sets(from_files: Dict[str, Any], to_files: Dict[str, Any]) -> Tuple[List[str], List[str], List[str]]:
+    """
+    Compares two file sets (keyed by path) and returns sorted lists of new, removed, and changed file paths.
+    """
     new_files = []
     removed_files = []
     changed_files = []
