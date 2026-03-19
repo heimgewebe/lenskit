@@ -2,11 +2,9 @@ import json
 import uuid
 import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
-
-from typing import Dict, Any, List, Tuple
 
 def _load_inventory_index(inv_path: Path) -> Dict[str, Any]:
     """

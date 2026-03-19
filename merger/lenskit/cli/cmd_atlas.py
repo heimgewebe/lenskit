@@ -41,16 +41,10 @@ def _resolve_snapshot_ref(ref: str, registry) -> str:
         machine_id, root_value = ref.split(":", 1)
 
         def normalize_path(p: str) -> str:
-            # Conservative normalization for trivial differences (e.g. trailing slashes, /./)
-            # Must not redefine relative/absolute meaning.
+            # Conservative normalization for trivial differences (e.g. trailing slashes, /./).
+            # Does not semantically reinterpret absolute vs. relative paths.
             import posixpath
-
-            normalized = posixpath.normpath(p)
-
-            # posixpath.normpath does not remove the trailing slash if the original path was strictly "/"
-            # but for any other directory it removes trailing slashes.
-            # if we wanted to enforce strict absolute behavior we could raise, but here we just normalize.
-            return normalized
+            return posixpath.normpath(p)
 
         target_root_ids = []
         norm_root_value = normalize_path(root_value)
