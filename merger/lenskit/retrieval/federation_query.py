@@ -5,6 +5,41 @@ from typing import Dict, Any, Optional
 from .query_core import execute_query
 from ..core.federation import validate_federation
 
+def _find_bundle_index(bundle_path: Path) -> Optional[Path]:
+    """
+    Deterministically resolves the SQLite index for a given bundle path.
+    1. If the path is a direct file ending in .index.sqlite, return it.
+    2. If a directory, prioritize exactly one *.chunk_index.index.sqlite.
+    3. If none found, look for exactly one generic *.index.sqlite.
+    4. If ambiguous (multiple matches at the same level), return None safely.
+    """
+    if bundle_path.is_file() and bundle_path.name.endswith(".index.sqlite"):
+        return bundle_path
+
+    if not bundle_path.is_dir():
+        return None
+
+    # Search for canonical chunk index
+    chunk_indices = list(bundle_path.glob("*.chunk_index.index.sqlite"))
+    if len(chunk_indices) == 1:
+        # Also ensure there isn't another generic index lying around competing for canonical truth
+        generic_indices = list(bundle_path.glob("*.index.sqlite"))
+        # We expect exactly 1 generic index too (the same one we just found). If there are more, it's ambiguous.
+        if len(generic_indices) > 1:
+            return None
+        return chunk_indices[0]
+    elif len(chunk_indices) > 1:
+        return None
+
+    # Search for generic index as fallback
+    generic_indices = list(bundle_path.glob("*.index.sqlite"))
+    if len(generic_indices) == 1:
+        return generic_indices[0]
+    elif len(generic_indices) > 1:
+        return None
+
+    return None
+
 def execute_federated_query(
     federation_index_path: Path,
     query_text: str,
@@ -59,8 +94,11 @@ def execute_federated_query(
             continue
 
         bundle_path = Path(bundle_path_str)
-        db_path = bundle_path / "chunk_index.index.sqlite"
-        if not db_path.exists():
+        if not bundle_path.is_absolute():
+            bundle_path = federation_index_path.parent / bundle_path
+
+        db_path = _find_bundle_index(bundle_path)
+        if not db_path:
             bundle_status[repo_id] = "index_missing"
             continue
 
