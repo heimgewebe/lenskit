@@ -300,6 +300,7 @@ def test_run_merge_clears_global_filters_for_all_pool_selection(page_with_static
 
     # 2. Set global filters in UI
     page_with_static.fill("#pathFilter", "src/")
+    page_with_static.fill("#extFilter", ".js")
 
     # 3. Select Repo
     page_with_static.check("input[value='repoA']")
@@ -326,6 +327,7 @@ def test_run_merge_clears_global_filters_for_all_pool_selection(page_with_static
     assert "repoA" in p["include_paths_by_repo"]
     assert p["include_paths_by_repo"]["repoA"] is None  # ALL
     assert p.get("path_filter") is None, "path_filter must be cleared even for ALL pool selections"
+    assert p.get("extensions") is None, "extensions must be cleared even for ALL pool selections"
 
 
 def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
