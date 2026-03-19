@@ -20,8 +20,10 @@ def _compute_file_sha256(path: Path) -> Optional[str]:
 
 def _get_sha_from_db(index_path: Path) -> Optional[str]:
     try:
-        # file: URI assumes normal filesystem paths (no special characters like '?' or '#' in directory names).
-        with sqlite3.connect(f"file:{index_path}?mode=ro", uri=True) as conn:
+        # We use .resolve().as_uri() to ensure the path is correctly escaped for the URI connection string,
+        # preventing injection of additional query parameters via malicious directory or file names.
+        uri = f"{index_path.resolve().as_uri()}?mode=ro"
+        with sqlite3.connect(uri, uri=True) as conn:
             c = conn.cursor()
             row = c.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'").fetchone()
             if row:
