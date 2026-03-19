@@ -124,8 +124,6 @@ def test_execute_federated_query_marks_missing_index(federated_setup):
     assert trace["queried_bundles_effective"] == 1
 
 def test_execute_federated_query_resolves_relative_paths(federated_setup, monkeypatch):
-    import os
-
     # Change current working directory to something else to prove we don't rely on it
     original_cwd = Path.cwd()
     monkeypatch.chdir(original_cwd.parent)
