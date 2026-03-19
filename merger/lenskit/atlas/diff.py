@@ -11,7 +11,6 @@ def _load_inventory_index(inv_path: Path) -> Dict[str, Dict[str, Any]]:
     """
     Robustly loads a JSONL inventory file line by line into a dictionary keyed by `rel_path`.
     Skips malformed lines, empty lines, or entries missing a valid string `rel_path`.
-    If a `rel_path` occurs multiple times, the last valid entry deterministically wins.
     """
     files = {}
     with open(inv_path, "r", encoding="utf-8") as f:
