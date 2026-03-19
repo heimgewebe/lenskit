@@ -817,7 +817,7 @@ Atlas-Artefakte werden deterministisch gegen einen kanonischen Atlas-Basisordner
 - [x] ADR-004 Repo/workspace detection is annotation only
 - [x] ADR-005 Registry in SQLite, large artifacts as files
 - [x] ADR-006 Content enrichment is optional and mode-dependent
-- [x] ADR-007 Canonical Artifact Resolution for Diff/Comparison (Resolves against registry_db path, independent of CWD)
+- [x] ADR-007 Canonical Artifact Resolution for diff/comparison paths (Resolves against registry_db path, independent of CWD)
 
 ## 4. Abhakbare Roadmap
 
