@@ -1091,37 +1091,29 @@ async function startJob(e) {
             return null;
         };
 
-        // Helper to check if pool has restrictive selection (Partial)
-        const hasRestrictivePoolSelection = (repo) => {
-            if (!savedPrescanSelections.has(repo)) return false;
-            const sel = savedPrescanSelections.get(repo);
-            // null = ALL -> not restrictive
-            if (sel === null || sel.compressed === null) return false;
-            return Array.isArray(sel.compressed) && sel.compressed.length > 0;
+        // Helper to check if repo has a pool override (Any selection in pool)
+        const hasPoolOverride = (repo) => {
+            return savedPrescanSelections.has(repo);
         };
 
-        // Determine if we should force pro-repo due to restrictive pool selections
-        // If any selected repo has a specific pool selection that is PARTIAL, we MUST use per-repo payloads
-        // to ensure the correct paths are applied to the correct repo.
-        // A pool entry with "ALL" (null) is not restrictive and allows batch processing.
-        const hasRestrictiveSelection = selectedRepos.some(hasRestrictivePoolSelection);
+        // Determine if any pool override is active.
+        // If pool selection is active for any repo, we MUST clear global filters
+        // to ensure the explicit selection is honored.
+        const anyPoolOverride = selectedRepos.some(hasPoolOverride);
 
         if (mode === 'pro-repo') {
             // Explicit Split Mode: Submit separate jobs per repo
             selectedRepos.forEach(repo => {
                 const paths = getIncludePaths(repo);
-
-                // Base payload: inherit common properties
-                // If explicit paths are set (partial selection), we MUST clear global filters
-                // to prevent silent drops. Explicit selection supersedes global filters.
-                const isPartial = Array.isArray(paths);
+                const hasOverride = hasPoolOverride(repo);
 
                 const payload = {
                     ...commonPayload,
                     repos: [repo]
                 };
 
-                if (isPartial) {
+                // Explicit selection from pool supersedes global filters
+                if (hasOverride) {
                     payload.include_paths = paths;
                     clearGlobalFilters(payload);
                 }
@@ -1130,19 +1122,15 @@ async function startJob(e) {
             });
         } else {
             // Combined Mode (Default): Submit one job with mapping
-            // If partial selections exist, we MUST use include_paths_by_repo + strict mode.
-            // If no partial selections exist (all are ALL/null), we can send standard payload.
+            // If pool selections exist, we MUST use include_paths_by_repo + strict mode
+            // and clear global filters to prevent silent drops.
 
-            if (hasRestrictiveSelection) {
+            if (anyPoolOverride) {
                 const pathMap = {};
                 selectedRepos.forEach(repo => {
                     pathMap[repo] = getIncludePaths(repo);
                 });
 
-                // Fix: Clear global filters if pool override is active.
-                // Global filters (path_filter/extensions) applied AFTER explicit include_paths
-                // can silently drop selected files.
-                // If we are using pool selection (include_paths_by_repo), we must nullify them.
                 const payload = {
                     ...commonPayload,
                     repos: selectedRepos,
