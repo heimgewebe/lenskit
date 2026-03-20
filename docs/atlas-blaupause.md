@@ -829,7 +829,7 @@ Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
 - [x] Snapshot Contract definieren
 - [x] Inventory Contract definieren
 - [x] Delta Contract definieren
-- *Implementierungsnotiz:* Delta und Comparison nutzen nun eine explizite, geteilte, CWD-unabhängige und gegen Fehler (z.B. leere Zeilen, ungültiges JSON) robuste Parser-Logik für das Inventory.
+- *Implementierungsnotiz:* Delta und Comparison konsolidieren nun ihre CWD-unabhängige Artefaktauflösung und nutzen eine geteilte Parser-Logik; die bereits zuvor bestehende robuste Behandlung fehlerhafter Inventory-Zeilen (z.B. leere Zeilen, ungültiges JSON) ist damit konsistent in beiden Pfaden zentralisiert.
 - [x] Mode Output Contract definieren
 - [x] is_text-Garantie explizit dokumentieren
 - [x] Verzeichnisstruktur offiziell festlegen (als Zielstruktur dokumentiert)
