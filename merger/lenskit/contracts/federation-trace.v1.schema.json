@@ -17,7 +17,7 @@
     },
     "total_results": {
       "type": "integer",
-      "description": "Total number of hits returned across all queried bundles."
+      "description": "Total number of candidate hits found across all queried bundles before top-k slicing."
     },
     "bundles": {
       "type": "array",

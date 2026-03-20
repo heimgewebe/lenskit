@@ -112,7 +112,7 @@ def handle_federation_command(args: argparse.Namespace) -> int:
                 import datetime
                 trace_obj = {
                     "query": args.query,
-                    "total_results": res["count"],
+                    "total_results": res.get("total_candidates_found", res["count"]),
                     "timestamp": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
                     "bundles": []
                 }

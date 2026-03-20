@@ -143,8 +143,8 @@ def execute_federated_query(
             bundle_hits = res.get("results", [])
             if bundle_hits:
                 for hit in bundle_hits:
-                    # Require provenance: either range_ref or derived_range_ref must be present
-                    if "range_ref" not in hit and "derived_range_ref" not in hit:
+                    # Require provenance: either range_ref or derived_range_ref must be present and truthy
+                    if not hit.get("range_ref") and not hit.get("derived_range_ref"):
                         continue
 
                     # Tag results with bundle origin (Provenance)
@@ -220,14 +220,14 @@ def execute_federated_query(
             else:
                 hit["cross_repo_context_role"] = "secondary_context"
 
+    total_candidates_found = len(all_results)
     top_k = all_results[:k]
 
-    # In a future expansion, it may be useful to separate `total_candidates_found` (across all bundles)
-    # from `returned_results` (len(top_k)), but for now count reflects the final sliced result length.
     out = {
         "query": query_text,
         "k": k,
-        "count": len(top_k),  # Refers to the returned top-k results after global slice, not total hits across all bundles
+        "count": len(top_k),  # Refers to the returned top-k results after global slice
+        "total_candidates_found": total_candidates_found, # Total hits across all bundles before slicing
         "results": top_k,
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }

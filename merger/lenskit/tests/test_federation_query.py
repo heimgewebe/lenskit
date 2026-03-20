@@ -411,6 +411,31 @@ def test_stale_bundle_is_marked_in_federation_trace(federated_setup):
     assert trace["bundle_status"]["repo2"] == "ok"
     assert trace["queried_bundles_effective"] == 2
 
+def test_execute_federated_query_rejects_falsy_provenance(federated_setup, monkeypatch):
+    from merger.lenskit.retrieval import federation_query
+
+    original_execute_query = federation_query.execute_query
+
+    def mock_execute_query_with_falsy_provenance(index_path, *args, **kwargs):
+        res = original_execute_query(index_path, *args, **kwargs)
+        # Force the provenance fields to exist but be falsy for one of the bundles
+        for hit in res.get("results", []):
+            hit["derived_range_ref"] = None
+            hit["range_ref"] = {}
+        return res
+
+    monkeypatch.setattr(federation_query, "execute_query", mock_execute_query_with_falsy_provenance)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    # All hits have falsy provenance, so they should be filtered out
+    assert res["count"] == 0
+    assert len(res["results"]) == 0
+
 def test_execute_federated_query_handles_query_error(federated_setup, monkeypatch):
     from merger.lenskit.retrieval import federation_query
 
