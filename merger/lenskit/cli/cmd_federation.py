@@ -28,12 +28,12 @@ def register_federation_commands(subparsers) -> None:
     validate_parser.add_argument("--index", required=True, help="Path to federation index")
 
     # query
-    query_parser = federation_subparsers.add_parser("query", help="Query across local bundles referenced by a federation index")
+    query_parser = federation_subparsers.add_parser("query", help="Execute a minimal federated query fan-out across local bundles")
     query_parser.add_argument("--index", required=True, help="Path to federation index")
     query_parser.add_argument("-q", "--query", required=True, help="Query string")
-    query_parser.add_argument("-k", type=int, default=10, help="Number of results to return")
-    query_parser.add_argument("--repo", type=str, help="Filter by repository ID")
-    query_parser.add_argument("--trace", action="store_true", help="Include diagnostic trace")
+    query_parser.add_argument("-k", type=int, default=10, help="Number of final results to return (top-k across all bundles)")
+    query_parser.add_argument("--repo", type=str, help="Filter by repository ID (currently the only supported filter)")
+    query_parser.add_argument("--trace", action="store_true", help="Include diagnostic trace and generate federation_trace.json projection in CWD")
 
 
 def handle_federation_command(args: argparse.Namespace) -> int:
