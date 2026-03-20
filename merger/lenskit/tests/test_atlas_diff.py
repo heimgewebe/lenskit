@@ -55,9 +55,7 @@ def populated_registry(temp_workspace):
 
         yield reg
 
-def test_compute_snapshot_delta(temp_workspace, populated_registry):
-    tmp_path, _ = temp_workspace
-
+def test_compute_snapshot_delta(populated_registry):
     # Prove CWD independence by executing from a random temporary directory
     old_cwd = os.getcwd()
     import tempfile
@@ -100,7 +98,7 @@ def test_compute_delta_errors(populated_registry):
 
 
 def test_cross_machine_delta(temp_workspace, populated_registry):
-    tmp_path, registry_db = temp_workspace
+    _, registry_db = temp_workspace
 
     populated_registry.register_machine("m2", "otherhost")
     populated_registry.register_root("r2", "m2", "abs_path", "/var/backup")
