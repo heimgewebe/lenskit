@@ -133,25 +133,18 @@ def execute_federated_query(
                 build_context=build_context
             )
 
-            # Score normalization per bundle
+            # Score normalisation and integration per bundle
+            # Note: `execute_query` already calculates a semantically stable `final_score`
+            # (which is between 0 and 1.0, combining bm25_norm and potential graph/semantic boosts).
+            # BM25 raw scores are negative in SQLite, but `final_score` is properly inverted and normalized.
+            # We rely on this `final_score` for global federated ranking to preserve absolute magnitude
+            # (a weak match in Repo A shouldn't beat a strong match in Repo B just because it was the best locally).
             bundle_hits = res.get("results", [])
             if bundle_hits:
-                max_score = max((hit.get("score", 0) for hit in bundle_hits), default=0)
-                if max_score == 0:
-                    max_score = 1.0 # fallback
-
                 for hit in bundle_hits:
                     # Require provenance: either range_ref or derived_range_ref must be present
                     if "range_ref" not in hit and "derived_range_ref" not in hit:
                         continue
-
-                    # Normalized local score relative to this bundle's maximum
-                    local_score = hit.get("score", 0)
-                    normalized_score = local_score / max_score
-                    hit["normalized_local_score"] = normalized_score
-                    # We set final_score to normalized_score for global ranking
-                    # A more complex final_score could add semantic or graph bonuses here
-                    hit["final_score"] = normalized_score
 
                     # Tag results with bundle origin (Provenance)
                     hit["federation_bundle"] = repo_id
@@ -168,10 +161,10 @@ def execute_federated_query(
             bundle_errors[repo_id] = str(e)
 
     # Conflict Detection Heuristic (Minimal)
-    # Group results by symbol name (heuristically extracted, or fallback to file name if no symbol parser).
-    # Since we don't have a full symbol index here, we will approximate by using the filename (Path.name).
-    # Same filename, different paths -> conflict.
-    # Same filename, different repo -> conflict.
+    # Group results by filename (`Path.name`) as a primitive heuristic.
+    # Note: This is an initial path-based collision heuristic, not a full symbol or identity resolution engine.
+    # If the same filename appears in multiple distinct paths or repos, it is surfaced as a 'path' conflict.
+    # True 'identity' resolution would require a dedicated symbol index layer.
     conflicts = []
     symbol_map = {}
     for hit in all_results:
@@ -200,7 +193,7 @@ def execute_federated_query(
                     "involved_results": involved
                 })
 
-                # Tag hits with conflict
+                # Tag hits with conflict without altering or dropping results
                 for h in hits:
                     if "conflict_refs" not in h:
                         h["conflict_refs"] = []

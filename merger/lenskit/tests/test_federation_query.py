@@ -19,8 +19,11 @@ def federated_setup(tmp_path):
     b1_chunks = b1_dir / "chunks.jsonl"
     b1_db = b1_dir / "chunk_index.index.sqlite"
 
+    # To test true provenance flow without JSON injection hacks:
+    # `query_core` generates `derived_range_ref` if `source_file`, `start_byte`, `end_byte` exist.
+    # Therefore we supply these fields representing a real index build logic.
     chunk_data_1 = [
-        {"chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py", "content": "def main(): print('hello repo1')", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1", "content_range_ref": '{"file_path": "src/main.py"}'}
+        {"chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py", "content": "def main(): print('hello repo1')", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1", "source_file": "src/main.py", "start_byte": 0, "end_byte": 100}
     ]
     with b1_chunks.open("w", encoding="utf-8") as f:
         for c in chunk_data_1:
@@ -36,8 +39,8 @@ def federated_setup(tmp_path):
     b2_db = b2_dir / "chunk_index.index.sqlite"
 
     chunk_data_2 = [
-        {"chunk_id": "c2", "repo_id": "repo2", "path": "src/main.py", "content": "def main(): print('hello repo2')", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h2", "content_range_ref": '{"file_path": "src/main.py"}'},
-        {"chunk_id": "c3", "repo_id": "repo2", "path": "tests/test_main.py", "content": "def test_main(): assert True", "start_line": 1, "end_line": 1, "layer": "test", "artifact_type": "code", "content_sha256": "h3", "content_range_ref": '{"file_path": "tests/test_main.py"}'}
+        {"chunk_id": "c2", "repo_id": "repo2", "path": "src/main.py", "content": "def main(): print('hello repo2')", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h2", "source_file": "src/main.py", "start_byte": 0, "end_byte": 100},
+        {"chunk_id": "c3", "repo_id": "repo2", "path": "tests/test_main.py", "content": "def test_main(): assert True", "start_line": 1, "end_line": 1, "layer": "test", "artifact_type": "code", "content_sha256": "h3", "source_file": "tests/test_main.py", "start_byte": 0, "end_byte": 100}
     ]
     with b2_chunks.open("w", encoding="utf-8") as f:
         for c in chunk_data_2:
@@ -334,11 +337,13 @@ def test_provenance_is_preserved(federated_setup):
     )
 
     hits = res["results"]
+    assert len(hits) == 2, "Hits without provenance should be rejected"
     for hit in hits:
         assert hit["federation_bundle"] in ["repo1", "repo2"]
         assert hit["repo_id"] in ["repo1", "repo2"]
-        # range_ref was injected via DB in setup
-        assert "range_ref" in hit
+        # In this test we use derived_range_ref generation through `source_file` and bytes, mimicking realistic runtime
+        assert "derived_range_ref" in hit
+        assert hit["derived_range_ref"]["file_path"] in ["src/main.py", "tests/test_main.py"]
 
 def test_conflicts_are_reported_not_merged(federated_setup):
     # Both repos have a chunk named src/main.py

@@ -1546,30 +1546,31 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [x] 1. test_federation_index_builds_deterministically (im Rahmen der Minimalaggregation noch nicht e2e abgesichert)
+- [ ] 1. test_federation_index_builds_deterministically (teilweise: im Rahmen der Minimalaggregation noch nicht voll e2e abgesichert)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
 - [x] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
 - [x] 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, Rank-Stabilität ist deterministisch implementiert)
 - [x] 5. test_conflicts_are_reported_not_smoothed (Konflikte werden explizit gemeldet, nicht aufgelöst)
-- [x] 6. test_cross_repo_context_preserves_primary_evidence
+- [x] 6. test_cross_repo_context_preserves_primary_evidence (derzeit ranking-basierte Primär-/Sekundärrollen, nicht semantisch inferiert)
 - [x] 7. test_stale_bundle_is_marked_in_federation_trace
 
 ### 1.12 Deliverables Phase 5
 - [x] 1. federation_index.json (Struktur angelegt und validiert)
-- [x] 2. cross_repo_links.json (Schema existiert)
-- [x] 3. federation_conflicts.json (Schema und Heuristik existieren)
-- [x] 4. federation_trace.json (Ausführungs-Trace und Status integriert)
-- [x] 5. föderierte Query-Schnittstelle (Score-Normalisierung und deterministisches Ranking integriert)
-- [x] 6. bundleübergreifendes Context-Bundle (Primary/Secondary Rollen vergeben)
-- [x] 7. Identity-/Conflict-Regeln ("conflicts are surfaced, never resolved")
+- [ ] 2. cross_repo_links.json (Contract vorbereitet, Producer/Runtime offen)
+- [ ] 3. federation_conflicts.json (Runtime-Struktur vorhanden, Artefakt-Persistenz offen)
+- [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
+- [x] 5. föderierte Query-Schnittstelle (deterministisches Ranking integriert)
+- [ ] 6. bundleübergreifendes Context-Bundle (derzeit nur Treffermarkierung, echte Struktur offen)
+- [ ] 7. Identity-/Conflict-Regeln (derzeit minimale filename-basierte Heuristik, kein vollwertiges System)
 
 ### 1.13 Gate für Phase 5
-- [x] Phase 5 ist fertig, wenn:
-* mehrere Bundles formal föderiert werden können
-* Cross-Repo-Queries deterministisch laufen (mit Score-Normalisierung)
-* provenance bundle-scharf bleibt
-* Konflikte explizit gemeldet werden
-* kein stilles Vermischen konkurrierender Wahrheiten passiert
+- [ ] Phase 5 ist noch nicht vollständig fertig. Offen sind:
+* mehrere Bundles formal föderiert werden können [x]
+* Cross-Repo-Queries deterministisch laufen [x]
+* provenance bundle-scharf bleibt [x]
+* Konflikte explizit gemeldet werden [x] (als Minimalheuristik)
+* kein stilles Vermischen konkurrierender Wahrheiten passiert [x]
+-> Hinweis: strukturell weitgehend umgesetzt, einzelne Artefakt- und Persistenzaspekte (Trace-Datei, echte Identity-Regeln) offen.
 
 ### 1.14 Gate für Phase 6
 Phase 6 darf erst beginnen, wenn:

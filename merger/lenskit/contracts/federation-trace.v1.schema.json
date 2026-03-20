@@ -45,7 +45,7 @@
           },
           "latency_ms": {
             "type": "number",
-            "description": "Time taken to execute the query against this bundle in milliseconds."
+            "description": "Optional time taken to execute the query against this bundle in milliseconds."
           },
           "error_message": {
             "type": "string",

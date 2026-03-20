@@ -106,7 +106,9 @@ def handle_federation_command(args: argparse.Namespace) -> int:
 
             # Write trace if requested
             if args.trace and "federation_trace" in res:
-                # We need to construct a conformant trace object
+                # Note: The creation of `federation_trace.json` here is an explicit CLI projection
+                # of the runtime diagnostics meant for localized debugging. It does not replace
+                # a full canonical artifact management lifecycle.
                 import datetime
                 trace_obj = {
                     "query": args.query,
@@ -134,9 +136,9 @@ def handle_federation_command(args: argparse.Namespace) -> int:
                     if repo_id in error_map:
                         b_obj["error_message"] = error_map[repo_id]
 
-                    # Latency isn't strictly tracked per bundle here yet in a detailed way,
-                    # but we provide a default so schema validates.
-                    b_obj["latency_ms"] = 0.0
+                    # Omitting latency_ms as it is not currently accurately tracked per bundle in execution.
+                    # We avoid putting 0.0 fake telemetry here; if the schema requires it, the schema should be relaxed
+                    # or true latency telemetry integrated into execution logic.
 
                     trace_obj["bundles"].append(b_obj)
 
