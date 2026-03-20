@@ -18,17 +18,28 @@ def populated_registry(temp_workspace):
         reg.register_machine("m1", "host")
         reg.register_root("r1", "m1", "abs_path", "/var/www")
 
+        # In Atlas, artifacts are stored relative to atlas_base (which is two levels up from registry.db_path)
+        # So here, atlas_base is tmp_path / "atlas"
+        atlas_base = registry_db.parent.parent
+        atlas_base.mkdir(parents=True, exist_ok=True)
+
         # Write mock inventory 1
-        inv1_path = tmp_path / "inv1.jsonl"
+        inv1_path = atlas_base / "artifacts" / "inv1.jsonl"
+        inv1_path.parent.mkdir(parents=True, exist_ok=True)
+
         with open(inv1_path, "w", encoding="utf-8") as f:
             f.write(json.dumps({"snapshot_id": "s1", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
             f.write(json.dumps({"snapshot_id": "s1", "rel_path": "b.txt", "size_bytes": 200, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
         reg.create_snapshot("s1", "m1", "r1", "hash1", "complete")
-        reg.update_snapshot_artifacts("s1", {"inventory": inv1_path.as_posix()})
+
+        # We explicitly store the relative path to prove Canonical Resolution against registry_db works
+        # regardless of current working directory.
+        inv1_rel = inv1_path.relative_to(atlas_base).as_posix()
+        reg.update_snapshot_artifacts("s1", {"inventory": inv1_rel})
 
         # Write mock inventory 2
-        inv2_path = tmp_path / "inv2.jsonl"
+        inv2_path = atlas_base / "artifacts" / "inv2.jsonl"
         with open(inv2_path, "w", encoding="utf-8") as f:
             f.write(json.dumps({"snapshot_id": "s2", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
             f.write(json.dumps({"snapshot_id": "s2", "rel_path": "b.txt", "size_bytes": 250, "mtime": "2023-01-02T00:00:00Z", "is_symlink": False}) + "\n")
@@ -39,7 +50,8 @@ def populated_registry(temp_workspace):
             f.write(json.dumps({"snapshot_id": "s1", "rel_path": "d.txt", "size_bytes": 400, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
 
         reg.create_snapshot("s2", "m1", "r1", "hash2", "complete")
-        reg.update_snapshot_artifacts("s2", {"inventory": inv2_path.as_posix()})
+        inv2_rel = inv2_path.relative_to(atlas_base).as_posix()
+        reg.update_snapshot_artifacts("s2", {"inventory": inv2_rel})
 
         yield reg
 
@@ -88,12 +100,14 @@ def test_compute_delta_errors(populated_registry):
 
 
 def test_cross_machine_delta(temp_workspace, populated_registry):
-    tmp_path, _ = temp_workspace
+    tmp_path, registry_db = temp_workspace
 
     populated_registry.register_machine("m2", "otherhost")
     populated_registry.register_root("r2", "m2", "abs_path", "/var/backup")
 
-    inv3_path = tmp_path / "inv3.jsonl"
+    atlas_base = registry_db.parent.parent
+    inv3_path = atlas_base / "artifacts" / "inv3.jsonl"
+    inv3_path.parent.mkdir(parents=True, exist_ok=True)
     with open(inv3_path, "w", encoding="utf-8") as f:
         f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
         f.write(json.dumps({"snapshot_id": "s3", "rel_path": "new.txt", "size_bytes": 50, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
@@ -109,7 +123,10 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
         f.write(json.dumps("abc") + "\n")
 
     populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
-    populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
+
+    # Store relative path to test canonical resolution independent of CWD
+    inv3_rel = inv3_path.relative_to(atlas_base).as_posix()
+    populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_rel})
 
     old_cwd = os.getcwd()
     import tempfile
@@ -203,13 +220,17 @@ def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatc
         populated_registry.register_machine("m2", "other")
         populated_registry.register_root("r2", "m2", "abs_path", "/var/backup")
 
-        inv3_path = tmp_path / "inv3.jsonl"
+        import pathlib
+        atlas_base = pathlib.Path("atlas/registry/atlas_registry.sqlite").resolve().parent.parent
+        inv3_path = atlas_base / "artifacts" / "inv3.jsonl"
+        inv3_path.parent.mkdir(parents=True, exist_ok=True)
         with open(inv3_path, "w", encoding="utf-8") as f:
             f.write(json.dumps({"snapshot_id": "s3", "rel_path": "a.txt", "size_bytes": 100, "mtime": "2023-01-01T00:00:00Z", "is_symlink": False}) + "\n")
             f.write(json.dumps({"size_bytes": 999}) + "\n")
 
         populated_registry.create_snapshot("s3", "m2", "r2", "hash3", "complete")
-        populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_path.as_posix()})
+        inv3_rel = inv3_path.relative_to(atlas_base).as_posix()
+        populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_rel})
 
         args = argparse.Namespace(from_snapshot="s1", to_snapshot="s3")
         ret = run_atlas_diff(args)
