@@ -102,7 +102,26 @@ def execute_federated_query(
             bundle_status[repo_id] = "index_missing"
             continue
 
+        import sqlite3
         try:
+            # Check for staleness using fingerprint (last_fingerprint from federation index vs DB)
+            expected_fingerprint = b.get("last_fingerprint")
+            db_fingerprint = None
+            if expected_fingerprint:
+                try:
+                    conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
+                    cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
+                    row = cursor.fetchone()
+                    if row:
+                        db_fingerprint = row[0]
+                    conn.close()
+                except sqlite3.OperationalError:
+                    pass
+
+                if db_fingerprint and db_fingerprint != expected_fingerprint:
+                    bundle_status[repo_id] = "stale"
+                    # We can still execute the query, but we mark it as stale in the trace
+
             res = execute_query(
                 index_path=db_path,
                 query_text=query_text,
@@ -114,12 +133,32 @@ def execute_federated_query(
                 build_context=build_context
             )
 
-            # Tag results with bundle origin (Provenance)
-            for hit in res.get("results", []):
-                hit["federation_bundle"] = repo_id
-                all_results.append(hit)
+            # Score normalization per bundle
+            bundle_hits = res.get("results", [])
+            if bundle_hits:
+                max_score = max((hit.get("score", 0) for hit in bundle_hits), default=0)
+                if max_score == 0:
+                    max_score = 1.0 # fallback
 
-            bundle_status[repo_id] = "ok"
+                for hit in bundle_hits:
+                    # Require provenance: either range_ref or derived_range_ref must be present
+                    if "range_ref" not in hit and "derived_range_ref" not in hit:
+                        continue
+
+                    # Normalized local score relative to this bundle's maximum
+                    local_score = hit.get("score", 0)
+                    normalized_score = local_score / max_score
+                    hit["normalized_local_score"] = normalized_score
+                    # We set final_score to normalized_score for global ranking
+                    # A more complex final_score could add semantic or graph bonuses here
+                    hit["final_score"] = normalized_score
+
+                    # Tag results with bundle origin (Provenance)
+                    hit["federation_bundle"] = repo_id
+                    all_results.append(hit)
+
+            if repo_id not in bundle_status:
+                bundle_status[repo_id] = "ok"
             queried_bundles_effective += 1
             if trace and "query_trace" in res:
                 bundle_traces[repo_id] = res["query_trace"]
@@ -127,6 +166,45 @@ def execute_federated_query(
         except Exception as e:
             bundle_status[repo_id] = "query_error"
             bundle_errors[repo_id] = str(e)
+
+    # Conflict Detection Heuristic (Minimal)
+    # Group results by symbol name (heuristically extracted, or fallback to file name if no symbol parser).
+    # Since we don't have a full symbol index here, we will approximate by using the filename (Path.name).
+    # Same filename, different paths -> conflict.
+    # Same filename, different repo -> conflict.
+    conflicts = []
+    symbol_map = {}
+    for hit in all_results:
+        p = hit.get("path", "")
+        if p:
+            sym = Path(p).name
+            if sym not in symbol_map:
+                symbol_map[sym] = []
+            symbol_map[sym].append(hit)
+
+    conflict_idx = 1
+    for sym, hits in symbol_map.items():
+        if len(hits) > 1:
+            # Check if they are actually from different paths or repos
+            unique_origins = set((h.get("federation_bundle", ""), h.get("path", "")) for h in hits)
+            if len(unique_origins) > 1:
+                conflict_id = f"conflict_{conflict_idx}"
+                conflict_idx += 1
+                involved = [h.get("chunk_id", "") for h in hits]
+
+                conflicts.append({
+                    "conflict_id": conflict_id,
+                    "type": "path",
+                    "description": f"Multiple hits found with the same filename '{sym}' across different paths or repos.",
+                    "resolution": "unresolved",
+                    "involved_results": involved
+                })
+
+                # Tag hits with conflict
+                for h in hits:
+                    if "conflict_refs" not in h:
+                        h["conflict_refs"] = []
+                    h["conflict_refs"].append(conflict_id)
 
     # Global sort: final_score descending
     # Tie-breakers: federation_bundle asc, path asc, chunk_id asc to ensure deterministic tie ordering
@@ -136,6 +214,18 @@ def execute_federated_query(
         x.get("path", ""),
         x.get("chunk_id", "")
     ))
+
+    # Cross-Repo Context (mark secondary context)
+    # If multiple bundles yield hits, the first bundle's hits (based on score) are primary
+    # hits from other bundles are marked as secondary context.
+    if all_results:
+        primary_bundle = all_results[0].get("federation_bundle", "")
+        for hit in all_results:
+            if hit.get("federation_bundle", "") == primary_bundle:
+                hit["cross_repo_context_role"] = "primary_evidence"
+            else:
+                hit["cross_repo_context_role"] = "secondary_context"
+
     top_k = all_results[:k]
 
     # In a future expansion, it may be useful to separate `total_candidates_found` (across all bundles)
@@ -147,6 +237,9 @@ def execute_federated_query(
         "results": top_k,
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }
+
+    if conflicts:
+        out["federation_conflicts"] = conflicts
 
     if trace:
         out["federation_trace"] = {

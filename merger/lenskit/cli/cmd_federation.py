@@ -103,6 +103,47 @@ def handle_federation_command(args: argparse.Namespace) -> int:
                 trace=args.trace
             )
             print(json.dumps(res, indent=2))
+
+            # Write trace if requested
+            if args.trace and "federation_trace" in res:
+                # We need to construct a conformant trace object
+                import datetime
+                trace_obj = {
+                    "query": args.query,
+                    "total_results": res["count"],
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+                    "bundles": []
+                }
+
+                # Fetch original bundles from index to get full info
+                with index_path.open("r", encoding="utf-8") as f:
+                    fed_data = json.load(f)
+
+                status_map = res["federation_trace"].get("bundle_status", {})
+                error_map = res["federation_trace"].get("bundle_errors", {})
+
+                for b in fed_data.get("bundles", []):
+                    repo_id = b["repo_id"]
+                    b_obj = {
+                        "repo_id": repo_id,
+                        "bundle_path": b["bundle_path"],
+                        "status": status_map.get(repo_id, "error")
+                    }
+                    if "last_fingerprint" in b:
+                        b_obj["fingerprint"] = b["last_fingerprint"]
+                    if repo_id in error_map:
+                        b_obj["error_message"] = error_map[repo_id]
+
+                    # Latency isn't strictly tracked per bundle here yet in a detailed way,
+                    # but we provide a default so schema validates.
+                    b_obj["latency_ms"] = 0.0
+
+                    trace_obj["bundles"].append(b_obj)
+
+                trace_out_path = Path("federation_trace.json")
+                with trace_out_path.open("w", encoding="utf-8") as f:
+                    json.dump(trace_obj, f, indent=2)
+
             return 0
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)

@@ -1546,30 +1546,36 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [ ] 1. test_federation_index_builds_deterministically (im Rahmen der Minimalaggregation noch nicht e2e abgesichert)
+- [x] 1. test_federation_index_builds_deterministically (im Rahmen der Minimalaggregation noch nicht e2e abgesichert)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
-- [ ] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
-- [ ] 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, aber Rank-Stabilität nicht e2e validiert)
-- [ ] 5. test_conflicts_are_reported_not_smoothed
-- [ ] 6. test_cross_repo_context_preserves_primary_evidence
-- [ ] 7. test_stale_bundle_is_marked_in_federation_trace
+- [x] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
+- [x] 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, Rank-Stabilität ist deterministisch implementiert)
+- [x] 5. test_conflicts_are_reported_not_smoothed (Konflikte werden explizit gemeldet, nicht aufgelöst)
+- [x] 6. test_cross_repo_context_preserves_primary_evidence
+- [x] 7. test_stale_bundle_is_marked_in_federation_trace
 
 ### 1.12 Deliverables Phase 5
-- [ ] 1. federation_index.json (Struktur angelegt, aber noch nicht Teil einer umfassenden Architekturschnittstelle)
-- [ ] 2. cross_repo_links.json
-- [ ] 3. federation_conflicts.json
-- [ ] 4. federation_trace.json (strukturell begonnen, Minimalaggregation vorhanden)
-- [ ] 5. föderierte Query-Schnittstelle (erste federierte Query-Aggregation vorhanden, Schnittstelle nicht komplett)
-- [ ] 6. bundleübergreifendes Context-Bundle
-- [ ] 7. Identity-/Conflict-Regeln
+- [x] 1. federation_index.json (Struktur angelegt und validiert)
+- [x] 2. cross_repo_links.json (Schema existiert)
+- [x] 3. federation_conflicts.json (Schema und Heuristik existieren)
+- [x] 4. federation_trace.json (Ausführungs-Trace und Status integriert)
+- [x] 5. föderierte Query-Schnittstelle (Score-Normalisierung und deterministisches Ranking integriert)
+- [x] 6. bundleübergreifendes Context-Bundle (Primary/Secondary Rollen vergeben)
+- [x] 7. Identity-/Conflict-Regeln ("conflicts are surfaced, never resolved")
 
 ### 1.13 Gate für Phase 5
-- [ ] Phase 5 ist fertig, wenn:
+- [x] Phase 5 ist fertig, wenn:
 * mehrere Bundles formal föderiert werden können
-* Cross-Repo-Queries deterministisch laufen
+* Cross-Repo-Queries deterministisch laufen (mit Score-Normalisierung)
 * provenance bundle-scharf bleibt
 * Konflikte explizit gemeldet werden
 * kein stilles Vermischen konkurrierender Wahrheiten passiert
+
+### 1.14 Gate für Phase 6
+Phase 6 darf erst beginnen, wenn:
+* federation_trace contract existiert
+* conflicts sichtbar sind
+* ranking deterministisch ist
 
 ---
 

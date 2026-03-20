@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hauski.com/schemas/lenskit/federation-conflicts.v1.schema.json",
+  "title": "Lenskit Federation Conflicts",
+  "description": "Identifies cross-repository conflicts detected during a federated query.",
+  "type": "object",
+  "required": ["conflict_id", "type", "involved_results", "description", "resolution"],
+  "properties": {
+    "conflict_id": {
+      "type": "string",
+      "description": "Unique identifier for the detected conflict."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["identity", "path", "symbol", "evidence", "provenance"],
+      "description": "The type of conflict detected."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the conflict."
+    },
+    "resolution": {
+      "type": "string",
+      "enum": ["unresolved"],
+      "description": "Conflicts are surfaced but never resolved automatically. Must be 'unresolved'."
+    },
+    "involved_results": {
+      "type": "array",
+      "description": "List of chunk IDs or hit identities involved in the conflict.",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

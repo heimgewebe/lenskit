@@ -109,7 +109,7 @@ def test_rlens_federation_query_dispatch(tmp_path: Path, monkeypatch, capsys):
     db_path = bundle_path / "chunk_index.index.sqlite"
 
     chunk_data = [
-        {"chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py", "content": "hello repo1", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1"}
+        {"chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py", "content": "hello repo1", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1", "content_range_ref": '{"file_path": "src/main.py"}'}
     ]
     with b1_chunks.open("w", encoding="utf-8") as f:
         for c in chunk_data:
