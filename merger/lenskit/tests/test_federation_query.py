@@ -436,6 +436,18 @@ def test_execute_federated_query_rejects_falsy_provenance(federated_setup, monke
     assert res["count"] == 0
     assert len(res["results"]) == 0
 
+def test_execute_federated_query_total_candidates_vs_k_slice(federated_setup):
+    # Setup creates 2 hits for "hello" across bundles. We set k=1 to force slicing.
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=1
+    )
+
+    assert res["count"] == 1
+    assert len(res["results"]) == 1
+    assert res["total_candidates_found"] == 2
+
 def test_execute_federated_query_handles_query_error(federated_setup, monkeypatch):
     from merger.lenskit.retrieval import federation_query
 
