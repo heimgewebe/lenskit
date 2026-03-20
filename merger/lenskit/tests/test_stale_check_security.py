@@ -1,15 +1,12 @@
-import sys
-import pytest
 import sqlite3
 from merger.lenskit.cli.stale_check import check_stale_index, _compute_file_sha256
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Special-character path not supported on Windows filesystems")
-def test_stale_check_with_special_characters_in_path(tmp_path):
-    # This test ensures that paths with '?' (which could be used for URI injection)
-    # are handled correctly by the stale check logic.
+def test_stale_check_with_reserved_uri_characters_in_path(tmp_path):
+    # This test ensures that paths with reserved URI characters like '#'
+    # (which would start a fragment component in a URI) are handled correctly.
+    # We use '#' as it is more portable than '?' (which is prohibited on Windows filenames).
 
-    # We create a directory with '?' in its name.
-    special_dir = tmp_path / "path_with_?_mark"
+    special_dir = tmp_path / "path_with_#_mark"
     special_dir.mkdir()
 
     base_name = "test_run"
@@ -33,8 +30,8 @@ def test_stale_check_with_special_characters_in_path(tmp_path):
         c.execute("UPDATE index_meta SET value=? WHERE key='canonical_dump_index_sha256'", (actual_hash,))
         conn.commit()
 
-    # If the injection vulnerability was present, _get_sha_from_db would likely fail
-    # to connect or query the DB because '?' would start a query string in the URI.
+    # If URI characters were not correctly escaped, _get_sha_from_db would likely fail
+    # to query the DB because '#' would start a fragment in the URI, truncating the path.
 
     # Result should be False (not stale) because hashes match and DB is readable.
     result = check_stale_index(index_path, stale_policy="fail")

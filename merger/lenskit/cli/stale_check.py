@@ -20,8 +20,9 @@ def _compute_file_sha256(path: Path) -> Optional[str]:
 
 def _get_sha_from_db(index_path: Path) -> Optional[str]:
     try:
-        # We use .resolve().as_uri() to ensure the path is correctly escaped for the URI connection string,
-        # preventing injection of additional query parameters via malicious directory or file names.
+        # We use .resolve().as_uri() to ensure the path is correctly escaped for the URI connection string.
+        # This prevents reserved URI characters in filesystem paths (like '?' or '#') from being
+        # incorrectly interpreted as URI delimiters (query or fragment components).
         uri = f"{index_path.resolve().as_uri()}?mode=ro"
         with sqlite3.connect(uri, uri=True) as conn:
             c = conn.cursor()
