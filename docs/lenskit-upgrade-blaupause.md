@@ -1546,20 +1546,20 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [ ] 1. test_federation_index_builds_deterministically
+- [ ] 1. test_federation_index_builds_deterministically (im Rahmen der Minimalaggregation noch nicht e2e abgesichert)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
-- [ ] 3. test_federated_query_preserves_bundle_origin
-- [ ] 4. test_federated_ranking_is_stable
+- [ ] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
+- [ ] 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, aber Rank-Stabilität nicht e2e validiert)
 - [ ] 5. test_conflicts_are_reported_not_smoothed
 - [ ] 6. test_cross_repo_context_preserves_primary_evidence
 - [ ] 7. test_stale_bundle_is_marked_in_federation_trace
 
 ### 1.12 Deliverables Phase 5
-- [ ] 1. federation_index.json
+- [ ] 1. federation_index.json (Struktur angelegt, aber noch nicht Teil einer umfassenden Architekturschnittstelle)
 - [ ] 2. cross_repo_links.json
 - [ ] 3. federation_conflicts.json
-- [ ] 4. federation_trace.json
-- [ ] 5. föderierte Query-Schnittstelle
+- [ ] 4. federation_trace.json (strukturell begonnen, Minimalaggregation vorhanden)
+- [ ] 5. föderierte Query-Schnittstelle (erste federierte Query-Aggregation vorhanden, Schnittstelle nicht komplett)
 - [ ] 6. bundleübergreifendes Context-Bundle
 - [ ] 7. Identity-/Conflict-Regeln
 
@@ -1780,7 +1780,7 @@ Gate:
 - [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
 - [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
 - [x] PR 4: Federation Foundation (Init + Contract + minimale Federation-Verwaltung/CLI)
-- [ ] PR 5: Federated Query + Ranking
+- [ ] PR 5: Federated Query + Ranking (angerissen: minimale föderierte Query-Aggregation vorhanden)
 - [ ] PR 6: Agent Control Surface
 - [ ] PR 7: UI / Service Konsolidierung
 - [ ] PR 8: Semantische Erweiterung
