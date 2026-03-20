@@ -105,17 +105,18 @@ def execute_federated_query(
         import sqlite3
         try:
             # Check for staleness using fingerprint (last_fingerprint from federation index vs DB)
+            # Note: staleness detection is strictly best-effort and must never fail the federated query.
             expected_fingerprint = b.get("last_fingerprint")
             db_fingerprint = None
             if expected_fingerprint:
                 try:
-                    conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
-                    cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
-                    row = cursor.fetchone()
-                    if row:
-                        db_fingerprint = row[0]
-                    conn.close()
-                except sqlite3.OperationalError:
+                    with sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True) as conn:
+                        cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
+                        row = cursor.fetchone()
+                        if row:
+                            db_fingerprint = row[0]
+                except sqlite3.Error:
+                    # Broad catch to ensure handle leaks or generic db errors don't crash the fan-out
                     pass
 
                 if db_fingerprint and db_fingerprint != expected_fingerprint:

@@ -324,10 +324,16 @@ def test_cross_repo_context_preserves_primary_evidence(federated_setup):
     # Check context markers
     hits = res["results"]
     assert len(hits) == 2
+
+    # We expect deterministic sorting: Repo 1 comes first due to tie-breaking rules
+    assert hits[0]["federation_bundle"] == "repo1"
     assert hits[0]["cross_repo_context_role"] == "primary_evidence"
+
+    assert hits[1]["federation_bundle"] == "repo2"
     assert hits[1]["cross_repo_context_role"] == "secondary_context"
-    # Ensure primary bundle is consistent
-    assert hits[0]["federation_bundle"] == hits[0].get("federation_bundle")
+
+    # Ensure they are truly cross-repo
+    assert hits[0]["federation_bundle"] != hits[1]["federation_bundle"]
 
 def test_provenance_is_preserved(federated_setup):
     res = execute_federated_query(
