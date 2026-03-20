@@ -123,6 +123,86 @@ def test_execute_federated_query_marks_missing_index(federated_setup):
     assert trace["bundle_status"]["repo2"] == "index_missing"
     assert trace["queried_bundles_effective"] == 1
 
+def test_execute_federated_query_resolves_relative_paths(federated_setup, monkeypatch):
+    # Change current working directory to something else to prove we don't rely on it
+    original_cwd = Path.cwd()
+    monkeypatch.chdir(original_cwd.parent)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    assert trace["queried_bundles_effective"] == 2
+    assert trace["bundle_status"]["repo1"] == "ok"
+    assert trace["bundle_status"]["repo2"] == "ok"
+
+def test_execute_federated_query_find_bundle_index_direct_file(federated_setup):
+    import json
+    bundle_db_path = federated_setup.parent / "repo2" / "chunk_index.index.sqlite"
+
+    # Update federation.json to point directly to the file
+    with federated_setup.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    for b in data["bundles"]:
+        if b["repo_id"] == "repo2":
+            b["bundle_path"] = "repo2/chunk_index.index.sqlite"
+    with federated_setup.open("w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    assert trace["bundle_status"]["repo2"] == "ok"
+    assert trace["queried_bundles_effective"] == 2
+
+def test_execute_federated_query_find_bundle_index_generic_fallback(federated_setup):
+    # Rename chunk_index.index.sqlite to custom.index.sqlite
+    repo2_dir = federated_setup.parent / "repo2"
+    old_db = repo2_dir / "chunk_index.index.sqlite"
+    new_db = repo2_dir / "custom.index.sqlite"
+    old_db.rename(new_db)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    assert trace["bundle_status"]["repo2"] == "ok"
+    assert trace["queried_bundles_effective"] == 2
+
+def test_execute_federated_query_find_bundle_index_ambiguous(federated_setup):
+    # Create an ambiguous situation by adding a second index file
+    repo2_dir = federated_setup.parent / "repo2"
+    ambiguous_db = repo2_dir / "ambiguous.chunk_index.index.sqlite"
+    original_db = repo2_dir / "chunk_index.index.sqlite"
+
+    import shutil
+    shutil.copy(original_db, ambiguous_db)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        trace=True
+    )
+
+    trace = res["federation_trace"]
+    # Should safely fail and mark as index_missing due to ambiguity
+    assert trace["bundle_status"]["repo2"] == "index_missing"
+    assert trace["queried_bundles_effective"] == 1
+
 def test_execute_federated_query_filters_repo_locally(federated_setup, monkeypatch):
     from merger.lenskit.retrieval import federation_query
 

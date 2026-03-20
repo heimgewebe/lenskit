@@ -83,8 +83,8 @@ def main():
     atlas_snapshots_parser = atlas_subparsers.add_parser("snapshots", help="List registered snapshots")
 
     atlas_diff_parser = atlas_subparsers.add_parser("diff", help="Compute delta between two snapshots")
-    atlas_diff_parser.add_argument("from_snapshot", help="The from snapshot ID")
-    atlas_diff_parser.add_argument("to_snapshot", help="The to snapshot ID")
+    atlas_diff_parser.add_argument("from_snapshot", help="The from snapshot ID or machine:root_path")
+    atlas_diff_parser.add_argument("to_snapshot", help="The to snapshot ID or machine:root_path")
 
     atlas_history_parser = atlas_subparsers.add_parser("history", help="Show file history across snapshots")
     atlas_history_parser.add_argument("machine_id", help="The machine ID")

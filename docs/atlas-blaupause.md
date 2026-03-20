@@ -933,8 +933,10 @@ Ziel: Atlas wird diagnostisch.
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
 - [ ] mehrere Machines sauber registrieren
 - [ ] Root-Namenskonventionen zwischen Hosts vereinheitlichen
-- [ ] Cross-machine snapshot diff definieren
-- [ ] CLI: `atlas diff heim-pc:/home heimserver:/home`
+- [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
+- [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
+  - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
+  - *Semantische Notiz: `atlas diff` leitet cross-root Anfragen intern auf `cross-root-comparison` um (statt strengem `same-root-delta`). Der aktuelle Vergleich ist ein strukturbezogener Metadatenabgleich (`rel_path`, `size_bytes`, `mtime`) und kein inhaltlich tief gehärteter Gleichheitsbeweis.*
 - [ ] Backup-gap-Analyse definieren
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [ ] Konfliktfälle (gleiches root label, andere Pfade) definieren
