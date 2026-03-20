@@ -1546,30 +1546,30 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [ ] 1. test_federation_index_builds_deterministically
+- [ ] 1. test_federation_index_builds_deterministically (im Rahmen der Minimalaggregation noch nicht e2e abgesichert)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
-- [ ] 3. test_federated_query_preserves_bundle_origin
-- [ ] 4. test_federated_ranking_is_stable
-- [ ] 5. test_conflicts_are_reported_not_smoothed
-- [ ] 6. test_cross_repo_context_preserves_primary_evidence
-- [ ] 7. test_stale_bundle_is_marked_in_federation_trace
+- [ ] teilweise: 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
+- [ ] teilweise: 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, echte Rank-Stabilität im Cross-Repo-Rankingraum noch offen)
+- [ ] teilweise: 5. test_conflicts_are_reported_not_smoothed (minimale Filename/Path-Heuristik vorhanden)
+- [ ] teilweise: 6. test_cross_repo_context_preserves_primary_evidence (rudimentäre Ranking-Rollenzuweisung vorhanden)
+- [ ] teilweise: 7. test_stale_bundle_is_marked_in_federation_trace (Staleness strictly best-effort markiert)
 
 ### 1.12 Deliverables Phase 5
-- [ ] 1. federation_index.json
+- [ ] teilweise: 1. federation_index.json (Struktur angelegt, Lifecycle via CLI angerissen)
 - [ ] 2. cross_repo_links.json
-- [ ] 3. federation_conflicts.json
-- [ ] 4. federation_trace.json
-- [ ] 5. föderierte Query-Schnittstelle
+- [ ] teilweise: 3. federation_conflicts.json (Schema existiert, Erkennung rein heuristisch)
+- [ ] teilweise: 4. federation_trace.json (CLI-Projektion vorhanden, noch kein kanonisches Output-Artefakt)
+- [ ] teilweise: 5. föderierte Query-Schnittstelle (Minimalaggregation via CLI `query --federation` nutzbar)
 - [ ] 6. bundleübergreifendes Context-Bundle
-- [ ] 7. Identity-/Conflict-Regeln
+- [ ] teilweise: 7. Identity-/Conflict-Regeln (vorerst nur heuristisch über Dateipfade gelöst)
 
 ### 1.13 Gate für Phase 5
-- [ ] Phase 5 ist fertig, wenn:
-* mehrere Bundles formal föderiert werden können
-* Cross-Repo-Queries deterministisch laufen
-* provenance bundle-scharf bleibt
-* Konflikte explizit gemeldet werden
-* kein stilles Vermischen konkurrierender Wahrheiten passiert
+- [ ] Phase 5 ist fertig, wenn (aktuell nur partieller Minimalaufschlag erreicht):
+* mehrere Bundles formal föderiert werden können (Minimalaggregation vorhanden)
+* Cross-Repo-Queries deterministisch laufen (in einem echten föderierten Rankingraum, nicht nur heuristisch)
+* provenance bundle-scharf bleibt (belegt)
+* Konflikte explizit gemeldet werden (tiefe Identity/Symbol-Konfliktlogik, nicht nur Pfad-Heuristiken)
+* kein stilles Vermischen konkurrierender Wahrheiten passiert (belegt)
 
 ---
 
@@ -1780,7 +1780,7 @@ Gate:
 - [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
 - [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
 - [x] PR 4: Federation Foundation (Init + Contract + minimale Federation-Verwaltung/CLI)
-- [ ] PR 5: Federated Query + Ranking
+- [ ] PR 5: Federated Query + Ranking (angerissen: minimale föderierte Query-Aggregation vorhanden)
 - [ ] PR 6: Agent Control Surface
 - [ ] PR 7: UI / Service Konsolidierung
 - [ ] PR 8: Semantische Erweiterung

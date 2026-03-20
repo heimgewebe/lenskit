@@ -817,7 +817,6 @@ Atlas-Artefakte werden deterministisch gegen einen kanonischen Atlas-Basisordner
 - [x] ADR-004 Repo/workspace detection is annotation only
 - [x] ADR-005 Registry in SQLite, large artifacts as files
 - [x] ADR-006 Content enrichment is optional and mode-dependent
-- [x] ADR-007 Canonical Artifact Resolution for diff/comparison paths (Resolves against registry_db path, independent of CWD)
 
 ## 4. Abhakbare Roadmap
 
@@ -829,7 +828,6 @@ Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
 - [x] Snapshot Contract definieren
 - [x] Inventory Contract definieren
 - [x] Delta Contract definieren
-- *Implementierungsnotiz:* Delta und Comparison konsolidieren nun ihre CWD-unabhängige Artefaktauflösung und nutzen eine geteilte Parser-Logik; die bereits zuvor bestehende robuste Behandlung fehlerhafter Inventory-Zeilen (z.B. leere Zeilen, ungültiges JSON) ist damit konsistent in beiden Pfaden zentralisiert.
 - [x] Mode Output Contract definieren
 - [x] is_text-Garantie explizit dokumentieren
 - [x] Verzeichnisstruktur offiziell festlegen (als Zielstruktur dokumentiert)
@@ -935,10 +933,8 @@ Ziel: Atlas wird diagnostisch.
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
 - [ ] mehrere Machines sauber registrieren
 - [ ] Root-Namenskonventionen zwischen Hosts vereinheitlichen
-- [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
-- [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
-  - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
-  - *Semantische Notiz: `atlas diff` leitet cross-root Anfragen intern auf `cross-root-comparison` um (statt strengem `same-root-delta`). Der aktuelle Vergleich ist ein strukturbezogener Metadatenabgleich (`rel_path`, `size_bytes`, `mtime`) und kein inhaltlich tief gehärteter Gleichheitsbeweis.*
+- [ ] Cross-machine snapshot diff definieren
+- [ ] CLI: `atlas diff heim-pc:/home heimserver:/home`
 - [ ] Backup-gap-Analyse definieren
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [ ] Konfliktfälle (gleiches root label, andere Pfade) definieren
