@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hauski.com/schemas/lenskit/federation-trace.v1.schema.json",
+  "title": "Lenskit Federation Trace",
+  "description": "Diagnostic execution trace of a federated query across multiple bundles.",
+  "type": "object",
+  "required": ["query", "bundles", "total_results", "timestamp"],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The search query executed."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when the query was executed."
+    },
+    "total_results": {
+      "type": "integer",
+      "description": "Total number of candidate hits found across all queried bundles before top-k slicing."
+    },
+    "bundles": {
+      "type": "array",
+      "description": "Status trace for each queried bundle.",
+      "items": {
+        "type": "object",
+        "required": ["repo_id", "bundle_path", "status"],
+        "properties": {
+          "repo_id": {
+            "type": "string",
+            "description": "Unique identifier for the repository bundle."
+          },
+          "bundle_path": {
+            "type": "string",
+            "description": "Path or URI to the bundle root."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "missing", "stale", "error", "filtered_out", "bundle_path_unsupported", "index_missing", "query_error"],
+            "description": "Execution status of the bundle query."
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "Computed or retrieved fingerprint of the bundle index."
+          },
+          "latency_ms": {
+            "type": "number",
+            "description": "Optional time taken to execute the query against this bundle in milliseconds."
+          },
+          "error_message": {
+            "type": "string",
+            "description": "Optional error message if status is 'error'."
+          }
+        }
+      }
+    }
+  }
+}

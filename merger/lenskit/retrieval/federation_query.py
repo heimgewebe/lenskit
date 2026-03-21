@@ -102,7 +102,27 @@ def execute_federated_query(
             bundle_status[repo_id] = "index_missing"
             continue
 
+        import sqlite3
         try:
+            # Check for staleness using fingerprint (last_fingerprint from federation index vs DB)
+            # Note: staleness detection is strictly best-effort and must never fail the federated query.
+            expected_fingerprint = b.get("last_fingerprint")
+            db_fingerprint = None
+            if expected_fingerprint:
+                try:
+                    with sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True) as conn:
+                        cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
+                        row = cursor.fetchone()
+                        if row:
+                            db_fingerprint = row[0]
+                except sqlite3.Error:
+                    # Broad catch to ensure handle leaks or generic db errors don't crash the fan-out
+                    pass
+
+                if db_fingerprint and db_fingerprint != expected_fingerprint:
+                    bundle_status[repo_id] = "stale"
+                    # We can still execute the query, but we mark it as stale in the trace
+
             res = execute_query(
                 index_path=db_path,
                 query_text=query_text,
@@ -114,12 +134,25 @@ def execute_federated_query(
                 build_context=build_context
             )
 
-            # Tag results with bundle origin (Provenance)
-            for hit in res.get("results", []):
-                hit["federation_bundle"] = repo_id
-                all_results.append(hit)
+            # Score normalisation and integration per bundle
+            # Note: `execute_query` already calculates a semantically stable `final_score`
+            # (which is between 0 and 1.0, combining bm25_norm and potential graph/semantic boosts).
+            # BM25 raw scores are negative in SQLite, but `final_score` is properly inverted and normalized.
+            # We rely on this `final_score` for global federated ranking to preserve absolute magnitude
+            # (a weak match in Repo A shouldn't beat a strong match in Repo B just because it was the best locally).
+            bundle_hits = res.get("results", [])
+            if bundle_hits:
+                for hit in bundle_hits:
+                    # Require provenance: either range_ref or derived_range_ref must be present and truthy
+                    if not hit.get("range_ref") and not hit.get("derived_range_ref"):
+                        continue
 
-            bundle_status[repo_id] = "ok"
+                    # Tag results with bundle origin (Provenance)
+                    hit["federation_bundle"] = repo_id
+                    all_results.append(hit)
+
+            if repo_id not in bundle_status:
+                bundle_status[repo_id] = "ok"
             queried_bundles_effective += 1
             if trace and "query_trace" in res:
                 bundle_traces[repo_id] = res["query_trace"]
@@ -127,6 +160,45 @@ def execute_federated_query(
         except Exception as e:
             bundle_status[repo_id] = "query_error"
             bundle_errors[repo_id] = str(e)
+
+    # Conflict Detection Heuristic (Minimal)
+    # Group results by filename (`Path.name`) as a primitive heuristic.
+    # Note: This is an initial path-based collision heuristic, not a full symbol or identity resolution engine.
+    # If the same filename appears in multiple distinct paths or repos, it is surfaced as a 'path' conflict.
+    # True 'identity' resolution would require a dedicated symbol index layer.
+    conflicts = []
+    symbol_map = {}
+    for hit in all_results:
+        p = hit.get("path", "")
+        if p:
+            sym = Path(p).name
+            if sym not in symbol_map:
+                symbol_map[sym] = []
+            symbol_map[sym].append(hit)
+
+    conflict_idx = 1
+    for sym, hits in symbol_map.items():
+        if len(hits) > 1:
+            # Check if they are actually from different paths or repos
+            unique_origins = set((h.get("federation_bundle", ""), h.get("path", "")) for h in hits)
+            if len(unique_origins) > 1:
+                conflict_id = f"conflict_{conflict_idx}"
+                conflict_idx += 1
+                involved = [h.get("chunk_id", "") for h in hits]
+
+                conflicts.append({
+                    "conflict_id": conflict_id,
+                    "type": "path",
+                    "description": f"Multiple hits found with the same filename '{sym}' across different paths or repos.",
+                    "resolution": "unresolved",
+                    "involved_results": involved
+                })
+
+                # Tag hits with conflict without altering or dropping results
+                for h in hits:
+                    if "conflict_refs" not in h:
+                        h["conflict_refs"] = []
+                    h["conflict_refs"].append(conflict_id)
 
     # Global sort: final_score descending
     # Tie-breakers: federation_bundle asc, path asc, chunk_id asc to ensure deterministic tie ordering
@@ -136,17 +208,32 @@ def execute_federated_query(
         x.get("path", ""),
         x.get("chunk_id", "")
     ))
+
+    # Cross-Repo Context (mark secondary context)
+    # If multiple bundles yield hits, the first bundle's hits (based on score) are primary
+    # hits from other bundles are marked as secondary context.
+    if all_results:
+        primary_bundle = all_results[0].get("federation_bundle", "")
+        for hit in all_results:
+            if hit.get("federation_bundle", "") == primary_bundle:
+                hit["cross_repo_context_role"] = "primary_evidence"
+            else:
+                hit["cross_repo_context_role"] = "secondary_context"
+
+    total_candidates_found = len(all_results)
     top_k = all_results[:k]
 
-    # In a future expansion, it may be useful to separate `total_candidates_found` (across all bundles)
-    # from `returned_results` (len(top_k)), but for now count reflects the final sliced result length.
     out = {
         "query": query_text,
         "k": k,
-        "count": len(top_k),  # Refers to the returned top-k results after global slice, not total hits across all bundles
+        "count": len(top_k),  # Refers to the returned top-k results after global slice
+        "total_candidates_found": total_candidates_found, # Total hits across all bundles before slicing
         "results": top_k,
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }
+
+    if conflicts:
+        out["federation_conflicts"] = conflicts
 
     if trace:
         out["federation_trace"] = {

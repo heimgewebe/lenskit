@@ -1546,30 +1546,37 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [ ] 1. test_federation_index_builds_deterministically (im Rahmen der Minimalaggregation noch nicht e2e abgesichert)
+- [ ] 1. test_federation_index_builds_deterministically (teilweise: im Rahmen der Minimalaggregation noch nicht voll e2e abgesichert)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
-- [ ] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
-- [ ] 4. test_federated_ranking_is_stable (Tie-Breaker vorhanden, aber Rank-Stabilität nicht e2e validiert)
-- [ ] 5. test_conflicts_are_reported_not_smoothed
-- [ ] 6. test_cross_repo_context_preserves_primary_evidence
-- [ ] 7. test_stale_bundle_is_marked_in_federation_trace
+- [x] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
+- [ ] 4. test_federated_ranking_is_stable (Tie-Breaker implementiert, aber noch kein echtes föderiertes Relevanzmodell)
+- [ ] 5. test_conflicts_are_reported_not_smoothed (derzeit nur einfache filename-Heuristik, keine Identity-Engine)
+- [ ] 6. test_cross_repo_context_preserves_primary_evidence (derzeit ranking-basierte Primär-/Sekundärrollen, nicht semantisch inferiert)
+- [x] 7. test_stale_bundle_is_marked_in_federation_trace
 
 ### 1.12 Deliverables Phase 5
-- [ ] 1. federation_index.json (Struktur angelegt, aber noch nicht Teil einer umfassenden Architekturschnittstelle)
-- [ ] 2. cross_repo_links.json
-- [ ] 3. federation_conflicts.json
-- [ ] 4. federation_trace.json (strukturell begonnen, Minimalaggregation vorhanden)
-- [ ] 5. föderierte Query-Schnittstelle (erste federierte Query-Aggregation vorhanden, Schnittstelle nicht komplett)
-- [ ] 6. bundleübergreifendes Context-Bundle
-- [ ] 7. Identity-/Conflict-Regeln
+- [x] 1. federation_index.json (Struktur angelegt und validiert)
+- [ ] 2. cross_repo_links.json (Contract vorbereitet, Producer/Runtime offen)
+- [ ] 3. federation_conflicts.json (Runtime-Struktur vorhanden, Artefakt-Persistenz offen)
+- [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
+- [ ] 5. föderierte Query-Schnittstelle (als Minimal-Fan-out mit deterministischer Aggregation integriert, aber keine vollwertige Cross-Repo-Relevanz-Harmonisierung)
+- [ ] 6. bundleübergreifendes Context-Bundle (derzeit nur Treffermarkierung, echte Struktur offen)
+- [ ] 7. Identity-/Conflict-Regeln (derzeit minimale filename-basierte Heuristik, kein vollwertiges System)
 
 ### 1.13 Gate für Phase 5
-- [ ] Phase 5 ist fertig, wenn:
-* mehrere Bundles formal föderiert werden können
-* Cross-Repo-Queries deterministisch laufen
-* provenance bundle-scharf bleibt
-* Konflikte explizit gemeldet werden
-* kein stilles Vermischen konkurrierender Wahrheiten passiert
+- [ ] Phase 5 ist als Minimal-Fan-out angerissen, aber als Architekturphase noch offen.
+* mehrere Bundles formal föderiert werden können [x]
+* Cross-Repo-Queries deterministisch aggregiert werden [x] (als Minimal-Fan-out)
+* provenance bundle-scharf bleibt [x]
+* Konflikte explizit gemeldet werden [x] (als Minimalheuristik)
+* kein stilles Vermischen konkurrierender Wahrheiten passiert [x]
+-> Hinweis: Der aktuelle Stand bietet praktische Föderationsnutzbarkeit (Aggregation), schließt Phase 5 aber architektonisch noch nicht vollständig ab (fehlende kanonische Trace-Artefakte, echtes Identity-System, tiefes Ranking-Alignment).
+
+### 1.14 Gate für Phase 6
+Phase 6 darf erst beginnen, wenn die Minimalaggregation aus Phase 5 ausreichend diagnostizierbar ist:
+* federation_trace Output liefert verlässliche Bundle-Zustände (missing, stale, error)
+* Konflikte werden als Warnungen sichtbar (auch wenn nur heuristisch)
+* Aggregations-Ranking ist reproduzierbar
 
 ---
 

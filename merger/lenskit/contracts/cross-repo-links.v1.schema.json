@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hauski.com/schemas/lenskit/cross-repo-links.v1.schema.json",
+  "title": "Lenskit Cross-Repo Links",
+  "description": "Explicit linkages and relationships between different repository bundles.",
+  "type": "object",
+  "required": ["source_repo", "target_repo", "link_type", "evidence_refs", "confidence"],
+  "properties": {
+    "source_repo": {
+      "type": "string",
+      "description": "Repository ID where the reference originates."
+    },
+    "target_repo": {
+      "type": "string",
+      "description": "Repository ID being referenced."
+    },
+    "link_type": {
+      "type": "string",
+      "description": "The type of relationship (e.g., 'imports', 'calls', 'depends_on')."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["explicit", "inferred"],
+      "description": "Confidence level of the linkage."
+    },
+    "evidence_refs": {
+      "type": "array",
+      "description": "List of references to evidence proving the link.",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
