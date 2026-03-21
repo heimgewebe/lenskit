@@ -127,9 +127,9 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
         json.dump(delta, f, indent=2)
 
     try:
-        delta_ref = str(delta_path.relative_to(atlas_base))
+        delta_ref = delta_path.relative_to(atlas_base).as_posix()
     except ValueError:
-        delta_ref = str(delta_path)
+        delta_ref = delta_path.as_posix()
 
     registry.register_delta(delta_id, from_snap_id, to_snap_id, delta_ref, created_at)
 
