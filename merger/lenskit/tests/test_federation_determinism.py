@@ -5,10 +5,9 @@ from merger.lenskit.core.federation import init_federation, add_bundle
 
 def test_federation_index_builds_deterministically(tmp_path: Path, monkeypatch):
     """
-    Enforces that federation index operations are deterministic and produce exactly the same JSON output
-    for identical bundle additions, regardless of the order in which they were added.
+    Stellt sicher, dass identische logische Inhalte unabhängig von der
+    Add-Reihenfolge zur gleichen kanonischen Ausgabe im Index führen.
     """
-    # Fix the time so it doesn't break determinism
     from datetime import datetime, timezone
     fixed_now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 

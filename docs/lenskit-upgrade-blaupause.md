@@ -1183,15 +1183,15 @@ Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert
 - [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
 - [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
 - [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
-- [x] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen, nun via Test e2e gedeckt)
+- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
 
 ### 1.12 Gate für Phase 3
-- [x] Phase 3 ist fertig:
+- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
 * Graph semantisch dokumentiert ist
 * Query/Eval denselben Loader und dieselbe Semantik nutzen
 * Explain die tatsächliche Graph-Wirkung abbildet
 * Graph-Effekt messbar ist
-* Stale/missing Graph nicht mehr still durchrutscht (durch `test_graph_staleness_marker` gesichert)
+* Stale/missing Graph nicht mehr still durchrutscht
 
 ---
 
@@ -1388,12 +1388,12 @@ Wichtige Tests:
 - [x] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
-- [x] Phase 4 ist fertig:
+- [ ] Phase 4 ist fertig, wenn:
 * eine Query mehr als rohe Treffer liefert
 * Context-Bundles portabel und provenance-stabil sind
 * Trace Diagnose ermöglicht
 * Output-Profile definiert sind
-* UI/Agent-Integration ohne Kernverbiegung möglich ist (durch WebUI Payload und Agent Profile Tests belegt)
+* UI/Agent-Integration ohne Kernverbiegung möglich ist
 
 ---
 
@@ -1546,7 +1546,7 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [x] 1. test_federation_index_builds_deterministically (vollständig e2e über Föderationssortierung und Hash-Stabilität abgesichert)
+- [x] 1. test_federation_index_builds_deterministically (kanonische Bundle-Sortierung und JSON-/Hash-Stabilität für identische Inhalte mit variierender Add-Reihenfolge abgesichert; kein vollumfänglicher E2E-Nachweis der gesamten Phase)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
 - [x] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
 - [ ] 4. test_federated_ranking_is_stable (Tie-Breaker implementiert, aber noch kein echtes föderiertes Relevanzmodell)
@@ -1555,7 +1555,7 @@ Wichtige Tests:
 - [x] 7. test_stale_bundle_is_marked_in_federation_trace
 
 ### 1.12 Deliverables Phase 5
-- [x] 1. federation_index.json (Struktur angelegt und validiert)
+- [x] 1. federation_index.json (Struktur angelegt und validiert, Bundle-Reihenfolge wird nun kanonisch über repo_id stabilisiert)
 - [ ] 2. cross_repo_links.json (Contract vorbereitet, Producer/Runtime offen)
 - [ ] 3. federation_conflicts.json (Runtime-Struktur vorhanden, Artefakt-Persistenz offen)
 - [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
@@ -1702,8 +1702,8 @@ Tests:
 - [ ] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
-- [x] 1. Agent Query Contract (für /api/query implementiert und getestet via `test_api_query.py`)
-- [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, belegt in Context-Tests)
+- [ ] 1. Agent Query Contract (für /api/query implementiert und getestet)
+- [ ] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
 - [ ] 5. agent_query_session.json
@@ -1784,8 +1784,8 @@ Gate:
 ## Empfohlene PR-Reihenfolge (Gesamt)
 
 - [x] PR 1: Contract-/Provenance-Härtung
-- [x] PR 2: Query Trace + Context Bundle (vollständig belegt)
-- [x] PR 3: Graph Runtime Konsolidierung (vollständig belegt)
+- [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
+- [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
 - [x] PR 4: Federation Foundation (Init + Contract + minimale Federation-Verwaltung/CLI)
 - [ ] PR 5: Federated Query + Ranking (angerissen: minimale föderierte Query-Aggregation vorhanden)
 - [ ] PR 6: Agent Control Surface
@@ -1847,8 +1847,8 @@ Schutzmaßnahmen:
 ## Messbare Meilensteine
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
-- [x] M2: Query Trace + Context Bundle vorhanden (Gate ist geschlossen)
-- [x] M3: Graph-Runtime konsistent und diagnostizierbar (Gate ist geschlossen)
+- [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar
