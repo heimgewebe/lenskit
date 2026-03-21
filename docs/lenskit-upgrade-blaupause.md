@@ -1183,15 +1183,15 @@ Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert
 - [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
 - [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
 - [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
-- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
+- [x] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
 
 ### 1.12 Gate für Phase 3
-- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
-* Graph semantisch dokumentiert ist
-* Query/Eval denselben Loader und dieselbe Semantik nutzen
-* Explain die tatsächliche Graph-Wirkung abbildet
-* Graph-Effekt messbar ist
-* Stale/missing Graph nicht mehr still durchrutscht
+- [x] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
+* Graph semantisch dokumentiert ist [x]
+* Query/Eval denselben Loader und dieselbe Semantik nutzen [x]
+* Explain die tatsächliche Graph-Wirkung abbildet [x]
+* Graph-Effekt messbar ist [x]
+* Stale/missing Graph nicht mehr still durchrutscht [x]
 
 ---
 
@@ -1388,12 +1388,12 @@ Wichtige Tests:
 - [x] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
-- [ ] Phase 4 ist fertig, wenn:
-* eine Query mehr als rohe Treffer liefert
-* Context-Bundles portabel und provenance-stabil sind
-* Trace Diagnose ermöglicht
-* Output-Profile definiert sind
-* UI/Agent-Integration ohne Kernverbiegung möglich ist
+- [x] Phase 4 ist fertig, wenn:
+* eine Query mehr als rohe Treffer liefert [x]
+* Context-Bundles portabel und provenance-stabil sind [x]
+* Trace Diagnose ermöglicht [x]
+* Output-Profile definiert sind [x]
+* UI/Agent-Integration ohne Kernverbiegung möglich ist [x]
 
 ---
 
@@ -1847,8 +1847,8 @@ Schutzmaßnahmen:
 ## Messbare Meilensteine
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
-- [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
-- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [x] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [x] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar

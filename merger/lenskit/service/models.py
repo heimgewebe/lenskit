@@ -236,7 +236,7 @@ class QueryRequest(BaseModel):
     ext: Optional[str] = None
     layer: Optional[str] = None
     artifact_type: Optional[str] = None
-    output_profile: Optional[Literal["human_review", "agent_minimal", "ui_navigation"]] = None
+    output_profile: Optional[Literal["human_review", "agent_minimal", "ui_navigation", "lookup_minimal", "review_context"]] = None
     context_mode: Literal["exact", "block", "window", "file"] = "exact"
     context_window_lines: int = 0
     build_context_bundle: bool = False

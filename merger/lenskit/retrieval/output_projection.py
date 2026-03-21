@@ -30,6 +30,16 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
                 hit.pop("graph_context", None)
                 if "surrounding_context" in hit and hit["surrounding_context"] is None:
                     hit.pop("surrounding_context", None)
+        elif output_profile == "lookup_minimal":
+            for hit in bundle.get("hits", []):
+                hit.pop("explain", None)
+                hit.pop("graph_context", None)
+                hit.pop("surrounding_context", None)
+        elif output_profile == "review_context":
+            for hit in bundle.get("hits", []):
+                hit.pop("graph_context", None)
+                if "surrounding_context" in hit and hit["surrounding_context"] is None:
+                    hit.pop("surrounding_context", None)
         elif output_profile == "ui_navigation":
             # Include download links or identifiers for ui
             pass # Structure already ui-ready based on chunk_id/file
