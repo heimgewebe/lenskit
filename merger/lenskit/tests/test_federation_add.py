@@ -78,3 +78,23 @@ def test_add_bundle_fails_without_schema(tmp_path: Path, monkeypatch):
         add_bundle(index_path, "repo-fail", "some-path")
 
     assert "Federation schema missing at expected path" in str(exc_info.value)
+
+def test_add_bundle_fails_on_corrupt_existing_index(tmp_path: Path):
+    index_path = tmp_path / "fed.json"
+    init_federation("corrupt-fed", index_path)
+
+    # Manually corrupt the file: insert a bundle missing a "repo_id"
+    with index_path.open("r", encoding="utf-8") as f:
+        fed_data = json.load(f)
+
+    fed_data["bundles"].append({"bundle_path": "/some/path/without/repo_id"})
+
+    with index_path.open("w", encoding="utf-8") as f:
+        json.dump(fed_data, f)
+
+    with pytest.raises(ValueError) as exc_info:
+        add_bundle(index_path, "repo-new", "/bundles/repo-new")
+
+    err_msg = str(exc_info.value)
+    assert "Existing federation index is corrupt and failed schema validation" in err_msg
+    assert "'repo_id' is a required property" in err_msg

@@ -136,6 +136,13 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     with index_path.open("r", encoding="utf-8") as f:
         fed_data = json.load(f)
 
+    # Pre-validate existing data to prevent poor failure modes (e.g. KeyError on missing repo_id)
+    import jsonschema
+    try:
+        jsonschema.validate(instance=fed_data, schema=schema)
+    except jsonschema.exceptions.ValidationError as e:
+        raise ValueError(f"Existing federation index is corrupt and failed schema validation: {e}")
+
     # Check for uniqueness of repo_id
     for bundle in fed_data.get("bundles", []):
         if bundle.get("repo_id") == repo_id:
