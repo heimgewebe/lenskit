@@ -1546,7 +1546,7 @@ Ausgabe: `federation_trace.json`
 ### 1.11 Tests Phase 5
 
 Wichtige Tests:
-- [ ] 1. test_federation_index_builds_deterministically (teilweise: im Rahmen der Minimalaggregation noch nicht voll e2e abgesichert)
+- [x] 1. test_federation_index_builds_deterministically (kanonische Bundle-Sortierung und JSON-/Hash-Stabilität für identische Inhalte mit variierender Add-Reihenfolge abgesichert; kein vollumfänglicher E2E-Nachweis der gesamten Phase)
 - [ ] 2. test_cross_repo_links_are_provenance_backed
 - [x] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
 - [ ] 4. test_federated_ranking_is_stable (Tie-Breaker implementiert, aber noch kein echtes föderiertes Relevanzmodell)
@@ -1555,7 +1555,7 @@ Wichtige Tests:
 - [x] 7. test_stale_bundle_is_marked_in_federation_trace
 
 ### 1.12 Deliverables Phase 5
-- [x] 1. federation_index.json (Struktur angelegt und validiert)
+- [x] 1. federation_index.json (Struktur angelegt und validiert, Bundle-Reihenfolge wird nun kanonisch über repo_id stabilisiert)
 - [ ] 2. cross_repo_links.json (Contract vorbereitet, Producer/Runtime offen)
 - [ ] 3. federation_conflicts.json (Runtime-Struktur vorhanden, Artefakt-Persistenz offen)
 - [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
