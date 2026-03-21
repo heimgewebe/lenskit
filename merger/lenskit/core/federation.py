@@ -153,6 +153,10 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
         fed_data["bundles"] = []
 
     fed_data["bundles"].append(new_bundle)
+
+    # Deterministic sorting
+    fed_data["bundles"].sort(key=lambda x: x["repo_id"])
+
     fed_data["updated_at"] = now
 
     # Validate against our own schema before writing (fail safe)

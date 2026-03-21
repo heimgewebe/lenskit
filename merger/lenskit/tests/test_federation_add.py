@@ -58,11 +58,12 @@ def test_add_bundle_preserves_opaque_uri_and_relative_paths(tmp_path: Path):
     assert len(bundles) == 2
 
     # Verify URIs and relative paths are preserved exactly
-    assert bundles[0]["repo_id"] == "repo-uri"
-    assert bundles[0]["bundle_path"] == uri
+    # They should be sorted alphabetically by repo_id (repo-rel before repo-uri)
+    assert bundles[0]["repo_id"] == "repo-rel"
+    assert bundles[0]["bundle_path"] == rel_path
 
-    assert bundles[1]["repo_id"] == "repo-rel"
-    assert bundles[1]["bundle_path"] == rel_path
+    assert bundles[1]["repo_id"] == "repo-uri"
+    assert bundles[1]["bundle_path"] == uri
 
 def test_add_bundle_fails_without_schema(tmp_path: Path, monkeypatch):
     index_path = tmp_path / "fed.json"
