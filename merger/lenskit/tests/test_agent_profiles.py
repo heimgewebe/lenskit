@@ -1,7 +1,7 @@
-import pytest
 from merger.lenskit.retrieval.output_projection import project_output
 
 def test_agent_profile_lookup_minimal():
+    # Mock result mimicking what execute_query returns
     mock_result = {
         "context_bundle": {
             "hits": [
@@ -18,13 +18,20 @@ def test_agent_profile_lookup_minimal():
                     "surrounding_context": None
                 }
             ]
-        }
+        },
+        "query_trace": {"status": "ok"} # Adding query_trace to verify the wrapper contract
     }
 
     projected = project_output(mock_result, output_profile="lookup_minimal")
-    hits = projected.get("hits", [])
+
+    # Contract says if query_trace is present, it returns {"context_bundle": ..., "query_trace": ...}
+    assert "context_bundle" in projected
+    assert "query_trace" in projected
+
+    hits = projected["context_bundle"].get("hits", [])
     assert len(hits) == 2
 
+    # lookup_minimal should strip explain, graph_context, and surrounding_context
     for hit in hits:
         assert "explain" not in hit
         assert "graph_context" not in hit
@@ -50,13 +57,16 @@ def test_agent_profile_review_context():
         }
     }
 
+    # Here query_trace is missing, so it should return the bundle directly
     projected = project_output(mock_result, output_profile="review_context")
     hits = projected.get("hits", [])
     assert len(hits) == 2
 
+    # review_context should strip graph_context, but keep explain and surrounding_context (if not None)
     for hit in hits:
         assert "explain" in hit
         assert "graph_context" not in hit
 
     assert "surrounding_context" in hits[0]
+    # For hit 2, surrounding_context was None, so it is stripped
     assert "surrounding_context" not in hits[1]
