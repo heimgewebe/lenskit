@@ -1183,15 +1183,15 @@ Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert
 - [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
 - [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
 - [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
-- [x] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
+- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
 
 ### 1.12 Gate für Phase 3
-- [x] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
-* Graph semantisch dokumentiert ist [x]
-* Query/Eval denselben Loader und dieselbe Semantik nutzen [x]
-* Explain die tatsächliche Graph-Wirkung abbildet [x]
-* Graph-Effekt messbar ist [x]
-* Stale/missing Graph nicht mehr still durchrutscht [x]
+- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
+* Graph semantisch dokumentiert ist
+* Query/Eval denselben Loader und dieselbe Semantik nutzen
+* Explain die tatsächliche Graph-Wirkung abbildet
+* Graph-Effekt messbar ist
+* Stale/missing Graph nicht mehr still durchrutscht
 
 ---
 
@@ -1388,12 +1388,12 @@ Wichtige Tests:
 - [x] 7. API/UI-ready Struktur
 
 ### 2.14 Gate für Phase 4
-- [x] Phase 4 ist fertig, wenn:
-* eine Query mehr als rohe Treffer liefert [x]
-* Context-Bundles portabel und provenance-stabil sind [x]
-* Trace Diagnose ermöglicht [x]
-* Output-Profile definiert sind [x]
-* UI/Agent-Integration ohne Kernverbiegung möglich ist [x]
+- [ ] Phase 4 ist fertig, wenn:
+* eine Query mehr als rohe Treffer liefert
+* Context-Bundles portabel und provenance-stabil sind
+* Trace Diagnose ermöglicht
+* Output-Profile definiert sind
+* UI/Agent-Integration ohne Kernverbiegung möglich ist
 
 ---
 
@@ -1695,15 +1695,15 @@ Ziel:
 
 Tests:
 - [ ] 1. test_agent_query_contract_roundtrip
-- [ ] 2. test_agent_profile_lookup_minimal
-- [ ] 3. test_agent_profile_review_context
+- [x] 2. test_agent_profile_lookup_minimal
+- [x] 3. test_agent_profile_review_context
 - [ ] 4. test_agent_session_trace_contains_refs
 - [ ] 5. test_agent_response_surfaces_uncertainty
 - [ ] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
 - [ ] 1. Agent Query Contract (für /api/query implementiert und getestet)
-- [ ] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
+- [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
 - [ ] 5. agent_query_session.json
@@ -1847,8 +1847,8 @@ Schutzmaßnahmen:
 ## Messbare Meilensteine
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
-- [x] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
-- [x] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar
