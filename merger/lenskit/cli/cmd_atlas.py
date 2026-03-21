@@ -41,8 +41,8 @@ def _resolve_snapshot_ref(ref: str, registry) -> str:
         machine_id, root_value = ref.split(":", 1)
 
         def normalize_path(p: str) -> str:
-            # Conservative normalization for trivial differences (e.g. trailing slashes, /./)
-            # Must not redefine relative/absolute meaning.
+            # Conservative normalization for trivial variants (e.g., trailing slashes, /./)
+            # without semantically reinterpreting absolute/relative meanings.
             import posixpath
             return posixpath.normpath(p)
 

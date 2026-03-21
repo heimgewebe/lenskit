@@ -2,9 +2,62 @@ import json
 import uuid
 import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref, resolve_snapshot_dir
+
+
+def _load_inventory_index(inv_path: Path) -> Dict[str, Dict[str, Any]]:
+    """
+    Robustly loads a JSONL inventory file line by line into a dictionary keyed by `rel_path`.
+    Skips malformed lines, empty lines, or entries missing a valid string `rel_path`.
+    """
+    files = {}
+    with open(inv_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+                if not isinstance(item, dict):
+                    continue
+                rel_path = item.get("rel_path")
+                if not rel_path or not isinstance(rel_path, str):
+                    continue
+                files[rel_path] = item
+            except json.JSONDecodeError:
+                continue
+    return files
+
+
+def _compare_file_sets(from_files: Dict[str, Dict[str, Any]], to_files: Dict[str, Dict[str, Any]]) -> Tuple[List[str], List[str], List[str]]:
+    """
+    Compares two file sets (keyed by path) and returns sorted lists of new, removed, and changed file paths.
+    """
+    new_files = []
+    removed_files = []
+    changed_files = []
+
+    for path in to_files:
+        if path not in from_files:
+            new_files.append(path)
+        else:
+            old_item = from_files[path]
+            new_item = to_files[path]
+
+            if old_item.get("size_bytes") != new_item.get("size_bytes") or old_item.get("mtime") != new_item.get("mtime") or old_item.get("is_symlink") != new_item.get("is_symlink"):
+                changed_files.append(path)
+
+    for path in from_files:
+        if path not in to_files:
+            removed_files.append(path)
+
+    new_files.sort()
+    removed_files.sort()
+    changed_files.sort()
+
+    return new_files, removed_files, changed_files
+
 
 def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict[str, Any]:
     from_snap = registry.get_snapshot(from_snap_id)
@@ -40,59 +93,10 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
     if not to_inv_path or not to_inv_path.exists():
         raise FileNotFoundError(f"Inventory missing for snapshot {to_snap_id}")
 
-    from_files = {}
-    with open(from_inv_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                item = json.loads(line)
-                if not isinstance(item, dict):
-                    continue
-                rel_path = item.get("rel_path")
-                if not rel_path or not isinstance(rel_path, str):
-                    continue
-                from_files[rel_path] = item
-            except json.JSONDecodeError:
-                continue
+    from_files = _load_inventory_index(from_inv_path)
+    to_files = _load_inventory_index(to_inv_path)
 
-    to_files = {}
-    with open(to_inv_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                item = json.loads(line)
-                if not isinstance(item, dict):
-                    continue
-                rel_path = item.get("rel_path")
-                if not rel_path or not isinstance(rel_path, str):
-                    continue
-                to_files[rel_path] = item
-            except json.JSONDecodeError:
-                continue
-
-    new_files = []
-    removed_files = []
-    changed_files = []
-
-    for path in to_files:
-        if path not in from_files:
-            new_files.append(path)
-        else:
-            old_item = from_files[path]
-            new_item = to_files[path]
-
-            if old_item.get("size_bytes") != new_item.get("size_bytes") or old_item.get("mtime") != new_item.get("mtime") or old_item.get("is_symlink") != new_item.get("is_symlink"):
-                changed_files.append(path)
-
-    for path in from_files:
-        if path not in to_files:
-            removed_files.append(path)
-
-    new_files.sort()
-    removed_files.sort()
-    changed_files.sort()
+    new_files, removed_files, changed_files = _compare_file_sets(from_files, to_files)
 
     delta_id = f"delta_{uuid.uuid4().hex[:8]}"
     created_at = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
@@ -123,19 +127,18 @@ def compute_snapshot_delta(registry, from_snap_id: str, to_snap_id: str) -> Dict
         json.dump(delta, f, indent=2)
 
     try:
-        delta_ref = str(delta_path.relative_to(atlas_base))
+        delta_ref = delta_path.relative_to(atlas_base).as_posix()
     except ValueError:
-        delta_ref = str(delta_path)
+        delta_ref = delta_path.as_posix()
 
     registry.register_delta(delta_id, from_snap_id, to_snap_id, delta_ref, created_at)
 
     return delta
 
-# Drift Note: The `compute_snapshot_comparison` function deliberately duplicates the inventory parsing
-# and file comparison loops from `compute_snapshot_delta`. This maintains strict semantic separation
-# between temporal deltas (same root) and structural comparisons (cross-root) for now.
-# Future refactoring could unify the core comparison logic if it proves fully isomorphic,
-# but currently, keeping them parallel prevents semantic drift and preserves clear contracts.
+# Drift Note: The `compute_snapshot_comparison` function shares the inventory parsing
+# and file comparison loops with `compute_snapshot_delta` via internal helpers.
+# This maintains robustness across both modes while keeping strict semantic separation
+# between temporal deltas (same root, persisted) and structural comparisons (cross-root, diagnostic).
 def compute_snapshot_comparison(registry, from_snap_id: str, to_snap_id: str) -> Dict[str, Any]:
     from_snap = registry.get_snapshot(from_snap_id)
     to_snap = registry.get_snapshot(to_snap_id)
@@ -167,59 +170,10 @@ def compute_snapshot_comparison(registry, from_snap_id: str, to_snap_id: str) ->
     if not to_inv_path or not to_inv_path.exists():
         raise FileNotFoundError(f"Inventory missing for snapshot {to_snap_id}")
 
-    from_files = {}
-    with open(from_inv_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                item = json.loads(line)
-                if not isinstance(item, dict):
-                    continue
-                rel_path = item.get("rel_path")
-                if not rel_path or not isinstance(rel_path, str):
-                    continue
-                from_files[rel_path] = item
-            except json.JSONDecodeError:
-                continue
+    from_files = _load_inventory_index(from_inv_path)
+    to_files = _load_inventory_index(to_inv_path)
 
-    to_files = {}
-    with open(to_inv_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                item = json.loads(line)
-                if not isinstance(item, dict):
-                    continue
-                rel_path = item.get("rel_path")
-                if not rel_path or not isinstance(rel_path, str):
-                    continue
-                to_files[rel_path] = item
-            except json.JSONDecodeError:
-                continue
-
-    new_files = []
-    removed_files = []
-    changed_files = []
-
-    for path in to_files:
-        if path not in from_files:
-            new_files.append(path)
-        else:
-            old_item = from_files[path]
-            new_item = to_files[path]
-
-            if old_item.get("size_bytes") != new_item.get("size_bytes") or old_item.get("mtime") != new_item.get("mtime") or old_item.get("is_symlink") != new_item.get("is_symlink"):
-                changed_files.append(path)
-
-    for path in from_files:
-        if path not in to_files:
-            removed_files.append(path)
-
-    new_files.sort()
-    removed_files.sort()
-    changed_files.sort()
+    new_files, removed_files, changed_files = _compare_file_sets(from_files, to_files)
 
     is_cross_root = (from_snap["machine_id"] != to_snap["machine_id"]) or (from_snap["root_id"] != to_snap["root_id"])
     mode = "cross-root-comparison" if is_cross_root else "same-root-delta"
