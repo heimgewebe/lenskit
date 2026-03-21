@@ -198,7 +198,7 @@ def test_resolve_snapshot_ref(populated_registry):
         _resolve_snapshot_ref("m1:/var/www/.", populated_registry)
 
 def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatch):
-    tmp_path, _ = temp_workspace
+    tmp_path, registry_db = temp_workspace
     import argparse
     from merger.lenskit.cli.cmd_atlas import run_atlas_diff
 
@@ -218,8 +218,7 @@ def test_cli_diff_routing(temp_workspace, populated_registry, capsys, monkeypatc
         populated_registry.register_machine("m2", "other")
         populated_registry.register_root("r2", "m2", "abs_path", "/var/backup")
 
-        import pathlib
-        atlas_base = pathlib.Path("atlas/registry/atlas_registry.sqlite").resolve().parent.parent
+        atlas_base = registry_db.parent.parent
         inv3_path = atlas_base / "artifacts" / "inv3.jsonl"
         inv3_path.parent.mkdir(parents=True, exist_ok=True)
         with open(inv3_path, "w", encoding="utf-8") as f:
