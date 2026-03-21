@@ -96,5 +96,5 @@ def test_add_bundle_fails_on_corrupt_existing_index(tmp_path: Path):
         add_bundle(index_path, "repo-new", "/bundles/repo-new")
 
     err_msg = str(exc_info.value)
-    assert "Existing federation index is corrupt and failed schema validation" in err_msg
+    assert "Existing federation index is corrupt: schema validation failed" in err_msg
     assert "'repo_id' is a required property" in err_msg

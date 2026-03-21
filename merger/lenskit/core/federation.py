@@ -141,7 +141,7 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
-        raise ValueError(f"Existing federation index is corrupt and failed schema validation: {e}")
+        raise ValueError(f"Existing federation index is corrupt: schema validation failed: {e.message} at path {list(e.path)}")
 
     # Check for uniqueness of repo_id
     for bundle in fed_data.get("bundles", []):
