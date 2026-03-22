@@ -269,3 +269,90 @@ def test_api_query_invalid_paths(mini_index):
     response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
     assert response.status_code == 400
     assert "Invalid embedding_policy path" in response.json()["detail"]
+
+def test_agent_query_contract_roundtrip(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    # Contract validation
+    # Wrapper is expected since trace=True
+    assert "context_bundle" in data
+    assert "query_trace" in data
+
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+    assert isinstance(bundle["hits"], list)
+
+    if len(bundle["hits"]) > 0:
+        hit = bundle["hits"][0]
+        # Core fields must be present
+        assert "hit_identity" in hit
+        assert "resolved_code_snippet" in hit
+        assert "path" in hit
+
+        # Profile specific assert (agent_minimal strips explain)
+        assert "explain" not in hit
+
+def test_api_query_lookup_minimal(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "lookup_minimal",
+        "explain": True, "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "hits" in data
+    if len(data["hits"]) > 0:
+        hit = data["hits"][0]
+        # lookup_minimal should strip explain, graph_context, surrounding_context
+        assert "explain" not in hit
+        assert "graph_context" not in hit
+        assert "surrounding_context" not in hit
+        # But core fields are retained
+        assert "resolved_code_snippet" in hit
+
+def test_api_query_review_context(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "review_context",
+        "explain": True, "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "hits" in data
+    if len(data["hits"]) > 0:
+        hit = data["hits"][0]
+        # review_context should keep explain
+        assert "explain" in hit
+        # but strip graph_context
+        assert "graph_context" not in hit
+        # surrounding_context conditionally kept, but the mock index likely doesn't have it or it's None.
+        if "surrounding_context" in hit:
+            assert hit["surrounding_context"] is not None
