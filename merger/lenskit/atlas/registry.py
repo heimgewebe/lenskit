@@ -149,6 +149,29 @@ class AtlasRegistry:
             machines.append(res)
         return machines
 
+    def get_machine_health(self) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT m.machine_id, m.hostname, m.labels, m.last_seen_at,
+                   COUNT(s.snapshot_id) as total_complete_snapshots,
+                   MAX(s.created_at) as last_snapshot_at
+            FROM machines m
+            LEFT JOIN snapshots s ON m.machine_id = s.machine_id AND s.status = 'complete'
+            GROUP BY m.machine_id
+        """)
+        health_reports = []
+        for row in cur.fetchall():
+            res = dict(row)
+            res['labels'] = json.loads(res['labels']) if res['labels'] else None
+
+            # Calculate active status
+            # For a proper system, this could check if last_seen_at is within 7 days, etc.
+            # Here we provide the raw metrics for the UI/Agent to decide, plus a simple flag.
+            res['has_snapshots'] = res['total_complete_snapshots'] > 0
+
+            health_reports.append(res)
+        return health_reports
+
     def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None):
         with self.conn:
             self.conn.execute("""

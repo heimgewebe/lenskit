@@ -80,6 +80,7 @@ def main():
     atlas_scan_parser.add_argument("--hostname", help="Explicit hostname for the registry (defaults to system hostname)")
     atlas_scan_parser.add_argument("--incremental", action="store_true", help="Perform an incremental scan based on the latest snapshot")
 
+    atlas_machine_health_parser = atlas_subparsers.add_parser("machine-health", help="List registered machines with health status and last seen info")
     atlas_machines_parser = atlas_subparsers.add_parser("machines", help="List registered machines")
     atlas_roots_parser = atlas_subparsers.add_parser("roots", help="List registered roots")
     atlas_snapshots_parser = atlas_subparsers.add_parser("snapshots", help="List registered snapshots")

@@ -21,6 +21,13 @@ def run_atlas_machines(args: argparse.Namespace) -> int:
     print(json.dumps(machines, indent=2))
     return 0
 
+def run_atlas_machine_health(args: argparse.Namespace) -> int:
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        health_reports = registry.get_machine_health()
+    print(json.dumps(health_reports, indent=2))
+    return 0
+
 def run_atlas_roots(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     with AtlasRegistry(registry_path) as registry:
