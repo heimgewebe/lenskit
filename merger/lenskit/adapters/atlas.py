@@ -31,7 +31,8 @@ except ImportError:
         try:
             with path.open("rb") as f:
                 chunk = f.read(4096)
-                if not chunk: return True
+                if not chunk:
+                    return True
                 return b"\x00" not in chunk
         except OSError:
             return False
@@ -170,7 +171,8 @@ class AtlasScanner:
             try:
                 with source.open("r", encoding="utf-8") as f:
                     for line_idx, line in enumerate(f, start=1):
-                        if not line.strip(): continue
+                        if not line.strip():
+                            continue
                         try:
                             item = json.loads(line)
                             rel_path = item.get("rel_path")
@@ -775,7 +777,8 @@ class AtlasScanner:
                     dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
 
         finally:
-            if inv_f: inv_f.close()
+            if inv_f:
+                inv_f.close()
 
             # Process aggregates bottom-up
             if collect_dir_aggregates and dir_aggregates:
