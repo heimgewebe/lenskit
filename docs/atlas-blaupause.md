@@ -1007,7 +1007,7 @@ Und die wichtigste inhaltliche Invariante bleibt:
 **Atlas modelliert zuerst Dateiwirklichkeit, nicht Entwicklerwirklichkeit.**
 
 ### Machine Identity Contract
-- `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`).
+- `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`). Bei Legacy-Reuse kann jedoch zur Wahrung bestehender Referenzen (z. B. auf Snapshots oder Roots) die bereits gespeicherte Registry-ID weiterverwendet werden.
 - `machine_id` ist der stabile Identifier für ein Gerät. Er muss das Format `^[a-z0-9_.-]+$` erfüllen (z. B. `heim-pc`, `macbook-pro-m1`).
 - Eine `machine_id` darf nicht beliebig mehrfach mit verschiedenen Hostnamen verknüpft werden. Konfliktprüfung erfolgt auf den normalisierten Werten. Wenn eine `machine_id` bereits existiert und ein Scan mit abweichendem `hostname` gestartet wird, wird die Registrierung abgelehnt.
 - Die Auflösungsreihenfolge ist strikt: explizite CLI-Overrides (`--machine-id`, `--hostname`) stechen die Umgebungsvariable `ATLAS_MACHINE_ID`, welche wiederum den System-Hostname-Fallback aussticht.
