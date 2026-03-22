@@ -233,3 +233,54 @@ def test_atlas_scan_empty_hostname_fails(tmp_path: Path, monkeypatch, capsys):
 
     captured = capsys.readouterr()
     assert "Hostname cannot be empty" in captured.err
+
+
+def test_atlas_scan_empty_machine_id_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="",
+        hostname="valid-hostname"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Invalid machine_id format" in captured.err
+
+def test_atlas_scan_empty_hostname_string_fails_without_fallback(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="valid-machine",
+        hostname=""
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Hostname cannot be empty" in captured.err
