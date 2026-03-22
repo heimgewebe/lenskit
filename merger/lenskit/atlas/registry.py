@@ -91,15 +91,33 @@ class AtlasRegistry:
             raise ValueError("Hostname cannot be empty")
 
         if not re.match(r"^[a-z0-9_.-]+$", machine_id):
-            raise ValueError(f"Invalid machine_id format: '{machine_id}'. Must match ^[a-z0-9_.-]+$")
+            raise ValueError(f"Invalid machine_id format: '{machine_id}'. Must match ^[a-z0-9_.-]+$. Please provide a valid explicit identity via the --machine-id CLI flag or the ATLAS_MACHINE_ID environment variable.")
 
-        existing_machine = self.get_machine(machine_id)
-        if existing_machine:
-            if existing_machine["hostname"] != hostname:
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM machines WHERE lower(machine_id) = ?", (machine_id,))
+        legacy_matches = [dict(row) for row in cur.fetchall()]
+
+        if len(legacy_matches) > 1:
+            raise ValueError(f"Ambiguous legacy machine IDs found for '{machine_id}'. Multiple case variations exist in the registry. Please resolve this inconsistency manually.")
+
+        if len(legacy_matches) == 1:
+            existing_machine = legacy_matches[0]
+            existing_machine['labels'] = json.loads(existing_machine['labels']) if existing_machine['labels'] else None
+
+            # Use the canonical stored machine_id to preserve snapshot history and foreign keys
+            machine_id = existing_machine["machine_id"]
+
+            existing_canonical_hostname = existing_machine["hostname"].strip().lower()
+            if existing_canonical_hostname != hostname:
                 raise ValueError(f"Machine ID '{machine_id}' is already registered with a different hostname '{existing_machine['hostname']}'. Cannot re-register with hostname '{hostname}'.")
+
+            # Optionally sync canonical hostname back to DB
+            hostname = existing_canonical_hostname
 
         labels_json = json.dumps(labels) if labels else None
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        # Concurrency race check is consciously left out of this PR scope
         with self.conn:
             self.conn.execute("""
                 INSERT INTO machines (machine_id, hostname, labels, last_seen_at)

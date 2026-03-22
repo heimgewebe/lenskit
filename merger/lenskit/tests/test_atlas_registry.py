@@ -160,3 +160,39 @@ def test_delta_registry(registry):
     assert len(deltas) == 2
     assert deltas[0]["delta_id"] == "delta2"
     assert deltas[1]["delta_id"] == "delta1"
+
+
+def test_machine_registry_legacy_reuse(registry):
+    cur = registry.conn.cursor()
+    # Force insert a legacy uppercase entry directly into SQLite to bypass current lower() normalization
+    cur.execute(
+        "INSERT INTO machines (machine_id, hostname, labels, last_seen_at) VALUES (?, ?, ?, ?)",
+        ("LEGACY-M1", "HOST-A", None, "2026-03-21T18:26:22Z")
+    )
+    registry.conn.commit()
+
+    # Re-registering with new lowercase normalized equivalent should reuse the same row
+    registry.register_machine("legacy-m1", "host-a", ["legacy"])
+
+    # Assert get_machine with legacy ID works exactly
+    m = registry.get_machine("LEGACY-M1")
+    assert m is not None
+    assert "legacy" in m["labels"]
+
+    # Assert get_machine with lowercase ID does NOT find a new row (because get_machine is strictly exact)
+    # The machine_id should have remained LEGACY-M1 and hostname HOST-A in the DB due to reuse.
+    m_new = registry.get_machine("legacy-m1")
+    assert m_new is None
+
+    # Ensure no duplicate was created
+    machines = registry.list_machines()
+    assert len(machines) == 1
+
+def test_machine_registry_ambiguous_legacy_ids(registry):
+    cur = registry.conn.cursor()
+    cur.execute("INSERT INTO machines (machine_id, hostname) VALUES (?, ?)", ("M1", "host-a"))
+    cur.execute("INSERT INTO machines (machine_id, hostname) VALUES (?, ?)", ("m1", "host-a"))
+    registry.conn.commit()
+
+    with pytest.raises(ValueError, match="Ambiguous legacy machine IDs found for"):
+        registry.register_machine("m1", "host-a")
