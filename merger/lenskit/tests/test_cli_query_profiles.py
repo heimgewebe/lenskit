@@ -44,8 +44,12 @@ def test_cli_query_lookup_minimal(mini_index, capsys):
         graph_weights=None,
         test_penalty=0.75,
         output_profile="lookup_minimal",
-        context_mode="exact",
-        context_window_lines=0
+
+        context_window_lines=1,
+        context_mode="window",
+        build_context_bundle=False,
+        overmatch_guard=False,
+        trace=False
     )
 
     ret = cmd_query.run_query(args)
@@ -75,8 +79,12 @@ def test_cli_query_review_context(mini_index, capsys):
         graph_weights=None,
         test_penalty=0.75,
         output_profile="review_context",
-        context_mode="exact",
-        context_window_lines=0
+
+        context_window_lines=1,
+        context_mode="window",
+        build_context_bundle=False,
+        overmatch_guard=False,
+        trace=False
     )
 
     ret = cmd_query.run_query(args)
@@ -90,3 +98,6 @@ def test_cli_query_review_context(mini_index, capsys):
     for hit in data["hits"]:
         assert "explain" in hit
         assert "graph_context" not in hit
+        # Context mode window 1 expands lines, so surrounding_context shouldn't be None.
+        assert "surrounding_context" in hit
+        assert hit["surrounding_context"] is not None
