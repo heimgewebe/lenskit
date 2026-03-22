@@ -51,6 +51,10 @@ def test_machine_registry(registry):
     with pytest.raises(ValueError, match="Invalid machine_id format"):
         registry.register_machine("m 1 !", "host-a")
 
+    # Empty hostname should fail
+    with pytest.raises(ValueError, match="Hostname cannot be empty"):
+        registry.register_machine("m2", "   ")
+
     # List machines
     registry.register_machine("m2", "host-c")
     machines = registry.list_machines()

@@ -87,6 +87,9 @@ class AtlasRegistry:
         machine_id = machine_id.strip().lower()
         hostname = hostname.strip().lower()
 
+        if not hostname:
+            raise ValueError("Hostname cannot be empty")
+
         if not re.match(r"^[a-z0-9_.-]+$", machine_id):
             raise ValueError(f"Invalid machine_id format: '{machine_id}'. Must match ^[a-z0-9_.-]+$")
 
