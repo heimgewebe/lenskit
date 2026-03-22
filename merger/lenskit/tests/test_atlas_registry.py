@@ -172,17 +172,13 @@ def test_machine_registry_legacy_reuse(registry):
     registry.conn.commit()
 
     # Re-registering with new lowercase normalized equivalent should reuse the same row
-    registry.register_machine("legacy-m1", "host-a", ["legacy"])
+    used_id = registry.register_machine("legacy-m1", "host-a", ["legacy"])
+    assert used_id == "LEGACY-M1"
 
     # Assert get_machine with legacy ID works exactly
     m = registry.get_machine("LEGACY-M1")
     assert m is not None
     assert "legacy" in m["labels"]
-
-    # Assert get_machine with lowercase ID does NOT find a new row (because get_machine is strictly exact)
-    # The machine_id should have remained LEGACY-M1 and hostname HOST-A in the DB due to reuse.
-    m_new = registry.get_machine("legacy-m1")
-    assert m_new is None
 
     # Ensure no duplicate was created
     machines = registry.list_machines()

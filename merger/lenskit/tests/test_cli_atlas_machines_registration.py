@@ -284,3 +284,53 @@ def test_atlas_scan_empty_hostname_string_fails_without_fallback(tmp_path: Path,
 
     captured = capsys.readouterr()
     assert "Hostname cannot be empty" in captured.err
+
+
+
+def test_atlas_scan_legacy_machine_id_propagation(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    # Pre-insert legacy uppercase machine_id directly
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    with AtlasRegistry(registry_path) as registry:
+        cur = registry.conn.cursor()
+        cur.execute(
+            "INSERT INTO machines (machine_id, hostname, labels, last_seen_at) VALUES (?, ?, ?, ?)",
+            ("LEGACY-PROP-1", "host-prop", None, "2026-03-21T18:26:22Z")
+        )
+        registry.conn.commit()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="legacy-prop-1",
+        hostname="host-prop"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    with AtlasRegistry(registry_path) as registry:
+        # Machine should still only exist as uppercase
+        assert registry.get_machine("legacy-prop-1") is None
+        assert registry.get_machine("LEGACY-PROP-1") is not None
+
+        # Verify the root was registered under the uppercase ID
+        roots = registry.list_roots()
+        prop_root = next((r for r in roots if r["machine_id"] == "LEGACY-PROP-1"), None)
+        assert prop_root is not None
+
+        # Verify the snapshot was created under the uppercase ID
+        snapshots = registry.list_snapshots()
+        prop_snap = next((s for s in snapshots if s["machine_id"] == "LEGACY-PROP-1"), None)
+        assert prop_snap is not None

@@ -83,7 +83,7 @@ class AtlasRegistry:
             if "disk_ref" not in cols:
                 self.conn.execute("ALTER TABLE snapshots ADD COLUMN disk_ref TEXT")
 
-    def register_machine(self, machine_id: str, hostname: str, labels: Optional[List[str]] = None):
+    def register_machine(self, machine_id: str, hostname: str, labels: Optional[List[str]] = None) -> str:
         machine_id = machine_id.strip().lower()
         hostname = hostname.strip().lower()
 
@@ -126,6 +126,8 @@ class AtlasRegistry:
                     labels=excluded.labels,
                     last_seen_at=excluded.last_seen_at
             """, (machine_id, hostname, labels_json, now))
+
+        return machine_id
 
     def get_machine(self, machine_id: str) -> Optional[Dict[str, Any]]:
         cur = self.conn.cursor()

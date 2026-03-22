@@ -550,7 +550,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         machine_id = mach_arg if mach_arg is not None else os.environ.get("ATLAS_MACHINE_ID", hostname)
 
         machine_id = machine_id.strip().lower()
-        registry.register_machine(machine_id, hostname)
+        machine_id = registry.register_machine(machine_id, hostname)
 
         # Register Root
         # Ensure we always use absolute path as canonical value
