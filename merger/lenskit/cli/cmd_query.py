@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ..retrieval.query_core import execute_query
+from ..retrieval.output_projection import project_output
 from .stale_check import check_stale_index
 from .policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
 
@@ -94,20 +95,9 @@ def run_query(args: argparse.Namespace) -> int:
 
     if args.emit == "json":
         output_profile = getattr(args, "output_profile", None)
-        if output_profile and "context_bundle" in result:
-            bundle = result["context_bundle"]
-            if output_profile == "agent_minimal":
-                # Agent minimal strips explain blocks from individual hits and returns only essentials
-                for hit in bundle["hits"]:
-                    hit.pop("explain", None)
-                    hit.pop("graph_context", None)
-                    if "surrounding_context" in hit and hit["surrounding_context"] is None:
-                        hit.pop("surrounding_context", None)
-            elif output_profile == "ui_navigation":
-                # Include download links or identifiers for ui
-                pass # Structure already ui-ready based on chunk_id/file
-
-            print(json.dumps(bundle, indent=2))
+        if output_profile:
+            projected = project_output(result, output_profile)
+            print(json.dumps(projected, indent=2))
         else:
             print(json.dumps(result, indent=2))
         return 0
