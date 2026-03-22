@@ -290,7 +290,9 @@ def test_agent_query_contract_roundtrip(mini_index):
     # Contract validation
     # Wrapper is expected since trace=True
     assert "context_bundle" in data
+    assert isinstance(data["context_bundle"], dict)
     assert "query_trace" in data
+    assert isinstance(data["query_trace"], dict)
 
     bundle = data["context_bundle"]
     assert "hits" in bundle
@@ -303,8 +305,9 @@ def test_agent_query_contract_roundtrip(mini_index):
         assert "resolved_code_snippet" in hit
         assert "path" in hit
 
-        # Profile specific assert (agent_minimal strips explain)
+        # Profile specific assert (agent_minimal strips explain and graph_context)
         assert "explain" not in hit
+        assert "graph_context" not in hit
 
 def test_api_query_lookup_minimal(mini_index):
     art = setup_test_artifact(mini_index)
