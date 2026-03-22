@@ -389,3 +389,76 @@ def test_api_query_review_context(mini_index):
     assert "graph_context" not in hit_no_ctx
     # surrounding_context MUST be strictly ABSENT (since it was None and should be removed)
     assert "surrounding_context" not in hit_no_ctx
+
+
+def test_api_query_lookup_minimal_with_trace(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "lookup_minimal",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    assert isinstance(data["context_bundle"], dict)
+    assert "query_trace" in data
+    assert isinstance(data["query_trace"], dict)
+
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+
+    if len(bundle["hits"]) > 0:
+        hit = bundle["hits"][0]
+        # lookup_minimal should strip explain, graph_context, surrounding_context
+        assert "explain" not in hit
+        assert "graph_context" not in hit
+        assert "surrounding_context" not in hit
+        # But core fields are retained
+        assert "resolved_code_snippet" in hit
+
+def test_api_query_review_context_with_trace(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    # Use context_mode="window" to guarantee surrounding_context is generated
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "context_mode": "window",
+        "context_window_lines": 5,
+        "output_profile": "review_context",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    assert isinstance(data["context_bundle"], dict)
+    assert "query_trace" in data
+    assert isinstance(data["query_trace"], dict)
+
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+
+    if len(bundle["hits"]) > 0:
+        hit = bundle["hits"][0]
+        # review_context MUST keep explain
+        assert "explain" in hit
+        # review_context MUST strip graph_context
+        assert "graph_context" not in hit
+        # surrounding_context MUST be present and not None because we requested window context
+        assert "surrounding_context" in hit
+        assert hit["surrounding_context"] is not None
