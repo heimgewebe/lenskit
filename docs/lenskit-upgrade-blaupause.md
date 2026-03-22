@@ -1695,15 +1695,15 @@ Ziel:
 
 Tests:
 - [ ] 1. test_agent_query_contract_roundtrip
-- [ ] 2. test_agent_profile_lookup_minimal
-- [ ] 3. test_agent_profile_review_context
+- [x] 2. test_agent_profile_lookup_minimal
+- [x] 3. test_agent_profile_review_context
 - [ ] 4. test_agent_session_trace_contains_refs
 - [ ] 5. test_agent_response_surfaces_uncertainty
 - [ ] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
 - [ ] 1. Agent Query Contract (für /api/query implementiert und getestet)
-- [ ] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`)
+- [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
 - [ ] 5. agent_query_session.json
