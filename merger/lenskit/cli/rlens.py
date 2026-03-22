@@ -145,6 +145,8 @@ def main():
             sys.exit(cmd_atlas.run_atlas_scan(args))
         elif args.atlas_cmd == "machines":
             sys.exit(cmd_atlas.run_atlas_machines(args))
+        elif args.atlas_cmd == "machine-health":
+            sys.exit(cmd_atlas.run_atlas_machine_health(args))
         elif args.atlas_cmd == "roots":
             sys.exit(cmd_atlas.run_atlas_roots(args))
         elif args.atlas_cmd == "snapshots":
