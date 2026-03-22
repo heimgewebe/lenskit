@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import datetime
 import json
@@ -83,6 +84,17 @@ class AtlasRegistry:
                 self.conn.execute("ALTER TABLE snapshots ADD COLUMN disk_ref TEXT")
 
     def register_machine(self, machine_id: str, hostname: str, labels: Optional[List[str]] = None):
+        machine_id = machine_id.strip().lower()
+        hostname = hostname.strip().lower()
+
+        if not re.match(r"^[a-z0-9_.-]+$", machine_id):
+            raise ValueError(f"Invalid machine_id format: '{machine_id}'. Must match ^[a-z0-9_.-]+$")
+
+        existing_machine = self.get_machine(machine_id)
+        if existing_machine:
+            if existing_machine["hostname"] != hostname:
+                raise ValueError(f"Machine ID '{machine_id}' is already registered with a different hostname '{existing_machine['hostname']}'. Cannot re-register with hostname '{hostname}'.")
+
         labels_json = json.dumps(labels) if labels else None
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         with self.conn:
@@ -90,7 +102,6 @@ class AtlasRegistry:
                 INSERT INTO machines (machine_id, hostname, labels, last_seen_at)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(machine_id) DO UPDATE SET
-                    hostname=excluded.hostname,
                     labels=excluded.labels,
                     last_seen_at=excluded.last_seen_at
             """, (machine_id, hostname, labels_json, now))

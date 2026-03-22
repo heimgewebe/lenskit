@@ -65,7 +65,7 @@ def test_run_merge_picks_up_pool_selections(page_with_static: Page):
         "repoB": {"raw": ["fileB.txt"], "compressed": ["fileB.txt"]} # Partial selection
     }
 
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', 'test-v1'); sessionStorage.setItem('rlens_reset_once', 'test-v1');")
     page_with_static.goto("http://localhost:8000/")
 
     page_with_static.evaluate(f"""
@@ -131,7 +131,7 @@ def test_run_merge_mixed_pool_and_non_pool(page_with_static: Page):
         # repoB NOT in pool
     }
 
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', 'test-v1'); sessionStorage.setItem('rlens_reset_once', 'test-v1');")
     page_with_static.goto("http://localhost:8000/")
 
     page_with_static.evaluate(f"""
@@ -183,7 +183,7 @@ def test_run_merge_blocks_dirty_keys(page_with_static: Page):
     """
     Verifies that selecting a repo with a dirty name blocks submission.
     """
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', 'test-v1'); sessionStorage.setItem('rlens_reset_once', 'test-v1');")
     page_with_static.goto("http://localhost:8000/")
     page_with_static.wait_for_selector("#repoList input[name='repos']")
 
@@ -230,7 +230,7 @@ def test_run_merge_clears_global_filters_for_pool(page_with_static: Page):
     pool_state = {
         "repoA": {"raw": ["foo.txt"], "compressed": ["foo.txt"]}
     }
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', 'test-v1'); sessionStorage.setItem('rlens_reset_once', 'test-v1');")
     page_with_static.goto("http://localhost:8000/")
 
     page_with_static.evaluate(f"""
@@ -291,7 +291,7 @@ def test_run_merge_clears_global_filters_for_all_pool_selection(page_with_static
     pool_state = {
         "repoA": {"raw": None, "compressed": None}
     }
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', 'test-v1'); sessionStorage.setItem('rlens_reset_once', 'test-v1');")
     page_with_static.goto("http://localhost:8000/")
 
     page_with_static.evaluate(f"""
@@ -338,7 +338,7 @@ def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
     Verifies that when 'Plan Only' is checked, the generated payload
     omits the 'force_new' parameter to allow caching.
     """
-    page_with_static.add_init_script("window.__RLENS_TEST__ = true;")
+    page_with_static.add_init_script("window.__RLENS_TEST__ = true; localStorage.setItem('lenskit.version.ui', 'test-v1'); sessionStorage.setItem('rlens_reset_once', 'test-v1');")
     page_with_static.goto("http://localhost:8000/")
     page_with_static.wait_for_selector("#repoList input[name='repos']")
 

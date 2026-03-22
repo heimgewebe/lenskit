@@ -933,7 +933,7 @@ Ziel: Atlas wird diagnostisch.
 
 ### Phase 7 — Multi-Machine-Atlas
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
-- [ ] mehrere Machines sauber registrieren
+- [x] mehrere Machines sauber registrieren (via --machine-id/--hostname CLI flags)
 - [ ] Root-Namenskonventionen zwischen Hosts vereinheitlichen
 - [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
@@ -1005,3 +1005,8 @@ Die entscheidende Formel lautet:
 
 Und die wichtigste inhaltliche Invariante bleibt:
 **Atlas modelliert zuerst Dateiwirklichkeit, nicht Entwicklerwirklichkeit.**
+
+### Machine Identity Contract
+- `machine_id` ist der stabile Identifier für ein Gerät. Er muss das Format `^[a-z0-9_.-]+$` erfüllen (z. B. `heim-pc`, `macbook-pro-m1`).
+- Eine `machine_id` darf nicht beliebig mehrfach mit verschiedenen Hostnamen verknüpft werden. Wenn eine `machine_id` bereits existiert und ein Scan mit abweichendem `hostname` gestartet wird, wird die Registrierung abgelehnt.
+- Die CLI-Optionen `--machine-id` und `--hostname` dienen als Override für Multi-Machine-Szenarien (z. B. Remote-Scans), ersetzen aber nicht die Notwendigkeit einer bewussten, kanonischen Identitätsvergabe.

@@ -543,8 +543,9 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         registry = AtlasRegistry(registry_path)
 
         # Register Machine
-        hostname = socket.gethostname()
-        machine_id = os.environ.get("ATLAS_MACHINE_ID", hostname)
+        hostname = args.hostname if getattr(args, "hostname", None) else socket.gethostname()
+        machine_id = args.machine_id if getattr(args, "machine_id", None) else os.environ.get("ATLAS_MACHINE_ID", hostname)
+        machine_id = machine_id.strip().lower()
         registry.register_machine(machine_id, hostname)
 
         # Register Root

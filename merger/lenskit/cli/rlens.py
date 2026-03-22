@@ -76,6 +76,8 @@ def main():
     atlas_scan_parser.add_argument("--depth", type=int, default=6, help="Maximum depth to scan")
     atlas_scan_parser.add_argument("--limit", type=int, default=200000, help="Maximum number of entries to scan")
     atlas_scan_parser.add_argument("--mode", choices=["inventory", "topology", "content", "workspace"], default="inventory", help="The scan mode to execute")
+    atlas_scan_parser.add_argument("--machine-id", help="Explicit machine ID for the registry (defaults to ATLAS_MACHINE_ID env var or hostname)")
+    atlas_scan_parser.add_argument("--hostname", help="Explicit hostname for the registry (defaults to system hostname)")
     atlas_scan_parser.add_argument("--incremental", action="store_true", help="Perform an incremental scan based on the latest snapshot")
 
     atlas_machines_parser = atlas_subparsers.add_parser("machines", help="List registered machines")

@@ -37,11 +37,19 @@ def test_machine_registry(registry):
     assert "local" in m["labels"]
     assert m["last_seen_at"] is not None
 
-    # Update existing machine
-    registry.register_machine("m1", "host-b", ["prod"])
+    # Update existing machine (with matching hostname)
+    registry.register_machine("m1", "host-a", ["prod"])
     m2 = registry.get_machine("m1")
-    assert m2["hostname"] == "host-b"
+    assert m2["hostname"] == "host-a"
     assert "prod" in m2["labels"]
+
+    # Updating with different hostname should fail
+    with pytest.raises(ValueError, match="already registered with a different hostname"):
+        registry.register_machine("m1", "host-b", ["prod"])
+
+    # Invalid machine_id should fail
+    with pytest.raises(ValueError, match="Invalid machine_id format"):
+        registry.register_machine("m 1 !", "host-a")
 
     # List machines
     registry.register_machine("m2", "host-c")
