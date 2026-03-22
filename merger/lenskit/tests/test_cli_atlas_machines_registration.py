@@ -1,13 +1,11 @@
-import pytest
 import argparse
 import socket
-import os
 from pathlib import Path
 
 from merger.lenskit.cli.cmd_atlas import run_atlas_scan
 from merger.lenskit.atlas.registry import AtlasRegistry
 
-def test_atlas_scan_explicit_machine_and_hostname(tmp_path: Path, monkeypatch, capsys):
+def test_atlas_scan_explicit_machine_and_hostname(tmp_path: Path, monkeypatch):
     # Change current working directory to tmp_path to isolate registry creation
     monkeypatch.chdir(tmp_path)
 
@@ -44,7 +42,7 @@ def test_atlas_scan_explicit_machine_and_hostname(tmp_path: Path, monkeypatch, c
         assert machine["machine_id"] == "test-machine-id-123"
         assert machine["hostname"] == "test-hostname-123"
 
-def test_atlas_scan_default_machine_and_hostname(tmp_path: Path, monkeypatch, capsys):
+def test_atlas_scan_default_machine_and_hostname(tmp_path: Path, monkeypatch):
     # Change current working directory to tmp_path to isolate registry creation
     monkeypatch.chdir(tmp_path)
 
@@ -112,7 +110,7 @@ def test_atlas_scan_machine_registration_conflict(tmp_path: Path, monkeypatch, c
     captured = capsys.readouterr()
     assert "already registered with a different hostname" in captured.err
 
-def test_atlas_scan_machine_registration_case_insensitivity(tmp_path: Path, monkeypatch, capsys):
+def test_atlas_scan_machine_registration_case_insensitivity(tmp_path: Path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     scan_root = tmp_path / "scan_target"
     scan_root.mkdir()
@@ -139,3 +137,99 @@ def test_atlas_scan_machine_registration_case_insensitivity(tmp_path: Path, monk
     # Should succeed because it normalizes to m1 and host-a, which match the existing record
     exit_code = run_atlas_scan(args)
     assert exit_code == 0
+
+def test_atlas_scan_env_var_fallback(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    monkeypatch.setenv("ATLAS_MACHINE_ID", "env-machine-123")
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id=None,
+        hostname=None
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    expected_hostname = socket.gethostname().strip().lower()
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        machine = registry.get_machine("env-machine-123")
+        assert machine is not None
+        assert machine["machine_id"] == "env-machine-123"
+        assert machine["hostname"] == expected_hostname
+
+
+def test_atlas_scan_explicit_overrides_env_var(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    monkeypatch.setenv("ATLAS_MACHINE_ID", "env-machine-123")
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="explicit-machine-456",
+        hostname=None
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    expected_hostname = socket.gethostname().strip().lower()
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        machine = registry.get_machine("explicit-machine-456")
+        assert machine is not None
+        assert machine["machine_id"] == "explicit-machine-456"
+        assert machine["hostname"] == expected_hostname
+
+        env_machine = registry.get_machine("env-machine-123")
+        assert env_machine is None
+
+
+def test_atlas_scan_empty_hostname_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="m1",
+        hostname="   "
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Hostname cannot be empty" in captured.err

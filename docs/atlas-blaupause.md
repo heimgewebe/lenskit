@@ -1010,4 +1010,4 @@ Und die wichtigste inhaltliche Invariante bleibt:
 - `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`).
 - `machine_id` ist der stabile Identifier für ein Gerät. Er muss das Format `^[a-z0-9_.-]+$` erfüllen (z. B. `heim-pc`, `macbook-pro-m1`).
 - Eine `machine_id` darf nicht beliebig mehrfach mit verschiedenen Hostnamen verknüpft werden. Konfliktprüfung erfolgt auf den normalisierten Werten. Wenn eine `machine_id` bereits existiert und ein Scan mit abweichendem `hostname` gestartet wird, wird die Registrierung abgelehnt.
-- Die CLI-Optionen `--machine-id` und `--hostname` dienen als Override für Multi-Machine-Szenarien (z. B. Remote-Scans), ersetzen aber nicht die Notwendigkeit einer bewussten, kanonischen Identitätsvergabe.
+- Die Auflösungsreihenfolge ist strikt: explizite CLI-Overrides (`--machine-id`, `--hostname`) stechen die Umgebungsvariable `ATLAS_MACHINE_ID`, welche wiederum den System-Hostname-Fallback aussticht.
