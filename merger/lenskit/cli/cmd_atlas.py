@@ -543,9 +543,14 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         registry = AtlasRegistry(registry_path)
 
         # Register Machine
-        hostname = socket.gethostname()
-        machine_id = os.environ.get("ATLAS_MACHINE_ID", hostname)
-        registry.register_machine(machine_id, hostname)
+        host_arg = getattr(args, "hostname", None)
+        hostname = host_arg if host_arg is not None else socket.gethostname()
+
+        mach_arg = getattr(args, "machine_id", None)
+        machine_id = mach_arg if mach_arg is not None else os.environ.get("ATLAS_MACHINE_ID", hostname)
+
+        machine_id = machine_id.strip().lower()
+        machine_id = registry.register_machine(machine_id, hostname)
 
         # Register Root
         # Ensure we always use absolute path as canonical value

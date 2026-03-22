@@ -37,11 +37,23 @@ def test_machine_registry(registry):
     assert "local" in m["labels"]
     assert m["last_seen_at"] is not None
 
-    # Update existing machine
-    registry.register_machine("m1", "host-b", ["prod"])
+    # Update existing machine (with matching hostname)
+    registry.register_machine("m1", "host-a", ["prod"])
     m2 = registry.get_machine("m1")
-    assert m2["hostname"] == "host-b"
+    assert m2["hostname"] == "host-a"
     assert "prod" in m2["labels"]
+
+    # Updating with different hostname should fail
+    with pytest.raises(ValueError, match="already registered with a different hostname"):
+        registry.register_machine("m1", "host-b", ["prod"])
+
+    # Invalid machine_id should fail
+    with pytest.raises(ValueError, match="Invalid machine_id format"):
+        registry.register_machine("m 1 !", "host-a")
+
+    # Empty hostname should fail
+    with pytest.raises(ValueError, match="Hostname cannot be empty"):
+        registry.register_machine("m2", "   ")
 
     # List machines
     registry.register_machine("m2", "host-c")
@@ -148,3 +160,35 @@ def test_delta_registry(registry):
     assert len(deltas) == 2
     assert deltas[0]["delta_id"] == "delta2"
     assert deltas[1]["delta_id"] == "delta1"
+
+
+def test_machine_registry_legacy_reuse(registry):
+    cur = registry.conn.cursor()
+    # Force insert a legacy uppercase entry directly into SQLite to bypass current lower() normalization
+    cur.execute(
+        "INSERT INTO machines (machine_id, hostname, labels, last_seen_at) VALUES (?, ?, ?, ?)",
+        ("LEGACY-M1", "HOST-A", None, "2026-03-21T18:26:22Z")
+    )
+    registry.conn.commit()
+
+    # Re-registering with new lowercase normalized equivalent should reuse the same row
+    used_id = registry.register_machine("legacy-m1", "host-a", ["legacy"])
+    assert used_id == "LEGACY-M1"
+
+    # Assert get_machine with legacy ID works exactly
+    m = registry.get_machine("LEGACY-M1")
+    assert m is not None
+    assert "legacy" in m["labels"]
+
+    # Ensure no duplicate was created
+    machines = registry.list_machines()
+    assert len(machines) == 1
+
+def test_machine_registry_ambiguous_legacy_ids(registry):
+    cur = registry.conn.cursor()
+    cur.execute("INSERT INTO machines (machine_id, hostname) VALUES (?, ?)", ("M1", "host-a"))
+    cur.execute("INSERT INTO machines (machine_id, hostname) VALUES (?, ?)", ("m1", "host-a"))
+    registry.conn.commit()
+
+    with pytest.raises(ValueError, match="Ambiguous legacy machine IDs found for"):
+        registry.register_machine("m1", "host-a")
