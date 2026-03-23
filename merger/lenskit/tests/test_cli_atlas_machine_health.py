@@ -1,7 +1,7 @@
 import pytest
 import subprocess
 import json
-import sqlite3
+import sys
 from pathlib import Path
 from merger.lenskit.atlas.registry import AtlasRegistry
 
@@ -34,7 +34,7 @@ def test_cli_machine_health_json_output(tmp_path, monkeypatch):
 
     # 2. Invoke the CLI tool via subprocess
     # Assume the root of the repo is in PYTHONPATH or we use python -m
-    cmd = ["python3", "-m", "merger.lenskit.cli.main", "atlas", "machine-health"]
+    cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "machine-health"]
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     # 3. Assertions on the result
@@ -47,6 +47,10 @@ def test_cli_machine_health_json_output(tmp_path, monkeypatch):
 
     # Output should be ordered by machine_id (m-complete, m-empty, m-running)
     assert len(data) == 3
+
+    # Explicitly verify the deterministic ordering
+    returned_ids = [d["machine_id"] for d in data]
+    assert returned_ids == ["m-complete", "m-empty", "m-running"]
 
     # Validate m-complete
     m_complete = next(d for d in data if d["machine_id"] == "m-complete")
