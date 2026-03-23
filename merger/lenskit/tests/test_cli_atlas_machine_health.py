@@ -1,5 +1,6 @@
 import pytest
 import subprocess
+import os
 import json
 import sys
 from pathlib import Path
@@ -33,9 +34,13 @@ def test_cli_machine_health_json_output(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     # 2. Invoke the CLI tool via subprocess
-    # Assume the root of the repo is in PYTHONPATH or we use python -m
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
+    env = os.environ.copy()
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}:{existing_pp}" if existing_pp else str(repo_root)
+
     cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "machine-health"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp_path, env=env)
 
     # 3. Assertions on the result
     assert result.returncode == 0, f"Command failed with stderr: {result.stderr}"
