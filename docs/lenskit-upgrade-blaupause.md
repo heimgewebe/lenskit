@@ -1694,7 +1694,7 @@ Ziel:
 - [ ] Nicht nur Query-Qualität, sondern Agent-Tauglichkeit prüfen.
 
 Tests:
-- [ ] 1. test_agent_query_contract_roundtrip
+- [x] 1. test_agent_query_contract_roundtrip
 - [x] 2. test_agent_profile_lookup_minimal
 - [x] 3. test_agent_profile_review_context
 - [ ] 4. test_agent_session_trace_contains_refs
@@ -1702,7 +1702,7 @@ Tests:
 - [ ] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
-- [ ] 1. Agent Query Contract (für /api/query implementiert und getestet)
+- [x] 1. Agent Query Contract (für /api/query im API-Roundtrip minimal belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder

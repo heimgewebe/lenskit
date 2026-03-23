@@ -269,3 +269,205 @@ def test_api_query_invalid_paths(mini_index):
     response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
     assert response.status_code == 400
     assert "Invalid embedding_policy path" in response.json()["detail"]
+
+def test_agent_query_contract_roundtrip(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    # Contract validation
+    # Wrapper is expected since trace=True
+    assert "context_bundle" in data
+    assert isinstance(data["context_bundle"], dict)
+    assert "query_trace" in data
+    assert isinstance(data["query_trace"], dict)
+    assert "hits" not in data
+
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+    assert isinstance(bundle["hits"], list)
+
+    assert len(bundle["hits"]) == 1
+    hit = bundle["hits"][0]
+    # Core fields must be present
+    assert "hit_identity" in hit
+    assert "resolved_code_snippet" in hit
+    assert "path" in hit
+
+    # Profile specific assert (agent_minimal strips explain and graph_context)
+    assert "explain" not in hit
+    assert "graph_context" not in hit
+
+def test_api_query_lookup_minimal(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "lookup_minimal",
+        "explain": True, "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "hits" in data
+    assert "context_bundle" not in data
+    assert "query_trace" not in data
+    assert len(data["hits"]) == 1
+    hit = data["hits"][0]
+    # lookup_minimal should strip explain, graph_context, surrounding_context
+    assert "explain" not in hit
+    assert "graph_context" not in hit
+    assert "surrounding_context" not in hit
+    # But core fields are retained
+    assert "resolved_code_snippet" in hit
+
+def test_api_query_review_context(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    # Case A: Explicitly request context generation so surrounding_context is definitely present
+    request_data_with_context = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "context_mode": "window",
+        "context_window_lines": 5,
+        "output_profile": "review_context",
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response_with_ctx = client.post("/api/query", json=request_data_with_context, headers={"Authorization": "Bearer test_token"})
+    assert response_with_ctx.status_code == 200
+
+    data_with_ctx = response_with_ctx.json()
+    assert "hits" in data_with_ctx
+    assert "context_bundle" not in data_with_ctx
+    assert "query_trace" not in data_with_ctx
+    assert len(data_with_ctx["hits"]) == 1
+    hit_with_ctx = data_with_ctx["hits"][0]
+
+    # review_context MUST keep explain
+    assert "explain" in hit_with_ctx
+    # review_context MUST strip graph_context
+    assert "graph_context" not in hit_with_ctx
+    # surrounding_context MUST be present and not None because we requested window context
+    assert "surrounding_context" in hit_with_ctx
+    assert hit_with_ctx["surrounding_context"] is not None
+
+    # Case B: Standard query without window context, surrounding_context defaults to None internally and should be STRIPPED.
+    request_data_without_context = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "review_context",
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response_no_ctx = client.post("/api/query", json=request_data_without_context, headers={"Authorization": "Bearer test_token"})
+    assert response_no_ctx.status_code == 200
+
+    data_no_ctx = response_no_ctx.json()
+    assert "hits" in data_no_ctx
+    assert "context_bundle" not in data_no_ctx
+    assert "query_trace" not in data_no_ctx
+    assert len(data_no_ctx["hits"]) == 1
+    hit_no_ctx = data_no_ctx["hits"][0]
+
+    # explain MUST be present
+    assert "explain" in hit_no_ctx
+    # graph_context MUST be stripped
+    assert "graph_context" not in hit_no_ctx
+    # surrounding_context MUST be strictly ABSENT (since it was None and should be removed)
+    assert "surrounding_context" not in hit_no_ctx
+
+
+def test_api_query_lookup_minimal_with_trace(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "lookup_minimal",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    assert isinstance(data["context_bundle"], dict)
+    assert "query_trace" in data
+    assert isinstance(data["query_trace"], dict)
+    assert "hits" not in data
+
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+
+    assert len(bundle["hits"]) == 1
+    hit = bundle["hits"][0]
+    # lookup_minimal should strip explain, graph_context, surrounding_context
+    assert "explain" not in hit
+    assert "graph_context" not in hit
+    assert "surrounding_context" not in hit
+    # But core fields are retained
+    assert "resolved_code_snippet" in hit
+
+def test_api_query_review_context_with_trace(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    # Use context_mode="window" to guarantee surrounding_context is generated
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "context_mode": "window",
+        "context_window_lines": 5,
+        "output_profile": "review_context",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    assert isinstance(data["context_bundle"], dict)
+    assert "query_trace" in data
+    assert isinstance(data["query_trace"], dict)
+    assert "hits" not in data
+
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+
+    assert len(bundle["hits"]) == 1
+    hit = bundle["hits"][0]
+    # review_context MUST keep explain
+    assert "explain" in hit
+    # review_context MUST strip graph_context
+    assert "graph_context" not in hit
+    # surrounding_context MUST be present and not None because we requested window context
+    assert "surrounding_context" in hit
+    assert hit["surrounding_context"] is not None
