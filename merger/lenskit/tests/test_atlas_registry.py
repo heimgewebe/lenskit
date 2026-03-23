@@ -192,3 +192,27 @@ def test_machine_registry_ambiguous_legacy_ids(registry):
 
     with pytest.raises(ValueError, match="Ambiguous legacy machine IDs found for"):
         registry.register_machine("m1", "host-a")
+
+def test_machine_health(registry):
+    registry.register_machine("m1", "host1")
+    registry.register_root("r1", "m1", "abs_path", "/foo")
+
+    # Test without snapshots
+    health = registry.get_machine_health()
+    assert len(health) == 1
+    assert health[0]["machine_id"] == "m1"
+    assert health[0]["total_complete_snapshots"] == 0
+    assert health[0]["has_snapshots"] == False
+
+    # Add a running snapshot
+    registry.create_snapshot("s1", "m1", "r1", "hash1", "running")
+    health = registry.get_machine_health()
+    assert health[0]["total_complete_snapshots"] == 0
+    assert health[0]["has_snapshots"] == False
+
+    # Mark as complete
+    registry.update_snapshot_status("s1", "complete")
+    health = registry.get_machine_health()
+    assert health[0]["total_complete_snapshots"] == 1
+    assert health[0]["has_snapshots"] == True
+    assert health[0]["last_snapshot_at"] is not None

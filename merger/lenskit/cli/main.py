@@ -104,9 +104,10 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_scan_parser.add_argument("--hostname", help="Explicit hostname for the registry (defaults to system hostname)")
     atlas_scan_parser.add_argument("--incremental", action="store_true", help="Perform an incremental scan based on the latest snapshot")
 
-    atlas_machines_parser = atlas_subparsers.add_parser("machines", help="List registered machines")
-    atlas_roots_parser = atlas_subparsers.add_parser("roots", help="List registered roots")
-    atlas_snapshots_parser = atlas_subparsers.add_parser("snapshots", help="List registered snapshots")
+    atlas_subparsers.add_parser("machine-health", help="List registered machines with health status and last seen info")
+    atlas_subparsers.add_parser("machines", help="List registered machines")
+    atlas_subparsers.add_parser("roots", help="List registered roots")
+    atlas_subparsers.add_parser("snapshots", help="List registered snapshots")
 
     atlas_diff_parser = atlas_subparsers.add_parser("diff", help="Compute delta between two snapshots")
     atlas_diff_parser.add_argument("from_snapshot", help="The from snapshot ID or machine:root_path")
@@ -175,6 +176,8 @@ def main(args: Optional[List[str]] = None) -> int:
             return cmd_atlas.run_atlas_scan(parsed_args)
         elif parsed_args.atlas_cmd == "machines":
             return cmd_atlas.run_atlas_machines(parsed_args)
+        elif parsed_args.atlas_cmd == "machine-health":
+            return cmd_atlas.run_atlas_machine_health(parsed_args)
         elif parsed_args.atlas_cmd == "roots":
             return cmd_atlas.run_atlas_roots(parsed_args)
         elif parsed_args.atlas_cmd == "snapshots":

@@ -149,6 +149,29 @@ class AtlasRegistry:
             machines.append(res)
         return machines
 
+    def get_machine_health(self) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT m.machine_id, m.hostname, m.labels, m.last_seen_at,
+                   COUNT(s.snapshot_id) as total_complete_snapshots,
+                   MAX(s.created_at) as last_snapshot_at
+            FROM machines m
+            LEFT JOIN snapshots s ON m.machine_id = s.machine_id AND s.status = 'complete'
+            GROUP BY m.machine_id, m.hostname, m.labels, m.last_seen_at
+            ORDER BY m.machine_id
+        """)
+        health_reports = []
+        for row in cur.fetchall():
+            res = dict(row)
+            res['labels'] = json.loads(res['labels']) if res['labels'] else None
+
+            # Note: This is a diagnostic read-only view and not a comprehensive "Health Score".
+            # It provides raw metrics (last seen, snapshot counts) for the UI/Agent to interpret.
+            res['has_snapshots'] = res['total_complete_snapshots'] > 0
+
+            health_reports.append(res)
+        return health_reports
+
     def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None):
         with self.conn:
             self.conn.execute("""

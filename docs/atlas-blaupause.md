@@ -942,7 +942,7 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
 - [ ] Backup-gap-Analyse definieren
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [ ] Konfliktfälle (gleiches root label, andere Pfade) definieren
-- [ ] Maschinen-Health-/Last-Seen-Sicht ergänzen
+- [x] Maschinen-Health-/Last-Seen-Sicht ergänzen
 
 **Stop-Kriterium**: Atlas kann Root- und Snapshot-Zustände über Maschinen hinweg vergleichen.
 
