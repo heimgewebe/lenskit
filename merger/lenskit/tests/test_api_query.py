@@ -293,6 +293,7 @@ def test_agent_query_contract_roundtrip(mini_index):
     assert isinstance(data["context_bundle"], dict)
     assert "query_trace" in data
     assert isinstance(data["query_trace"], dict)
+    assert "hits" not in data
 
     bundle = data["context_bundle"]
     assert "hits" in bundle
@@ -325,6 +326,8 @@ def test_api_query_lookup_minimal(mini_index):
 
     data = response.json()
     assert "hits" in data
+    assert "context_bundle" not in data
+    assert "query_trace" not in data
     assert len(data["hits"]) == 1
     hit = data["hits"][0]
     # lookup_minimal should strip explain, graph_context, surrounding_context
@@ -354,6 +357,8 @@ def test_api_query_review_context(mini_index):
 
     data_with_ctx = response_with_ctx.json()
     assert "hits" in data_with_ctx
+    assert "context_bundle" not in data_with_ctx
+    assert "query_trace" not in data_with_ctx
     assert len(data_with_ctx["hits"]) == 1
     hit_with_ctx = data_with_ctx["hits"][0]
 
@@ -380,6 +385,8 @@ def test_api_query_review_context(mini_index):
 
     data_no_ctx = response_no_ctx.json()
     assert "hits" in data_no_ctx
+    assert "context_bundle" not in data_no_ctx
+    assert "query_trace" not in data_no_ctx
     assert len(data_no_ctx["hits"]) == 1
     hit_no_ctx = data_no_ctx["hits"][0]
 
@@ -412,6 +419,7 @@ def test_api_query_lookup_minimal_with_trace(mini_index):
     assert isinstance(data["context_bundle"], dict)
     assert "query_trace" in data
     assert isinstance(data["query_trace"], dict)
+    assert "hits" not in data
 
     bundle = data["context_bundle"]
     assert "hits" in bundle
@@ -449,6 +457,7 @@ def test_api_query_review_context_with_trace(mini_index):
     assert isinstance(data["context_bundle"], dict)
     assert "query_trace" in data
     assert isinstance(data["query_trace"], dict)
+    assert "hits" not in data
 
     bundle = data["context_bundle"]
     assert "hits" in bundle
