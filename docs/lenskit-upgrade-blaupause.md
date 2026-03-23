@@ -1183,15 +1183,15 @@ Besonders wichtig: Ein Test, der zeigt: Graph vorhanden -> Query-Ranking ändert
 - [x] 3. definierte Graph-Score-Formel (im Re-Audit strukturell belegt, mathematisch gecappt)
 - [x] 4. Explain/Runtime-Kopplung (im Re-Audit strukturell belegt)
 - [x] 5. graph-aware Eval mit Deltas (im Re-Audit strukturell belegt)
-- [ ] 6. Graph-Staleness-Marker (end-to-end im aktuellen Audit nicht vollständig nachgewiesen)
+- [x] 6. Graph-Staleness-Marker (end-to-end durch echten Hash-Mismatch in test_graph_staleness_e2e_hash_mismatch nachgewiesen)
 
 ### 1.12 Gate für Phase 3
-- [ ] Phase 3 ist im Audit strukturell nachgewiesen, aber eine vollständige End-to-End-Absicherung (insb. Staleness-Recovery) liegt noch nicht vor; Gate bleibt daher offen:
-* Graph semantisch dokumentiert ist
-* Query/Eval denselben Loader und dieselbe Semantik nutzen
-* Explain die tatsächliche Graph-Wirkung abbildet
-* Graph-Effekt messbar ist
-* Stale/missing Graph nicht mehr still durchrutscht
+- [x] Phase 3 ist im Audit strukturell nachgewiesen und End-to-End-Absicherung (insb. Staleness-Recovery) liegt vor; Gate ist geschlossen:
+* Graph semantisch dokumentiert ist [x]
+* Query/Eval denselben Loader und dieselbe Semantik nutzen [x]
+* Explain die tatsächliche Graph-Wirkung abbildet [x]
+* Graph-Effekt messbar ist [x]
+* Stale/missing Graph nicht mehr still durchrutscht [x]
 
 ---
 
@@ -1785,7 +1785,7 @@ Gate:
 
 - [x] PR 1: Contract-/Provenance-Härtung
 - [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
-- [ ] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E noch offen)
+- [x] PR 3: Graph Runtime Konsolidierung (im Re-Audit strukturell belegt, E2E durch Tests abgesichert)
 - [x] PR 4: Federation Foundation (Init + Contract + minimale Federation-Verwaltung/CLI)
 - [ ] PR 5: Federated Query + Ranking (angerissen: minimale föderierte Query-Aggregation vorhanden)
 - [ ] PR 6: Agent Control Surface
@@ -1848,7 +1848,7 @@ Schutzmaßnahmen:
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
 - [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
-- [ ] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt offen)
+- [x] M3: Graph-Runtime konsistent und diagnostizierbar (im aktuellen Audit strukturell belegt, Gate ist geschlossen)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar
