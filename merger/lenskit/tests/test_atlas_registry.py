@@ -193,7 +193,7 @@ def test_machine_registry_ambiguous_legacy_ids(registry):
     with pytest.raises(ValueError, match="Ambiguous legacy machine IDs found for"):
         registry.register_machine("m1", "host-a")
 
-def test_machine_health(temp_db_path, registry):
+def test_machine_health(registry):
     registry.register_machine("m1", "host1")
     registry.register_root("r1", "m1", "abs_path", "/foo")
 

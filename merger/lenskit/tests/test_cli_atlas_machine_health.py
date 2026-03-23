@@ -37,7 +37,7 @@ def test_cli_machine_health_json_output(tmp_path, monkeypatch):
     repo_root = Path(__file__).resolve().parent.parent.parent.parent
     env = os.environ.copy()
     existing_pp = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{repo_root}:{existing_pp}" if existing_pp else str(repo_root)
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pp}" if existing_pp else str(repo_root)
 
     cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "machine-health"]
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp_path, env=env)
