@@ -1,0 +1,83 @@
+import sys
+import pytest
+import subprocess
+import json
+import os
+import shutil
+from pathlib import Path
+
+def test_cli_atlas_analyze_backup_gap(tmp_path):
+    # Setup registry and environments
+    registry_path = tmp_path / "atlas/registry/atlas_registry.sqlite"
+    atlas_base = tmp_path / "atlas"
+    atlas_base.mkdir(parents=True)
+
+    # We will invoke the CLI script via subprocess but set CWD
+
+    # Let's write a mock registry and snapshot artifacts
+    # We can use the AtlasRegistry directly to set up state, then use CLI to query it.
+    from merger.lenskit.atlas.registry import AtlasRegistry
+    import datetime
+
+    with AtlasRegistry(registry_path) as reg:
+        reg.register_machine("machine-a", "host-a")
+        reg.register_root("root-src", "machine-a", "abs_path", "/src")
+        reg.register_root("root-backup", "machine-a", "abs_path", "/backup")
+
+        snap1 = "snap_src_1"
+        snap2 = "snap_backup_1"
+
+        reg.create_snapshot(snap1, "machine-a", "root-src", "hash1", "complete")
+        reg.create_snapshot(snap2, "machine-a", "root-backup", "hash2", "complete")
+
+        # Write dummy inventory files
+        inv_src_path = atlas_base / "inv_src.jsonl"
+        with open(inv_src_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": "2024-01-01"}) + "\n")
+            f.write(json.dumps({"rel_path": "file2.txt", "size_bytes": 200, "mtime": "2024-01-01"}) + "\n")
+
+        inv_backup_path = atlas_base / "inv_backup.jsonl"
+        with open(inv_backup_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": "2024-01-01"}) + "\n")
+            f.write(json.dumps({"rel_path": "file3.txt", "size_bytes": 300, "mtime": "2024-01-01"}) + "\n")
+
+        reg.update_snapshot_artifacts(snap1, {"inventory": "inv_src.jsonl"})
+        reg.update_snapshot_artifacts(snap2, {"inventory": "inv_backup.jsonl"})
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "merger.lenskit.cli.main",
+                "atlas",
+                "analyze",
+                "backup-gap",
+                "snap_src_1",
+                "snap_backup_1"
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": f"{os.environ.get('PYTHONPATH', '')}:{old_cwd}"}
+        )
+
+        assert result.returncode == 0, f"Command failed: {result.stderr}"
+
+        # Parse output
+        output_json = json.loads(result.stdout.strip())
+
+        # Validation semantics
+        assert output_json["source_snapshot"] == "snap_src_1"
+        assert output_json["backup_snapshot"] == "snap_backup_1"
+        assert output_json["summary"]["missing_count"] == 1
+        assert output_json["summary"]["outdated_count"] == 0
+        assert output_json["summary"]["extraneous_count"] == 1
+
+        assert output_json["missing"] == ["file2.txt"]
+        assert output_json["extraneous"] == ["file3.txt"]
+
+    finally:
+        os.chdir(old_cwd)
