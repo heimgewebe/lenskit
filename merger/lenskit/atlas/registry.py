@@ -210,11 +210,26 @@ class AtlasRegistry:
             """, (status, snapshot_id))
 
     def update_snapshot_artifacts(self, snapshot_id: str, artifacts: Dict[str, str]):
+        # Static mapping of allowed keys to their corresponding database columns.
+        # This prevents SQL injection by ensuring only validated, static column names are used in the query.
+        ALLOWED_ARTIFACT_KEYS = {
+            "inventory": "inventory_ref",
+            "dirs": "dirs_ref",
+            "summary": "summary_ref",
+            "content": "content_ref",
+            "topology": "topology_ref",
+            "hotspots": "hotspots_ref",
+            "workspaces": "workspaces_ref",
+            "duplicates": "duplicates_ref",
+            "orphans": "orphans_ref",
+            "disk": "disk_ref"
+        }
+
         set_clauses = []
         params = []
-        for key in ["inventory", "dirs", "summary", "content", "topology", "hotspots", "workspaces", "duplicates", "orphans", "disk"]:
+        for key, column_name in ALLOWED_ARTIFACT_KEYS.items():
             if key in artifacts:
-                set_clauses.append(f"{key}_ref = ?")
+                set_clauses.append(f"{column_name} = ?")
                 params.append(artifacts[key])
 
         if not set_clauses:
