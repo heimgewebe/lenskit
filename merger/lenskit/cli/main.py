@@ -143,6 +143,10 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_analyze_disk_parser = atlas_analyze_subparsers.add_parser("disk", help="Analyze disk hotspots and old/large files in a snapshot")
     atlas_analyze_disk_parser.add_argument("snapshot_id", help="The snapshot ID to analyze")
 
+    atlas_analyze_backup_gap_parser = atlas_analyze_subparsers.add_parser("backup-gap", help="Compare two snapshots (source and backup) to find missing files")
+    atlas_analyze_backup_gap_parser.add_argument("source_snapshot", help="The source snapshot ID or reference (machine:path)")
+    atlas_analyze_backup_gap_parser.add_argument("backup_snapshot", help="The backup snapshot ID or reference (machine:path)")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
