@@ -1,8 +1,11 @@
 import json
 try:
     import jsonschema
+    from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 except ImportError:
     jsonschema = None
+    class _DummyException(Exception): pass
+    JsonSchemaValidationError = _DummyException
 
 def _require_jsonschema() -> None:
     if jsonschema is None:
@@ -54,7 +57,7 @@ def init_federation(federation_id: str, out_path: Path) -> dict:
     try:
         _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Failed to generate valid federation index schema: {e}")
 
     with out_path.open("w", encoding="utf-8") as f:
@@ -81,7 +84,7 @@ def validate_federation(index_path: Path) -> bool:
     try:
         _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Schema validation failed: {e.message} at path {list(e.path)}")
 
     # 2. Logical Constraints
@@ -149,7 +152,7 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     try:
         _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Existing federation index is corrupt: schema validation failed: {e.message} at path {list(e.path)}")
 
     # Check for uniqueness of repo_id
@@ -179,7 +182,7 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     try:
         _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Failed to generate valid federation index schema after modification: {e}")
 
     with index_path.open("w", encoding="utf-8") as f:
