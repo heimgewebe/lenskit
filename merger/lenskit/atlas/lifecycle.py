@@ -57,7 +57,7 @@ def run_scan_lifecycle(
         try:
             mark_failed(str(exc))
         except Exception:
-            logger.warning("%s: mark_failed itself raised", label, exc_info=True)
+            logger.warning("%s: mark_failed itself raised during exception handling", label, exc_info=True)
         raise
     finally:
         # Defensive zombie guard — if neither the success path inside

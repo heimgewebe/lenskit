@@ -1027,7 +1027,9 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 enable_content_stats=(request.scan_mode == "content")
             )
 
-            # Pre-build a reusable progress template to avoid copying initial_state on every callback
+            # Mutable progress template — stats field is replaced on each
+            # callback invocation.  Only the static envelope (status, root,
+            # created_at, effective) is reused across calls.
             progress_template = {
                 "status": initial_state["status"],
                 "root": initial_state.get("root", ""),
