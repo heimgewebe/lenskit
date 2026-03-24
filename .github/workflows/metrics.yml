@@ -12,6 +12,8 @@ env:
   METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/wgx/metrics.json
   HAUSKI_POST_URL: ${{ secrets.HAUSKI_METRICS_URL }}
 
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   snapshot:
     runs-on: ubuntu-latest
@@ -23,7 +25,7 @@ jobs:
       - name: Ensure Node for ajv-cli
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Snapshot metrics
         run: bash scripts/wgx-metrics-snapshot.sh --json

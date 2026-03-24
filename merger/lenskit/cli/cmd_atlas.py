@@ -176,6 +176,8 @@ def run_atlas_analyze(args: argparse.Namespace) -> int:
         return _run_analyze_orphans(args.snapshot_id)
     if args.analyze_command == "disk":
         return _run_analyze_disk(args.snapshot_id)
+    if args.analyze_command == "backup-gap":
+        return _run_analyze_backup_gap(args.source_snapshot, args.backup_snapshot)
     return 1
 
 def _run_analyze_orphans(snapshot_id: str) -> int:
@@ -849,3 +851,44 @@ def _run_analyze_disk(snapshot_id: str) -> int:
     print(json.dumps(report, indent=2))
 
     return 0
+
+
+def _run_analyze_backup_gap(source_snapshot_id: str, backup_snapshot_id: str) -> int:
+    from merger.lenskit.atlas.diff import compute_snapshot_comparison
+
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    try:
+        with AtlasRegistry(registry_path) as registry:
+            source_snap_id = _resolve_snapshot_ref(source_snapshot_id, registry)
+            backup_snap_id = _resolve_snapshot_ref(backup_snapshot_id, registry)
+
+            comparison = compute_snapshot_comparison(registry, source_snap_id, backup_snap_id)
+
+            # removed_files means in source (from_snap) but not in backup (to_snap) -> Need to be backed up
+            # changed_files means in both but different (size/mtime) -> Need to be updated in backup
+            # new_files means in backup (to_snap) but not in source (from_snap) -> Extraneous in backup
+
+            missing_in_backup = comparison.get("removed_files", [])
+            outdated_in_backup = comparison.get("changed_files", [])
+            extraneous_in_backup = comparison.get("new_files", [])
+
+            report = {
+                "source_snapshot": source_snap_id,
+                "backup_snapshot": backup_snap_id,
+                "analyzed_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+                "summary": {
+                    "missing_count": len(missing_in_backup),
+                    "outdated_count": len(outdated_in_backup),
+                    "extraneous_count": len(extraneous_in_backup)
+                },
+                "missing": missing_in_backup,
+                "outdated": outdated_in_backup,
+                "extraneous": extraneous_in_backup
+            }
+
+            print(json.dumps(report, indent=2))
+            return 0
+    except Exception as e:
+        print(f"Error computing backup gap: {e}", file=sys.stderr)
+        return 1
