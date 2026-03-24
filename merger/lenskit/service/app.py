@@ -992,22 +992,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     json_path = merges_dir / json_filename
 
     def _mark_api_failed(error_msg: str) -> None:
-        # Best-effort: load the current artifact state so that progress
-        # counters (files_seen, dirs_seen, bytes_seen, last_progress_at)
-        # survive failure.  Fall back to initial_state if the file is
-        # unreadable (e.g. disk full before first write).
-        current = None
-        try:
-            with open(json_path, "r", encoding="utf-8") as fh:
-                data = json.load(fh)
-                if isinstance(data, dict):
-                    current = data
-        except Exception:
-            logger.warning("_mark_api_failed: could not read current artifact state from %s; falling back to initial_state", json_path)
-        base = current if current else initial_state.copy()
-        base["status"] = "failed"
-        base["error"] = error_msg
-        _write_json_atomic(json_path, base)
+        _mark_api_artifact_failed(json_path, initial_state, error_msg)
 
     def _is_api_still_running() -> bool:
         try:
@@ -1170,6 +1155,46 @@ def _normalize_atlas_status(raw: str) -> str:
         return "complete"
     return raw
 
+
+def _read_atlas_artifact_json(path: Path) -> dict:
+    """Read an atlas artifact JSON file and normalize its status field.
+
+    Returns a dict with ``status`` mapped through :func:`_normalize_atlas_status`
+    and a default of ``"complete"`` when the key is absent.
+    Raises on IO/JSON errors — callers are expected to handle exceptions.
+    """
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, dict):
+        return {}
+    data["status"] = _normalize_atlas_status(data.get("status", "complete"))
+    return data
+
+
+def _mark_api_artifact_failed(json_path: Path, initial_state: dict, error_msg: str) -> None:
+    """Mark an API-managed atlas artifact as *failed*, preserving progress data.
+
+    Best-effort: loads the current artifact state so that progress counters
+    (``files_seen``, ``dirs_seen``, ``bytes_seen``, ``last_progress_at``) survive
+    the failure transition.  Falls back to *initial_state* if the file is
+    unreadable (e.g. disk full before first write).
+    """
+    current = None
+    try:
+        with open(json_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            if isinstance(data, dict):
+                current = data
+    except Exception:
+        logger.warning(
+            "_mark_api_artifact_failed: could not read current artifact state "
+            "from %s; falling back to initial_state", json_path,
+        )
+    base = current if current else initial_state.copy()
+    base["status"] = "failed"
+    base["error"] = error_msg
+    _write_json_atomic(json_path, base)
+
 @app.get("/api/atlas", response_model=List[AtlasArtifact], dependencies=[Depends(verify_token)])
 def list_atlas():
     merges_dir = state.merges_dir
@@ -1191,15 +1216,14 @@ def list_atlas():
         data = {}
         error_msg = None
         try:
-            with open(file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                stats = data.get("stats", {})
-                scan_root = data.get("root", "?")
-                status = _normalize_atlas_status(data.get("status", "complete"))
-                effective = data.get("effective", None)
-                if effective:
-                    effective = AtlasEffective(**effective)
-                error_msg = data.get("error")
+            data = _read_atlas_artifact_json(file)
+            stats = data.get("stats", {})
+            scan_root = data.get("root", "?")
+            status = data.get("status", "complete")
+            effective = data.get("effective", None)
+            if effective:
+                effective = AtlasEffective(**effective)
+            error_msg = data.get("error")
         except Exception:
             logger.warning(f"Failed to read/parse atlas artifact: {file.name}")
             stats = {}
@@ -1295,17 +1319,16 @@ def get_latest_atlas():
 
     for file in files:
         try:
-            with open(file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                status = _normalize_atlas_status(data.get("status", "complete"))
-                if status == "complete":
-                    latest_file = file
-                    stats = data.get("stats", {})
-                    scan_root = data.get("root", "?")
-                    effective = data.get("effective", None)
-                    if effective:
-                        effective = AtlasEffective(**effective)
-                    break
+            data = _read_atlas_artifact_json(file)
+            status = data.get("status", "complete")
+            if status == "complete":
+                latest_file = file
+                stats = data.get("stats", {})
+                scan_root = data.get("root", "?")
+                effective = data.get("effective", None)
+                if effective:
+                    effective = AtlasEffective(**effective)
+                break
         except Exception:
             continue
 

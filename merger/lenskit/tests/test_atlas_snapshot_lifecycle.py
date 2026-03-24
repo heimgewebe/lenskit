@@ -666,6 +666,8 @@ def test_mark_api_failed_preserves_progress(tmp_path: Path):
     Regression test: the original _mark_api_failed() used initial_state.copy()
     which wiped all accumulated progress data.
     """
+    from merger.lenskit.service.app import _mark_api_artifact_failed
+
     json_path = tmp_path / "atlas-preserve.json"
 
     # Simulate state after progress has been written mid-scan
@@ -692,22 +694,8 @@ def test_mark_api_failed_preserves_progress(tmp_path: Path):
         "stats": {}
     }
 
-    # Import the actual _write_json_atomic helper
-    from merger.lenskit.service.app import _write_json_atomic
-
-    # Replicate the improved _mark_api_failed logic
-    current = None
-    try:
-        with open(json_path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-            if isinstance(data, dict):
-                current = data
-    except Exception:
-        pass
-    base = current if current else initial_state.copy()
-    base["status"] = "failed"
-    base["error"] = "Disk full mid-scan"
-    _write_json_atomic(json_path, base)
+    # Call the real module-level helper (not a copy of its logic)
+    _mark_api_artifact_failed(json_path, initial_state, "Disk full mid-scan")
 
     result = json.loads(json_path.read_text(encoding="utf-8"))
     assert result["status"] == "failed"
@@ -720,8 +708,10 @@ def test_mark_api_failed_preserves_progress(tmp_path: Path):
 
 
 def test_mark_api_failed_falls_back_to_initial_state(tmp_path: Path):
-    """If the JSON artifact is unreadable, _mark_api_failed falls back to
-    initial_state (no crash, no empty file)."""
+    """If the JSON artifact is unreadable, _mark_api_artifact_failed falls back
+    to initial_state (no crash, no empty file)."""
+    from merger.lenskit.service.app import _mark_api_artifact_failed
+
     json_path = tmp_path / "atlas-unreadable.json"
     # Write garbage so json.load fails
     json_path.write_text("NOT-JSON{{{", encoding="utf-8")
@@ -733,21 +723,8 @@ def test_mark_api_failed_falls_back_to_initial_state(tmp_path: Path):
         "stats": {}
     }
 
-    from merger.lenskit.service.app import _write_json_atomic
-
-    # Replicate the improved _mark_api_failed logic
-    current = None
-    try:
-        with open(json_path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-            if isinstance(data, dict):
-                current = data
-    except Exception:
-        pass
-    base = current if current else initial_state.copy()
-    base["status"] = "failed"
-    base["error"] = "Something went wrong"
-    _write_json_atomic(json_path, base)
+    # Call the real module-level helper
+    _mark_api_artifact_failed(json_path, initial_state, "Something went wrong")
 
     result = json.loads(json_path.read_text(encoding="utf-8"))
     assert result["status"] == "failed"

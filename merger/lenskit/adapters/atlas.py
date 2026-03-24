@@ -150,10 +150,16 @@ def detect_encoding(path: Path) -> Optional[str]:
 
 logger = logging.getLogger(__name__)
 
-# Threshold (in files) for the file-count-based progress gate.  The scanner
-# fires on_progress when this many *new* files have been seen since the last
-# emit, even if the time-based 1-second gate has not elapsed.  This prevents
-# false ``is_stalled`` flags on large directories.
+# Heuristic threshold (in files) for the file-count-based progress gate.
+# The scanner fires on_progress when this many *new* files have been seen
+# since the last emit, even if the time-based 1-second gate has not elapsed.
+# This prevents false ``is_stalled`` flags on large directories where a
+# single os.walk() iteration takes > 60 s.
+#
+# The value 1000 is a pragmatic heuristic — large enough to avoid IO storms,
+# small enough to keep stall detection responsive on big monorepos.  It is
+# deliberately NOT configurable in this version; a future PR may promote it
+# to a tunable if real-world usage demands it.
 _PROGRESS_FILE_COUNT_THRESHOLD = 1000
 
 class AtlasScanner:
