@@ -42,6 +42,11 @@ def _setup_snapshot(registry: AtlasRegistry, snapshot_id: str = "snap_test__root
     return snapshot_id
 
 
+def _raise(exc):
+    """Helper: raises *exc*.  Use as scan_fn in lifecycle tests."""
+    raise exc
+
+
 # ── 6.1 Zombie Test ──────────────────────────────────────────────────────
 
 def test_zombie_snapshot_on_scan_exception(registry: AtlasRegistry, tmp_path: Path):
@@ -499,7 +504,7 @@ def test_api_zombie_guard_via_lifecycle(tmp_path: Path):
 
     with pytest.raises(RuntimeError, match="scan boom"):
         run_scan_lifecycle(
-            scan_fn=lambda: (_ for _ in ()).throw(RuntimeError("scan boom")),
+            scan_fn=lambda: _raise(RuntimeError("scan boom")),
             mark_failed=mark_failed,
             is_still_running=is_still_running,
         )
@@ -609,7 +614,7 @@ def test_atlas_lifecycle_failure_semantics_parity(registry: AtlasRegistry, tmp_p
 
     with pytest.raises(RuntimeError, match="CLI boom"):
         run_scan_lifecycle(
-            scan_fn=lambda: (_ for _ in ()).throw(RuntimeError("CLI boom")),
+            scan_fn=lambda: _raise(RuntimeError("CLI boom")),
             mark_failed=lambda msg: registry.update_snapshot_status(cli_snap_id, "failed", error_message=msg),
             is_still_running=lambda: (registry.get_snapshot(cli_snap_id) or {}).get("status") == "running",
             label="cli-fail-test",
@@ -630,7 +635,7 @@ def test_atlas_lifecycle_failure_semantics_parity(registry: AtlasRegistry, tmp_p
 
     with pytest.raises(RuntimeError, match="API boom"):
         run_scan_lifecycle(
-            scan_fn=lambda: (_ for _ in ()).throw(RuntimeError("API boom")),
+            scan_fn=lambda: _raise(RuntimeError("API boom")),
             mark_failed=api_mark_failed,
             is_still_running=lambda: json.loads(json_path.read_text(encoding="utf-8")).get("status") == "running",
             label="api-fail-test",
