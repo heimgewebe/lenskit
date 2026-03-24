@@ -119,3 +119,25 @@ else:
     assert result.returncode == 0
     assert "Success" in result.stdout
     assert "Schema validation skipped" in result.stderr
+
+def test_federation_degradation(tmp_path):
+    code = f"""
+import sys
+sys.modules['jsonschema'] = None
+import merger.lenskit.core.federation as fed
+from pathlib import Path
+
+try:
+    fed.init_federation("test-fed", Path("{tmp_path / 'fed.json'}"))
+    sys.exit(1)
+except RuntimeError as e:
+    if "jsonschema is required for federation schema validation but is not installed." in str(e):
+        print("Success")
+    else:
+        print(f"Wrong error: {{e}}")
+        sys.exit(1)
+"""
+    repo_root = get_repo_root()
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=get_test_env(), cwd=repo_root)
+    assert result.returncode == 0
+    assert "Success" in result.stdout

@@ -12,7 +12,7 @@ Diese Matrix ordnet die in `merger/lenskit/tests/` existierenden Tests nach abge
 | **Context Bundle & Output Profiles** | `test_context_bundle.py` (`test_context_bundle_contains_evidence_and_context`, `test_context_bundle_preserves_provenance`, `test_ui_payload_excludes_internal_fields`, `test_agent_minimal_profile_contract`) | Context Builder trennt Hit, Evidence und Context strukturell. Provenance Type bleibt stabil. Output-Profile filtern interne Payload-Daten heraus. | **Durch vorhandene Tests strukturell belegt.** | Keine inhaltliche "Nutzbarkeitsprüfung" über den JSON-Schema-Check hinaus. |
 | **Path Security** | `test_atlas_windows_paths.py`, `test_include_paths.py` | Atlas CWD Fallbacks sind reguliert. Absolute Paths werden deterministisch auf Basis Directories gelöst. | **Durch vorhandene Tests strukturell belegt.** | Traversalschutz ist aktiv. |
 | **Backwards Compatibility** | `test_contract_version_guards.py`, `test_jsonschema_degradation.py`, `test_context_bundle.py::test_cli_backward_compatibility` | Abwärtskompatibilität wirft Fehler oder nutzt saubere Fallbacks, statt Scheinfakten zu generieren. | **Durch vorhandene Tests strukturell belegt.** | Keine vollständige End-to-End-Absicherung. |
-| **Federation & Cross-Repo** | - | - | **Offen.** | Es existieren keine Tests für Föderation (`test_federation_index_builds_deterministically`, `test_cross_repo_links` etc.). |
+| **Federation & Cross-Repo** | `test_federation_*.py` | Föderation-Artefakte bauen deterministisch und Query-Mechanismen greifen | **Teilweise abgedeckt.** | Tests unter `test_federation_*.py` (u. a. Add, Query, Inspect, Validate). |
 | **API/UI Integration** | `test_webui_payload.py` | Stellt sicher, dass minimale Playwright-Webseiten-Checks strukturell durchlaufen. | **Lückenhaft.** | API/UI-Strukturen sind nicht umfassend end-to-end gesichert oder als produktionsreif testbar. |
 
 ## Zusammenfassung der Test-Abdeckung
@@ -20,4 +20,4 @@ Diese Matrix ordnet die in `merger/lenskit/tests/` existierenden Tests nach abge
 Die Testsuite (`merger/lenskit/tests/`) belegt die Grundlagen für die Ingestion (Phase 1), die Core-Runtime (Phase 2), die Graph-Integration (Phase 3) sowie die strukturellen Erwartungen an Context-Bundles (Phase 4).
 Diese Belege sichern spezifische Teilziele methodisch ab, decken jedoch weder die API-Sicherheit weitreichend ab, noch prüfen sie die tatsächliche Agent-Tauglichkeit der ausgegebenen Kontexte qualitativ.
 
-Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist vollkommen unbelegt.
+Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist durch Tests unter `test_federation_*.py` **teilweise abgedeckt**, bleibt aber insbesondere bei vollständigen End-to-End-Pfaden über mehrere Repositories unvollständig.

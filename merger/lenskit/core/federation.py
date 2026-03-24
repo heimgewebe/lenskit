@@ -1,4 +1,15 @@
 import json
+try:
+    import jsonschema
+    from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
+except ImportError:
+    jsonschema = None
+    JsonSchemaValidationError = None
+
+def _require_jsonschema() -> None:
+    if jsonschema is None:
+        raise RuntimeError("jsonschema is required for federation schema validation but is not installed.")
+
 import datetime
 from pathlib import Path
 from typing import Optional
@@ -42,10 +53,11 @@ def init_federation(federation_id: str, out_path: Path) -> dict:
     }
 
     # Validate against our own schema before writing (fail safe)
-    import jsonschema
+    _require_jsonschema()
+
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Failed to generate valid federation index schema: {e}")
 
     with out_path.open("w", encoding="utf-8") as f:
@@ -69,10 +81,11 @@ def validate_federation(index_path: Path) -> bool:
         fed_data = json.load(f)
 
     # 1. Schema Validation
-    import jsonschema
+    _require_jsonschema()
+
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Schema validation failed: {e.message} at path {list(e.path)}")
 
     # 2. Logical Constraints
@@ -137,10 +150,11 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
         fed_data = json.load(f)
 
     # Pre-validate existing data to prevent poor failure modes (e.g. KeyError on missing repo_id)
-    import jsonschema
+    _require_jsonschema()
+
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Existing federation index is corrupt: schema validation failed: {e.message} at path {list(e.path)}")
 
     # Check for uniqueness of repo_id
@@ -167,10 +181,11 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     fed_data["updated_at"] = now
 
     # Validate against our own schema before writing (fail safe)
-    import jsonschema
+    _require_jsonschema()
+
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
-    except jsonschema.exceptions.ValidationError as e:
+    except JsonSchemaValidationError as e:
         raise ValueError(f"Failed to generate valid federation index schema after modification: {e}")
 
     with index_path.open("w", encoding="utf-8") as f:
