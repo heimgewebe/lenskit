@@ -144,14 +144,25 @@ class AtlasRequest(BaseModel):
 class AtlasArtifact(BaseModel):
     """Projection of an Atlas scan artifact for the API layer.
 
-    ``status`` is the canonical lifecycle state ("running" / "completed" / "failed").
-    ``is_stalled`` is a **derived diagnostic flag** — it is NOT a status class.
-    It is computed on-the-fly from ``last_progress_at`` (>60 s without update)
-    and never persisted.  UI consumers can use it to warn about potentially
-    hung scans without introducing a fourth status value.
+    Status vocabulary (unified across CLI and API)
+    -----------------------------------------------
+    - ``"running"``  — scan is in progress
+    - ``"complete"`` — scan finished successfully (terminal)
+    - ``"failed"``   — scan terminated with an error (terminal)
+
+    Note: the CLI path persists status in the SQLite registry while the
+    API path persists status in the JSON artifact file.  Both paths use
+    the **same three status values** above.  See ``atlas/lifecycle.py``
+    for the shared lifecycle executor that guarantees deterministic
+    finalization.
+
+    ``is_stalled`` is a **derived diagnostic flag** — it is NOT a status
+    class.  It is computed on-the-fly from ``last_progress_at`` (>60 s
+    without update) and never persisted.  UI consumers can use it to warn
+    about potentially hung scans without introducing a fourth status value.
     """
     id: str
-    status: Literal["running", "completed", "failed"] = "completed"
+    status: Literal["running", "complete", "failed"] = "complete"
     created_at: str
     hub: str
     root_scanned: str

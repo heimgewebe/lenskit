@@ -24,9 +24,9 @@ def lifecycle_client(tmp_path: Path):
     }
     (merges / "atlas-1000.json").write_text(json.dumps(failed_data), encoding="utf-8")
 
-    # Middle: Completed
+    # Middle: Complete
     completed_data = {
-        "status": "completed",
+        "status": "complete",
         "root": "/test",
         "created_at": "2024-01-02T10:00:00Z",
         "stats": {"total_files": 1}
@@ -75,7 +75,7 @@ def test_list_all_artifacts(lifecycle_client: TestClient):
     assert data[0]["status"] == "running"
 
     assert data[1]["id"] == "atlas-2000"
-    assert data[1]["status"] == "completed"
+    assert data[1]["status"] == "complete"
     assert "dirs_inventory" in data[1]["paths"]
     assert data[1]["paths"]["dirs_inventory"] == "atlas-2000.dirs_inventory.jsonl"
 
@@ -89,9 +89,9 @@ def test_get_latest_artifact_ignores_running_and_failed(lifecycle_client: TestCl
 
     data = response.json()
 
-    # Must skip 'atlas-3000' (running) and return 'atlas-2000' (completed)
+    # Must skip 'atlas-3000' (running) and return 'atlas-2000' (complete)
     assert data["id"] == "atlas-2000"
-    assert data["status"] == "completed"
+    assert data["status"] == "complete"
     assert "dirs_inventory" in data["paths"]
     assert data["paths"]["dirs_inventory"] == "atlas-2000.dirs_inventory.jsonl"
 
@@ -131,7 +131,7 @@ def test_get_latest_artifact_404_if_none_completed(tmp_path: Path):
         with TestClient(app) as client:
             response = client.get("/api/atlas/latest")
             assert response.status_code == 404
-            assert "No completed atlas artifacts found" in response.json()["detail"]
+            assert "No complete atlas artifacts found" in response.json()["detail"]
     finally:
         app.dependency_overrides.clear()
         app.user_middleware = orig_middleware

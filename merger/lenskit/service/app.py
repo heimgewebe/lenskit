@@ -1053,7 +1053,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path, on_progress=_api_progress)
 
             # Merge with initial state to preserve required fields, then update status
-            result["status"] = "completed"
+            result["status"] = "complete"
             result["created_at"] = initial_state["created_at"]
             result["effective"] = initial_state["effective"]
 
@@ -1172,7 +1172,7 @@ def list_atlas():
                 data = json.load(f)
                 stats = data.get("stats", {})
                 scan_root = data.get("root", "?")
-                status = data.get("status", "completed")
+                status = data.get("status", "complete")
                 effective = data.get("effective", None)
                 if effective:
                     effective = AtlasEffective(**effective)
@@ -1267,15 +1267,15 @@ def get_latest_atlas():
     data = {}
     stats = {}
     scan_root = "?"
-    status = "completed"
+    status = "complete"
     effective = None
 
     for file in files:
         try:
             with open(file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                status = data.get("status", "completed")
-                if status == "completed":
+                status = data.get("status", "complete")
+                if status == "complete":
                     latest_file = file
                     stats = data.get("stats", {})
                     scan_root = data.get("root", "?")
@@ -1287,7 +1287,7 @@ def get_latest_atlas():
             continue
 
     if not latest_file:
-        raise HTTPException(status_code=404, detail="No completed atlas artifacts found")
+        raise HTTPException(status_code=404, detail="No complete atlas artifacts found")
 
     scan_id = latest_file.stem # atlas-123456
 
@@ -1320,7 +1320,7 @@ def get_latest_atlas():
 
     return AtlasArtifact(
         id=scan_id,
-        status="completed",
+        status="complete",
         created_at=created_at,
         hub=str(state.hub),
         root_scanned=scan_root,

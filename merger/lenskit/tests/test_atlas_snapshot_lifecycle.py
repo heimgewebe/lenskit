@@ -6,6 +6,7 @@ Tests for Atlas snapshot lifecycle hardening:
 - Stale detection for running artifacts
 - Shared lifecycle executor guarantees
 - Hardest failure paths (exception after progress, callback exception, artifact write failure)
+- Status vocabulary parity between CLI and API paths
 """
 import pytest
 import json
@@ -510,7 +511,13 @@ def test_api_zombie_guard_via_lifecycle(tmp_path: Path):
 
 
 def test_cli_and_api_lifecycle_semantic_equivalence(registry: AtlasRegistry, tmp_path: Path):
-    """CLI and API paths produce equivalent lifecycle outcomes via shared executor."""
+    """CLI and API paths produce equivalent lifecycle outcomes via shared executor.
+
+    Both paths MUST use the unified status vocabulary:
+      - "running" → "complete" on success
+      - "running" → "failed" on error
+    There must be exactly one terminal success value ("complete"), not two.
+    """
     snapshot_id = _setup_snapshot(registry)
     json_path = tmp_path / "api-artifact.json"
     json_path.write_text(json.dumps({"status": "running"}), encoding="utf-8")
@@ -526,7 +533,7 @@ def test_cli_and_api_lifecycle_semantic_equivalence(registry: AtlasRegistry, tmp
     # API-style: JSON file is canonical
     def api_mark_complete():
         data = json.loads(json_path.read_text(encoding="utf-8"))
-        data["status"] = "completed"
+        data["status"] = "complete"
         json_path.write_text(json.dumps(data), encoding="utf-8")
 
     run_scan_lifecycle(
@@ -536,9 +543,108 @@ def test_cli_and_api_lifecycle_semantic_equivalence(registry: AtlasRegistry, tmp
         label="api-test",
     )
 
-    # Both should have reached terminal states
+    # Both should have reached the SAME terminal success state
     cli_snap = registry.get_snapshot(snapshot_id)
     api_data = json.loads(json_path.read_text(encoding="utf-8"))
 
     assert cli_snap["status"] == "complete"
-    assert api_data["status"] == "completed"
+    assert api_data["status"] == "complete"
+    # Verify they use the exact same string — no "complete" vs "completed" drift
+    assert cli_snap["status"] == api_data["status"], (
+        f"Status vocabulary mismatch: CLI uses '{cli_snap['status']}', "
+        f"API uses '{api_data['status']}'"
+    )
+
+
+# ── Status Contract Test ─────────────────────────────────────────────────
+
+# The three valid Atlas status values.  Any code writing a status MUST use
+# one of these exact strings — no synonyms, no variants.
+ATLAS_STATUS_RUNNING = "running"
+ATLAS_STATUS_COMPLETE = "complete"
+ATLAS_STATUS_FAILED = "failed"
+
+
+def test_atlas_status_vocabulary_is_unified():
+    """The Atlas status vocabulary is exactly {running, complete, failed}.
+
+    This test documents and enforces the contract.  If you see 'completed'
+    anywhere in Atlas code, it is a bug — the canonical terminal success
+    value is 'complete' (not 'completed').
+
+    The status vocabulary is shared between CLI (registry-backed) and API
+    (JSON-backed) paths.  The lifecycle executor (run_scan_lifecycle) is
+    agnostic to the storage backend but guarantees that every scan reaches
+    one of the two terminal states.
+
+    Remaining architectural asymmetry (documented, not resolved here):
+    - CLI stores lifecycle state in SQLite (AtlasRegistry)
+    - API stores lifecycle state in JSON artifact files
+    Both use the same status strings.
+    """
+    from merger.lenskit.service.models import AtlasArtifact
+
+    # Verify the Pydantic model's Literal type matches our contract
+    status_field = AtlasArtifact.model_fields["status"]
+    # Extract the allowed values from the Literal annotation
+    import typing
+    literal_args = typing.get_args(status_field.annotation)
+    assert set(literal_args) == {ATLAS_STATUS_RUNNING, ATLAS_STATUS_COMPLETE, ATLAS_STATUS_FAILED}, (
+        f"AtlasArtifact.status Literal does not match the canonical vocabulary: {literal_args}"
+    )
+    # Default must be the terminal success value
+    assert status_field.default == ATLAS_STATUS_COMPLETE
+
+
+def test_atlas_lifecycle_failure_semantics_parity(registry: AtlasRegistry, tmp_path: Path):
+    """CLI and API failure paths produce identical semantic outcomes.
+
+    Verifies:
+    - Both end up "failed" (not "running")
+    - Both persist an error message
+    - Neither leaves a zombie
+    """
+    # --- CLI failure path ---
+    cli_snap_id = _setup_snapshot(registry, snapshot_id="snap_cli_fail__root__20240101T000000Z__aaaa1111")
+
+    with pytest.raises(RuntimeError, match="CLI boom"):
+        run_scan_lifecycle(
+            scan_fn=lambda: (_ for _ in ()).throw(RuntimeError("CLI boom")),
+            mark_failed=lambda msg: registry.update_snapshot_status(cli_snap_id, "failed", error_message=msg),
+            is_still_running=lambda: (registry.get_snapshot(cli_snap_id) or {}).get("status") == "running",
+            label="cli-fail-test",
+        )
+
+    cli_snap = registry.get_snapshot(cli_snap_id)
+
+    # --- API failure path ---
+    json_path = tmp_path / "api-fail-artifact.json"
+    json_path.write_text(json.dumps({"status": "running"}), encoding="utf-8")
+
+    api_errors = {}
+
+    def api_mark_failed(msg):
+        state = {"status": "failed", "error": msg}
+        json_path.write_text(json.dumps(state), encoding="utf-8")
+        api_errors["msg"] = msg
+
+    with pytest.raises(RuntimeError, match="API boom"):
+        run_scan_lifecycle(
+            scan_fn=lambda: (_ for _ in ()).throw(RuntimeError("API boom")),
+            mark_failed=api_mark_failed,
+            is_still_running=lambda: json.loads(json_path.read_text(encoding="utf-8")).get("status") == "running",
+            label="api-fail-test",
+        )
+
+    api_data = json.loads(json_path.read_text(encoding="utf-8"))
+
+    # Verify parity: both failed, both have error text, neither is zombie
+    assert cli_snap["status"] == ATLAS_STATUS_FAILED
+    assert api_data["status"] == ATLAS_STATUS_FAILED
+    assert cli_snap["status"] == api_data["status"]
+
+    assert cli_snap["error_message"] == "CLI boom"
+    assert api_data["error"] == "API boom"
+
+    assert cli_snap["status"] != ATLAS_STATUS_RUNNING
+    assert api_data["status"] != ATLAS_STATUS_RUNNING

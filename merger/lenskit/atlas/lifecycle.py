@@ -5,6 +5,13 @@ Provides a shared try/except/finally pattern that guarantees every scan
 reaches a terminal state ("complete" or "failed") regardless of which
 entry-point (CLI or API) initiates the scan.
 
+Status vocabulary
+-----------------
+Both paths use the same three status values:
+  - ``"running"``  — scan is in progress
+  - ``"complete"`` — scan finished successfully (terminal)
+  - ``"failed"``   — scan terminated with an error (terminal)
+
 Canonical truth model
 ---------------------
 - **CLI path**: the SQLite AtlasRegistry is canonical for lifecycle and
@@ -14,11 +21,17 @@ Canonical truth model
   because the API does not use the registry today.  Progress updates are
   written to the same file atomically.
 
-Both paths share identical *semantic* guarantees:
-  1. Success  → status becomes a terminal "complete"/"completed" value.
-  2. Exception → status becomes "failed" **with** a persisted error text.
-  3. Finally   → if status is still "running" (e.g. the except-handler
-     itself raised), a zombie-guard forces "failed".
+The system thus has **path-specific asymmetric state backends**: the CLI
+stores lifecycle state in SQLite, the API stores it in JSON files.  This
+is a deliberate pragmatic trade-off — within each flow the state is
+consistent, but a future consolidation (e.g. API adopting the registry)
+would further reduce this asymmetry.
+
+Both paths share identical *semantic* guarantees via this executor:
+  1. Success  → status becomes ``"complete"``.
+  2. Exception → status becomes ``"failed"`` **with** a persisted error text.
+  3. Finally   → if status is still ``"running"`` (e.g. the except-handler
+     itself raised), a zombie-guard forces ``"failed"``.
 
 This module captures that shared guarantee as ``run_scan_lifecycle``.
 """
