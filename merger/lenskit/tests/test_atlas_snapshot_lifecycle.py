@@ -200,7 +200,7 @@ def test_stale_detection_on_running_artifact(tmp_path: Path):
     merges = hub / ".repolens" / "merges"
     merges.mkdir(parents=True)
 
-    # Create a running artifact with stale progress
+    # Create a running artifact with stale progress (120s > 60s stale threshold)
     stale_time = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
     running_data = {
         "status": "running",

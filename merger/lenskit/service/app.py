@@ -1010,16 +1010,24 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 enable_content_stats=(request.scan_mode == "content")
             )
 
+            # Pre-build a reusable progress template to avoid copying initial_state on every callback
+            progress_template = {
+                "status": initial_state["status"],
+                "root": initial_state.get("root", ""),
+                "created_at": initial_state["created_at"],
+                "effective": initial_state.get("effective"),
+                "stats": {}
+            }
+
             def _api_progress(files: int, dirs: int, bytes_total: int):
-                progress_state = initial_state.copy()
-                progress_state["stats"] = {
+                progress_template["stats"] = {
                     "files_seen": files,
                     "dirs_seen": dirs,
                     "bytes_seen": bytes_total,
                     "last_progress_at": datetime.now(timezone.utc).isoformat()
                 }
                 try:
-                    _write_json_atomic(merges_dir / json_filename, progress_state)
+                    _write_json_atomic(merges_dir / json_filename, progress_template)
                 except Exception:
                     pass  # never let progress IO abort the scan
 
@@ -1206,20 +1214,12 @@ def list_atlas():
         is_stalled = False
         if status == "running":
             last_progress = stats.get("last_progress_at")
-            if last_progress:
+            ref_timestamp = last_progress or created_at
+            if ref_timestamp:
                 try:
-                    lp_str = last_progress.replace("Z", "+00:00")
-                    lp_dt = datetime.fromisoformat(lp_str)
-                    if (datetime.now(timezone.utc) - lp_dt).total_seconds() > 60:
-                        is_stalled = True
-                except (ValueError, TypeError):
-                    pass
-            else:
-                # No progress at all yet — check created_at
-                try:
-                    ca_str = created_at.replace("Z", "+00:00")
-                    ca_dt = datetime.fromisoformat(ca_str)
-                    if (datetime.now(timezone.utc) - ca_dt).total_seconds() > 60:
+                    ts_str = ref_timestamp.replace("Z", "+00:00")
+                    ts_dt = datetime.fromisoformat(ts_str)
+                    if (datetime.now(timezone.utc) - ts_dt).total_seconds() > 60:
                         is_stalled = True
                 except (ValueError, TypeError):
                     pass

@@ -218,16 +218,10 @@ class AtlasRegistry:
     def update_snapshot_status(self, snapshot_id: str, status: str, error_message: Optional[str] = None):
         now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
         with self.conn:
-            if error_message is not None:
-                self.conn.execute("""
-                    UPDATE snapshots SET status = ?, error_message = ?, last_progress_at = ?
-                    WHERE snapshot_id = ?
-                """, (status, error_message, now, snapshot_id))
-            else:
-                self.conn.execute("""
-                    UPDATE snapshots SET status = ?, last_progress_at = ?
-                    WHERE snapshot_id = ?
-                """, (status, now, snapshot_id))
+            self.conn.execute("""
+                UPDATE snapshots SET status = ?, error_message = COALESCE(?, error_message), last_progress_at = ?
+                WHERE snapshot_id = ?
+            """, (status, error_message, now, snapshot_id))
 
     def update_snapshot_progress(self, snapshot_id: str, files_seen: int, dirs_seen: int, bytes_seen: int):
         now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
