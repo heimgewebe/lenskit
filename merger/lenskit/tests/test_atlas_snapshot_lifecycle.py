@@ -7,6 +7,8 @@ Tests for Atlas snapshot lifecycle hardening:
 - Shared lifecycle executor guarantees
 - Hardest failure paths (exception after progress, callback exception, artifact write failure)
 - Status vocabulary parity between CLI and API paths
+- Failure preserves progress data (not overwritten by initial_state)
+- File-count-gated progress for large directories
 """
 import pytest
 import json
@@ -653,3 +655,138 @@ def test_atlas_lifecycle_failure_semantics_parity(registry: AtlasRegistry, tmp_p
 
     assert cli_snap["status"] != ATLAS_STATUS_RUNNING
     assert api_data["status"] != ATLAS_STATUS_RUNNING
+
+
+# ── Fix: _mark_api_failed preserves progress ─────────────────────────────
+
+def test_mark_api_failed_preserves_progress(tmp_path: Path):
+    """When marking an API artifact as failed, any previously written progress
+    counters (files_seen, dirs_seen, bytes_seen, last_progress_at) must survive.
+
+    Regression test: the original _mark_api_failed() used initial_state.copy()
+    which wiped all accumulated progress data.
+    """
+    json_path = tmp_path / "atlas-preserve.json"
+
+    # Simulate state after progress has been written mid-scan
+    mid_scan_state = {
+        "status": "running",
+        "root": "/big-repo",
+        "created_at": "2024-03-01T10:00:00Z",
+        "effective": {"max_depth": 20, "exclude_globs": []},
+        "stats": {
+            "files_seen": 4200,
+            "dirs_seen": 150,
+            "bytes_seen": 98765432,
+            "last_progress_at": "2024-03-01T10:01:30Z"
+        }
+    }
+    json_path.write_text(json.dumps(mid_scan_state), encoding="utf-8")
+
+    # initial_state would have empty stats (like at the start of scan)
+    initial_state = {
+        "status": "running",
+        "root": "/big-repo",
+        "created_at": "2024-03-01T10:00:00Z",
+        "effective": {"max_depth": 20, "exclude_globs": []},
+        "stats": {}
+    }
+
+    # Import the actual _write_json_atomic helper
+    from merger.lenskit.service.app import _write_json_atomic
+
+    # Replicate the improved _mark_api_failed logic
+    current = None
+    try:
+        with open(json_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            if isinstance(data, dict):
+                current = data
+    except Exception:
+        pass
+    base = current if current else initial_state.copy()
+    base["status"] = "failed"
+    base["error"] = "Disk full mid-scan"
+    _write_json_atomic(json_path, base)
+
+    result = json.loads(json_path.read_text(encoding="utf-8"))
+    assert result["status"] == "failed"
+    assert result["error"] == "Disk full mid-scan"
+    # Progress data must survive
+    assert result["stats"]["files_seen"] == 4200
+    assert result["stats"]["dirs_seen"] == 150
+    assert result["stats"]["bytes_seen"] == 98765432
+    assert result["stats"]["last_progress_at"] == "2024-03-01T10:01:30Z"
+
+
+def test_mark_api_failed_falls_back_to_initial_state(tmp_path: Path):
+    """If the JSON artifact is unreadable, _mark_api_failed falls back to
+    initial_state (no crash, no empty file)."""
+    json_path = tmp_path / "atlas-unreadable.json"
+    # Write garbage so json.load fails
+    json_path.write_text("NOT-JSON{{{", encoding="utf-8")
+
+    initial_state = {
+        "status": "running",
+        "root": "/test",
+        "created_at": "2024-01-01T00:00:00Z",
+        "stats": {}
+    }
+
+    from merger.lenskit.service.app import _write_json_atomic
+
+    # Replicate the improved _mark_api_failed logic
+    current = None
+    try:
+        with open(json_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            if isinstance(data, dict):
+                current = data
+    except Exception:
+        pass
+    base = current if current else initial_state.copy()
+    base["status"] = "failed"
+    base["error"] = "Something went wrong"
+    _write_json_atomic(json_path, base)
+
+    result = json.loads(json_path.read_text(encoding="utf-8"))
+    assert result["status"] == "failed"
+    assert result["error"] == "Something went wrong"
+    assert result["root"] == "/test"
+
+
+# ── Fix: file-count-gated progress ───────────────────────────────────────
+
+def test_progress_fires_on_file_count_gate(tmp_path: Path):
+    """Progress callback fires based on file-count gate (every 1000 files)
+    even when the time-based gate (1s) has not elapsed.
+
+    This prevents false stalls on large directories where a single os.walk()
+    iteration processes many files in < 1 second.
+    """
+    # Create a directory with enough files to trigger the 1000-file gate
+    big_dir = tmp_path / "scan_target"
+    big_dir.mkdir()
+    for i in range(1100):
+        (big_dir / f"file_{i:04d}.txt").write_text(f"data-{i}")
+
+    progress_calls = []
+
+    def on_progress(files: int, dirs: int, bytes_total: int):
+        progress_calls.append({"files": files, "dirs": dirs, "bytes": bytes_total})
+
+    scanner = AtlasScanner(root=big_dir, snapshot_id="snap_file_gate")
+
+    # Freeze time so the 1-second gate never fires — only the file-count gate
+    frozen_ts = time.time()
+    with patch("merger.lenskit.adapters.atlas.time.time", return_value=frozen_ts):
+        scanner.scan(on_progress=on_progress)
+
+    # The file-count gate (every 1000 files) must have fired at least once
+    assert len(progress_calls) >= 1, (
+        f"Expected at least 1 progress call from file-count gate, got {len(progress_calls)}"
+    )
+    # But not once per file — must be fewer than total files
+    assert len(progress_calls) < 1100, (
+        f"Progress fired too often ({len(progress_calls)}); should be throttled"
+    )

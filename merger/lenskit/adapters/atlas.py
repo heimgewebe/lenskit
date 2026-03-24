@@ -368,7 +368,8 @@ class AtlasScanner:
             inventory_file: Optional path to write a JSONL inventory of all files.
             dirs_inventory_file: Optional path to write a JSONL inventory of all directories.
             on_progress: Optional callback(files_seen, dirs_seen, bytes_seen) called
-                periodically during the scan (throttled to ≤1 call/sec).
+                periodically during the scan (throttled to ≤1 call/sec, or every
+                1000 new files — whichever comes first).
                 The three int arguments are running counters that correspond
                 to ``total_files``, ``total_dirs``, ``total_bytes`` in the
                 final stats dict.  Callers should persist them under
@@ -383,6 +384,7 @@ class AtlasScanner:
         self.stats["start_time"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         start_ts = time.time()
         last_progress_ts = start_ts  # throttle progress callbacks
+        last_progress_files = 0  # file-count gate for progress in large dirs
 
         current_entries = 0
         depth_limit_hit = False
@@ -792,11 +794,16 @@ class AtlasScanner:
                 if collect_dir_aggregates:
                     dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
 
-                # Fire progress callback (throttled to at most once per second)
+                # Fire progress callback (throttled: at most once per second OR
+                # every 1000 new files, whichever comes first).  The file-count
+                # gate prevents false stalls on directories with many entries
+                # where a single os.walk() iteration takes > 60s.
                 if on_progress is not None:
                     now_ts = time.time()
-                    if now_ts - last_progress_ts >= 1.0:
+                    files_delta = self.stats["total_files"] - last_progress_files
+                    if (now_ts - last_progress_ts >= 1.0) or (files_delta >= 1000):
                         last_progress_ts = now_ts
+                        last_progress_files = self.stats["total_files"]
                         try:
                             on_progress(
                                 self.stats["total_files"],

@@ -992,10 +992,22 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     json_path = merges_dir / json_filename
 
     def _mark_api_failed(error_msg: str) -> None:
-        failed = initial_state.copy()
-        failed["status"] = "failed"
-        failed["error"] = error_msg
-        _write_json_atomic(json_path, failed)
+        # Best-effort: load the current artifact state so that progress
+        # counters (files_seen, dirs_seen, bytes_seen, last_progress_at)
+        # survive failure.  Fall back to initial_state if the file is
+        # unreadable (e.g. disk full before first write).
+        current = None
+        try:
+            with open(json_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+                if isinstance(data, dict):
+                    current = data
+        except Exception:
+            pass
+        base = current if current else initial_state.copy()
+        base["status"] = "failed"
+        base["error"] = error_msg
+        _write_json_atomic(json_path, base)
 
     def _is_api_still_running() -> bool:
         try:
@@ -1147,6 +1159,17 @@ def api_sync_metarepo(payload: Dict[str, Any]):
         logger.exception(f"Sync failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def _normalize_atlas_status(raw: str) -> str:
+    """Normalize legacy status values to the canonical vocabulary.
+
+    Older artifacts may contain ``"completed"`` instead of ``"complete"``.
+    This function maps known legacy synonyms so that API consumers always
+    see the canonical set: ``running | complete | failed``.
+    """
+    if raw == "completed":
+        return "complete"
+    return raw
+
 @app.get("/api/atlas", response_model=List[AtlasArtifact], dependencies=[Depends(verify_token)])
 def list_atlas():
     merges_dir = state.merges_dir
@@ -1172,7 +1195,7 @@ def list_atlas():
                 data = json.load(f)
                 stats = data.get("stats", {})
                 scan_root = data.get("root", "?")
-                status = data.get("status", "complete")
+                status = _normalize_atlas_status(data.get("status", "complete"))
                 effective = data.get("effective", None)
                 if effective:
                     effective = AtlasEffective(**effective)
@@ -1274,7 +1297,7 @@ def get_latest_atlas():
         try:
             with open(file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                status = data.get("status", "complete")
+                status = _normalize_atlas_status(data.get("status", "complete"))
                 if status == "complete":
                     latest_file = file
                     stats = data.get("stats", {})
