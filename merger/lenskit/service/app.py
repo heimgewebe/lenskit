@@ -1160,7 +1160,9 @@ def _read_atlas_artifact_json(path: Path) -> dict:
     """Read an atlas artifact JSON file and normalize its status field.
 
     Returns a dict with ``status`` mapped through :func:`_normalize_atlas_status`
-    and a default of ``"complete"`` when the key is absent.
+    and a default of ``"complete"`` when the key is absent.  Returns an empty
+    dict if the file does not contain a JSON object (callers use ``.get()``
+    with defaults for all field accesses).
     Raises on IO/JSON errors — callers are expected to handle exceptions.
     """
     with open(path, "r", encoding="utf-8") as fh:
