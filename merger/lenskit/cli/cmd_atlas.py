@@ -845,7 +845,6 @@ def _run_analyze_disk(snapshot_id: str) -> int:
 
 
 def _run_analyze_backup_gap(source_snapshot_id: str, backup_snapshot_id: str) -> int:
-    from merger.lenskit.atlas.registry import AtlasRegistry
     from merger.lenskit.atlas.diff import compute_snapshot_comparison
 
 

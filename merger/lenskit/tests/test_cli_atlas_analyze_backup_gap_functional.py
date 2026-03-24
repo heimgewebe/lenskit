@@ -46,8 +46,10 @@ def test_cli_atlas_analyze_backup_gap(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     repo_root = Path(__file__).resolve().parent.parent.parent.parent
-    current_pythonpath = os.environ.get('PYTHONPATH', '')
-    new_pythonpath = f"{current_pythonpath}{os.pathsep}{repo_root}" if current_pythonpath else str(repo_root)
+    env = os.environ.copy()
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pp}" if existing_pp else str(repo_root)
+
     result = subprocess.run(
         [
             sys.executable,
@@ -61,7 +63,7 @@ def test_cli_atlas_analyze_backup_gap(tmp_path, monkeypatch):
         ],
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": new_pythonpath}
+        env=env
     )
 
     assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -121,8 +123,10 @@ def test_cli_atlas_analyze_backup_gap_machine_path_resolution(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
 
     repo_root = Path(__file__).resolve().parent.parent.parent.parent
-    current_pythonpath = os.environ.get('PYTHONPATH', '')
-    new_pythonpath = f"{current_pythonpath}{os.pathsep}{repo_root}" if current_pythonpath else str(repo_root)
+    env = os.environ.copy()
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pp}" if existing_pp else str(repo_root)
+
     result = subprocess.run(
         [
             sys.executable,
@@ -136,7 +140,7 @@ def test_cli_atlas_analyze_backup_gap_machine_path_resolution(tmp_path, monkeypa
         ],
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": new_pythonpath}
+        env=env
     )
 
     assert result.returncode == 0, f"Command failed: {result.stderr}"
