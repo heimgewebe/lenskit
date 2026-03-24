@@ -452,7 +452,7 @@ def test_graph_bonus_is_bounded(mini_index, tmp_path, monkeypatch):
     res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path, graph_weights=weights)
 
     hits = [r for r in res["results"] if r["path"] == "src/main.py"]
-    assert len(hits) > 0, "No hit found for src/main.py"
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
     hit = hits[0]
     ge = hit["why"]["diagnostics"]["graph"]
 
@@ -496,7 +496,7 @@ def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
 
 
     hits = [r for r in res["results"] if r["path"] == "src/main.py"]
-    assert len(hits) > 0, "No hit found for src/main.py"
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
     hit = hits[0]
     ge = hit["why"]["diagnostics"]["graph"]
 
@@ -582,7 +582,7 @@ def test_graph_staleness_e2e_hash_mismatch(mini_index, tmp_path):
     # could cause a silent fallback passing the test for the wrong reasons.
     assert row is not None, "canonical_dump_index_sha256 must exist in index_meta for this E2E mismatch test"
     expected_sha = row[0]
-    assert re.fullmatch(r"^[a-f0-9]{64}$", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
+    assert re.fullmatch(r"[a-f0-9]{64}", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
 
 
     # 1. Erzeuge echten Graph-Index
@@ -611,7 +611,7 @@ def test_graph_staleness_e2e_hash_mismatch(mini_index, tmp_path):
 
     # 5. Assertions
     hits = [r for r in res["results"] if r["path"] == "src/main.py"]
-    assert len(hits) > 0, "No hit found for src/main.py"
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
     hit = hits[0]
 
     diagnostics = hit["why"]["diagnostics"]["graph"]
@@ -649,7 +649,7 @@ def test_query_uses_stale_graph_runtime_path(mini_index, tmp_path):
     # Causality hardening: The test premise requires a valid canonical DB SHA
     assert row is not None, "canonical_dump_index_sha256 must exist in index_meta for this E2E mismatch test"
     expected_sha = row[0]
-    assert re.fullmatch(r"^[a-f0-9]{64}$", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
+    assert re.fullmatch(r"[a-f0-9]{64}", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
 
 
     graph_index_path = tmp_path / "graph_index.json"
@@ -673,7 +673,7 @@ def test_query_uses_stale_graph_runtime_path(mini_index, tmp_path):
     res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path)
 
     hits = [r for r in res["results"] if r["path"] == "src/main.py"]
-    assert len(hits) > 0, "No hit found for src/main.py"
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
     hit = hits[0]
 
     diagnostics = hit["why"]["diagnostics"]["graph"]

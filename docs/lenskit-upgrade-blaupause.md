@@ -1786,7 +1786,7 @@ Gate:
 
 - [x] PR 1: Contract-/Provenance-Härtung
 - [ ] PR 2: Query Trace + Context Bundle (im Re-Audit strukturell belegt, E2E noch offen)
-- [ ] teilweise gehärtet: PR 3: Graph Runtime Konsolidierung (Diagnostik E2E belegt, Recovery/Policy noch offen)
+- [ ] PR 3: Graph Runtime Konsolidierung (teilweise gehärtet: Diagnostik E2E belegt, Recovery/Policy noch offen)
 - [x] PR 4: Federation Foundation (Init + Contract + minimale Federation-Verwaltung/CLI)
 - [ ] PR 5: Federated Query + Ranking (angerissen: minimale föderierte Query-Aggregation vorhanden)
 - [ ] PR 6: Agent Control Surface
@@ -1849,7 +1849,7 @@ Schutzmaßnahmen:
 
 - [x] M1: Alle Kernartefakte contract-validiert und provenance-klar
 - [ ] M2: Query Trace + Context Bundle vorhanden (im aktuellen Audit strukturell belegt, Gate bleibt offen)
-- [ ] teilweise gehärtet: M3: Graph-Runtime diagnostizierbar (im aktuellen Audit strukturell belegt, Gate bleibt wegen unklarer Recovery-Policy offen)
+- [ ] M3: Graph-Runtime diagnostizierbar (teilweise gehärtet; Gate bleibt wegen unklarer Recovery-Policy offen)
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar
