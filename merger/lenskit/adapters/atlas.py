@@ -4,7 +4,7 @@ import time
 import json
 import hashlib
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Pattern, Union, Tuple
+from typing import List, Dict, Any, Optional, Pattern, Union, Tuple, Callable
 from datetime import datetime, timezone
 import fnmatch
 import re
@@ -354,19 +354,21 @@ class AtlasScanner:
             return True
         return False
 
-    def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optional[Path] = None, previous_inventory_file: Optional[Path] = None) -> Dict[str, Any]:
+    def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optional[Path] = None, previous_inventory_file: Optional[Path] = None, on_progress: Optional[Callable[[int, int, int], None]] = None) -> Dict[str, Any]:
         """
         Scans the directory structure.
 
         Args:
             inventory_file: Optional path to write a JSONL inventory of all files.
             dirs_inventory_file: Optional path to write a JSONL inventory of all directories.
+            on_progress: Optional callback(files_seen, dirs_seen, bytes_seen) called periodically during scan.
         """
         if inventory_file and not self.snapshot_id:
             raise ValueError("Inventory emission requires a snapshot_id to satisfy the atlas-inventory.v1 schema contract.")
 
         self.stats["start_time"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         start_ts = time.time()
+        last_progress_ts = start_ts  # throttle progress callbacks
 
         current_entries = 0
         depth_limit_hit = False
@@ -775,6 +777,20 @@ class AtlasScanner:
                 dir_sizes[rel_path_str] = dir_bytes
                 if collect_dir_aggregates:
                     dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
+
+                # Fire progress callback (throttled to at most once per second)
+                if on_progress is not None:
+                    now_ts = time.time()
+                    if now_ts - last_progress_ts >= 1.0:
+                        last_progress_ts = now_ts
+                        try:
+                            on_progress(
+                                self.stats["total_files"],
+                                self.stats["total_dirs"],
+                                self.stats["total_bytes"]
+                            )
+                        except Exception:
+                            pass  # never let progress callback abort the scan
 
         finally:
             if inv_f:

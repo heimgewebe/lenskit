@@ -151,6 +151,7 @@ class AtlasArtifact(BaseModel):
     stats: Dict[str, Any] # Summary stats
     effective: Optional[AtlasEffective] = None # Effective parameters (max_depth, etc)
     error: Optional[str] = None # Generic error message if failed
+    is_stalled: bool = False  # True when status is "running" but no progress update for >60s
 
 class Artifact(BaseModel):
     id: str

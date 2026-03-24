@@ -988,6 +988,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
     # Helper to run scan and save
     def run_scan_and_save():
+        scan_completed = False
         try:
             inventory_path = None
             if "inventory" in planned_outputs:
@@ -1008,7 +1009,21 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 snapshot_id=f"snap_api_{int(time.time())}", # Temporary dummy ID until service adopts full registry logic
                 enable_content_stats=(request.scan_mode == "content")
             )
-            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path)
+
+            def _api_progress(files: int, dirs: int, bytes_total: int):
+                progress_state = initial_state.copy()
+                progress_state["stats"] = {
+                    "files_seen": files,
+                    "dirs_seen": dirs,
+                    "bytes_seen": bytes_total,
+                    "last_progress_at": datetime.now(timezone.utc).isoformat()
+                }
+                try:
+                    _write_json_atomic(merges_dir / json_filename, progress_state)
+                except Exception:
+                    pass  # never let progress IO abort the scan
+
+            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path, on_progress=_api_progress)
 
             # Merge with initial state to preserve required fields, then update status
             result["status"] = "completed"
@@ -1027,6 +1042,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             with open(summary_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
 
+            scan_completed = True
             logger.info(f"Atlas scan completed: {scan_id}")
 
         except Exception as e:
@@ -1036,6 +1052,19 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             failed_state["status"] = "failed"
             failed_state["error"] = "Atlas scan failed. See server logs for details."
             _write_json_atomic(merges_dir / json_filename, failed_state)
+            scan_completed = True  # "failed" is a terminal state
+        finally:
+            # Defensive zombie guard: if neither success nor failure path
+            # completed (e.g. _write_json_atomic itself raised), force a
+            # terminal state so the artifact never stays "running" forever.
+            if not scan_completed:
+                try:
+                    zombie_state = initial_state.copy()
+                    zombie_state["status"] = "failed"
+                    zombie_state["error"] = "Scan terminated unexpectedly."
+                    _write_json_atomic(merges_dir / json_filename, zombie_state)
+                except Exception:
+                    pass  # last-resort guard, nothing more we can do
 
     background_tasks.add_task(run_scan_and_save)
 
@@ -1173,6 +1202,28 @@ def list_atlas():
         if "created_at" in data:
             created_at = data["created_at"]
 
+        # Stale detection: if running and last_progress_at is older than 60s, flag as stalled
+        is_stalled = False
+        if status == "running":
+            last_progress = stats.get("last_progress_at")
+            if last_progress:
+                try:
+                    lp_str = last_progress.replace("Z", "+00:00")
+                    lp_dt = datetime.fromisoformat(lp_str)
+                    if (datetime.now(timezone.utc) - lp_dt).total_seconds() > 60:
+                        is_stalled = True
+                except (ValueError, TypeError):
+                    pass
+            else:
+                # No progress at all yet — check created_at
+                try:
+                    ca_str = created_at.replace("Z", "+00:00")
+                    ca_dt = datetime.fromisoformat(ca_str)
+                    if (datetime.now(timezone.utc) - ca_dt).total_seconds() > 60:
+                        is_stalled = True
+                except (ValueError, TypeError):
+                    pass
+
         artifacts.append(AtlasArtifact(
             id=scan_id,
             status=status,
@@ -1182,7 +1233,8 @@ def list_atlas():
             paths=paths,
             stats=stats,
             effective=effective,
-            error=error_msg
+            error=error_msg,
+            is_stalled=is_stalled
         ))
 
     return artifacts

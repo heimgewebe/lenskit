@@ -648,7 +648,10 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             inventory_path = planned_paths.get("inventory")
             dirs_path = planned_paths.get("dirs")
 
-            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_path)
+            def _progress_callback(files: int, dirs: int, bytes_total: int):
+                registry.update_snapshot_progress(snapshot_id, files, dirs, bytes_total)
+
+            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_path, on_progress=_progress_callback)
 
             # Write core stats JSON (always)
             out_json = snapshot_dir / "snapshot_meta.json"
@@ -674,9 +677,19 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
 
             print(f"\nSummary preview:\n{md_content}")
             return 0
-        except Exception:
-            registry.update_snapshot_status(snapshot_id, "failed")
+        except Exception as e:
+            registry.update_snapshot_status(snapshot_id, "failed", error_message=str(e))
             raise
+        finally:
+            # Defensive zombie guard: if snapshot is still "running" after
+            # try/except (e.g. status update in except itself failed), force
+            # it to "failed" so it never stays as a zombie.
+            try:
+                snap = registry.get_snapshot(snapshot_id)
+                if snap and snap["status"] == "running":
+                    registry.update_snapshot_status(snapshot_id, "failed", error_message="Snapshot finalization interrupted")
+            except Exception:
+                pass  # registry may already be closed or broken
 
     except Exception as e:
         print(f"Error during scan: {e}", file=sys.stderr)

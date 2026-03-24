@@ -83,6 +83,18 @@ class AtlasRegistry:
             if "disk_ref" not in cols:
                 self.conn.execute("ALTER TABLE snapshots ADD COLUMN disk_ref TEXT")
 
+            # Migration: progress tracking columns for live scan observability
+            if "files_seen" not in cols:
+                self.conn.execute("ALTER TABLE snapshots ADD COLUMN files_seen INTEGER")
+            if "dirs_seen" not in cols:
+                self.conn.execute("ALTER TABLE snapshots ADD COLUMN dirs_seen INTEGER")
+            if "bytes_seen" not in cols:
+                self.conn.execute("ALTER TABLE snapshots ADD COLUMN bytes_seen INTEGER")
+            if "last_progress_at" not in cols:
+                self.conn.execute("ALTER TABLE snapshots ADD COLUMN last_progress_at TEXT")
+            if "error_message" not in cols:
+                self.conn.execute("ALTER TABLE snapshots ADD COLUMN error_message TEXT")
+
     def register_machine(self, machine_id: str, hostname: str, labels: Optional[List[str]] = None) -> str:
         machine_id = machine_id.strip().lower()
         hostname = hostname.strip().lower()
@@ -203,11 +215,27 @@ class AtlasRegistry:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (snapshot_id, machine_id, root_id, now, scan_config_hash, status))
 
-    def update_snapshot_status(self, snapshot_id: str, status: str):
+    def update_snapshot_status(self, snapshot_id: str, status: str, error_message: Optional[str] = None):
+        now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+        with self.conn:
+            if error_message is not None:
+                self.conn.execute("""
+                    UPDATE snapshots SET status = ?, error_message = ?, last_progress_at = ?
+                    WHERE snapshot_id = ?
+                """, (status, error_message, now, snapshot_id))
+            else:
+                self.conn.execute("""
+                    UPDATE snapshots SET status = ?, last_progress_at = ?
+                    WHERE snapshot_id = ?
+                """, (status, now, snapshot_id))
+
+    def update_snapshot_progress(self, snapshot_id: str, files_seen: int, dirs_seen: int, bytes_seen: int):
+        now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
         with self.conn:
             self.conn.execute("""
-                UPDATE snapshots SET status = ? WHERE snapshot_id = ?
-            """, (status, snapshot_id))
+                UPDATE snapshots SET files_seen = ?, dirs_seen = ?, bytes_seen = ?, last_progress_at = ?
+                WHERE snapshot_id = ?
+            """, (files_seen, dirs_seen, bytes_seen, now, snapshot_id))
 
     def update_snapshot_artifacts(self, snapshot_id: str, artifacts: Dict[str, str]):
         set_clauses = []
