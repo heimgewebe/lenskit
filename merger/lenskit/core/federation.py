@@ -4,8 +4,7 @@ try:
     from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 except ImportError:
     jsonschema = None
-    class _DummyException(Exception): pass
-    JsonSchemaValidationError = _DummyException
+    JsonSchemaValidationError = None
 
 def _require_jsonschema() -> None:
     if jsonschema is None:
@@ -54,8 +53,9 @@ def init_federation(federation_id: str, out_path: Path) -> dict:
     }
 
     # Validate against our own schema before writing (fail safe)
+    _require_jsonschema()
+
     try:
-        _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
     except JsonSchemaValidationError as e:
         raise ValueError(f"Failed to generate valid federation index schema: {e}")
@@ -81,8 +81,9 @@ def validate_federation(index_path: Path) -> bool:
         fed_data = json.load(f)
 
     # 1. Schema Validation
+    _require_jsonschema()
+
     try:
-        _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
     except JsonSchemaValidationError as e:
         raise ValueError(f"Schema validation failed: {e.message} at path {list(e.path)}")
@@ -149,8 +150,9 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
         fed_data = json.load(f)
 
     # Pre-validate existing data to prevent poor failure modes (e.g. KeyError on missing repo_id)
+    _require_jsonschema()
+
     try:
-        _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
     except JsonSchemaValidationError as e:
         raise ValueError(f"Existing federation index is corrupt: schema validation failed: {e.message} at path {list(e.path)}")
@@ -179,8 +181,9 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     fed_data["updated_at"] = now
 
     # Validate against our own schema before writing (fail safe)
+    _require_jsonschema()
+
     try:
-        _require_jsonschema()
         jsonschema.validate(instance=fed_data, schema=schema)
     except JsonSchemaValidationError as e:
         raise ValueError(f"Failed to generate valid federation index schema after modification: {e}")

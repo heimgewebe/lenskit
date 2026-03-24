@@ -20,4 +20,4 @@ Diese Matrix ordnet die in `merger/lenskit/tests/` existierenden Tests nach abge
 Die Testsuite (`merger/lenskit/tests/`) belegt die Grundlagen für die Ingestion (Phase 1), die Core-Runtime (Phase 2), die Graph-Integration (Phase 3) sowie die strukturellen Erwartungen an Context-Bundles (Phase 4).
 Diese Belege sichern spezifische Teilziele methodisch ab, decken jedoch weder die API-Sicherheit weitreichend ab, noch prüfen sie die tatsächliche Agent-Tauglichkeit der ausgegebenen Kontexte qualitativ.
 
-Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist durch diverse Tests in `test_federation_*.py` (CLI, Query, Add, Inspect, Validate, etc.) abgedeckt.
+Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist durch Tests unter `test_federation_*.py` **teilweise abgedeckt**, bleibt aber insbesondere bei vollständigen End-to-End-Pfaden über mehrere Repositories unvollständig.
