@@ -1003,7 +1003,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 if isinstance(data, dict):
                     current = data
         except Exception:
-            pass
+            logger.warning("_mark_api_failed: could not read current artifact state from %s; falling back to initial_state", json_path)
         base = current if current else initial_state.copy()
         base["status"] = "failed"
         base["error"] = error_msg

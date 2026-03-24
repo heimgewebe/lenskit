@@ -150,6 +150,12 @@ def detect_encoding(path: Path) -> Optional[str]:
 
 logger = logging.getLogger(__name__)
 
+# Threshold (in files) for the file-count-based progress gate.  The scanner
+# fires on_progress when this many *new* files have been seen since the last
+# emit, even if the time-based 1-second gate has not elapsed.  This prevents
+# false ``is_stalled`` flags on large directories.
+_PROGRESS_FILE_COUNT_THRESHOLD = 1000
+
 class AtlasScanner:
     DEFAULT_ATLAS_EXCLUDES = [
         "proc/**",
@@ -795,13 +801,14 @@ class AtlasScanner:
                     dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
 
                 # Fire progress callback (throttled: at most once per second OR
-                # every 1000 new files, whichever comes first).  The file-count
-                # gate prevents false stalls on directories with many entries
-                # where a single os.walk() iteration takes > 60s.
+                # every _PROGRESS_FILE_COUNT_THRESHOLD new files, whichever
+                # comes first).  The file-count gate prevents false stalls on
+                # directories with many entries where a single os.walk()
+                # iteration takes > 60s.
                 if on_progress is not None:
                     now_ts = time.time()
                     files_delta = self.stats["total_files"] - last_progress_files
-                    if (now_ts - last_progress_ts >= 1.0) or (files_delta >= 1000):
+                    if (now_ts - last_progress_ts >= 1.0) or (files_delta >= _PROGRESS_FILE_COUNT_THRESHOLD):
                         last_progress_ts = now_ts
                         last_progress_files = self.stats["total_files"]
                         try:
