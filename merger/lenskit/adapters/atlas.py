@@ -231,10 +231,16 @@ class AtlasScanner:
 
         self._exclude_patterns = self._build_exclude_patterns(self.exclude_globs)
         self._exclude_regex = self._compile_exclude_regex(self._exclude_patterns)
+        # ── Stats: final result counters ──
+        # total_files / total_dirs / total_bytes are *result* fields: they
+        # hold definitive totals only after scan() returns.  During the scan
+        # they accumulate incrementally and are forwarded to the on_progress
+        # callback as "files_seen / dirs_seen / bytes_seen" in the caller's
+        # persistence layer (registry or JSON).
         self.stats = {
-            "total_files": 0,
-            "total_dirs": 0,
-            "total_bytes": 0,
+            "total_files": 0,     # result: definitive file count after scan completes
+            "total_dirs": 0,      # result: definitive directory count after scan completes
+            "total_bytes": 0,     # result: definitive byte sum after scan completes
             "start_time": None,
             "end_time": None,
             "duration_seconds": 0,
@@ -361,7 +367,15 @@ class AtlasScanner:
         Args:
             inventory_file: Optional path to write a JSONL inventory of all files.
             dirs_inventory_file: Optional path to write a JSONL inventory of all directories.
-            on_progress: Optional callback(files_seen, dirs_seen, bytes_seen) called periodically during scan.
+            on_progress: Optional callback(files_seen, dirs_seen, bytes_seen) called
+                periodically during the scan (throttled to ≤1 call/sec).
+                The three int arguments are running counters that correspond
+                to ``total_files``, ``total_dirs``, ``total_bytes`` in the
+                final stats dict.  Callers should persist them under
+                ``files_seen`` / ``dirs_seen`` / ``bytes_seen`` to clearly
+                distinguish in-progress counters from final result totals.
+                The callback MUST NOT raise; any exception is silently caught
+                to avoid aborting the scan.
         """
         if inventory_file and not self.snapshot_id:
             raise ValueError("Inventory emission requires a snapshot_id to satisfy the atlas-inventory.v1 schema contract.")

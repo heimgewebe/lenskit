@@ -13,6 +13,7 @@ from merger.lenskit.adapters.atlas import AtlasScanner, render_atlas_md
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 from merger.lenskit.atlas.registry import AtlasRegistry
 from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_snapshot_dir, resolve_artifact_ref
+from merger.lenskit.atlas.lifecycle import run_scan_lifecycle
 
 def run_atlas_machines(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
@@ -622,7 +623,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
 
         registry.create_snapshot(snapshot_id, machine_id, root_id, short_hash, "running")
 
-        try:
+        def _do_scan():
             # Set up correct directory structure based on Atlas Blaupause
             snapshot_dir = resolve_snapshot_dir(atlas_base, machine_id, root_id, snapshot_id)
             snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -667,8 +668,9 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             # Additional structural outputs
             write_mode_outputs(planned_outputs, result, snapshot_dir)
 
-            # Write artifacts before updating the registry status to complete (Memory constraint)
+            # Write artifacts before updating the registry status to complete
             registry.update_snapshot_artifacts(snapshot_id, registry_artifacts)
+            # Registry is canonical for CLI lifecycle — mark complete here.
             registry.update_snapshot_status(snapshot_id, "complete")
 
             print(f"Done. Outputs generated for mode '{args.mode}':")
@@ -676,20 +678,14 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
                 print(f" - {k}: {v}")
 
             print(f"\nSummary preview:\n{md_content}")
-            return 0
-        except Exception as e:
-            registry.update_snapshot_status(snapshot_id, "failed", error_message=str(e))
-            raise
-        finally:
-            # Defensive zombie guard: if snapshot is still "running" after
-            # try/except (e.g. status update in except itself failed), force
-            # it to "failed" so it never stays as a zombie.
-            try:
-                snap = registry.get_snapshot(snapshot_id)
-                if snap and snap["status"] == "running":
-                    registry.update_snapshot_status(snapshot_id, "failed", error_message="Snapshot finalization interrupted")
-            except Exception:
-                pass  # registry may already be closed or broken
+
+        run_scan_lifecycle(
+            scan_fn=_do_scan,
+            mark_failed=lambda msg: registry.update_snapshot_status(snapshot_id, "failed", error_message=msg),
+            is_still_running=lambda: (registry.get_snapshot(snapshot_id) or {}).get("status") == "running",
+            label=f"cli-scan:{snapshot_id}",
+        )
+        return 0
 
     except Exception as e:
         print(f"Error during scan: {e}", file=sys.stderr)

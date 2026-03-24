@@ -32,6 +32,7 @@ from ..adapters.filesystem import resolve_fs_path, list_allowed_roots, issue_fs_
 from ..adapters.atlas import AtlasScanner, render_atlas_md
 from ..adapters.metarepo import sync_from_metarepo
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
+from merger.lenskit.atlas.lifecycle import run_scan_lifecycle
 from ..adapters import sources as sources_refresh
 from ..adapters import diagnostics as diagnostics_rebuild
 
@@ -986,10 +987,26 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     }
     _write_json_atomic(merges_dir / json_filename, initial_state)
 
+    # JSON artifact file is canonical for API lifecycle — helpers to read
+    # and write its status field so run_scan_lifecycle can operate on it.
+    json_path = merges_dir / json_filename
+
+    def _mark_api_failed(error_msg: str) -> None:
+        failed = initial_state.copy()
+        failed["status"] = "failed"
+        failed["error"] = error_msg
+        _write_json_atomic(json_path, failed)
+
+    def _is_api_still_running() -> bool:
+        try:
+            with open(json_path, "r", encoding="utf-8") as fh:
+                return json.load(fh).get("status") == "running"
+        except Exception:
+            return False
+
     # Helper to run scan and save
     def run_scan_and_save():
-        scan_completed = False
-        try:
+        def _do_scan():
             inventory_path = None
             if "inventory" in planned_outputs:
                 inventory_path = merges_dir / planned_outputs["inventory"]
@@ -1027,7 +1044,7 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                     "last_progress_at": datetime.now(timezone.utc).isoformat()
                 }
                 try:
-                    _write_json_atomic(merges_dir / json_filename, progress_template)
+                    _write_json_atomic(json_path, progress_template)
                 except Exception:
                     pass  # never let progress IO abort the scan
 
@@ -1041,8 +1058,8 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             # Additional structural JSONs for new modes
             write_mode_outputs(planned_outputs, result, merges_dir)
 
-            # Save JSON Stats (core internal metadata)
-            _write_json_atomic(merges_dir / json_filename, result)
+            # JSON artifact is canonical for API lifecycle — mark complete here.
+            _write_json_atomic(json_path, result)
 
             # Render and Save MD (Summary)
             md_content = render_atlas_md(result)
@@ -1050,29 +1067,14 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
             with open(summary_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
 
-            scan_completed = True
             logger.info(f"Atlas scan completed: {scan_id}")
 
-        except Exception as e:
-            logger.exception(f"Atlas scan failed: {e}")
-            # Write failed state
-            failed_state = initial_state.copy()
-            failed_state["status"] = "failed"
-            failed_state["error"] = "Atlas scan failed. See server logs for details."
-            _write_json_atomic(merges_dir / json_filename, failed_state)
-            scan_completed = True  # "failed" is a terminal state
-        finally:
-            # Defensive zombie guard: if neither success nor failure path
-            # completed (e.g. _write_json_atomic itself raised), force a
-            # terminal state so the artifact never stays "running" forever.
-            if not scan_completed:
-                try:
-                    zombie_state = initial_state.copy()
-                    zombie_state["status"] = "failed"
-                    zombie_state["error"] = "Scan terminated unexpectedly."
-                    _write_json_atomic(merges_dir / json_filename, zombie_state)
-                except Exception:
-                    pass  # last-resort guard, nothing more we can do
+        run_scan_lifecycle(
+            scan_fn=_do_scan,
+            mark_failed=_mark_api_failed,
+            is_still_running=_is_api_still_running,
+            label=f"api-scan:{scan_id}",
+        )
 
     background_tasks.add_task(run_scan_and_save)
 
@@ -1210,7 +1212,9 @@ def list_atlas():
         if "created_at" in data:
             created_at = data["created_at"]
 
-        # Stale detection: if running and last_progress_at is older than 60s, flag as stalled
+        # Stale detection — is_stalled is a *derived diagnostic flag*, not a
+        # status class.  It is computed from last_progress_at (or created_at
+        # as fallback) and never persisted.  Threshold: 60 seconds.
         is_stalled = False
         if status == "running":
             last_progress = stats.get("last_progress_at")

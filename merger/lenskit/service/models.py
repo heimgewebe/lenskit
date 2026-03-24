@@ -142,16 +142,24 @@ class AtlasRequest(BaseModel):
     max_file_size: Optional[int] = Field(default=50 * 1024 * 1024, description="Max file size in bytes. Null for unlimited.")
 
 class AtlasArtifact(BaseModel):
+    """Projection of an Atlas scan artifact for the API layer.
+
+    ``status`` is the canonical lifecycle state ("running" / "completed" / "failed").
+    ``is_stalled`` is a **derived diagnostic flag** — it is NOT a status class.
+    It is computed on-the-fly from ``last_progress_at`` (>60 s without update)
+    and never persisted.  UI consumers can use it to warn about potentially
+    hung scans without introducing a fourth status value.
+    """
     id: str
     status: Literal["running", "completed", "failed"] = "completed"
     created_at: str
     hub: str
     root_scanned: str
     paths: Dict[str, str] # {"json": "...", "md": "..."}
-    stats: Dict[str, Any] # Summary stats
+    stats: Dict[str, Any] # Summary stats (total_* = final result, *_seen = in-progress counters)
     effective: Optional[AtlasEffective] = None # Effective parameters (max_depth, etc)
     error: Optional[str] = None # Generic error message if failed
-    is_stalled: bool = False  # True when status is "running" but no progress update for >60s
+    is_stalled: bool = False  # Derived diagnostic: True when status == "running" but no progress for >60s
 
 class Artifact(BaseModel):
     id: str

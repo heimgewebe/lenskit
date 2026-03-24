@@ -83,7 +83,12 @@ class AtlasRegistry:
             if "disk_ref" not in cols:
                 self.conn.execute("ALTER TABLE snapshots ADD COLUMN disk_ref TEXT")
 
-            # Migration: progress tracking columns for live scan observability
+            # Migration: progress tracking columns for live scan observability.
+            # files_seen / dirs_seen / bytes_seen = in-progress counters
+            # (distinct from total_files / total_dirs / total_bytes in the
+            #  final snapshot_meta.json result artifact).
+            # last_progress_at = liveness/diagnostic timestamp.
+            # error_message = failure reason text.
             if "files_seen" not in cols:
                 self.conn.execute("ALTER TABLE snapshots ADD COLUMN files_seen INTEGER")
             if "dirs_seen" not in cols:
