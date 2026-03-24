@@ -570,12 +570,20 @@ def test_graph_staleness_e2e_hash_mismatch(mini_index, tmp_path):
     import json
     import sqlite3
 
+    import re
     # We need to know the expected SHA that query_core will read from the DB
     conn = sqlite3.connect(mini_index)
     cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
     row = cursor.fetchone()
-    expected_sha = row[0] if row else "unknown"
     conn.close()
+
+    # Causality hardening: We must guarantee the DB actually holds a valid 64-hex SHA
+    # before we prove that a mismatch causes the stale status. Otherwise, a missing row
+    # could cause a silent fallback passing the test for the wrong reasons.
+    assert row is not None, "canonical_dump_index_sha256 must exist in index_meta for this E2E mismatch test"
+    expected_sha = row[0]
+    assert re.fullmatch(r"^[a-f0-9]{64}$", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
+
 
     # 1. Erzeuge echten Graph-Index
     graph_index_path = tmp_path / "graph_index.json"
@@ -631,12 +639,18 @@ def test_query_uses_stale_graph_runtime_path(mini_index, tmp_path):
     """
     import json
     import sqlite3
+    import re
 
     conn = sqlite3.connect(mini_index)
     cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
     row = cursor.fetchone()
-    expected_sha = row[0] if row else "unknown"
     conn.close()
+
+    # Causality hardening: The test premise requires a valid canonical DB SHA
+    assert row is not None, "canonical_dump_index_sha256 must exist in index_meta for this E2E mismatch test"
+    expected_sha = row[0]
+    assert re.fullmatch(r"^[a-f0-9]{64}$", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
+
 
     graph_index_path = tmp_path / "graph_index.json"
     actual_sha_in_graph = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
