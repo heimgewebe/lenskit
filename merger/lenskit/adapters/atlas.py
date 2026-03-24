@@ -4,7 +4,7 @@ import time
 import json
 import hashlib
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Pattern, Union, Tuple
+from typing import List, Dict, Any, Optional, Pattern, Union, Tuple, Callable
 from datetime import datetime, timezone
 import fnmatch
 import re
@@ -150,6 +150,18 @@ def detect_encoding(path: Path) -> Optional[str]:
 
 logger = logging.getLogger(__name__)
 
+# Heuristic threshold (in files) for the file-count-based progress gate.
+# The scanner fires on_progress when this many *new* files have been seen
+# since the last emit, even if the time-based 1-second gate has not elapsed.
+# This prevents false ``is_stalled`` flags on large directories where a
+# single os.walk() iteration takes > 60 s.
+#
+# The value 1000 is a pragmatic heuristic — large enough to avoid IO storms,
+# small enough to keep stall detection responsive on big monorepos.  It is
+# deliberately NOT configurable in this version; a future PR may promote it
+# to a tunable if real-world usage demands it.
+_PROGRESS_FILE_COUNT_THRESHOLD = 1000
+
 class AtlasScanner:
     DEFAULT_ATLAS_EXCLUDES = [
         "proc/**",
@@ -231,10 +243,16 @@ class AtlasScanner:
 
         self._exclude_patterns = self._build_exclude_patterns(self.exclude_globs)
         self._exclude_regex = self._compile_exclude_regex(self._exclude_patterns)
+        # ── Stats: final result counters ──
+        # total_files / total_dirs / total_bytes are *result* fields: they
+        # hold definitive totals only after scan() returns.  During the scan
+        # they accumulate incrementally and are forwarded to the on_progress
+        # callback as "files_seen / dirs_seen / bytes_seen" in the caller's
+        # persistence layer (registry or JSON).
         self.stats = {
-            "total_files": 0,
-            "total_dirs": 0,
-            "total_bytes": 0,
+            "total_files": 0,     # result: definitive file count after scan completes
+            "total_dirs": 0,      # result: definitive directory count after scan completes
+            "total_bytes": 0,     # result: definitive byte sum after scan completes
             "start_time": None,
             "end_time": None,
             "duration_seconds": 0,
@@ -354,19 +372,31 @@ class AtlasScanner:
             return True
         return False
 
-    def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optional[Path] = None, previous_inventory_file: Optional[Path] = None) -> Dict[str, Any]:
+    def scan(self, inventory_file: Optional[Path] = None, dirs_inventory_file: Optional[Path] = None, previous_inventory_file: Optional[Path] = None, on_progress: Optional[Callable[[int, int, int], None]] = None) -> Dict[str, Any]:
         """
         Scans the directory structure.
 
         Args:
             inventory_file: Optional path to write a JSONL inventory of all files.
             dirs_inventory_file: Optional path to write a JSONL inventory of all directories.
+            on_progress: Optional callback(files_seen, dirs_seen, bytes_seen) called
+                periodically during the scan (throttled to ≤1 call/sec, or every
+                1000 new files — whichever comes first).
+                The three int arguments are running counters that correspond
+                to ``total_files``, ``total_dirs``, ``total_bytes`` in the
+                final stats dict.  Callers should persist them under
+                ``files_seen`` / ``dirs_seen`` / ``bytes_seen`` to clearly
+                distinguish in-progress counters from final result totals.
+                The callback MUST NOT raise; any exception is silently caught
+                to avoid aborting the scan.
         """
         if inventory_file and not self.snapshot_id:
             raise ValueError("Inventory emission requires a snapshot_id to satisfy the atlas-inventory.v1 schema contract.")
 
         self.stats["start_time"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         start_ts = time.time()
+        last_progress_ts = start_ts  # throttle progress callbacks
+        last_progress_files = 0  # file-count gate for progress in large dirs
 
         current_entries = 0
         depth_limit_hit = False
@@ -775,6 +805,26 @@ class AtlasScanner:
                 dir_sizes[rel_path_str] = dir_bytes
                 if collect_dir_aggregates:
                     dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
+
+                # Fire progress callback (throttled: at most once per second OR
+                # every _PROGRESS_FILE_COUNT_THRESHOLD new files, whichever
+                # comes first).  The file-count gate prevents false stalls on
+                # directories with many entries where a single os.walk()
+                # iteration takes > 60s.
+                if on_progress is not None:
+                    now_ts = time.time()
+                    files_delta = self.stats["total_files"] - last_progress_files
+                    if (now_ts - last_progress_ts >= 1.0) or (files_delta >= _PROGRESS_FILE_COUNT_THRESHOLD):
+                        last_progress_ts = now_ts
+                        last_progress_files = self.stats["total_files"]
+                        try:
+                            on_progress(
+                                self.stats["total_files"],
+                                self.stats["total_dirs"],
+                                self.stats["total_bytes"]
+                            )
+                        except Exception:
+                            pass  # never let progress callback abort the scan
 
         finally:
             if inv_f:

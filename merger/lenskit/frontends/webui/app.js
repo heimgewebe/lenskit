@@ -1753,7 +1753,7 @@ async function loadAtlasArtifacts() {
                 div.appendChild(statsDiv);
             }
 
-            if (art.status === 'completed') {
+            if (art.status === 'complete') {
                 const dlDiv = document.createElement('div');
                 dlDiv.className = "flex flex-wrap gap-2 text-xs mt-3 border-t border-gray-800 pt-2";
 

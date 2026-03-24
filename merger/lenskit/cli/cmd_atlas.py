@@ -13,6 +13,7 @@ from merger.lenskit.adapters.atlas import AtlasScanner, render_atlas_md
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
 from merger.lenskit.atlas.registry import AtlasRegistry
 from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_snapshot_dir, resolve_artifact_ref
+from merger.lenskit.atlas.lifecycle import run_scan_lifecycle
 
 def run_atlas_machines(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
@@ -622,7 +623,7 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
 
         registry.create_snapshot(snapshot_id, machine_id, root_id, short_hash, "running")
 
-        try:
+        def _do_scan():
             # Set up correct directory structure based on Atlas Blaupause
             snapshot_dir = resolve_snapshot_dir(atlas_base, machine_id, root_id, snapshot_id)
             snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -648,7 +649,10 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             inventory_path = planned_paths.get("inventory")
             dirs_path = planned_paths.get("dirs")
 
-            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_path)
+            def _progress_callback(files: int, dirs: int, bytes_total: int):
+                registry.update_snapshot_progress(snapshot_id, files, dirs, bytes_total)
+
+            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_path, on_progress=_progress_callback)
 
             # Write core stats JSON (always)
             out_json = snapshot_dir / "snapshot_meta.json"
@@ -664,8 +668,9 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             # Additional structural outputs
             write_mode_outputs(planned_outputs, result, snapshot_dir)
 
-            # Write artifacts before updating the registry status to complete (Memory constraint)
+            # Write artifacts before updating the registry status to complete
             registry.update_snapshot_artifacts(snapshot_id, registry_artifacts)
+            # Registry is canonical for CLI lifecycle — mark complete here.
             registry.update_snapshot_status(snapshot_id, "complete")
 
             print(f"Done. Outputs generated for mode '{args.mode}':")
@@ -673,10 +678,14 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
                 print(f" - {k}: {v}")
 
             print(f"\nSummary preview:\n{md_content}")
-            return 0
-        except Exception:
-            registry.update_snapshot_status(snapshot_id, "failed")
-            raise
+
+        run_scan_lifecycle(
+            scan_fn=_do_scan,
+            mark_failed=lambda msg: registry.update_snapshot_status(snapshot_id, "failed", error_message=msg),
+            is_still_running=lambda: (registry.get_snapshot(snapshot_id) or {}).get("status") == "running",
+            label=f"cli-scan:{snapshot_id}",
+        )
+        return 0
 
     except Exception as e:
         print(f"Error during scan: {e}", file=sys.stderr)

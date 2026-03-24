@@ -32,6 +32,7 @@ from ..adapters.filesystem import resolve_fs_path, list_allowed_roots, issue_fs_
 from ..adapters.atlas import AtlasScanner, render_atlas_md
 from ..adapters.metarepo import sync_from_metarepo
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
+from merger.lenskit.atlas.lifecycle import run_scan_lifecycle
 from ..adapters import sources as sources_refresh
 from ..adapters import diagnostics as diagnostics_rebuild
 
@@ -986,9 +987,23 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
     }
     _write_json_atomic(merges_dir / json_filename, initial_state)
 
+    # JSON artifact file is canonical for API lifecycle — helpers to read
+    # and write its status field so run_scan_lifecycle can operate on it.
+    json_path = merges_dir / json_filename
+
+    def _mark_api_failed(error_msg: str) -> None:
+        _mark_api_artifact_failed(json_path, initial_state, error_msg)
+
+    def _is_api_still_running() -> bool:
+        try:
+            with open(json_path, "r", encoding="utf-8") as fh:
+                return json.load(fh).get("status") == "running"
+        except Exception:
+            return False
+
     # Helper to run scan and save
     def run_scan_and_save():
-        try:
+        def _do_scan():
             inventory_path = None
             if "inventory" in planned_outputs:
                 inventory_path = merges_dir / planned_outputs["inventory"]
@@ -1008,18 +1023,42 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 snapshot_id=f"snap_api_{int(time.time())}", # Temporary dummy ID until service adopts full registry logic
                 enable_content_stats=(request.scan_mode == "content")
             )
-            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path)
+
+            # Mutable progress template — stats field is replaced on each
+            # callback invocation.  Only the static envelope (status, root,
+            # created_at, effective) is reused across calls.
+            progress_template = {
+                "status": initial_state["status"],
+                "root": initial_state.get("root", ""),
+                "created_at": initial_state["created_at"],
+                "effective": initial_state.get("effective"),
+                "stats": {}
+            }
+
+            def _api_progress(files: int, dirs: int, bytes_total: int):
+                progress_template["stats"] = {
+                    "files_seen": files,
+                    "dirs_seen": dirs,
+                    "bytes_seen": bytes_total,
+                    "last_progress_at": datetime.now(timezone.utc).isoformat()
+                }
+                try:
+                    _write_json_atomic(json_path, progress_template)
+                except Exception:
+                    pass  # never let progress IO abort the scan
+
+            result = scanner.scan(inventory_file=inventory_path, dirs_inventory_file=dirs_inventory_path, on_progress=_api_progress)
 
             # Merge with initial state to preserve required fields, then update status
-            result["status"] = "completed"
+            result["status"] = "complete"
             result["created_at"] = initial_state["created_at"]
             result["effective"] = initial_state["effective"]
 
             # Additional structural JSONs for new modes
             write_mode_outputs(planned_outputs, result, merges_dir)
 
-            # Save JSON Stats (core internal metadata)
-            _write_json_atomic(merges_dir / json_filename, result)
+            # JSON artifact is canonical for API lifecycle — mark complete here.
+            _write_json_atomic(json_path, result)
 
             # Render and Save MD (Summary)
             md_content = render_atlas_md(result)
@@ -1029,13 +1068,12 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
 
             logger.info(f"Atlas scan completed: {scan_id}")
 
-        except Exception as e:
-            logger.exception(f"Atlas scan failed: {e}")
-            # Write failed state
-            failed_state = initial_state.copy()
-            failed_state["status"] = "failed"
-            failed_state["error"] = "Atlas scan failed. See server logs for details."
-            _write_json_atomic(merges_dir / json_filename, failed_state)
+        run_scan_lifecycle(
+            scan_fn=_do_scan,
+            mark_failed=_mark_api_failed,
+            is_still_running=_is_api_still_running,
+            label=f"api-scan:{scan_id}",
+        )
 
     background_tasks.add_task(run_scan_and_save)
 
@@ -1106,6 +1144,59 @@ def api_sync_metarepo(payload: Dict[str, Any]):
         logger.exception(f"Sync failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def _normalize_atlas_status(raw: str) -> str:
+    """Normalize legacy status values to the canonical vocabulary.
+
+    Older artifacts may contain ``"completed"`` instead of ``"complete"``.
+    This function maps known legacy synonyms so that API consumers always
+    see the canonical set: ``running | complete | failed``.
+    """
+    if raw == "completed":
+        return "complete"
+    return raw
+
+
+def _read_atlas_artifact_json(path: Path) -> dict:
+    """Read an atlas artifact JSON file and normalize its status field.
+
+    Returns a dict with ``status`` mapped through :func:`_normalize_atlas_status`
+    and a default of ``"complete"`` when the key is absent.  Returns an empty
+    dict if the file does not contain a JSON object (callers use ``.get()``
+    with defaults for all field accesses).
+    Raises on IO/JSON errors — callers are expected to handle exceptions.
+    """
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, dict):
+        return {}
+    data["status"] = _normalize_atlas_status(data.get("status", "complete"))
+    return data
+
+
+def _mark_api_artifact_failed(json_path: Path, initial_state: dict, error_msg: str) -> None:
+    """Mark an API-managed atlas artifact as *failed*, preserving progress data.
+
+    Best-effort: loads the current artifact state so that progress counters
+    (``files_seen``, ``dirs_seen``, ``bytes_seen``, ``last_progress_at``) survive
+    the failure transition.  Falls back to *initial_state* if the file is
+    unreadable (e.g. disk full before first write).
+    """
+    current = None
+    try:
+        with open(json_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            if isinstance(data, dict):
+                current = data
+    except Exception:
+        logger.warning(
+            "_mark_api_artifact_failed: could not read current artifact state "
+            "from %s; falling back to initial_state", json_path,
+        )
+    base = current if current else initial_state.copy()
+    base["status"] = "failed"
+    base["error"] = error_msg
+    _write_json_atomic(json_path, base)
+
 @app.get("/api/atlas", response_model=List[AtlasArtifact], dependencies=[Depends(verify_token)])
 def list_atlas():
     merges_dir = state.merges_dir
@@ -1127,15 +1218,14 @@ def list_atlas():
         data = {}
         error_msg = None
         try:
-            with open(file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                stats = data.get("stats", {})
-                scan_root = data.get("root", "?")
-                status = data.get("status", "completed")
-                effective = data.get("effective", None)
-                if effective:
-                    effective = AtlasEffective(**effective)
-                error_msg = data.get("error")
+            data = _read_atlas_artifact_json(file)
+            stats = data.get("stats", {})
+            scan_root = data.get("root", "?")
+            status = data.get("status", "complete")
+            effective = data.get("effective", None)
+            if effective:
+                effective = AtlasEffective(**effective)
+            error_msg = data.get("error")
         except Exception:
             logger.warning(f"Failed to read/parse atlas artifact: {file.name}")
             stats = {}
@@ -1173,6 +1263,22 @@ def list_atlas():
         if "created_at" in data:
             created_at = data["created_at"]
 
+        # Stale detection — is_stalled is a *derived diagnostic flag*, not a
+        # status class.  It is computed from last_progress_at (or created_at
+        # as fallback) and never persisted.  Threshold: 60 seconds.
+        is_stalled = False
+        if status == "running":
+            last_progress = stats.get("last_progress_at")
+            ref_timestamp = last_progress or created_at
+            if ref_timestamp:
+                try:
+                    ts_str = ref_timestamp.replace("Z", "+00:00")
+                    ts_dt = datetime.fromisoformat(ts_str)
+                    if (datetime.now(timezone.utc) - ts_dt).total_seconds() > 60:
+                        is_stalled = True
+                except (ValueError, TypeError):
+                    pass
+
         artifacts.append(AtlasArtifact(
             id=scan_id,
             status=status,
@@ -1182,7 +1288,8 @@ def list_atlas():
             paths=paths,
             stats=stats,
             effective=effective,
-            error=error_msg
+            error=error_msg,
+            is_stalled=is_stalled
         ))
 
     return artifacts
@@ -1209,27 +1316,26 @@ def get_latest_atlas():
     data = {}
     stats = {}
     scan_root = "?"
-    status = "completed"
+    status = "complete"
     effective = None
 
     for file in files:
         try:
-            with open(file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                status = data.get("status", "completed")
-                if status == "completed":
-                    latest_file = file
-                    stats = data.get("stats", {})
-                    scan_root = data.get("root", "?")
-                    effective = data.get("effective", None)
-                    if effective:
-                        effective = AtlasEffective(**effective)
-                    break
+            data = _read_atlas_artifact_json(file)
+            status = data.get("status", "complete")
+            if status == "complete":
+                latest_file = file
+                stats = data.get("stats", {})
+                scan_root = data.get("root", "?")
+                effective = data.get("effective", None)
+                if effective:
+                    effective = AtlasEffective(**effective)
+                break
         except Exception:
             continue
 
     if not latest_file:
-        raise HTTPException(status_code=404, detail="No completed atlas artifacts found")
+        raise HTTPException(status_code=404, detail="No complete atlas artifacts found")
 
     scan_id = latest_file.stem # atlas-123456
 
@@ -1262,7 +1368,7 @@ def get_latest_atlas():
 
     return AtlasArtifact(
         id=scan_id,
-        status="completed",
+        status="complete",
         created_at=created_at,
         hub=str(state.hub),
         root_scanned=scan_root,
