@@ -1,9 +1,7 @@
 import sys
-import pytest
 import subprocess
 import json
 import os
-import shutil
 from pathlib import Path
 
 def test_cli_atlas_analyze_backup_gap(tmp_path):
@@ -17,7 +15,6 @@ def test_cli_atlas_analyze_backup_gap(tmp_path):
     # Let's write a mock registry and snapshot artifacts
     # We can use the AtlasRegistry directly to set up state, then use CLI to query it.
     from merger.lenskit.atlas.registry import AtlasRegistry
-    import datetime
 
     with AtlasRegistry(registry_path) as reg:
         reg.register_machine("machine-a", "host-a")
@@ -35,11 +32,13 @@ def test_cli_atlas_analyze_backup_gap(tmp_path):
         with open(inv_src_path, "w", encoding="utf-8") as f:
             f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": "2024-01-01"}) + "\n")
             f.write(json.dumps({"rel_path": "file2.txt", "size_bytes": 200, "mtime": "2024-01-01"}) + "\n")
+            f.write(json.dumps({"rel_path": "file4.txt", "size_bytes": 400, "mtime": "2024-01-02"}) + "\n")
 
         inv_backup_path = atlas_base / "inv_backup.jsonl"
         with open(inv_backup_path, "w", encoding="utf-8") as f:
             f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": "2024-01-01"}) + "\n")
             f.write(json.dumps({"rel_path": "file3.txt", "size_bytes": 300, "mtime": "2024-01-01"}) + "\n")
+            f.write(json.dumps({"rel_path": "file4.txt", "size_bytes": 400, "mtime": "2024-01-01"}) + "\n")
 
         reg.update_snapshot_artifacts(snap1, {"inventory": "inv_src.jsonl"})
         reg.update_snapshot_artifacts(snap2, {"inventory": "inv_backup.jsonl"})
@@ -48,6 +47,9 @@ def test_cli_atlas_analyze_backup_gap(tmp_path):
     try:
         os.chdir(tmp_path)
 
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        current_pythonpath = os.environ.get('PYTHONPATH', '')
+        new_pythonpath = f"{current_pythonpath}{os.pathsep}{repo_root}" if current_pythonpath else str(repo_root)
         result = subprocess.run(
             [
                 sys.executable,
@@ -61,7 +63,7 @@ def test_cli_atlas_analyze_backup_gap(tmp_path):
             ],
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": f"{os.environ.get('PYTHONPATH', '')}:{old_cwd}"}
+            env={**os.environ, "PYTHONPATH": new_pythonpath}
         )
 
         assert result.returncode == 0, f"Command failed: {result.stderr}"
@@ -73,10 +75,11 @@ def test_cli_atlas_analyze_backup_gap(tmp_path):
         assert output_json["source_snapshot"] == "snap_src_1"
         assert output_json["backup_snapshot"] == "snap_backup_1"
         assert output_json["summary"]["missing_count"] == 1
-        assert output_json["summary"]["outdated_count"] == 0
+        assert output_json["summary"]["outdated_count"] == 1
         assert output_json["summary"]["extraneous_count"] == 1
 
         assert output_json["missing"] == ["file2.txt"]
+        assert output_json["outdated"] == ["file4.txt"]
         assert output_json["extraneous"] == ["file3.txt"]
 
     finally:

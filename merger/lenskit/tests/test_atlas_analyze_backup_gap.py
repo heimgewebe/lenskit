@@ -1,5 +1,3 @@
-import pytest
-from pathlib import Path
 from merger.lenskit.atlas.diff import _compare_file_sets
 
 def test_compare_file_sets_semantics_for_backup_gap():
