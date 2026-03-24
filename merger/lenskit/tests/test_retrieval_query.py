@@ -452,7 +452,7 @@ def test_graph_bonus_is_bounded(mini_index, tmp_path, monkeypatch):
     res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path, graph_weights=weights)
 
     hits = [r for r in res["results"] if r["path"] == "src/main.py"]
-    assert len(hits) > 0, "No hit found for src/main.py"
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
     hit = hits[0]
     ge = hit["why"]["diagnostics"]["graph"]
 
@@ -496,7 +496,7 @@ def test_graph_staleness_marker(mini_index, tmp_path, monkeypatch):
 
 
     hits = [r for r in res["results"] if r["path"] == "src/main.py"]
-    assert len(hits) > 0, "No hit found for src/main.py"
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
     hit = hits[0]
     ge = hit["why"]["diagnostics"]["graph"]
 
@@ -557,3 +557,129 @@ def test_query_json_structure_trace(mini_index):
     with schema_path.open("r", encoding="utf-8") as f:
         schema = json.load(f)
     jsonschema.validate(instance=res, schema=schema)
+
+def test_graph_staleness_e2e_hash_mismatch(mini_index, tmp_path):
+    """
+    Proves that a real graph index loaded with an invalid canonical dump SHA
+    produces the 'stale_or_mismatched' status through the entire query pipeline
+    without using any mocks or monkeypatches.
+
+    This explicitly proves causality: the mismatch of actual vs expected SHA
+    triggers the stale status, not an invalid schema or missing file.
+    """
+    import json
+    import sqlite3
+
+    import re
+    # We need to know the expected SHA that query_core will read from the DB
+    conn = sqlite3.connect(mini_index)
+    cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
+    row = cursor.fetchone()
+    conn.close()
+
+    # Causality hardening: We must guarantee the DB actually holds a valid 64-hex SHA
+    # before we prove that a mismatch causes the stale status. Otherwise, a missing row
+    # could cause a silent fallback passing the test for the wrong reasons.
+    assert row is not None, "canonical_dump_index_sha256 must exist in index_meta for this E2E mismatch test"
+    expected_sha = row[0]
+    assert re.fullmatch(r"[a-f0-9]{64}", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
+
+
+    # 1. Erzeuge echten Graph-Index
+    graph_index_path = tmp_path / "graph_index.json"
+
+    # 2. Erzeuge absichtlich falschen expected_sha
+    actual_sha_in_graph = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+
+    # 3. Explicitly prove causality requirements
+    assert len(actual_sha_in_graph) == 64, "Actual SHA must pass schema pattern ^[a-f0-9]{64}$"
+    assert actual_sha_in_graph != expected_sha, "Sanity check failed: Hashes accidentally matched"
+
+    graph_index = {
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": "test_stale_run",
+        "canonical_dump_index_sha256": actual_sha_in_graph,
+        "distances": {"file:src/main.py": 0},
+        "metrics": {"entrypoint_count": 1, "nodes_reachable": 1, "unreachable_nodes": 0}
+    }
+    graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
+
+    # 4. Führe echte Query-Pipeline aus
+    from merger.lenskit.retrieval import query_core
+    res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path)
+
+    # 5. Assertions
+    hits = [r for r in res["results"] if r["path"] == "src/main.py"]
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
+    hit = hits[0]
+
+    diagnostics = hit["why"]["diagnostics"]["graph"]
+    graph_status = diagnostics["graph_status"]
+
+    # Proves the state didn't fall back to other errors
+    assert graph_status != "invalid_schema"
+    assert graph_status != "not_found"
+    assert graph_status != "unreadable"
+    assert graph_status != "invalid_json"
+
+    # Proves the exact causality
+    assert graph_status == "stale_or_mismatched", f"Expected stale_or_mismatched but got {graph_status}"
+
+    # Pipeline-Check confirmation implicitly given:
+    # No monkeypatch was used on query_core or load_graph_index in this test.
+    # The actual graph_index JSON was written to disk and loaded natively.
+
+
+def test_query_uses_stale_graph_runtime_path(mini_index, tmp_path):
+    """
+    Proves that when query_core loads a 'stale_or_mismatched' graph (caused
+    explicitly by a hash mismatch, not missing file), it continues to process
+    the graph (graph_used = True) and computes a positive graph_bonus.
+    """
+    import json
+    import sqlite3
+    import re
+
+    conn = sqlite3.connect(mini_index)
+    cursor = conn.execute("SELECT value FROM index_meta WHERE key='canonical_dump_index_sha256'")
+    row = cursor.fetchone()
+    conn.close()
+
+    # Causality hardening: The test premise requires a valid canonical DB SHA
+    assert row is not None, "canonical_dump_index_sha256 must exist in index_meta for this E2E mismatch test"
+    expected_sha = row[0]
+    assert re.fullmatch(r"[a-f0-9]{64}", expected_sha), "Expected DB SHA must match pattern ^[a-f0-9]{64}$"
+
+
+    graph_index_path = tmp_path / "graph_index.json"
+    actual_sha_in_graph = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+
+    # Pre-condition checks: Causality guarantees
+    assert actual_sha_in_graph != expected_sha
+    assert len(actual_sha_in_graph) == 64
+
+    graph_index = {
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": "test_stale_run",
+        "canonical_dump_index_sha256": actual_sha_in_graph,
+        "distances": {"file:src/main.py": 0},
+        "metrics": {"entrypoint_count": 1, "nodes_reachable": 1, "unreachable_nodes": 0}
+    }
+    graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
+
+    from merger.lenskit.retrieval import query_core
+    res = query_core.execute_query(mini_index, query_text="def", k=2, explain=True, graph_index_path=graph_index_path)
+
+    hits = [r for r in res["results"] if r["path"] == "src/main.py"]
+    assert len(hits) == 1, "Expected exactly 1 hit for src/main.py"
+    hit = hits[0]
+
+    diagnostics = hit["why"]["diagnostics"]["graph"]
+
+    # Validating the true integration and semantic application
+    assert diagnostics["graph_status"] == "stale_or_mismatched"
+    assert diagnostics["graph_used"] is True, "Graph must still be used by policy despite mismatch"
+    assert diagnostics["distance"] == 0, "Graph distance must still be projected correctly"
+    assert diagnostics["graph_bonus"] > 0, "Graph bonus must actually influence the score"
