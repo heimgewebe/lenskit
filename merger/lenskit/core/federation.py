@@ -1,4 +1,5 @@
 import json
+import jsonschema
 import datetime
 from pathlib import Path
 from typing import Optional
@@ -42,7 +43,6 @@ def init_federation(federation_id: str, out_path: Path) -> dict:
     }
 
     # Validate against our own schema before writing (fail safe)
-    import jsonschema
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
@@ -69,7 +69,6 @@ def validate_federation(index_path: Path) -> bool:
         fed_data = json.load(f)
 
     # 1. Schema Validation
-    import jsonschema
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
@@ -137,7 +136,6 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
         fed_data = json.load(f)
 
     # Pre-validate existing data to prevent poor failure modes (e.g. KeyError on missing repo_id)
-    import jsonschema
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
@@ -167,7 +165,6 @@ def add_bundle(index_path: Path, repo_id: str, bundle_path: str) -> dict:
     fed_data["updated_at"] = now
 
     # Validate against our own schema before writing (fail safe)
-    import jsonschema
     try:
         jsonschema.validate(instance=fed_data, schema=schema)
     except jsonschema.exceptions.ValidationError as e:
