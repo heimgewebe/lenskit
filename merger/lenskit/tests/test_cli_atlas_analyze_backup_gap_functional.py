@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-def test_cli_atlas_analyze_backup_gap(tmp_path):
+def test_cli_atlas_analyze_backup_gap(tmp_path, monkeypatch):
     # Setup registry and environments
     registry_path = tmp_path / "atlas/registry/atlas_registry.sqlite"
     atlas_base = tmp_path / "atlas"
@@ -43,44 +43,39 @@ def test_cli_atlas_analyze_backup_gap(tmp_path):
         reg.update_snapshot_artifacts(snap1, {"inventory": "inv_src.jsonl"})
         reg.update_snapshot_artifacts(snap2, {"inventory": "inv_backup.jsonl"})
 
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
 
-        repo_root = Path(__file__).resolve().parent.parent.parent.parent
-        current_pythonpath = os.environ.get('PYTHONPATH', '')
-        new_pythonpath = f"{current_pythonpath}{os.pathsep}{repo_root}" if current_pythonpath else str(repo_root)
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "merger.lenskit.cli.main",
-                "atlas",
-                "analyze",
-                "backup-gap",
-                "snap_src_1",
-                "snap_backup_1"
-            ],
-            capture_output=True,
-            text=True,
-            env={**os.environ, "PYTHONPATH": new_pythonpath}
-        )
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
+    current_pythonpath = os.environ.get('PYTHONPATH', '')
+    new_pythonpath = f"{current_pythonpath}{os.pathsep}{repo_root}" if current_pythonpath else str(repo_root)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "merger.lenskit.cli.main",
+            "atlas",
+            "analyze",
+            "backup-gap",
+            "snap_src_1",
+            "snap_backup_1"
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": new_pythonpath}
+    )
 
-        assert result.returncode == 0, f"Command failed: {result.stderr}"
+    assert result.returncode == 0, f"Command failed: {result.stderr}"
 
-        # Parse output
-        output_json = json.loads(result.stdout.strip())
+    # Parse output
+    output_json = json.loads(result.stdout.strip())
 
-        # Validation semantics
-        assert output_json["source_snapshot"] == "snap_src_1"
-        assert output_json["backup_snapshot"] == "snap_backup_1"
-        assert output_json["summary"]["missing_count"] == 1
-        assert output_json["summary"]["outdated_count"] == 1
-        assert output_json["summary"]["extraneous_count"] == 1
+    # Validation semantics
+    assert output_json["source_snapshot"] == "snap_src_1"
+    assert output_json["backup_snapshot"] == "snap_backup_1"
+    assert output_json["summary"]["missing_count"] == 1
+    assert output_json["summary"]["outdated_count"] == 1
+    assert output_json["summary"]["extraneous_count"] == 1
 
-        assert output_json["missing"] == ["file2.txt"]
-        assert output_json["outdated"] == ["file4.txt"]
-        assert output_json["extraneous"] == ["file3.txt"]
-
-    finally:
-        os.chdir(old_cwd)
+    assert output_json["missing"] == ["file2.txt"]
+    assert output_json["outdated"] == ["file4.txt"]
+    assert output_json["extraneous"] == ["file3.txt"]
