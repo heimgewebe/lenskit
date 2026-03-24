@@ -31,6 +31,8 @@ env:
   FAIL_ON_NO_BASE: "1"
   ALLOW_REMOVALS: "0"
 
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   version-sync-check:
     name: "Security: enforce static pin for contracts reusable workflow"
