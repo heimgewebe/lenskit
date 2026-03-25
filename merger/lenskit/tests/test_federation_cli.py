@@ -241,7 +241,7 @@ def test_federation_query_cli_trace_projection(tmp_path: Path, monkeypatch, caps
     except ImportError:
         pass
 
-def test_federation_query_writes_conflicts_json(tmp_path: Path, monkeypatch, capsys):
+def test_federation_query_trace_writes_conflicts_json(tmp_path: Path, monkeypatch, capsys):
     # Isolate execution to tmp_path to verify file creation safely
     monkeypatch.chdir(tmp_path)
 
@@ -313,3 +313,54 @@ def test_federation_query_writes_conflicts_json(tmp_path: Path, monkeypatch, cap
             jsonschema.validate(instance=conflicts_data, schema=schema)
     except ImportError:
         pass
+
+def test_federation_query_without_trace_skips_conflicts_json(tmp_path: Path, monkeypatch, capsys):
+    # Isolate execution to tmp_path
+    monkeypatch.chdir(tmp_path)
+
+    out_path = tmp_path / "fed.json"
+    init_federation("conflict-fed", out_path)
+
+    # Bundle 1
+    bundle_path1 = tmp_path / "b1"
+    bundle_path1.mkdir()
+    from merger.lenskit.retrieval import index_db
+    b1_dump = bundle_path1 / "dump.json"
+    b1_chunks = bundle_path1 / "chunks.jsonl"
+    b1_db = bundle_path1 / "chunk_index.index.sqlite"
+
+    chunk_data1 = [
+        {"chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py", "content": "hello repo1", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1", "source_file": "src/main.py", "start_byte": 0, "end_byte": 100}
+    ]
+    with b1_chunks.open("w", encoding="utf-8") as f:
+        for c in chunk_data1:
+            f.write(json.dumps(c) + "\n")
+    b1_dump.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(b1_dump, b1_chunks, b1_db)
+    add_bundle(out_path, "repo1", str(bundle_path1))
+
+    # Bundle 2 (Same path/filename to trigger conflict heuristic)
+    bundle_path2 = tmp_path / "b2"
+    bundle_path2.mkdir()
+    b2_dump = bundle_path2 / "dump.json"
+    b2_chunks = bundle_path2 / "chunks.jsonl"
+    b2_db = bundle_path2 / "chunk_index.index.sqlite"
+
+    chunk_data2 = [
+        {"chunk_id": "c2", "repo_id": "repo2", "path": "src/main.py", "content": "hello repo2", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h2", "source_file": "src/main.py", "start_byte": 0, "end_byte": 100}
+    ]
+    with b2_chunks.open("w", encoding="utf-8") as f:
+        for c in chunk_data2:
+            f.write(json.dumps(c) + "\n")
+    b2_dump.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(b2_dump, b2_chunks, b2_db)
+    add_bundle(out_path, "repo2", str(bundle_path2))
+
+    from merger.lenskit.cli import main
+
+    # Execute WITHOUT --trace. Conflict generation in logic occurs, but CLI should not persist it.
+    ret = main.main(["federation", "query", "--index", str(out_path), "-q", "hello"])
+    assert ret == 0
+
+    conflicts_file = tmp_path / "federation_conflicts.json"
+    assert not conflicts_file.exists(), "federation_conflicts.json was incorrectly created without --trace"
