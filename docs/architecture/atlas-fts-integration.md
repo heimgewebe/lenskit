@@ -15,7 +15,7 @@ Die folgenden Punkte beschreiben die architektonisch präferierte Richtung für 
 Was sollte in den FTS-Index überführt werden?
 *   **Pfade und Metadaten:** `rel_path`, `name`, `ext` und potenziell aufbereitete Zeitstempel/Größen zur gefilterten Volltextsuche.
 *   **Dateiinhalte (Content-Search):** Die Indizierung von Dateiinhalten sollte konzeptionell an den `content`-Scan-Modus gebunden sein. Die Text-Extraktion (insbesondere für große Dateien oder non-UTF8) sollte sich an der `TEXT_DETECTION_MAX_BYTES`-Grenze orientieren.
-*   **Kombination:** Die FTS-Struktur sollte eine kombinierte Suche über Pfad, Name und Inhalte (z. B. via `content_snippet`-Feld) zulassen, ohne Metadaten-Filterung (z.B. Dateigröße) zu brechen.
+*   **Kombination:** Die FTS-Struktur sollte eine kombinierte Suche über Pfad, Name und Inhalte (z. B. via `content_snippet`-Feld) zulassen, ohne Metadaten-Filterung (z. B. Dateigröße) zu brechen.
 
 ### 2.2 Snapshot-Bindung
 Wie sollte der Index an die maschinenweite Atlas-Historie gekoppelt sein?
@@ -25,7 +25,7 @@ Wie sollte der Index an die maschinenweite Atlas-Historie gekoppelt sein?
 
 ### 2.3 Update-Strategie
 Wann und wie sollte indexiert werden?
-*   **Nachgelagerte Indizierung (Präferenz):** Um den initialen Discovery-Scan (`inventory.jsonl`) nicht zu blockieren, sollte die FTS-Indizierung als nachgelagerter Schritt (z. B. via `atlas derive` oder einen Worker nach einem `complete`-Snapshot) erfolgen. (Eine Inline-Indizierung direkt beim Content-Scan wäre alternativ zu prüfen).
+*   **Nachgelagerte Indizierung (Präferenz):** Um den initialen Discovery-Scan (`inventory.jsonl`) nicht zu blockieren, sollte die FTS-Indizierung als nachgelagerter Schritt (z. B. entsprechend der in ADR-003 beschriebenen Derivation Stage oder über einen dedizierten Worker-Prozess) erfolgen. (Eine Inline-Indizierung direkt beim Content-Scan wäre alternativ zu prüfen).
 *   **Inkrementelle Updates:** Ein inkrementelles Update basierend auf Delta-Artefakten ist präferiert. Ein vollständiger Rebuild aus `inventory.jsonl` sollte als Fehlerbehebungs-Fallback existieren.
 
 ### 2.4 Invalidierung
@@ -46,7 +46,7 @@ Bevor Code für die FTS-Integration geschrieben wird, müssen die folgenden vier
 1.  **Index-Schnitt (Global vs. Per-Snapshot):**
     Wird `fts.sqlite` ein globaler Atlas-Index (Referenzierung via IDs) oder generieren wir isolierte FTS-Dateien pro Snapshot/Root?
 2.  **Write-Path (Inline vs. Derive):**
-    Wird die FTS-Indizierung synchron direkt während des `content`-Scans mitgeschrieben, oder asynchron/nachgelagert via `atlas derive` als Pipeline-Schritt generiert?
+    Wird die FTS-Indizierung synchron direkt während des `content`-Scans mitgeschrieben, oder asynchron als nachgelagerter Pipeline-Schritt generiert?
 3.  **Deletion- und Tombstone-Modell:**
     Wie repräsentiert das FTS-Schema Dateien, die in Snapshot N existierten, in N+1 aber gelöscht wurden? Werden sie hart gelöscht, weich markiert (Tombstones) oder ausschließlich über die Join-Logik mit der Snapshot-Registry gefiltert?
 4.  **Default-Query-Semantik (Latest-Only vs. Historisch):**
