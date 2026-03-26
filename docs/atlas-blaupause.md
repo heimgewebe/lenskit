@@ -823,7 +823,7 @@ Atlas-Artefakte werden deterministisch gegen einen kanonischen Atlas-Basisordner
 
 ### Phase 0 — Konstitution und Contracts
 Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
-- [x] ADR-001 bis ADR-006 anlegen
+- [~] ADR-001 bis ADR-007 anlegen
 - [x] Machine Contract definieren
 - [x] Root Contract definieren
 - [x] Snapshot Contract definieren
@@ -935,7 +935,7 @@ Ziel: Atlas wird diagnostisch.
 ### Phase 7 — Multi-Machine-Atlas
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
 - [x] mehrere Machines sauber registrieren (via --machine-id/--hostname CLI flags)
-- [ ] Root-Namenskonventionen zwischen Hosts vereinheitlichen
+- [x] Root-Namenskonventionen zwischen Hosts vereinheitlichen
 - [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
@@ -1006,6 +1006,12 @@ Die entscheidende Formel lautet:
 
 Und die wichtigste inhaltliche Invariante bleibt:
 **Atlas modelliert zuerst Dateiwirklichkeit, nicht Entwicklerwirklichkeit.**
+
+### Root Naming Convention (Cross-Host)
+Um Maschinen systemweit und betriebssystemuebergreifend vergleichen zu koennen, muessen lokale Dateipfade (`root_value`) auf ein abstraktes, gemeinsames Label (`root_id`) normalisiert werden.
+- **Windows:** `root_value="C:\Users\Name\Documents"` -> `root_id="documents"`
+- **Linux:** `root_value="/home/name/Documents"` -> `root_id="documents"`
+Die `root_id` ist die maschinenuebergreifende Klammer (Identitaet), waehrend der `root_value` den plattformspezifischen physischen Ankerpunkt darstellt. Nur durch einheitliche `root_id`s koennen Cross-Machine-Analysen automatisiert geclustert werden.
 
 ### Machine Identity Contract
 - `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`). Bei Legacy-Reuse kann jedoch zur Wahrung bestehender Referenzen (z. B. auf Snapshots oder Roots) die bereits gespeicherte Registry-ID weiterverwendet werden.
