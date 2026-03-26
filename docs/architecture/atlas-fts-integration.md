@@ -3,7 +3,7 @@
 Dieses Dokument definiert das Integrationsdesign für SQLite FTS5 in den Atlas-Bounded-Context. Um falsche Finalität zu vermeiden, trennt es explizit zwischen dem belegten Ist-Zustand, dem architektonisch präferierten Zielbild und den noch offenen Implementierungsentscheidungen.
 
 ## 1. Ausgangslage und Abgrenzung (Belegter Ist-Zustand)
-- **Technologische Basis:** Gemäß der Atlas-Blaupause (Phase 4) und ADR-005 ist SQLite FTS5 als Suchtechnologie vorgesehen und im Repo für Lenskit-Chunks (`chunks_fts`) bereits etabliert und performant im Einsatz.
+- **Technologische Basis:** Gemäß der Atlas-Blaupause (Phase 4) und ADR-005 ist SQLite FTS5 als Suchtechnologie vorgesehen und im Repo für Lenskit-Chunks (`chunks_fts`) bereits technologisch etabliert.
 - **Aktueller Atlas-Suchmechanismus:** Der aktuelle Suchmechanismus in Atlas (`merger/lenskit/atlas/search.py`) nutzt iteratives, zeilenweises Scannen von JSONL-Inventaren und (für Inhalte) das direkte Lesen vom Live-Dateisystem (`is_text`-Heuristik).
 - **Einordnung:** Dieser aktuelle lineare Ansatz ist ein belegter Best-Effort-Übergangszustand, der für kleine Roots ausreicht, aber bei großen Datenmengen als Suchschicht nicht skaliert. Eine explizite FTS-Integration in die Atlas-Artefakte fehlt derzeit.
 
@@ -19,7 +19,7 @@ Was sollte in den FTS-Index überführt werden?
 
 ### 2.2 Snapshot-Bindung
 Wie sollte der Index an die maschinenweite Atlas-Historie gekoppelt sein?
-*   **Identität:** Jeder FTS-Eintrag muss zwingend über `machine_id`, `root_id` und `snapshot_id` eindeutig referenzierbar sein.
+*   **Identität:** Jeder FTS-Eintrag sollte zwingend über `machine_id`, `root_id` und `snapshot_id` eindeutig referenzierbar sein.
 *   **Globaler Index (Präferenz):** Ein globaler Index innerhalb der Atlas-Registry (`fts.sqlite`) mit expliziten Snapshot-Referenzen ist aktuell naheliegend, um maschinen- und root-übergreifende Abfragen effizient zu gestalten. (Eine per-Snapshot-Lösung wäre nur bei massiven Isolationsanforderungen geboten).
 *   **Historische Suche:** Die Struktur sollte zwischen Suchtreffern aus dem *aktuellsten* Snapshot und historischen Suchanfragen differenzieren können.
 
