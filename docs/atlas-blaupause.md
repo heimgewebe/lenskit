@@ -935,7 +935,8 @@ Ziel: Atlas wird diagnostisch.
 ### Phase 7 — Multi-Machine-Atlas
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
 - [x] mehrere Machines sauber registrieren (via --machine-id/--hostname CLI flags)
-- [x] Root-Namenskonventionen zwischen Hosts vereinheitlichen
+- [~] Root-Namenskonventionen zwischen Hosts vereinheitlichen
+  - *Architekturnotiz: Die Konvention ist konzeptionell definiert (siehe Abschnitt "Root Naming Convention (Cross-Host)"), es existiert jedoch aktuell keine verpflichtende Mapping-Logik, zentrale Normalisierungsfunktion oder Enforcement-Mechanismen im Code. Der Zustand ist semantisch definiert, aber noch nicht systemisch durchgesetzt.*
 - [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
