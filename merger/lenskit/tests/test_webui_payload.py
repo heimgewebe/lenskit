@@ -353,29 +353,20 @@ def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
     # Check Plan Only
     page_with_static.check("#planOnly")
 
-    payloads = []
     def handle_jobs(route: Route):
         if route.request.method == "POST":
-            data = route.request.post_data_json or json.loads(route.request.post_data)
-            payloads.append(data)
             route.fulfill(json={"id": "job-plan-only", "status": "queued"})
         else:
             route.continue_()
 
     page_with_static.route("**/api/jobs", handle_jobs)
     page_with_static.select_option("#mode", "gesamt")
-    page_with_static.click("#jobForm button[type='submit']")
 
-    import time
-    def wait_for_payloads():
-        start = time.time()
-        while time.time() - start < 5:
-            if len(payloads) == 1: return
-            page_with_static.wait_for_timeout(50)
-        raise TimeoutError(f"Payloads count {len(payloads)} != 1")
+    with page_with_static.expect_request("**/api/jobs") as req_info:
+        page_with_static.click("#jobForm button[type='submit']")
 
-    wait_for_payloads()
-    p = payloads[0]
+    req = req_info.value
+    p = req.post_data_json or json.loads(req.post_data)
 
     assert p["plan_only"] is True
     assert "force_new" not in p, "force_new should be omitted for plan_only jobs"
