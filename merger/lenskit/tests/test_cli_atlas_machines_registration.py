@@ -334,3 +334,62 @@ def test_atlas_scan_legacy_machine_id_propagation(tmp_path: Path, monkeypatch):
         snapshots = registry.list_snapshots()
         prop_snap = next((s for s in snapshots if s["machine_id"] == "LEGACY-PROP-1"), None)
         assert prop_snap is not None
+
+def test_atlas_scan_explicit_root_identity(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id="explicit-root",
+        root_label="explicit-label"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        root = registry.get_root("explicit-root")
+        assert root is not None
+        assert root["machine_id"] == "test-machine"
+        assert root["label"] == "explicit-label"
+        assert root["root_value"] == str(scan_root.resolve())
+
+def test_atlas_scan_empty_explicit_root_id_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id="   ",
+        root_label="explicit-label"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Error: root-id cannot be explicitly empty." in captured.err
