@@ -33,7 +33,7 @@ def register_federation_commands(subparsers) -> None:
     query_parser.add_argument("-q", "--query", required=True, help="Query string")
     query_parser.add_argument("-k", type=int, default=10, help="Number of final results to return (top-k across all bundles)")
     query_parser.add_argument("--repo", type=str, help="Filter by repository ID (currently the only supported filter)")
-    query_parser.add_argument("--trace", action="store_true", help="Include diagnostic trace and generate federation_trace.json projection in CWD")
+    query_parser.add_argument("--trace", action="store_true", help="Include diagnostic trace and generate federation_trace.json (and federation_conflicts.json if applicable) in CWD")
 
 
 def handle_federation_command(args: argparse.Namespace) -> int:
@@ -145,6 +145,13 @@ def handle_federation_command(args: argparse.Namespace) -> int:
                 trace_out_path = Path("federation_trace.json")
                 with trace_out_path.open("w", encoding="utf-8") as f:
                     json.dump(trace_obj, f, indent=2)
+
+            # Write conflicts if requested
+            conflicts = res.get("federation_conflicts")
+            if args.trace and conflicts:
+                conflicts_out_path = Path("federation_conflicts.json")
+                with conflicts_out_path.open("w", encoding="utf-8") as f:
+                    json.dump(conflicts, f, indent=2)
 
             return 0
         except Exception as e:

@@ -1558,7 +1558,7 @@ Wichtige Tests:
 ### 1.12 Deliverables Phase 5
 - [x] 1. federation_index.json (Struktur angelegt und validiert, Bundle-Reihenfolge wird nun kanonisch über repo_id stabilisiert)
 - [ ] 2. cross_repo_links.json (Contract vorbereitet, Producer/Runtime offen)
-- [ ] 3. federation_conflicts.json (Runtime-Struktur vorhanden, Artefakt-Persistenz offen)
+- [ ] 3. federation_conflicts.json (teilweise: Runtime-Struktur vorhanden, minimale CLI-Persistenz im Trace-Pfad umgesetzt)
 - [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
 - [ ] 5. föderierte Query-Schnittstelle (als Minimal-Fan-out mit deterministischer Aggregation integriert, aber keine vollwertige Cross-Repo-Relevanz-Harmonisierung)
 - [ ] 6. bundleübergreifendes Context-Bundle (derzeit nur Treffermarkierung, echte Struktur offen)
