@@ -364,3 +364,54 @@ def test_federation_query_without_trace_skips_conflicts_json(tmp_path: Path, mon
 
     conflicts_file = tmp_path / "federation_conflicts.json"
     assert not conflicts_file.exists(), "federation_conflicts.json was incorrectly created without --trace"
+
+def test_federation_query_trace_without_conflicts_skips_json(tmp_path: Path, monkeypatch, capsys):
+    # Isolate execution to tmp_path
+    monkeypatch.chdir(tmp_path)
+
+    out_path = tmp_path / "fed.json"
+    init_federation("no-conflict-fed", out_path)
+
+    # Bundle 1
+    bundle_path1 = tmp_path / "b1"
+    bundle_path1.mkdir()
+    from merger.lenskit.retrieval import index_db
+    b1_dump = bundle_path1 / "dump.json"
+    b1_chunks = bundle_path1 / "chunks.jsonl"
+    b1_db = bundle_path1 / "chunk_index.index.sqlite"
+
+    chunk_data1 = [
+        {"chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py", "content": "hello repo1", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1", "source_file": "src/main.py", "start_byte": 0, "end_byte": 100}
+    ]
+    with b1_chunks.open("w", encoding="utf-8") as f:
+        for c in chunk_data1:
+            f.write(json.dumps(c) + "\n")
+    b1_dump.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(b1_dump, b1_chunks, b1_db)
+    add_bundle(out_path, "repo1", str(bundle_path1))
+
+    # Bundle 2 (Different path/filename, no conflict)
+    bundle_path2 = tmp_path / "b2"
+    bundle_path2.mkdir()
+    b2_dump = bundle_path2 / "dump.json"
+    b2_chunks = bundle_path2 / "chunks.jsonl"
+    b2_db = bundle_path2 / "chunk_index.index.sqlite"
+
+    chunk_data2 = [
+        {"chunk_id": "c2", "repo_id": "repo2", "path": "src/other.py", "content": "hello repo2", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h2", "source_file": "src/other.py", "start_byte": 0, "end_byte": 100}
+    ]
+    with b2_chunks.open("w", encoding="utf-8") as f:
+        for c in chunk_data2:
+            f.write(json.dumps(c) + "\n")
+    b2_dump.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(b2_dump, b2_chunks, b2_db)
+    add_bundle(out_path, "repo2", str(bundle_path2))
+
+    from merger.lenskit.cli import main
+
+    # Execute WITH --trace. Conflict generation in logic does NOT occur.
+    ret = main.main(["federation", "query", "--index", str(out_path), "-q", "hello", "--trace"])
+    assert ret == 0
+
+    conflicts_file = tmp_path / "federation_conflicts.json"
+    assert not conflicts_file.exists(), "federation_conflicts.json was incorrectly created despite no conflicts"

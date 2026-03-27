@@ -147,10 +147,11 @@ def handle_federation_command(args: argparse.Namespace) -> int:
                     json.dump(trace_obj, f, indent=2)
 
             # Write conflicts if requested
-            if args.trace and "federation_conflicts" in res:
+            conflicts = res.get("federation_conflicts")
+            if args.trace and conflicts:
                 conflicts_out_path = Path("federation_conflicts.json")
                 with conflicts_out_path.open("w", encoding="utf-8") as f:
-                    json.dump(res["federation_conflicts"], f, indent=2)
+                    json.dump(conflicts, f, indent=2)
 
             return 0
         except Exception as e:
