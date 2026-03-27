@@ -823,7 +823,7 @@ Atlas-Artefakte werden deterministisch gegen einen kanonischen Atlas-Basisordner
 
 ### Phase 0 — Konstitution und Contracts
 Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
-- [~] ADR-001 bis ADR-007 anlegen
+- [x] ADR-001 bis ADR-007 anlegen
 - [x] Machine Contract definieren
 - [x] Root Contract definieren
 - [x] Snapshot Contract definieren
@@ -1009,10 +1009,10 @@ Und die wichtigste inhaltliche Invariante bleibt:
 **Atlas modelliert zuerst Dateiwirklichkeit, nicht Entwicklerwirklichkeit.**
 
 ### Root Naming Convention (Cross-Host)
-Um Maschinen systemweit und betriebssystemuebergreifend vergleichen zu koennen, muessen lokale Dateipfade (`root_value`) auf ein abstraktes, gemeinsames Label (`root_id`) normalisiert werden.
-- **Windows:** `root_value="C:\Users\Name\Documents"` -> `root_id="documents"`
-- **Linux:** `root_value="/home/name/Documents"` -> `root_id="documents"`
-Die `root_id` ist die maschinenuebergreifende Klammer (Identitaet), waehrend der `root_value` den plattformspezifischen physischen Ankerpunkt darstellt. Nur durch einheitliche `root_id`s koennen Cross-Machine-Analysen automatisiert geclustert werden.
+Um Maschinen systemweit und betriebssystemübergreifend vergleichen zu können, reicht die instanzbezogene `root_id` (z. B. `heim-pc__documents`) oft nicht aus. Lokale Dateipfade (`root_value`) benötigen für plattformübergreifende Äquivalenz ein abstraktes, gemeinsames semantisches Label (potenziell ein künftiges `root_label` oder eine kanonische Namenskonvention).
+- **Windows:** `root_value="C:/Users/Name/Documents"` -> Semantisches Label: `documents`
+- **Linux:** `root_value="/home/name/Documents"` -> Semantisches Label: `documents`
+Während `root_id` die maschinenspezifische Instanz identifiziert und `root_value` den physischen Ankerpunkt darstellt, ermöglicht erst ein einheitliches semantisches Label, dass Cross-Machine-Analysen künftig automatisiert geclustert werden können.
 
 ### Machine Identity Contract
 - `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`). Bei Legacy-Reuse kann jedoch zur Wahrung bestehender Referenzen (z. B. auf Snapshots oder Roots) die bereits gespeicherte Registry-ID weiterverwendet werden.
