@@ -151,7 +151,7 @@ def test_federation_query_cli_dispatch(tmp_path: Path, capsys):
     assert parsed["count"] == 0
     assert parsed["results"] == []
 
-def test_federation_query_cli_trace_projection(tmp_path: Path, monkeypatch, capsys):
+def test_federation_query_cli_trace_projection(tmp_path: Path, monkeypatch):
     # Isolate execution to tmp_path to verify file creation safely
     monkeypatch.chdir(tmp_path)
 
@@ -241,7 +241,7 @@ def test_federation_query_cli_trace_projection(tmp_path: Path, monkeypatch, caps
     except ImportError:
         pass
 
-def test_federation_query_trace_writes_conflicts_json(tmp_path: Path, monkeypatch, capsys):
+def test_federation_query_trace_writes_conflicts_json(tmp_path: Path, monkeypatch):
     # Isolate execution to tmp_path to verify file creation safely
     monkeypatch.chdir(tmp_path)
 
@@ -314,7 +314,7 @@ def test_federation_query_trace_writes_conflicts_json(tmp_path: Path, monkeypatc
     except ImportError:
         pass
 
-def test_federation_query_without_trace_skips_conflicts_json(tmp_path: Path, monkeypatch, capsys):
+def test_federation_query_without_trace_skips_conflicts_json(tmp_path: Path, monkeypatch):
     # Isolate execution to tmp_path
     monkeypatch.chdir(tmp_path)
 
@@ -365,7 +365,7 @@ def test_federation_query_without_trace_skips_conflicts_json(tmp_path: Path, mon
     conflicts_file = tmp_path / "federation_conflicts.json"
     assert not conflicts_file.exists(), "federation_conflicts.json was incorrectly created without --trace"
 
-def test_federation_query_trace_without_conflicts_skips_json(tmp_path: Path, monkeypatch, capsys):
+def test_federation_query_trace_without_conflicts_skips_json(tmp_path: Path, monkeypatch):
     # Isolate execution to tmp_path
     monkeypatch.chdir(tmp_path)
 
