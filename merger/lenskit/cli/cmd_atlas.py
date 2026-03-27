@@ -571,14 +571,17 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         explicit_root_label = getattr(args, "root_label", None)
 
         if explicit_root_id is not None:
-            root_id = explicit_root_id
             if explicit_root_id.strip() == "":
                 print("Error: root-id cannot be explicitly empty.", file=sys.stderr)
                 return 1
+            root_id = explicit_root_id.strip()
         else:
             root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
 
-        root_label = explicit_root_label if explicit_root_label is not None else scan_root.name
+        if explicit_root_label is not None:
+            root_label = explicit_root_label.strip()
+        else:
+            root_label = scan_root.name
 
         registry.register_root(root_id, machine_id, "abs_path", root_value, label=root_label)
 

@@ -393,3 +393,66 @@ def test_atlas_scan_empty_explicit_root_id_fails(tmp_path: Path, monkeypatch, ca
 
     captured = capsys.readouterr()
     assert "Error: root-id cannot be explicitly empty." in captured.err
+
+import sys
+import subprocess
+import os
+
+def test_atlas_scan_explicit_root_identity_cli(tmp_path: Path):
+    scan_root = tmp_path / "cli_scan_target"
+    scan_root.mkdir()
+
+    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(repo_root)
+
+    # We must explicitly set ATLAS_MACHINE_ID to bypass any system hostname inference
+    # problems in the runner environment if we don't pass --machine-id, or we can just pass it.
+
+    cmd = [
+        sys.executable,
+        "-m", "merger.lenskit.cli.main",
+        "atlas", "scan",
+        str(scan_root),
+        "--machine-id", "test-machine",
+        "--hostname", "test-host",
+        "--root-id", "  explicit-cli-root  ",
+        "--root-label", " explicit-cli-label "
+    ]
+
+    result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
+    assert result.returncode == 0, f"CLI command failed. stderr: {result.stderr}"
+
+    registry_path = tmp_path / "atlas" / "registry" / "atlas_registry.sqlite"
+    assert registry_path.exists()
+
+    with AtlasRegistry(registry_path) as registry:
+        root = registry.get_root("explicit-cli-root")
+        assert root is not None, "Explicit root ID was not stripped or not registered"
+        assert root["machine_id"] == "test-machine"
+        assert root["label"] == "explicit-cli-label"
+        assert root["root_value"] == str(scan_root.resolve())
+
+def test_atlas_scan_explicit_root_identity_cli_empty_id(tmp_path: Path):
+    scan_root = tmp_path / "cli_scan_target"
+    scan_root.mkdir()
+
+    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(repo_root)
+
+    cmd = [
+        sys.executable,
+        "-m", "merger.lenskit.cli.main",
+        "atlas", "scan",
+        str(scan_root),
+        "--machine-id", "test-machine",
+        "--hostname", "test-host",
+        "--root-id", "   "
+    ]
+
+    result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
+    assert result.returncode == 1, "CLI should have failed with empty explicit root-id"
+    assert "Error: root-id cannot be explicitly empty." in result.stderr
