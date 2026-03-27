@@ -471,3 +471,54 @@ def test_api_query_review_context_with_trace(mini_index):
     # surrounding_context MUST be present and not None because we requested window context
     assert "surrounding_context" in hit
     assert hit["surrounding_context"] is not None
+
+def test_agent_response_surfaces_uncertainty(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "review_context",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+
+    assert len(bundle["hits"]) >= 1
+    hit = bundle["hits"][0]
+
+    # Check for epistemic object markers
+    assert "epistemics" in hit
+    epist = hit["epistemics"]
+
+    assert "provenance_type" in epist
+    assert "bundle_origin" in epist
+    assert "resolver_status" in epist
+    assert "graph_status" in epist
+    assert "semantic_status" in epist
+    assert "federation_status" in epist
+    assert "uncertainty" in epist
+    assert "interpolation" in epist
+
+    # Values check avoiding fake cosmetic uncertainty
+    assert epist["semantic_status"] in ("used", "not_used")
+    assert epist["federation_status"] in ("local", "federated")
+    assert epist["resolver_status"] in ("ok", "fallback_used", "unresolved")
+
+    unc = epist["uncertainty"]
+    assert isinstance(unc["explicit_provenance"], bool)
+    assert isinstance(unc["graph_supported"], bool)
+    assert isinstance(unc["semantic_supported"], bool)
+
+    interp = epist["interpolation"]
+    assert isinstance(interp["used"], bool)
+    assert interp["reason"] is None or isinstance(interp["reason"], str)

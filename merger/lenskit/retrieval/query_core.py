@@ -683,7 +683,24 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
             "surrounding_context": None, # Will populate in Expansion Logic
             "graph_context": hit.get("why", {}).get("diagnostics", {}).get("graph"),
             "provenance_type": prov_type,
-            "bundle_source_references": refs
+            "bundle_source_references": refs,
+            "epistemics": {
+                "provenance_type": prov_type,
+                "bundle_origin": hit.get("repo_id", "local"),
+                "resolver_status": "ok" if prov_type == "explicit" else ("fallback_used" if "derived_range_ref" in hit else "unresolved"),
+                "graph_status": hit.get("why", {}).get("graph_status", "not_used"),
+                "semantic_status": "used" if "semantic" in hit.get("why", {}).get("rank_features", {}) else "not_used",
+                "federation_status": "federated" if hit.get("federation_bundle") else "local",
+                "uncertainty": {
+                    "explicit_provenance": prov_type == "explicit",
+                    "graph_supported": hit.get("why", {}).get("graph_status") in ("ok", "stale_or_mismatched"),
+                    "semantic_supported": "semantic" in hit.get("why", {}).get("rank_features", {})
+                },
+                "interpolation": {
+                    "used": prov_type == "derived",
+                    "reason": "fallback" if prov_type == "derived" else None
+                }
+            }
         }
 
         # Expand context if requested
