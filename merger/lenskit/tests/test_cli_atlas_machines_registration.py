@@ -456,3 +456,54 @@ def test_atlas_scan_explicit_root_identity_cli_empty_id(tmp_path: Path):
     result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
     assert result.returncode == 1, "CLI should have failed with empty explicit root-id"
     assert "Error: root-id cannot be explicitly empty." in result.stderr
+
+def test_atlas_scan_empty_explicit_root_label_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id="explicit-root",
+        root_label="   "
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Error: root-label cannot be explicitly empty." in captured.err
+
+def test_atlas_scan_explicit_root_identity_cli_empty_label(tmp_path: Path):
+    scan_root = tmp_path / "cli_scan_target"
+    scan_root.mkdir()
+
+    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(repo_root)
+
+    cmd = [
+        sys.executable,
+        "-m", "merger.lenskit.cli.main",
+        "atlas", "scan",
+        str(scan_root),
+        "--machine-id", "test-machine",
+        "--hostname", "test-host",
+        "--root-id", "explicit-cli-root",
+        "--root-label", "   "
+    ]
+
+    result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
+    assert result.returncode == 1, "CLI should have failed with empty explicit root-label"
+    assert "Error: root-label cannot be explicitly empty." in result.stderr

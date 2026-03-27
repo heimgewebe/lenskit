@@ -579,6 +579,9 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
             root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
 
         if explicit_root_label is not None:
+            if explicit_root_label.strip() == "":
+                print("Error: root-label cannot be explicitly empty.", file=sys.stderr)
+                return 1
             root_label = explicit_root_label.strip()
         else:
             root_label = scan_root.name
