@@ -823,7 +823,7 @@ Atlas-Artefakte werden deterministisch gegen einen kanonischen Atlas-Basisordner
 
 ### Phase 0 — Konstitution und Contracts
 Ziel: Atlas semantisch festziehen, bevor weiterer Ausbau Drift erzeugt.
-- [x] ADR-001 bis ADR-006 anlegen
+- [x] ADR-001 bis ADR-007 anlegen
 - [x] Machine Contract definieren
 - [x] Root Contract definieren
 - [x] Snapshot Contract definieren
@@ -935,7 +935,8 @@ Ziel: Atlas wird diagnostisch.
 ### Phase 7 — Multi-Machine-Atlas
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
 - [x] mehrere Machines sauber registrieren (via --machine-id/--hostname CLI flags)
-- [ ] Root-Namenskonventionen zwischen Hosts vereinheitlichen
+- [~] Root-Namenskonventionen zwischen Hosts vereinheitlichen
+  - *Architekturnotiz: Die Konvention ist konzeptionell definiert (siehe Abschnitt "Root Naming Convention (Cross-Host)"), es existiert jedoch aktuell keine verpflichtende Mapping-Logik, zentrale Normalisierungsfunktion oder Enforcement-Mechanismen im Code. Der Zustand ist semantisch definiert, aber noch nicht systemisch durchgesetzt.*
 - [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
@@ -1006,6 +1007,12 @@ Die entscheidende Formel lautet:
 
 Und die wichtigste inhaltliche Invariante bleibt:
 **Atlas modelliert zuerst Dateiwirklichkeit, nicht Entwicklerwirklichkeit.**
+
+### Root Naming Convention (Cross-Host)
+Um Maschinen systemweit und betriebssystemübergreifend vergleichen zu können, reicht die instanzbezogene `root_id` (z. B. `heim-pc__documents`) oft nicht aus. Lokale Dateipfade (`root_value`) benötigen für plattformübergreifende Äquivalenz ein abstraktes, gemeinsames semantisches Label (z. B. als künftiger eigener Bezeichner oder als kanonische Namenskonvention).
+- **Windows:** `root_value="C:/Users/Name/Documents"` -> Semantisches Label: `documents`
+- **Linux:** `root_value="/home/name/Documents"` -> Semantisches Label: `documents`
+Während `root_id` die maschinenspezifische Instanz identifiziert und `root_value` den physischen Ankerpunkt darstellt, ermöglicht erst ein einheitliches semantisches Label, dass Cross-Machine-Analysen künftig automatisiert geclustert werden können.
 
 ### Machine Identity Contract
 - `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`). Bei Legacy-Reuse kann jedoch zur Wahrung bestehender Referenzen (z. B. auf Snapshots oder Roots) die bereits gespeicherte Registry-ID weiterverwendet werden.
