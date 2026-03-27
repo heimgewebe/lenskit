@@ -1652,7 +1652,7 @@ Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusamm
 ### 2.6 Arbeitspaket D – Uncertainty / Provenance maschinenlesbar machen
 
 Ziel:
-- [x] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen.
+- [ ] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen. (teilweise: `epistemics` Object existiert, aber einzelne Indikatoren wie `semantic_status` bleiben vorerst unknown)
 
 Felder: provenance_type, bundle_origin, resolver_status, graph_status, semantic_status, federation_status, uncertainty, interpolation.
 
@@ -1706,7 +1706,7 @@ Tests:
 - [x] 1. Agent Query Contract (für /api/query im API-Roundtrip minimal belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
-- [x] 4. maschinenlesbare uncertainty/provenance Felder
+- [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: `epistemics` Object existiert, aber einzelne Indikatoren wie `semantic_status` bleiben vorerst heuristisch/unknown)
 - [ ] 5. agent_query_session.json
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik
 - [ ] 7. Agent-Guardrails

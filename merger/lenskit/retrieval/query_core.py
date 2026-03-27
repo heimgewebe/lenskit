@@ -687,18 +687,18 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
             "epistemics": {
                 "provenance_type": prov_type,
                 "bundle_origin": hit.get("repo_id", "local"),
-                "resolver_status": "ok" if prov_type == "explicit" else ("fallback_used" if "derived_range_ref" in hit else "unresolved"),
-                "graph_status": hit.get("why", {}).get("graph_status", "not_used"),
-                "semantic_status": "used" if "semantic" in hit.get("why", {}).get("rank_features", {}) else "not_used",
+                "resolver_status": "ok" if prov_type == "explicit" else ("derived" if hit.get("derived_range_ref") else "unresolved"),
+                "graph_status": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_status", "unknown"),
+                "semantic_status": "unknown",
                 "federation_status": "federated" if hit.get("federation_bundle") else "local",
                 "uncertainty": {
                     "explicit_provenance": prov_type == "explicit",
-                    "graph_supported": hit.get("why", {}).get("graph_status") in ("ok", "stale_or_mismatched"),
-                    "semantic_supported": "semantic" in hit.get("why", {}).get("rank_features", {})
+                    "graph_supported": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_used", False),
+                    "semantic_supported": False
                 },
                 "interpolation": {
                     "used": prov_type == "derived",
-                    "reason": "fallback" if prov_type == "derived" else None
+                    "reason": "derived_from_source" if prov_type == "derived" else None
                 }
             }
         }

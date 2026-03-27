@@ -493,32 +493,29 @@ def test_agent_response_surfaces_uncertainty(mini_index):
     bundle = data["context_bundle"]
     assert "hits" in bundle
 
-    assert len(bundle["hits"]) >= 1
+    assert len(bundle["hits"]) == 1
     hit = bundle["hits"][0]
 
     # Check for epistemic object markers
     assert "epistemics" in hit
     epist = hit["epistemics"]
 
-    assert "provenance_type" in epist
-    assert "bundle_origin" in epist
-    assert "resolver_status" in epist
-    assert "graph_status" in epist
-    assert "semantic_status" in epist
-    assert "federation_status" in epist
-    assert "uncertainty" in epist
-    assert "interpolation" in epist
-
-    # Values check avoiding fake cosmetic uncertainty
-    assert epist["semantic_status"] in ("used", "not_used")
-    assert epist["federation_status"] in ("local", "federated")
-    assert epist["resolver_status"] in ("ok", "fallback_used", "unresolved")
+    # Values check strictly grounded in fixture data
+    assert epist["provenance_type"] in ("derived", "explicit")
+    assert epist["bundle_origin"] == "r1"  # Derived from local repository
+    assert epist["resolver_status"] in ("ok", "derived", "unresolved")
+    assert epist["graph_status"] == "unknown" # No active graph index in this fixture
+    assert epist["semantic_status"] == "unknown" # Semantic search is strictly unknown/unproven
+    assert epist["federation_status"] == "local" # No federation bundle present
 
     unc = epist["uncertainty"]
-    assert isinstance(unc["explicit_provenance"], bool)
-    assert isinstance(unc["graph_supported"], bool)
-    assert isinstance(unc["semantic_supported"], bool)
+    assert unc["explicit_provenance"] in (True, False)
+    assert unc["graph_supported"] is False
+    assert unc["semantic_supported"] is False
 
     interp = epist["interpolation"]
     assert isinstance(interp["used"], bool)
-    assert interp["reason"] is None or isinstance(interp["reason"], str)
+    if interp["used"]:
+        assert interp["reason"] == "derived_from_source"
+    else:
+        assert interp["reason"] is None

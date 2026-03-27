@@ -81,6 +81,16 @@
           "epistemics": {
             "type": "object",
             "additionalProperties": false,
+            "required": [
+              "provenance_type",
+              "bundle_origin",
+              "resolver_status",
+              "graph_status",
+              "semantic_status",
+              "federation_status",
+              "uncertainty",
+              "interpolation"
+            ],
             "properties": {
               "provenance_type": {
                 "type": "string"
@@ -102,6 +112,12 @@
               },
               "uncertainty": {
                 "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "explicit_provenance",
+                  "graph_supported",
+                  "semantic_supported"
+                ],
                 "properties": {
                   "explicit_provenance": { "type": "boolean" },
                   "graph_supported": { "type": "boolean" },
@@ -110,6 +126,11 @@
               },
               "interpolation": {
                 "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "used",
+                  "reason"
+                ],
                 "properties": {
                   "used": { "type": "boolean" },
                   "reason": { "type": ["string", "null"] }
