@@ -1,3 +1,4 @@
+import re
 import argparse
 import sys
 import json
@@ -566,8 +567,34 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         # Ensure we always use absolute path as canonical value
         root_value = str(scan_root)
         root_hash = hashlib.md5(root_value.encode("utf-8"), usedforsecurity=False).hexdigest()[:8] # nosec B303
-        root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
-        registry.register_root(root_id, machine_id, "abs_path", root_value, label=scan_root.name)
+
+        explicit_root_id = getattr(args, "root_id", None)
+        explicit_root_label = getattr(args, "root_label", None)
+
+        if explicit_root_id is not None:
+            if explicit_root_id.strip() == "":
+                print("Error: root-id cannot be explicitly empty.", file=sys.stderr)
+                return 1
+            root_id = explicit_root_id.strip()
+            if not re.match(r"^[A-Za-z0-9._-]+$", root_id) or root_id in [".", ".."]:
+                print(f"Error: explicit root-id '{root_id}' is invalid. It must be filesystem-safe, matching ^[A-Za-z0-9._-]+$ and cannot be '.' or '..'.", file=sys.stderr)
+                return 1
+        else:
+            root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
+
+        if explicit_root_label is not None:
+            if explicit_root_label.strip() == "":
+                print("Error: root-label cannot be explicitly empty.", file=sys.stderr)
+                return 1
+            root_label = explicit_root_label.strip()
+        else:
+            root_label = scan_root.name
+
+        try:
+            registry.register_root(root_id, machine_id, "abs_path", root_value, label=root_label)
+        except ValueError as e:
+            print(f"Error during root registration: {e}", file=sys.stderr)
+            return 1
 
         # Configure Snapshot Identity
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")

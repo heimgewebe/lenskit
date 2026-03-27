@@ -102,6 +102,8 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_scan_parser.add_argument("--mode", choices=["inventory", "topology", "content", "workspace"], default="inventory", help="The scan mode to execute")
     atlas_scan_parser.add_argument("--machine-id", help="Explicit machine ID for the registry (defaults to ATLAS_MACHINE_ID env var or hostname)")
     atlas_scan_parser.add_argument("--hostname", help="Explicit hostname for the registry (defaults to system hostname)")
+    atlas_scan_parser.add_argument("--root-id", help="Explicit root ID for the registry")
+    atlas_scan_parser.add_argument("--root-label", help="Explicit root label for the registry")
     atlas_scan_parser.add_argument("--incremental", action="store_true", help="Perform an incremental scan based on the latest snapshot")
 
     atlas_subparsers.add_parser("machine-health", help="List registered machines with health status and last seen info")

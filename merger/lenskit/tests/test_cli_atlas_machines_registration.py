@@ -1,3 +1,7 @@
+import pytest
+import sys
+import subprocess
+import os
 import argparse
 import socket
 from pathlib import Path
@@ -334,3 +338,266 @@ def test_atlas_scan_legacy_machine_id_propagation(tmp_path: Path, monkeypatch):
         snapshots = registry.list_snapshots()
         prop_snap = next((s for s in snapshots if s["machine_id"] == "LEGACY-PROP-1"), None)
         assert prop_snap is not None
+
+def test_atlas_scan_explicit_root_identity(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id="explicit-root",
+        root_label="explicit-label"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        root = registry.get_root("explicit-root")
+        assert root is not None
+        assert root["machine_id"] == "test-machine"
+        assert root["label"] == "explicit-label"
+        assert root["root_value"] == str(scan_root.resolve())
+
+def test_atlas_scan_empty_explicit_root_id_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id="   ",
+        root_label="explicit-label"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Error: root-id cannot be explicitly empty." in captured.err
+
+def test_atlas_scan_explicit_root_identity_cli(tmp_path: Path):
+    scan_root = tmp_path / "cli_scan_target"
+    scan_root.mkdir()
+
+    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(repo_root)
+
+    # We must explicitly set ATLAS_MACHINE_ID to bypass any system hostname inference
+    # problems in the runner environment if we don't pass --machine-id, or we can just pass it.
+
+    cmd = [
+        sys.executable,
+        "-m", "merger.lenskit.cli.main",
+        "atlas", "scan",
+        str(scan_root),
+        "--machine-id", "test-machine",
+        "--hostname", "test-host",
+        "--root-id", "  explicit-cli-root  ",
+        "--root-label", " explicit-cli-label "
+    ]
+
+    result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
+    assert result.returncode == 0, f"CLI command failed. stderr: {result.stderr}"
+
+    registry_path = tmp_path / "atlas" / "registry" / "atlas_registry.sqlite"
+    assert registry_path.exists()
+
+    with AtlasRegistry(registry_path) as registry:
+        root = registry.get_root("explicit-cli-root")
+        assert root is not None, "Explicit root ID was not stripped or not registered"
+        assert root["machine_id"] == "test-machine"
+        assert root["label"] == "explicit-cli-label"
+        assert root["root_value"] == str(scan_root.resolve())
+
+def test_atlas_scan_explicit_root_identity_cli_empty_id(tmp_path: Path):
+    scan_root = tmp_path / "cli_scan_target"
+    scan_root.mkdir()
+
+    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(repo_root)
+
+    cmd = [
+        sys.executable,
+        "-m", "merger.lenskit.cli.main",
+        "atlas", "scan",
+        str(scan_root),
+        "--machine-id", "test-machine",
+        "--hostname", "test-host",
+        "--root-id", "   "
+    ]
+
+    result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
+    assert result.returncode == 1, "CLI should have failed with empty explicit root-id"
+    assert "Error: root-id cannot be explicitly empty." in result.stderr
+
+def test_atlas_scan_empty_explicit_root_label_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id="explicit-root",
+        root_label="   "
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Error: root-label cannot be explicitly empty." in captured.err
+
+def test_atlas_scan_explicit_root_identity_cli_empty_label(tmp_path: Path):
+    scan_root = tmp_path / "cli_scan_target"
+    scan_root.mkdir()
+
+    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(repo_root)
+
+    cmd = [
+        sys.executable,
+        "-m", "merger.lenskit.cli.main",
+        "atlas", "scan",
+        str(scan_root),
+        "--machine-id", "test-machine",
+        "--hostname", "test-host",
+        "--root-id", "explicit-cli-root",
+        "--root-label", "   "
+    ]
+
+    result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
+    assert result.returncode == 1, "CLI should have failed with empty explicit root-label"
+    assert "Error: root-label cannot be explicitly empty." in result.stderr
+
+
+@pytest.mark.parametrize("invalid_id", [
+    "invalid/path",
+    "invalid\\path",
+    "..",
+    ".",
+    "invalid path",
+    "path*with*star"
+])
+def test_atlas_scan_explicit_root_identity_invalid_chars_fails(tmp_path: Path, monkeypatch, capsys, invalid_id):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id=invalid_id,
+        root_label="explicit-label"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert f"Error: explicit root-id '{invalid_id.strip()}' is invalid." in captured.err
+
+def test_atlas_scan_root_identity_cross_machine_overwrite_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    scan_root_2 = tmp_path / "scan_target_2"
+    scan_root_2.mkdir()
+
+    # Machine 1 creates root
+    args1 = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-1",
+        hostname="host-1",
+        root_id="shared-root-id",
+        root_label=None
+    )
+
+    exit_code1 = run_atlas_scan(args1)
+    assert exit_code1 == 0
+
+    # Machine 2 tries to reuse same root_id explicitly
+    args2 = argparse.Namespace(
+        path=str(scan_root_2),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-2",
+        hostname="host-2",
+        root_id="shared-root-id",
+        root_label=None
+    )
+
+    exit_code2 = run_atlas_scan(args2)
+    assert exit_code2 == 1
+
+    captured = capsys.readouterr()
+    assert "is already registered to a different machine" in captured.err
+    assert "Cannot silently overwrite" in captured.err
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        root = registry.get_root("shared-root-id")
+        # Ensure it wasn't overwritten
+        assert root["machine_id"] == "machine-1"

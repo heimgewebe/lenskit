@@ -191,6 +191,12 @@ class AtlasRegistry:
 
     def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None):
         with self.conn:
+            cur = self.conn.cursor()
+            cur.execute("SELECT machine_id FROM roots WHERE root_id = ?", (root_id,))
+            existing = cur.fetchone()
+            if existing and existing["machine_id"] != machine_id:
+                raise ValueError(f"Root ID '{root_id}' is already registered to a different machine ('{existing['machine_id']}'). Cannot silently overwrite to machine '{machine_id}'.")
+
             self.conn.execute("""
                 INSERT INTO roots (root_id, machine_id, root_kind, root_value, label)
                 VALUES (?, ?, ?, ?, ?)

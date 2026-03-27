@@ -1014,6 +1014,10 @@ Um Maschinen systemweit und betriebssystemübergreifend vergleichen zu können, 
 - **Linux:** `root_value="/home/name/Documents"` -> Semantisches Label: `documents`
 Während `root_id` die maschinenspezifische Instanz identifiziert und `root_value` den physischen Ankerpunkt darstellt, ermöglicht erst ein einheitliches semantisches Label, dass Cross-Machine-Analysen künftig automatisiert geclustert werden können.
 
+### Root Identity Contract
+- Lokale Roots können beim initialen Scan explizite Identifier (`--root-id`) und semantische Labels (`--root-label`) erhalten, um auto-generierte Default-IDs deterministisch zu übersteuern.
+- Explizite Identitäten werden vor der Registry-Zuweisung kanonisch normalisiert (`strip()`). Explizite Leerstrings sind als Überschreibung unzulässig.
+
 ### Machine Identity Contract
 - `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`). Bei Legacy-Reuse kann jedoch zur Wahrung bestehender Referenzen (z. B. auf Snapshots oder Roots) die bereits gespeicherte Registry-ID weiterverwendet werden.
 - `machine_id` ist der stabile Identifier für ein Gerät. Er muss das Format `^[a-z0-9_.-]+$` erfüllen (z. B. `heim-pc`, `macbook-pro-m1`).
