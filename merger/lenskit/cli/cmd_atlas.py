@@ -1,3 +1,4 @@
+import re
 import argparse
 import sys
 import json
@@ -575,6 +576,9 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
                 print("Error: root-id cannot be explicitly empty.", file=sys.stderr)
                 return 1
             root_id = explicit_root_id.strip()
+            if not re.match(r"^[A-Za-z0-9._-]+$", root_id) or root_id in [".", ".."]:
+                print(f"Error: explicit root-id '{root_id}' is invalid. It must be filesystem-safe, matching ^[A-Za-z0-9._-]+$ and cannot be '.' or '..'.", file=sys.stderr)
+                return 1
         else:
             root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
 
@@ -586,7 +590,11 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
         else:
             root_label = scan_root.name
 
-        registry.register_root(root_id, machine_id, "abs_path", root_value, label=root_label)
+        try:
+            registry.register_root(root_id, machine_id, "abs_path", root_value, label=root_label)
+        except ValueError as e:
+            print(f"Error during root registration: {e}", file=sys.stderr)
+            return 1
 
         # Configure Snapshot Identity
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")

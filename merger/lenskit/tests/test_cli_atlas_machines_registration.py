@@ -1,3 +1,7 @@
+import pytest
+import sys
+import subprocess
+import os
 import argparse
 import socket
 from pathlib import Path
@@ -394,10 +398,6 @@ def test_atlas_scan_empty_explicit_root_id_fails(tmp_path: Path, monkeypatch, ca
     captured = capsys.readouterr()
     assert "Error: root-id cannot be explicitly empty." in captured.err
 
-import sys
-import subprocess
-import os
-
 def test_atlas_scan_explicit_root_identity_cli(tmp_path: Path):
     scan_root = tmp_path / "cli_scan_target"
     scan_root.mkdir()
@@ -507,3 +507,97 @@ def test_atlas_scan_explicit_root_identity_cli_empty_label(tmp_path: Path):
     result = subprocess.run(cmd, env=env, cwd=str(tmp_path), capture_output=True, text=True)
     assert result.returncode == 1, "CLI should have failed with empty explicit root-label"
     assert "Error: root-label cannot be explicitly empty." in result.stderr
+
+
+@pytest.mark.parametrize("invalid_id", [
+    "invalid/path",
+    "invalid\\path",
+    "..",
+    ".",
+    "invalid path",
+    "path*with*star"
+])
+def test_atlas_scan_explicit_root_identity_invalid_chars_fails(tmp_path: Path, monkeypatch, capsys, invalid_id):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id=invalid_id,
+        root_label="explicit-label"
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert f"Error: explicit root-id '{invalid_id.strip()}' is invalid." in captured.err
+
+def test_atlas_scan_root_identity_cross_machine_overwrite_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    scan_root_2 = tmp_path / "scan_target_2"
+    scan_root_2.mkdir()
+
+    # Machine 1 creates root
+    args1 = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-1",
+        hostname="host-1",
+        root_id="shared-root-id",
+        root_label=None
+    )
+
+    exit_code1 = run_atlas_scan(args1)
+    assert exit_code1 == 0
+
+    # Machine 2 tries to reuse same root_id explicitly
+    args2 = argparse.Namespace(
+        path=str(scan_root_2),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-2",
+        hostname="host-2",
+        root_id="shared-root-id",
+        root_label=None
+    )
+
+    exit_code2 = run_atlas_scan(args2)
+    assert exit_code2 == 1
+
+    captured = capsys.readouterr()
+    assert "is already registered to a different machine" in captured.err
+    assert "Cannot silently overwrite" in captured.err
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        root = registry.get_root("shared-root-id")
+        # Ensure it wasn't overwritten
+        assert root["machine_id"] == "machine-1"
