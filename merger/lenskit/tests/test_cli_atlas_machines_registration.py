@@ -601,3 +601,61 @@ def test_atlas_scan_root_identity_cross_machine_overwrite_fails(tmp_path: Path, 
         root = registry.get_root("shared-root-id")
         # Ensure it wasn't overwritten
         assert root["machine_id"] == "machine-1"
+
+def test_atlas_scan_root_identity_same_machine_rebinding_fails(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    scan_root_1 = tmp_path / "scan_target_1"
+    scan_root_1.mkdir()
+
+    scan_root_2 = tmp_path / "scan_target_2"
+    scan_root_2.mkdir()
+
+    # Scan 1 creates root
+    args1 = argparse.Namespace(
+        path=str(scan_root_1),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-1",
+        hostname="host-1",
+        root_id="rebound-root-id",
+        root_label=None
+    )
+
+    exit_code1 = run_atlas_scan(args1)
+    assert exit_code1 == 0
+
+    # Scan 2 on the same machine tries to reuse same root_id explicitly with a DIFFERENT path
+    args2 = argparse.Namespace(
+        path=str(scan_root_2),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-1",
+        hostname="host-1",
+        root_id="rebound-root-id",
+        root_label=None
+    )
+
+    exit_code2 = run_atlas_scan(args2)
+    assert exit_code2 == 1
+
+    captured = capsys.readouterr()
+    assert "is already bound to path" in captured.err
+    assert "Cannot silently rebind to a new path" in captured.err
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        root = registry.get_root("rebound-root-id")
+        # Ensure it wasn't overwritten
+        assert root["root_value"] == str(scan_root_1)

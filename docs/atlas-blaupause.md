@@ -1017,6 +1017,7 @@ Während `root_id` die maschinenspezifische Instanz identifiziert und `root_valu
 ### Root Identity Contract
 - Lokale Roots können beim initialen Scan explizite Identifier (`--root-id`) und semantische Labels (`--root-label`) erhalten, um auto-generierte Default-IDs deterministisch zu übersteuern.
 - Explizite Identitäten werden vor der Registry-Zuweisung kanonisch normalisiert (`strip()`). Explizite Leerstrings sind als Überschreibung unzulässig.
+- **Root Rebinding Invariante**: Eine `root_id` ist fest an einen physischen Pfad (`root_value`) auf einer Maschine gebunden. Stilles Umbiegen (Rebinding) desselben Identifiers auf einen anderen Pfad derselben Maschine ist verboten und führt zu einem harten Fehler, um historische Deltas und Snapshots nicht semantisch zu verfälschen.
 
 ### Machine Identity Contract
 - `machine_id` und `hostname` werden vor Registrierung kanonisch normalisiert (`strip()`, `lower()`). Bei Legacy-Reuse kann jedoch zur Wahrung bestehender Referenzen (z. B. auf Snapshots oder Roots) die bereits gespeicherte Registry-ID weiterverwendet werden.
