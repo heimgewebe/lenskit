@@ -1009,7 +1009,7 @@ Und die wichtigste inhaltliche Invariante bleibt:
 **Atlas modelliert zuerst Dateiwirklichkeit, nicht Entwicklerwirklichkeit.**
 
 ### Root Naming Convention (Cross-Host)
-Um Maschinen systemweit und betriebssystemübergreifend vergleichen zu können, reicht die instanzbezogene `root_id` (z. B. `heim-pc__documents`) oft nicht aus. Lokale Dateipfade (`root_value`) benötigen für plattformübergreifende Äquivalenz ein abstraktes, gemeinsames semantisches Label (potenziell ein künftiges `root_label` oder eine kanonische Namenskonvention).
+Um Maschinen systemweit und betriebssystemübergreifend vergleichen zu können, reicht die instanzbezogene `root_id` (z. B. `heim-pc__documents`) oft nicht aus. Lokale Dateipfade (`root_value`) benötigen für plattformübergreifende Äquivalenz ein abstraktes, gemeinsames semantisches Label (z. B. als künftiger eigener Bezeichner oder als kanonische Namenskonvention).
 - **Windows:** `root_value="C:/Users/Name/Documents"` -> Semantisches Label: `documents`
 - **Linux:** `root_value="/home/name/Documents"` -> Semantisches Label: `documents`
 Während `root_id` die maschinenspezifische Instanz identifiziert und `root_value` den physischen Ankerpunkt darstellt, ermöglicht erst ein einheitliches semantisches Label, dass Cross-Machine-Analysen künftig automatisiert geclustert werden können.
