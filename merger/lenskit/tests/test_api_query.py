@@ -501,21 +501,18 @@ def test_agent_response_surfaces_uncertainty(mini_index):
     epist = hit["epistemics"]
 
     # Values check strictly grounded in fixture data
-    assert epist["provenance_type"] in ("derived", "explicit")
+    assert epist["provenance_type"] == "derived" # Fixture provides chunks without explicit range_ref
     assert epist["bundle_origin"] == "r1"  # Derived from local repository
-    assert epist["resolver_status"] in ("ok", "derived", "unresolved")
+    assert epist["resolver_status"] == "unresolved" # The fixture chunks lack structural data to generate a derived_range_ref
     assert epist["graph_status"] == "unknown" # No active graph index in this fixture
     assert epist["semantic_status"] == "unknown" # Semantic search is strictly unknown/unproven
     assert epist["federation_status"] == "local" # No federation bundle present
 
     unc = epist["uncertainty"]
-    assert unc["explicit_provenance"] in (True, False)
-    assert unc["graph_supported"] is False
-    assert unc["semantic_supported"] is False
+    assert unc["explicit_provenance"] is False # Because provenance is derived
+    assert unc["graph_used"] is False # Not used in this fixture
+    assert unc["semantic_supported"] is False # Not used in this fixture
 
     interp = epist["interpolation"]
-    assert isinstance(interp["used"], bool)
-    if interp["used"]:
-        assert interp["reason"] == "derived_from_source"
-    else:
-        assert interp["reason"] is None
+    assert interp["used"] is True # Derived provenance means interpolation was used
+    assert interp["reason"] == "derived_from_source"

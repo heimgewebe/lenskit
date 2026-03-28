@@ -115,12 +115,12 @@
                 "additionalProperties": false,
                 "required": [
                   "explicit_provenance",
-                  "graph_supported",
+                  "graph_used",
                   "semantic_supported"
                 ],
                 "properties": {
                   "explicit_provenance": { "type": "boolean" },
-                  "graph_supported": { "type": "boolean" },
+                  "graph_used": { "type": "boolean" },
                   "semantic_supported": { "type": "boolean" }
                 }
               },

@@ -687,13 +687,13 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
             "epistemics": {
                 "provenance_type": prov_type,
                 "bundle_origin": hit.get("repo_id", "local"),
-                "resolver_status": "ok" if prov_type == "explicit" else ("derived" if hit.get("derived_range_ref") else "unresolved"),
+                "resolver_status": "resolved_explicit" if prov_type == "explicit" else ("resolved_derived" if hit.get("derived_range_ref") else "unresolved"),
                 "graph_status": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_status", "unknown"),
                 "semantic_status": "unknown",
                 "federation_status": "federated" if hit.get("federation_bundle") else "local",
                 "uncertainty": {
                     "explicit_provenance": prov_type == "explicit",
-                    "graph_supported": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_used", False),
+                    "graph_used": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_used", False),
                     "semantic_supported": False
                 },
                 "interpolation": {
