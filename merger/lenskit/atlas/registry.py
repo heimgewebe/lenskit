@@ -190,12 +190,23 @@ class AtlasRegistry:
         return health_reports
 
     def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None):
+        root_id = root_id.strip()
+        root_value = root_value.strip()
+
+        if not root_id:
+            raise ValueError("Root ID cannot be empty.")
+        if not re.match(r"^[A-Za-z0-9._-]+$", root_id) or root_id in [".", ".."]:
+            raise ValueError(f"Root ID '{root_id}' is invalid. It must be filesystem-safe, matching ^[A-Za-z0-9._-]+$ and cannot be '.' or '..'.")
+
         with self.conn:
             cur = self.conn.cursor()
-            cur.execute("SELECT machine_id FROM roots WHERE root_id = ?", (root_id,))
+            cur.execute("SELECT machine_id, root_value FROM roots WHERE root_id = ?", (root_id,))
             existing = cur.fetchone()
-            if existing and existing["machine_id"] != machine_id:
-                raise ValueError(f"Root ID '{root_id}' is already registered to a different machine ('{existing['machine_id']}'). Cannot silently overwrite to machine '{machine_id}'.")
+            if existing:
+                if existing["machine_id"] != machine_id:
+                    raise ValueError(f"Root ID '{root_id}' is already registered to a different machine ('{existing['machine_id']}'). Cannot silently overwrite to machine '{machine_id}'.")
+                if existing["root_value"] != root_value:
+                    raise ValueError(f"Root ID '{root_id}' is already bound to path '{existing['root_value']}' on machine '{machine_id}'. Cannot silently rebind to '{root_value}'.")
 
             self.conn.execute("""
                 INSERT INTO roots (root_id, machine_id, root_kind, root_value, label)
