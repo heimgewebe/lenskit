@@ -51,3 +51,34 @@ def test_cli_rejects_same_machine_rebinding(tmp_path, monkeypatch):
     assert "Error during root registration:" in res2.stderr
     assert "Cannot silently rebind" in res2.stderr
     assert "Traceback" not in res2.stderr
+
+def test_cli_generates_safe_default_root_id(tmp_path, monkeypatch):
+    """
+    Tests that the CLI handles scan_root.name with spaces and generates a safe
+    default root_id that passes registry validation.
+    """
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
+
+    # Create target directory with spaces and unicode
+    dir_unsafe = tmp_path / "My Documents"
+    dir_unsafe.mkdir()
+
+    monkeypatch.chdir(tmp_path)
+
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}"
+    env["ATLAS_MACHINE_ID"] = "test-machine"
+
+    # Scan without explicit --root-id
+    cmd = [
+        sys.executable,
+        "-m", "merger.lenskit.cli.main",
+        "atlas", "scan",
+        str(dir_unsafe)
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True, env=env)
+
+    # It must succeed without raising a ValueError from register_root
+    assert res.returncode == 0
+    assert "Error during root registration" not in res.stderr

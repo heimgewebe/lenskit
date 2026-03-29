@@ -580,7 +580,11 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
                 print(f"Error: explicit root-id '{root_id}' is invalid. It must be filesystem-safe, matching ^[A-Za-z0-9._-]+$ and cannot be '.' or '..'.", file=sys.stderr)
                 return 1
         else:
-            root_id = f"{machine_id}__{scan_root.name if scan_root.name else 'root'}_{root_hash}"
+            safe_name = re.sub(r'[^A-Za-z0-9._-]', '-', scan_root.name)
+            safe_name = safe_name.strip('-')
+            if not safe_name or safe_name in ['.', '..']:
+                safe_name = 'root'
+            root_id = f"{machine_id}__{safe_name}_{root_hash}"
 
         if explicit_root_label is not None:
             if explicit_root_label.strip() == "":
