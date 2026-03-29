@@ -520,7 +520,10 @@ def test_agent_response_surfaces_uncertainty(mini_index):
     assert interp["reason"] is None
 
 def test_agent_response_surfaces_uncertainty_contrasts():
-    # Direct test against build_context_bundle to explicitly contrast the epistemics statuses
+    # Direct test against build_context_bundle to explicitly contrast the epistemics statuses.
+    # Note: This is a strict contract/status grammar test asserting the correct derivation logic
+    # within build_context_bundle, guaranteeing the schema layer translates properties correctly.
+    # It assumes execute_query operates correctly in creating the respective keys (e.g. derived_range_ref).
     from merger.lenskit.retrieval.query_core import build_context_bundle
     import sqlite3
 
