@@ -1,6 +1,6 @@
-import pytest
 import subprocess
 import os
+import sys
 from pathlib import Path
 
 def test_cli_rejects_same_machine_rebinding(tmp_path, monkeypatch):
@@ -26,7 +26,7 @@ def test_cli_rejects_same_machine_rebinding(tmp_path, monkeypatch):
 
     # 1. First scan to register the root
     cmd1 = [
-        "python3",
+        sys.executable,
         "-m", "merger.lenskit.cli.main",
         "atlas", "scan",
         str(dir1),
@@ -37,7 +37,7 @@ def test_cli_rejects_same_machine_rebinding(tmp_path, monkeypatch):
 
     # 2. Second scan attempting to bind the same root_id to a different path
     cmd2 = [
-        "python3",
+        sys.executable,
         "-m", "merger.lenskit.cli.main",
         "atlas", "scan",
         str(dir2),
