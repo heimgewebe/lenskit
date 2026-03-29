@@ -524,46 +524,45 @@ def test_agent_response_surfaces_uncertainty_contrasts():
     from merger.lenskit.retrieval.query_core import build_context_bundle
     import sqlite3
 
-    conn = sqlite3.connect(":memory:")
+    with sqlite3.connect(":memory:") as conn:
+        mock_hits = [
+            {
+                "chunk_id": "c1", "repo_id": "r1", "path": "file1.py",
+                "range": "1-10", "score": 1.0, "why": {},
+                "range_ref": {"file_path": "file1.py", "start_byte": 0} # Explicit
+            },
+            {
+                "chunk_id": "c2", "repo_id": "r1", "path": "file2.py",
+                "range": "11-20", "score": 0.8, "why": {},
+                "derived_range_ref": {"file_path": "file2.py", "start_byte": 100} # Derived + successfully interpolated
+            },
+            {
+                "chunk_id": "c3", "repo_id": "r1", "path": "file3.py",
+                "range": "21-30", "score": 0.5, "why": {}
+                # Derived but unresolved (no range_ref, no derived_range_ref)
+            }
+        ]
 
-    mock_hits = [
-        {
-            "chunk_id": "c1", "repo_id": "r1", "path": "file1.py",
-            "range": "1-10", "score": 1.0, "why": {},
-            "range_ref": {"file_path": "file1.py", "start_byte": 0} # Explicit
-        },
-        {
-            "chunk_id": "c2", "repo_id": "r1", "path": "file2.py",
-            "range": "11-20", "score": 0.8, "why": {},
-            "derived_range_ref": {"file_path": "file2.py", "start_byte": 100} # Derived + successfully interpolated
-        },
-        {
-            "chunk_id": "c3", "repo_id": "r1", "path": "file3.py",
-            "range": "21-30", "score": 0.5, "why": {}
-            # Derived but unresolved (no range_ref, no derived_range_ref)
-        }
-    ]
+        bundle = build_context_bundle("hello", mock_hits, {"c1": "c", "c2": "c", "c3": "c"}, conn, context_mode="exact")
 
-    bundle = build_context_bundle("hello", mock_hits, {"c1": "c", "c2": "c", "c3": "c"}, conn, context_mode="exact")
+        assert len(bundle["hits"]) == 3
 
-    assert len(bundle["hits"]) == 3
+        # 1. Explicit Hit
+        hit1_epist = bundle["hits"][0]["epistemics"]
+        assert hit1_epist["provenance_type"] == "explicit"
+        assert hit1_epist["resolver_status"] == "resolved_explicit"
+        assert hit1_epist["interpolation"]["used"] is False
 
-    # 1. Explicit Hit
-    hit1_epist = bundle["hits"][0]["epistemics"]
-    assert hit1_epist["provenance_type"] == "explicit"
-    assert hit1_epist["resolver_status"] == "resolved_explicit"
-    assert hit1_epist["interpolation"]["used"] is False
+        # 2. Derived + Interpolated Hit
+        hit2_epist = bundle["hits"][1]["epistemics"]
+        assert hit2_epist["provenance_type"] == "derived"
+        assert hit2_epist["resolver_status"] == "resolved_derived"
+        assert hit2_epist["interpolation"]["used"] is True
+        assert hit2_epist["interpolation"]["reason"] == "derived_from_source"
 
-    # 2. Derived + Interpolated Hit
-    hit2_epist = bundle["hits"][1]["epistemics"]
-    assert hit2_epist["provenance_type"] == "derived"
-    assert hit2_epist["resolver_status"] == "resolved_derived"
-    assert hit2_epist["interpolation"]["used"] is True
-    assert hit2_epist["interpolation"]["reason"] == "derived_from_source"
-
-    # 3. Derived + Unresolved Hit
-    hit3_epist = bundle["hits"][2]["epistemics"]
-    assert hit3_epist["provenance_type"] == "derived"
-    assert hit3_epist["resolver_status"] == "unresolved"
-    assert hit3_epist["interpolation"]["used"] is False
-    assert hit3_epist["interpolation"]["reason"] is None
+        # 3. Derived + Unresolved Hit
+        hit3_epist = bundle["hits"][2]["epistemics"]
+        assert hit3_epist["provenance_type"] == "derived"
+        assert hit3_epist["resolver_status"] == "unresolved"
+        assert hit3_epist["interpolation"]["used"] is False
+        assert hit3_epist["interpolation"]["reason"] is None

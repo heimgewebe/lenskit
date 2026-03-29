@@ -672,6 +672,8 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
         else:
             refs.append(hit.get("path", ""))
 
+        derived_ref = hit.get("derived_range_ref")
+
         hit_ctx = {
             "hit_identity": hit.get("chunk_id", f"hit_{idx}"),
             "file": hit.get("path", ""),
@@ -692,7 +694,7 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
             "epistemics": {
                 "provenance_type": prov_type,
                 "bundle_origin": hit.get("repo_id", "local"),
-                "resolver_status": "resolved_explicit" if prov_type == "explicit" else ("resolved_derived" if hit.get("derived_range_ref") else "unresolved"),
+                "resolver_status": "resolved_explicit" if prov_type == "explicit" else ("resolved_derived" if derived_ref else "unresolved"),
                 "graph_status": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_status", "unknown"),
                 "semantic_status": "unknown",
                 "federation_status": "federated" if hit.get("federation_bundle") else "local",
@@ -702,8 +704,8 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
                     "semantic_supported": False
                 },
                 "interpolation": {
-                    "used": "derived_range_ref" in hit,
-                    "reason": "derived_from_source" if "derived_range_ref" in hit else None
+                    "used": bool(derived_ref),
+                    "reason": "derived_from_source" if derived_ref else None
                 }
             }
         }
