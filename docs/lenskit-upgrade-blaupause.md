@@ -1652,7 +1652,7 @@ Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusamm
 ### 2.6 Arbeitspaket D – Uncertainty / Provenance maschinenlesbar machen
 
 Ziel:
-- [ ] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen. (teilweise: `epistemics` Contract definiert, Status wie `semantic` oder `graph_status` werden strikt konservativ oder aus Runtime-Logik abgeleitet)
+- [ ] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen. (teilweise: `epistemics` Contract definiert, Status wie `semantic_status` oder `graph_status` werden strikt konservativ aus Runtime-Logik abgeleitet)
 
 Felder: provenance_type, bundle_origin, resolver_status, graph_status, semantic_status, federation_status, uncertainty, interpolation.
 
