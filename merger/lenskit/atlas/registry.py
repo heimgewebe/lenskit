@@ -191,7 +191,6 @@ class AtlasRegistry:
 
     def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None):
         root_id = root_id.strip()
-        root_value = root_value.strip()
 
         if not root_id:
             raise ValueError("Root ID cannot be empty.")
