@@ -697,8 +697,8 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
                     "semantic_supported": False
                 },
                 "interpolation": {
-                    "used": prov_type == "derived",
-                    "reason": "derived_from_source" if prov_type == "derived" else None
+                    "used": "derived_range_ref" in hit,
+                    "reason": "derived_from_source" if "derived_range_ref" in hit else None
                 }
             }
         }

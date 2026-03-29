@@ -514,5 +514,7 @@ def test_agent_response_surfaces_uncertainty(mini_index):
     assert unc["semantic_supported"] is False # Not used in this fixture
 
     interp = epist["interpolation"]
-    assert interp["used"] is True # Derived provenance means interpolation was used
-    assert interp["reason"] == "derived_from_source"
+    # The fixture chunks lack structural data (start_byte, end_byte) to generate a derived_range_ref.
+    # Therefore, no interpolation could be performed.
+    assert interp["used"] is False
+    assert interp["reason"] is None
