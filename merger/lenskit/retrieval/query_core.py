@@ -684,6 +684,11 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
             "graph_context": hit.get("why", {}).get("diagnostics", {}).get("graph"),
             "provenance_type": prov_type,
             "bundle_source_references": refs,
+            # Epistemic integrity rules:
+            # - `provenance_type`: The origin class of the hit. `derived` means it lacks a bundle-backed explicit `range_ref`.
+            # - `resolver_status`: The actual technical outcome of resolving this hit against the bundle or source workspace.
+            # - `interpolation`: Indicates if fallback data (like `derived_range_ref`) was successfully injected into the hit.
+            #   It is perfectly valid for a hit to be `derived` origin, but `unresolved` and `interpolation.used == False`.
             "epistemics": {
                 "provenance_type": prov_type,
                 "bundle_origin": hit.get("repo_id", "local"),
