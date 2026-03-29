@@ -82,3 +82,23 @@ def test_cli_generates_safe_default_root_id(tmp_path, monkeypatch):
     # It must succeed without raising a ValueError from register_root
     assert res.returncode == 0
     assert "Error during root registration" not in res.stderr
+
+    # Explicitly verify the registered root_id in the SQLite registry
+    import sqlite3
+    import re
+    db_path = tmp_path / "atlas" / "registry" / "atlas_registry.sqlite"
+    assert db_path.exists()
+
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT root_id FROM roots")
+    roots = cur.fetchall()
+    conn.close()
+
+    assert len(roots) == 1
+    root_id = roots[0][0]
+
+    # It must contain no spaces and be filesystem-safe
+    assert " " not in root_id
+    assert "My-Documents" in root_id
+    assert re.match(r"^[A-Za-z0-9._-]+$", root_id)
