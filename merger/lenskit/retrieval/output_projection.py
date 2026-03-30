@@ -46,11 +46,24 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
 
         # If trace is returned, we must not violate the bundle schema (which forbids additional properties).
         # We return a wrapper.
+        # Build the wrapper object for the response if there are extra diagnostic/guardrail fields
+        wrapper = {"context_bundle": bundle}
+        needs_wrapper = False
+
         if "query_trace" in res:
-            return {
-                "context_bundle": bundle,
-                "query_trace": res["query_trace"]
-            }
+            wrapper["query_trace"] = res["query_trace"]
+            needs_wrapper = True
+
+        if res.get("federation_conflicts"):
+            wrapper["federation_conflicts"] = res["federation_conflicts"]
+            needs_wrapper = True
+
+        if res.get("warnings"):
+            wrapper["warnings"] = res["warnings"]
+            needs_wrapper = True
+
+        if needs_wrapper:
+            return wrapper
 
         return bundle
 
