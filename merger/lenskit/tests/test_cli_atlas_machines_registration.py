@@ -6,8 +6,9 @@ import argparse
 import socket
 from pathlib import Path
 
-from merger.lenskit.cli.cmd_atlas import run_atlas_scan
+from merger.lenskit.cli.cmd_atlas import run_atlas_scan, run_atlas_roots
 from merger.lenskit.atlas.registry import AtlasRegistry
+import json
 
 def test_atlas_scan_explicit_machine_and_hostname(tmp_path: Path, monkeypatch):
     # Change current working directory to tmp_path to isolate registry creation
@@ -601,3 +602,249 @@ def test_atlas_scan_root_identity_cross_machine_overwrite_fails(tmp_path: Path, 
         root = registry.get_root("shared-root-id")
         # Ensure it wasn't overwritten
         assert root["machine_id"] == "machine-1"
+
+def test_atlas_scan_default_root_label_generation(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    scan_root = tmp_path / "My Documents"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id=None,
+        root_label=None
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        roots = registry.list_roots()
+        assert len(roots) == 1
+        assert roots[0]["label"] == "my-documents"
+
+def test_atlas_scan_explicit_root_label_stripped(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    scan_root = tmp_path / "scan_target"
+    scan_root.mkdir()
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id=None,
+        root_label="   explicit-docs  "
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        roots = registry.list_roots()
+        assert len(roots) == 1
+        assert roots[0]["label"] == "explicit-docs"
+
+def test_atlas_scan_multiple_roots_same_label(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    scan_root1 = tmp_path / "My Documents"
+    scan_root1.mkdir()
+
+    args1 = argparse.Namespace(
+        path=str(scan_root1),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-1",
+        hostname="host-1",
+        root_id=None,
+        root_label=None
+    )
+
+    exit_code1 = run_atlas_scan(args1)
+    assert exit_code1 == 0
+
+    scan_root2 = tmp_path / "Other Host" / "My Documents"
+    scan_root2.parent.mkdir()
+    scan_root2.mkdir()
+
+    args2 = argparse.Namespace(
+        path=str(scan_root2),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="machine-2",
+        hostname="host-2",
+        root_id=None,
+        root_label="my-documents"
+    )
+
+    exit_code2 = run_atlas_scan(args2)
+    assert exit_code2 == 0
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        roots = registry.list_roots()
+        assert len(roots) == 2
+
+        labels = [r["label"] for r in roots]
+        assert labels == ["my-documents", "my-documents"]
+
+def test_atlas_cli_roots_grouping(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    # Preregister
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    with AtlasRegistry(registry_path) as registry:
+        registry.register_machine("m1", "h1")
+        registry.register_machine("m2", "h2")
+        registry.register_root("m1_docs", "m1", "abs_path", "/path/1", label="documents")
+        registry.register_root("m2_docs", "m2", "abs_path", "/path/2", label="documents")
+        registry.register_root("m1_pics", "m1", "abs_path", "/path/3", label="pictures")
+
+    # Test Default JSON Output
+    args_default = argparse.Namespace(group_by_label=False)
+    exit_code = run_atlas_roots(args_default)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    output_json = captured.out
+
+    # Verify it parses as JSON and contains the roots
+    roots_list = json.loads(output_json)
+    assert len(roots_list) == 3
+    labels = [r.get("label") for r in roots_list]
+    assert "documents" in labels
+    assert "pictures" in labels
+
+    # Test Grouped Output
+    args_grouped = argparse.Namespace(group_by_label=True)
+    exit_code = run_atlas_roots(args_grouped)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    output_text = captured.out
+
+    assert "documents:" in output_text
+    assert "  - machine: m1 | id: m1_docs -> /path/1" in output_text
+    assert "  - machine: m2 | id: m2_docs -> /path/2" in output_text
+    assert "pictures:" in output_text
+    assert "  - machine: m1 | id: m1_pics -> /path/3" in output_text
+
+
+def test_atlas_scan_root_path_fallback(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    scan_root = tmp_path / "dummy"
+    scan_root.mkdir()
+
+    # Simple object to bypass Path.name issues
+    class MockPath:
+        def __init__(self, p):
+            self.p = p
+            self.name = ""
+            self.drive = "C:"
+            self.anchor = "C:\\"
+        def __str__(self):
+            return str(self.p)
+        def exists(self):
+            return self.p.exists()
+        def is_dir(self):
+            return self.p.is_dir()
+        def is_file(self):
+            return self.p.is_file()
+        def is_symlink(self):
+            return self.p.is_symlink()
+        def resolve(self):
+            return self.p.resolve()
+        def stat(self):
+            return self.p.stat()
+        def iterdir(self):
+            return self.p.iterdir()
+        def __fspath__(self):
+            return str(self.p)
+
+    def mock_path(p):
+        return MockPath(Path(p))
+
+    monkeypatch.setattr("merger.lenskit.cli.cmd_atlas.Path", mock_path)
+
+    args = argparse.Namespace(
+        path=str(scan_root),
+        exclude=None,
+        no_default_excludes=False,
+        max_file_size=None,
+        no_max_file_size=False,
+        depth=100,
+        limit=200000,
+        mode="inventory",
+        incremental=False,
+        machine_id="test-machine",
+        hostname="test-host",
+        root_id=None,
+        root_label=None
+    )
+
+    exit_code = run_atlas_scan(args)
+    assert exit_code == 0
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    with AtlasRegistry(registry_path) as registry:
+        roots = registry.list_roots()
+        assert len(roots) == 1
+        assert roots[0]["label"] == "c"
+
+def test_atlas_cli_roots_grouping_semantic_collision(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    with AtlasRegistry(registry_path) as registry:
+        registry.register_machine("m1", "h1")
+        # Root 1: label=None
+        registry.register_root("m1_none", "m1", "abs_path", "/path/none", label=None)
+        # Root 2: label="unlabeled"
+        registry.register_root("m1_unlabeled", "m1", "abs_path", "/path/unlabeled", label="unlabeled")
+
+    args_grouped = argparse.Namespace(group_by_label=True)
+    exit_code = run_atlas_roots(args_grouped)
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    output_text = captured.out
+
+    # They should be separated in output
+    assert "(none):" in output_text
+    assert "  - machine: m1 | id: m1_none -> /path/none" in output_text
+    assert "unlabeled:" in output_text
+    assert "  - machine: m1 | id: m1_unlabeled -> /path/unlabeled" in output_text

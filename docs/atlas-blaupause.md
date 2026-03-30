@@ -935,8 +935,8 @@ Ziel: Atlas wird diagnostisch.
 ### Phase 7 — Multi-Machine-Atlas
 Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen.
 - [x] mehrere Machines sauber registrieren (via --machine-id/--hostname CLI flags)
-- [~] Root-Namenskonventionen zwischen Hosts vereinheitlichen
-  - *Architekturnotiz: Die Konvention ist konzeptionell definiert (siehe Abschnitt "Root Naming Convention (Cross-Host)"), es existiert jedoch aktuell keine verpflichtende Mapping-Logik, zentrale Normalisierungsfunktion oder Enforcement-Mechanismen im Code. Der Zustand ist semantisch definiert, aber noch nicht systemisch durchgesetzt.*
+- [x] Root-Namenskonventionen zwischen Hosts vereinheitlichen
+  - *Architekturnotiz: `root_label` ist nun systemisch als semantische Gruppierungsachse etabliert. Fehlende explizite Labels werden kanonisch aus dem Verzeichnisnamen generiert.*
 - [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
@@ -1013,6 +1013,10 @@ Um Maschinen systemweit und betriebssystemübergreifend vergleichen zu können, 
 - **Windows:** `root_value="C:/Users/Name/Documents"` -> Semantisches Label: `documents`
 - **Linux:** `root_value="/home/name/Documents"` -> Semantisches Label: `documents`
 Während `root_id` die maschinenspezifische Instanz identifiziert und `root_value` den physischen Ankerpunkt darstellt, ermöglicht erst ein einheitliches semantisches Label, dass Cross-Machine-Analysen künftig automatisiert geclustert werden können.
+- `root_label` ist die semantische Vergleichsebene für Roots.
+- Mehrere `root_ids` können denselben `root_label` haben, um anzuzeigen, dass sie logisch das gleiche Verzeichnis (auf verschiedenen Hosts) repräsentieren.
+- Cross-Machine-Analysen (wie Sync-Lücken oder Duplikate) werden perspektivisch auf `root_label` als gemeinsame Identitätsachse basieren.
+- `atlas roots` gibt standardmäßig strukturierte JSON-Daten zurück, um den maschinenlesbaren Contract zu wahren. Eine gruppierte Ansicht ist explizit über `--group-by-label` als zusätzliche Projektion verfügbar.
 
 ### Root Identity Contract
 - Lokale Roots können beim initialen Scan explizite Identifier (`--root-id`) und semantische Labels (`--root-label`) erhalten, um auto-generierte Default-IDs deterministisch zu übersteuern.

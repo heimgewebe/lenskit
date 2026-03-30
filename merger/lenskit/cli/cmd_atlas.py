@@ -34,7 +34,23 @@ def run_atlas_roots(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     with AtlasRegistry(registry_path) as registry:
         roots = registry.list_roots()
-    print(json.dumps(roots, indent=2))
+
+    if getattr(args, "group_by_label", False):
+        grouped = {}
+        for root in roots:
+            label = root.get("label")
+            grouped.setdefault(label, []).append(root)
+
+        sorted_labels = sorted(grouped.keys(), key=lambda k: (k is not None, k if k is not None else ""))
+        for label in sorted_labels:
+            display_label = "(none)" if label is None else label
+            print(f"{display_label}:")
+            items = sorted(grouped[label], key=lambda x: (x['machine_id'], x['root_id']))
+            for item in items:
+                print(f"  - machine: {item['machine_id']} | id: {item['root_id']} -> {item['root_value']}")
+    else:
+        print(json.dumps(roots, indent=2))
+
     return 0
 
 def run_atlas_snapshots(args: argparse.Namespace) -> int:
@@ -592,7 +608,13 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
                 return 1
             root_label = explicit_root_label.strip()
         else:
-            root_label = scan_root.name
+            safe_label = scan_root.name.strip().lower()
+            if not safe_label:
+                anchor = (scan_root.drive or scan_root.anchor or "").strip().lower()
+                safe_label = re.sub(r'[^a-z0-9]', '', anchor)
+                if not safe_label:
+                    safe_label = "root"
+            root_label = re.sub(r'\s+', '-', safe_label)
 
         try:
             registry.register_root(root_id, machine_id, "abs_path", root_value, label=root_label)

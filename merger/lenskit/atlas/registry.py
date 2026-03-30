@@ -192,6 +192,11 @@ class AtlasRegistry:
     def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None):
         root_id = root_id.strip()
 
+        if label is not None:
+            label = label.strip()
+            if not label:
+                raise ValueError("Root label cannot be empty.")
+
         if not root_id:
             raise ValueError("Root ID cannot be empty.")
         if not re.match(r"^[A-Za-z0-9._-]+$", root_id) or root_id in [".", ".."]:
