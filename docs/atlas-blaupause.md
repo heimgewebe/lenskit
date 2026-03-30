@@ -1016,6 +1016,7 @@ Während `root_id` die maschinenspezifische Instanz identifiziert und `root_valu
 - `root_label` ist die semantische Vergleichsebene für Roots.
 - Mehrere `root_ids` können denselben `root_label` haben, um anzuzeigen, dass sie logisch das gleiche Verzeichnis (auf verschiedenen Hosts) repräsentieren.
 - Cross-Machine-Analysen (wie Sync-Lücken oder Duplikate) werden perspektivisch auf `root_label` als gemeinsame Identitätsachse basieren.
+- `atlas roots` gibt standardmäßig strukturierte JSON-Daten zurück, um den maschinenlesbaren Contract zu wahren. Eine gruppierte Ansicht ist explizit über `--group-by-label` als zusätzliche Projektion verfügbar.
 
 ### Root Identity Contract
 - Lokale Roots können beim initialen Scan explizite Identifier (`--root-id`) und semantische Labels (`--root-label`) erhalten, um auto-generierte Default-IDs deterministisch zu übersteuern.

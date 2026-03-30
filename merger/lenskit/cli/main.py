@@ -108,7 +108,8 @@ def main(args: Optional[List[str]] = None) -> int:
 
     atlas_subparsers.add_parser("machine-health", help="List registered machines with health status and last seen info")
     atlas_subparsers.add_parser("machines", help="List registered machines")
-    atlas_subparsers.add_parser("roots", help="List registered roots")
+    atlas_roots_parser = atlas_subparsers.add_parser("roots", help="List registered roots")
+    atlas_roots_parser.add_argument("--group-by-label", action="store_true", help="Group output by root_label (human-readable text format)")
     atlas_subparsers.add_parser("snapshots", help="List registered snapshots")
 
     atlas_diff_parser = atlas_subparsers.add_parser("diff", help="Compute delta between two snapshots")

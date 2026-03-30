@@ -6,8 +6,9 @@ import argparse
 import socket
 from pathlib import Path
 
-from merger.lenskit.cli.cmd_atlas import run_atlas_scan
+from merger.lenskit.cli.cmd_atlas import run_atlas_scan, run_atlas_roots
 from merger.lenskit.atlas.registry import AtlasRegistry
+import json
 
 def test_atlas_scan_explicit_machine_and_hostname(tmp_path: Path, monkeypatch):
     # Change current working directory to tmp_path to isolate registry creation
@@ -602,9 +603,6 @@ def test_atlas_scan_root_identity_cross_machine_overwrite_fails(tmp_path: Path, 
         # Ensure it wasn't overwritten
         assert root["machine_id"] == "machine-1"
 
-from merger.lenskit.cli.cmd_atlas import run_atlas_roots
-import json
-
 def test_atlas_scan_default_root_label_generation(tmp_path: Path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
@@ -736,16 +734,29 @@ def test_atlas_cli_roots_grouping(tmp_path: Path, monkeypatch, capsys):
         registry.register_root("m2_docs", "m2", "abs_path", "/path/2", label="documents")
         registry.register_root("m1_pics", "m1", "abs_path", "/path/3", label="pictures")
 
-    args = argparse.Namespace()
-
-    exit_code = run_atlas_roots(args)
+    # Test Default JSON Output
+    args_default = argparse.Namespace(group_by_label=False)
+    exit_code = run_atlas_roots(args_default)
     assert exit_code == 0
-
     captured = capsys.readouterr()
-    output = captured.out
+    output_json = captured.out
 
-    assert "documents:" in output
-    assert "  - m1__m1_docs -> /path/1" in output
-    assert "  - m2__m2_docs -> /path/2" in output
-    assert "pictures:" in output
-    assert "  - m1__m1_pics -> /path/3" in output
+    # Verify it parses as JSON and contains the roots
+    roots_list = json.loads(output_json)
+    assert len(roots_list) == 3
+    labels = [r.get("label") for r in roots_list]
+    assert "documents" in labels
+    assert "pictures" in labels
+
+    # Test Grouped Output
+    args_grouped = argparse.Namespace(group_by_label=True)
+    exit_code = run_atlas_roots(args_grouped)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    output_text = captured.out
+
+    assert "documents:" in output_text
+    assert "  - machine: m1 | id: m1_docs -> /path/1" in output_text
+    assert "  - machine: m2 | id: m2_docs -> /path/2" in output_text
+    assert "pictures:" in output_text
+    assert "  - machine: m1 | id: m1_pics -> /path/3" in output_text

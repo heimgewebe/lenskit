@@ -35,15 +35,19 @@ def run_atlas_roots(args: argparse.Namespace) -> int:
     with AtlasRegistry(registry_path) as registry:
         roots = registry.list_roots()
 
-    grouped = {}
-    for root in roots:
-        label = root.get("label") or "unlabeled"
-        grouped.setdefault(label, []).append(root)
+    if getattr(args, "group_by_label", False):
+        grouped = {}
+        for root in roots:
+            label = root.get("label") or "unlabeled"
+            grouped.setdefault(label, []).append(root)
 
-    for label, items in grouped.items():
-        print(f"{label}:")
-        for item in items:
-            print(f"  - {item['machine_id']}__{item['root_id']} -> {item['root_value']}")
+        for label in sorted(grouped.keys()):
+            print(f"{label}:")
+            items = sorted(grouped[label], key=lambda x: (x['machine_id'], x['root_id']))
+            for item in items:
+                print(f"  - machine: {item['machine_id']} | id: {item['root_id']} -> {item['root_value']}")
+    else:
+        print(json.dumps(roots, indent=2))
 
     return 0
 
