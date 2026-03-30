@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/contracts/agent-query-session.v1.schema.json",
+  "title": "agent_query_session.v1",
+  "type": "object",
+  "description": "Agent traceability artifact for a single query session.",
+  "additionalProperties": false,
+  "required": [
+    "request",
+    "resolved_bundles",
+    "refs",
+    "warnings"
+  ],
+  "properties": {
+    "request": {
+      "type": "object",
+      "description": "The exact query contract parameters used.",
+      "additionalProperties": true
+    },
+    "resolved_bundles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of bundle identifiers (e.g., repo_ids or hashes) that were successfully resolved."
+    },
+    "refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query_trace_ref",
+        "context_bundle_ref"
+      ],
+      "properties": {
+        "query_trace_ref": {
+          "type": ["string", "null"],
+          "description": "Reference (path/ID) to the generated query trace."
+        },
+        "context_bundle_ref": {
+          "type": ["string", "null"],
+          "description": "Reference (path/ID) to the generated context bundle."
+        },
+        "diagnostics_ref": {
+          "type": ["string", "null"],
+          "description": "Reference to additional diagnostics or federated conflicts."
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Agent-guardrail warnings emitted during the session."
+    }
+  }
+}
