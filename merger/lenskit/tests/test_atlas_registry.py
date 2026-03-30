@@ -74,10 +74,10 @@ def test_root_registry(registry):
     assert r["label"] == "www-root"
 
     # Update existing root
-    registry.register_root("r1", "m1", "preset", "default", "new-label")
+    registry.register_root("r1", "m1", "preset", "/var/www", "new-label")
     r2 = registry.get_root("r1")
     assert r2["root_kind"] == "preset"
-    assert r2["root_value"] == "default"
+    assert r2["root_value"] == "/var/www"
     assert r2["label"] == "new-label"
 
     # List roots
@@ -216,3 +216,37 @@ def test_machine_health(registry):
     assert health[0]["total_complete_snapshots"] == 1
     assert health[0]["has_snapshots"] == True
     assert health[0]["last_snapshot_at"] is not None
+
+def test_root_registry_validation(registry):
+    registry.register_machine("m1", "host-a")
+    registry.register_machine("m2", "host-b")
+
+    # Valid root
+    registry.register_root("my_root", "m1", "abs_path", "/var/www")
+    assert registry.get_root("my_root")["root_value"] == "/var/www"
+
+    # Reject empty root ID
+    with pytest.raises(ValueError, match="Root ID cannot be empty."):
+        registry.register_root("   ", "m1", "abs_path", "/tmp")
+
+    # Reject invalid characters
+    with pytest.raises(ValueError, match="is invalid"):
+        registry.register_root("invalid root/id", "m1", "abs_path", "/tmp")
+
+    # Reject strictly . and ..
+    with pytest.raises(ValueError, match="cannot be '.' or '..'"):
+        registry.register_root(".", "m1", "abs_path", "/tmp")
+    with pytest.raises(ValueError, match="cannot be '.' or '..'"):
+        registry.register_root("..", "m1", "abs_path", "/tmp")
+
+    # Reject cross-machine overwrite
+    with pytest.raises(ValueError, match="is already registered to a different machine"):
+        registry.register_root("my_root", "m2", "abs_path", "/var/www")
+
+    # Reject same-machine rebinding to different path
+    with pytest.raises(ValueError, match="is already bound to path"):
+        registry.register_root("my_root", "m1", "abs_path", "/different/path")
+
+    # Updating with SAME path is allowed (e.g., updating label)
+    registry.register_root("my_root", "m1", "abs_path", "/var/www", "new-label")
+    assert registry.get_root("my_root")["label"] == "new-label"
