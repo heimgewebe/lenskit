@@ -34,7 +34,17 @@ def run_atlas_roots(args: argparse.Namespace) -> int:
     registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
     with AtlasRegistry(registry_path) as registry:
         roots = registry.list_roots()
-    print(json.dumps(roots, indent=2))
+
+    grouped = {}
+    for root in roots:
+        label = root.get("label") or "unlabeled"
+        grouped.setdefault(label, []).append(root)
+
+    for label, items in grouped.items():
+        print(f"{label}:")
+        for item in items:
+            print(f"  - {item['machine_id']}__{item['root_id']} -> {item['root_value']}")
+
     return 0
 
 def run_atlas_snapshots(args: argparse.Namespace) -> int:
@@ -592,7 +602,8 @@ def run_atlas_scan(args: argparse.Namespace) -> int:
                 return 1
             root_label = explicit_root_label.strip()
         else:
-            root_label = scan_root.name
+            safe_label = scan_root.name.strip().lower()
+            root_label = re.sub(r'\s+', '-', safe_label)
 
         try:
             registry.register_root(root_id, machine_id, "abs_path", root_value, label=root_label)
