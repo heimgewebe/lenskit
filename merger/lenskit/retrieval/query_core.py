@@ -672,6 +672,8 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
         else:
             refs.append(hit.get("path", ""))
 
+        derived_ref = hit.get("derived_range_ref")
+
         hit_ctx = {
             "hit_identity": hit.get("chunk_id", f"hit_{idx}"),
             "file": hit.get("path", ""),
@@ -683,7 +685,29 @@ def build_context_bundle(query_text: str, results: List[Dict[str, Any]], raw_con
             "surrounding_context": None, # Will populate in Expansion Logic
             "graph_context": hit.get("why", {}).get("diagnostics", {}).get("graph"),
             "provenance_type": prov_type,
-            "bundle_source_references": refs
+            "bundle_source_references": refs,
+            # Epistemic integrity rules:
+            # - `provenance_type`: The origin class of the hit. `derived` means it lacks a bundle-backed explicit `range_ref`.
+            # - `resolver_status`: The actual technical outcome of resolving this hit against the bundle or source workspace.
+            # - `interpolation`: Indicates if fallback data (like `derived_range_ref`) was successfully injected into the hit.
+            #   It is perfectly valid for a hit to be `derived` origin, but `unresolved` and `interpolation.used == False`.
+            "epistemics": {
+                "provenance_type": prov_type,
+                "bundle_origin": hit.get("repo_id", "local"),
+                "resolver_status": "resolved_explicit" if prov_type == "explicit" else ("resolved_derived" if derived_ref else "unresolved"),
+                "graph_status": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_status", "unknown"),
+                "semantic_status": "unknown",
+                "federation_status": "federated" if hit.get("federation_bundle") else "local",
+                "uncertainty": {
+                    "explicit_provenance": prov_type == "explicit",
+                    "graph_used": hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_used", False),
+                    "semantic_supported": False
+                },
+                "interpolation": {
+                    "used": bool(derived_ref),
+                    "reason": "derived_from_source" if derived_ref else None
+                }
+            }
         }
 
         # Expand context if requested

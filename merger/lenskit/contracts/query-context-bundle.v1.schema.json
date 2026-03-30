@@ -77,6 +77,66 @@
             "items": {
               "type": "string"
             }
+          },
+          "epistemics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "provenance_type",
+              "bundle_origin",
+              "resolver_status",
+              "graph_status",
+              "semantic_status",
+              "federation_status",
+              "uncertainty",
+              "interpolation"
+            ],
+            "properties": {
+              "provenance_type": {
+                "type": "string"
+              },
+              "bundle_origin": {
+                "type": "string"
+              },
+              "resolver_status": {
+                "type": "string"
+              },
+              "graph_status": {
+                "type": "string"
+              },
+              "semantic_status": {
+                "type": "string"
+              },
+              "federation_status": {
+                "type": "string"
+              },
+              "uncertainty": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "explicit_provenance",
+                  "graph_used",
+                  "semantic_supported"
+                ],
+                "properties": {
+                  "explicit_provenance": { "type": "boolean" },
+                  "graph_used": { "type": "boolean" },
+                  "semantic_supported": { "type": "boolean" }
+                }
+              },
+              "interpolation": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "used",
+                  "reason"
+                ],
+                "properties": {
+                  "used": { "type": "boolean" },
+                  "reason": { "type": ["string", "null"] }
+                }
+              }
+            }
           }
         }
       }

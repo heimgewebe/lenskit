@@ -471,3 +471,98 @@ def test_api_query_review_context_with_trace(mini_index):
     # surrounding_context MUST be present and not None because we requested window context
     assert "surrounding_context" in hit
     assert hit["surrounding_context"] is not None
+
+def test_agent_response_surfaces_uncertainty(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "review_context",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+
+    assert len(bundle["hits"]) == 1
+    hit = bundle["hits"][0]
+
+    # Check for epistemic object markers
+    assert "epistemics" in hit
+    epist = hit["epistemics"]
+
+    # Values check strictly grounded in fixture data
+    assert epist["provenance_type"] == "derived" # Fixture provides chunks without explicit range_ref
+    assert epist["bundle_origin"] == "r1"  # Derived from local repository
+    assert epist["resolver_status"] == "unresolved" # The fixture chunks lack structural data to generate a derived_range_ref
+    assert epist["graph_status"] == "unknown" # No active graph index in this fixture
+    assert epist["semantic_status"] == "unknown" # Semantic search is strictly unknown/unproven
+    assert epist["federation_status"] == "local" # No federation bundle present
+
+    unc = epist["uncertainty"]
+    assert unc["explicit_provenance"] is False # Because provenance is derived
+    assert unc["graph_used"] is False # Not used in this fixture
+    assert unc["semantic_supported"] is False # Not used in this fixture
+
+    interp = epist["interpolation"]
+    # The fixture chunks lack structural data (start_byte, end_byte) to generate a derived_range_ref.
+    # Therefore, no interpolation could be performed.
+    assert interp["used"] is False
+    assert interp["reason"] is None
+
+def test_agent_response_surfaces_uncertainty_contrasts():
+    # Strict grammar test for epistemic status translations within build_context_bundle.
+    from merger.lenskit.retrieval.query_core import build_context_bundle
+    import sqlite3
+
+    with sqlite3.connect(":memory:") as conn:
+        mock_hits = [
+            {
+                "chunk_id": "c1", "repo_id": "r1", "path": "file1.py",
+                "range": "1-10", "score": 1.0, "why": {},
+                "range_ref": {"file_path": "file1.py", "start_byte": 0} # Explicit
+            },
+            {
+                "chunk_id": "c2", "repo_id": "r1", "path": "file2.py",
+                "range": "11-20", "score": 0.8, "why": {},
+                "derived_range_ref": {"file_path": "file2.py", "start_byte": 100} # Derived + successfully interpolated
+            },
+            {
+                "chunk_id": "c3", "repo_id": "r1", "path": "file3.py",
+                "range": "21-30", "score": 0.5, "why": {}
+                # Derived but unresolved (no range_ref, no derived_range_ref)
+            }
+        ]
+
+        bundle = build_context_bundle("hello", mock_hits, {"c1": "c", "c2": "c", "c3": "c"}, conn, context_mode="exact")
+
+        assert len(bundle["hits"]) == 3
+
+        # 1. Explicit Hit
+        hit1_epist = bundle["hits"][0]["epistemics"]
+        assert hit1_epist["provenance_type"] == "explicit"
+        assert hit1_epist["resolver_status"] == "resolved_explicit"
+        assert hit1_epist["interpolation"]["used"] is False
+
+        # 2. Derived + Interpolated Hit
+        hit2_epist = bundle["hits"][1]["epistemics"]
+        assert hit2_epist["provenance_type"] == "derived"
+        assert hit2_epist["resolver_status"] == "resolved_derived"
+        assert hit2_epist["interpolation"]["used"] is True
+        assert hit2_epist["interpolation"]["reason"] == "derived_from_source"
+
+        # 3. Derived + Unresolved Hit
+        hit3_epist = bundle["hits"][2]["epistemics"]
+        assert hit3_epist["provenance_type"] == "derived"
+        assert hit3_epist["resolver_status"] == "unresolved"
+        assert hit3_epist["interpolation"]["used"] is False
+        assert hit3_epist["interpolation"]["reason"] is None
