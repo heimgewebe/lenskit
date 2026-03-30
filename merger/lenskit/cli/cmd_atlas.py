@@ -63,32 +63,55 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
 
 def _resolve_snapshot_ref(ref: str, registry) -> str:
     if ":" in ref:
-        machine_id, root_value = ref.split(":", 1)
+        parts = ref.split(":", 2)
+        if len(parts) == 3 and parts[1] == "label":
+            machine_id = parts[0]
+            root_label = parts[2]
 
-        def normalize_path(p: str) -> str:
-            # Conservative normalization for trivial variants (e.g., trailing slashes, /./)
-            # without semantically reinterpreting absolute/relative meanings.
-            import posixpath
-            return posixpath.normpath(p)
+            target_root_ids = []
+            for r in registry.list_roots():
+                if r["machine_id"] == machine_id and r.get("root_label") == root_label:
+                    target_root_ids.append(r["root_id"])
 
-        target_root_ids = []
-        norm_root_value = normalize_path(root_value)
+            if not target_root_ids:
+                raise ValueError(f"No root found for machine '{machine_id}' with label '{root_label}'")
 
-        for r in registry.list_roots():
-            if r["machine_id"] == machine_id and normalize_path(r["root_value"]) == norm_root_value:
-                target_root_ids.append(r["root_id"])
+            if len(target_root_ids) > 1:
+                raise ValueError(f"Multiple roots found for machine '{machine_id}' with label '{root_label}'; use machine:path or snapshot_id for explicit disambiguation")
 
-        if not target_root_ids:
-            raise ValueError(f"No root found for machine '{machine_id}' and path '{root_value}'")
+            target_root_id = target_root_ids[0]
 
-        if len(target_root_ids) > 1:
-            raise ValueError(f"Ambiguous root reference: multiple roots match machine '{machine_id}' and path '{root_value}'")
+            snapshots = registry.list_complete_snapshots(root_id=target_root_id)
+            if not snapshots:
+                raise ValueError(f"No complete snapshot found for machine '{machine_id}' and label '{root_label}'")
 
-        target_root_id = target_root_ids[0]
+        else:
+            machine_id, root_value = ref.split(":", 1)
 
-        snapshots = registry.list_complete_snapshots(root_id=target_root_id)
-        if not snapshots:
-            raise ValueError(f"No complete snapshots found for root '{target_root_id}'")
+            def normalize_path(p: str) -> str:
+                # Conservative normalization for trivial variants (e.g., trailing slashes, /./)
+                # without semantically reinterpreting absolute/relative meanings.
+                import posixpath
+                return posixpath.normpath(p)
+
+            target_root_ids = []
+            norm_root_value = normalize_path(root_value)
+
+            for r in registry.list_roots():
+                if r["machine_id"] == machine_id and normalize_path(r["root_value"]) == norm_root_value:
+                    target_root_ids.append(r["root_id"])
+
+            if not target_root_ids:
+                raise ValueError(f"No root found for machine '{machine_id}' and path '{root_value}'")
+
+            if len(target_root_ids) > 1:
+                raise ValueError(f"Ambiguous root reference: multiple roots match machine '{machine_id}' and path '{root_value}'")
+
+            target_root_id = target_root_ids[0]
+
+            snapshots = registry.list_complete_snapshots(root_id=target_root_id)
+            if not snapshots:
+                raise ValueError(f"No complete snapshots found for root '{target_root_id}'")
 
         # Ensure deterministic sort by created_at descending just in case DB defaults shift
         # missing created_at should sink to bottom or error, but they should all have it
