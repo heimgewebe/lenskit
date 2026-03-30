@@ -9,8 +9,9 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
     - Case 1 (No Profile): Returns the raw result object (contains 'results' list, not 'hits').
     - Case 2 (Profile specified, e.g. 'agent_minimal'): Returns the canonical Context-Bundle
       structure directly at the top level (contains 'hits' array).
-    - Case 3 (Profile + Trace): Returns a wrapper {"context_bundle": ..., "query_trace": ...}
-      to ensure the strict Context-Bundle schema is not violated by the trace object.
+    - Case 3 (Profile + Diagnostics/Guardrails): Returns a wrapper {"context_bundle": ..., ...}
+      to ensure the strict Context-Bundle schema is not violated by additional top-level properties
+      like 'query_trace', 'federation_conflicts', or 'warnings'.
 
     Args:
         result: The raw evaluation result from `execute_query`.
@@ -44,13 +45,26 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
             # Include download links or identifiers for ui
             pass # Structure already ui-ready based on chunk_id/file
 
-        # If trace is returned, we must not violate the bundle schema (which forbids additional properties).
-        # We return a wrapper.
+        # The bundle schema forbids additional top-level properties.
+        # If diagnostic or guardrail fields such as query_trace, federation_conflicts,
+        # or warnings are present, return a wrapper object instead of the bare bundle.
+        wrapper = {"context_bundle": bundle}
+        needs_wrapper = False
+
         if "query_trace" in res:
-            return {
-                "context_bundle": bundle,
-                "query_trace": res["query_trace"]
-            }
+            wrapper["query_trace"] = res["query_trace"]
+            needs_wrapper = True
+
+        if res.get("federation_conflicts"):
+            wrapper["federation_conflicts"] = res["federation_conflicts"]
+            needs_wrapper = True
+
+        if res.get("warnings"):
+            wrapper["warnings"] = res["warnings"]
+            needs_wrapper = True
+
+        if needs_wrapper:
+            return wrapper
 
         return bundle
 

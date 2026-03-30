@@ -141,3 +141,113 @@ def test_agent_profile_review_context_with_trace():
 
     assert "surrounding_context" in hits[0]
     assert "surrounding_context" not in hits[1]
+
+def test_agent_federated_conflict_warning():
+    mock_result = {
+        "context_bundle": {
+            "hits": [
+                {
+                    "id": "1",
+                    "explain": {"bm25": 1.0},
+                    "graph_context": {"distance": 1},
+                    "surrounding_context": "def foo():\n    pass\n"
+                }
+            ]
+        },
+        "federation_conflicts": [
+            {
+                "conflict_id": "conflict_0",
+                "type": "path",
+                "description": "Conflict description",
+                "resolution": "unresolved",
+                "involved_results": ["1"]
+            }
+        ],
+        "warnings": ["Low evidence density"]
+    }
+
+    # Contract says if federation_conflicts or warnings are present, it returns a wrapper
+    projected = project_output(mock_result, output_profile="agent_minimal")
+
+    assert "context_bundle" in projected
+    assert "federation_conflicts" in projected
+    assert projected["federation_conflicts"][0]["conflict_id"] == "conflict_0"
+
+    assert "warnings" in projected
+    assert len(projected["warnings"]) == 1
+
+    hits = projected["context_bundle"].get("hits", [])
+    assert len(hits) == 1
+
+    # agent_minimal should strip explain, graph_context
+    for hit in hits:
+        assert "explain" not in hit
+        assert "graph_context" not in hit
+
+def test_agent_federated_conflict_empty_no_wrapper():
+    mock_result = {
+        "context_bundle": {
+            "hits": [
+                {
+                    "id": "1"
+                }
+            ]
+        },
+        "federation_conflicts": [],
+        "warnings": []
+    }
+
+    # If lists are empty, they should NOT trigger a wrapper, returning the bundle directly
+    projected = project_output(mock_result, output_profile="agent_minimal")
+
+    assert "context_bundle" not in projected
+    assert "federation_conflicts" not in projected
+    assert "warnings" not in projected
+    assert "hits" in projected
+
+def test_agent_federated_conflict_warning_coexistence():
+    """
+    Ensures that when all diagnostic/guardrail fields are truthy, they all
+    coexist safely in the generated wrapper under 'agent_minimal' profile.
+    """
+    mock_result = {
+        "context_bundle": {
+            "hits": [
+                {
+                    "id": "1",
+                    "explain": {"bm25": 1.0},
+                    "graph_context": {"distance": 1},
+                    "surrounding_context": "def foo():\n    pass\n"
+                }
+            ]
+        },
+        "query_trace": {
+            "status": "traced",
+            "latency": 42
+        },
+        "federation_conflicts": [
+            {
+                "conflict_id": "conflict_99",
+                "type": "path",
+                "description": "Conflict coexistence",
+                "resolution": "unresolved",
+                "involved_results": ["1"]
+            }
+        ],
+        "warnings": ["Cross repo identity collision"]
+    }
+
+    projected = project_output(mock_result, output_profile="agent_minimal")
+
+    # Verify that the wrapper is returned and all 3 elements coexist perfectly
+    assert "context_bundle" in projected
+    assert "query_trace" in projected
+    assert "federation_conflicts" in projected
+    assert "warnings" in projected
+
+    # Verify context bundle projection still happened correctly
+    hits = projected["context_bundle"].get("hits", [])
+    assert len(hits) == 1
+    for hit in hits:
+        assert "explain" not in hit
+        assert "graph_context" not in hit

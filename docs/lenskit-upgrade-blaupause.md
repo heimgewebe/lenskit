@@ -1700,7 +1700,7 @@ Tests:
 - [x] 3. test_agent_profile_review_context
 - [ ] 4. test_agent_session_trace_contains_refs
 - [x] 5. test_agent_response_surfaces_uncertainty
-- [ ] 6. test_agent_federated_conflict_warning
+- [x] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
 - [x] 1. Agent Query Contract (für /api/query im API-Roundtrip minimal belegt und getestet)
