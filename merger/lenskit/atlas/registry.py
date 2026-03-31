@@ -13,7 +13,7 @@ class AtlasRegistry:
         self.conn.row_factory = sqlite3.Row
         self._init_db()
 
-    def close(self):
+    def close(self) -> None:
         if self.conn:
             self.conn.close()
             self.conn = None
@@ -24,7 +24,7 @@ class AtlasRegistry:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         with self.conn:
             self.conn.execute("PRAGMA foreign_keys = ON;")
             self.conn.executescript("""
@@ -189,7 +189,7 @@ class AtlasRegistry:
             health_reports.append(res)
         return health_reports
 
-    def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None):
+    def register_root(self, root_id: str, machine_id: str, root_kind: str, root_value: str, label: Optional[str] = None) -> None:
         root_id = root_id.strip()
 
         if label is not None:
@@ -233,7 +233,7 @@ class AtlasRegistry:
         cur.execute("SELECT * FROM roots")
         return [dict(row) for row in cur.fetchall()]
 
-    def create_snapshot(self, snapshot_id: str, machine_id: str, root_id: str, scan_config_hash: str, status: str):
+    def create_snapshot(self, snapshot_id: str, machine_id: str, root_id: str, scan_config_hash: str, status: str) -> None:
         now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
         with self.conn:
             self.conn.execute("""
@@ -241,7 +241,7 @@ class AtlasRegistry:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (snapshot_id, machine_id, root_id, now, scan_config_hash, status))
 
-    def update_snapshot_status(self, snapshot_id: str, status: str, error_message: Optional[str] = None):
+    def update_snapshot_status(self, snapshot_id: str, status: str, error_message: Optional[str] = None) -> None:
         now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
         with self.conn:
             self.conn.execute("""
@@ -249,7 +249,7 @@ class AtlasRegistry:
                 WHERE snapshot_id = ?
             """, (status, error_message, now, snapshot_id))
 
-    def update_snapshot_progress(self, snapshot_id: str, files_seen: int, dirs_seen: int, bytes_seen: int):
+    def update_snapshot_progress(self, snapshot_id: str, files_seen: int, dirs_seen: int, bytes_seen: int) -> None:
         now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
         with self.conn:
             self.conn.execute("""
@@ -257,7 +257,7 @@ class AtlasRegistry:
                 WHERE snapshot_id = ?
             """, (files_seen, dirs_seen, bytes_seen, now, snapshot_id))
 
-    def update_snapshot_artifacts(self, snapshot_id: str, artifacts: Dict[str, str]):
+    def update_snapshot_artifacts(self, snapshot_id: str, artifacts: Dict[str, str]) -> None:
         set_clauses = []
         params = []
         for key in ["inventory", "dirs", "summary", "content", "topology", "hotspots", "workspaces", "duplicates", "orphans", "disk"]:

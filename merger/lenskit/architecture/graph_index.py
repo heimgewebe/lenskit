@@ -38,10 +38,10 @@ def load_graph_index(path: Path, expected_sha256: Optional[str] = None) -> Dict[
                     schema = json.load(f)
                 jsonschema.validate(instance=data, schema=schema)
             except jsonschema.ValidationError as e:
-                logger.warning(f"Graph index schema validation failed: {e}")
+                logger.warning("Graph index schema validation failed: %s", e)
                 return {"status": "invalid_schema", "graph": None}
             except Exception as e:
-                logger.error(f"Error reading/validating graph schema: {e}")
+                logger.error("Error reading/validating graph schema: %s", e)
                 return {"status": "invalid_schema", "graph": None}
 
     # Check staleness if expected_sha256 is provided

@@ -92,7 +92,7 @@ class JobStore:
             try:
                 callback()
             except Exception as e:
-                logger.debug(f"Error in log subscriber callback for {job_id}: {e}")
+                logger.debug("Error in log subscriber callback for %s: %s", job_id, e)
 
     def update_job(self, job: Job):
         with self._lock:

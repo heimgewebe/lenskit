@@ -239,7 +239,7 @@ def refresh(hub_path: Path):
                 "data": {"repos": data}
             }
         except Exception as e:
-            logger.warning(f"Failed to parse repos.yml: {e}")
+            logger.warning("Failed to parse repos.yml: %s", e)
             # Fallback to MD if YAML fails
             pass
 
@@ -301,7 +301,7 @@ def refresh(hub_path: Path):
         # We downgrade status to error, but still write the file so debug is possible
         fleet_snapshot["status"] = "error"
         fleet_snapshot["validation_error"] = validation_error
-        logger.warning(f"Fleet snapshot validation failed: {validation_error}")
+        logger.warning("Fleet snapshot validation failed: %s", validation_error)
 
     with open(fleet_out, "w", encoding="utf-8") as f:
         json.dump(fleet_snapshot, f, indent=2)
