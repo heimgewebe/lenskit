@@ -103,7 +103,7 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
         snap1_dir.mkdir(parents=True)
         inv1 = snap1_dir / "inventory.jsonl"
         with open(inv1, "w") as f:
-            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\\n")
+            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\n")
 
         # Artifacts in the registry must be exactly relative to the atlas base directory.
         # The cross-root comparison resolver relies on this exact relative path geometry.
@@ -114,7 +114,7 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
         snap2_dir.mkdir(parents=True)
         inv2 = snap2_dir / "inventory.jsonl"
         with open(inv2, "w") as f:
-            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\\n")
+            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\n")
 
         inv2_rel = inv2.relative_to(atlas_base).as_posix()
         reg.update_snapshot_artifacts("snap2", {"inventory": inv2_rel})
