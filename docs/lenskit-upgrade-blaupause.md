@@ -1668,7 +1668,7 @@ Trennung:
 ### 2.8 Arbeitspaket F – Agent Traceability
 
 Ziel:
-- [x] Jede Agent-Nutzung ist nachvollziehbar (strukturell implementiert, minimale Runtime vorbereitet).
+- [ ] Jede Agent-Nutzung ist nachvollziehbar (teilweise: Schema und lokaler Builder existent, aber CLI/API-Generierung fehlt).
 
 Neues Artefakt: `agent_query_session.json`
 
@@ -1698,7 +1698,7 @@ Tests:
 - [x] 1. test_agent_query_contract_roundtrip
 - [x] 2. test_agent_profile_lookup_minimal
 - [x] 3. test_agent_profile_review_context
-- [x] 4. test_agent_session_trace_contains_refs (via test_agent_session_builder)
+- [ ] 4. test_agent_session_trace_contains_refs (teilweise: lokaler Builder-Test vorhanden, aber E2E-API/CLI-Test offen)
 - [x] 5. test_agent_response_surfaces_uncertainty
 - [x] 6. test_agent_federated_conflict_warning
 
@@ -1707,7 +1707,7 @@ Tests:
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
-- [x] 5. agent_query_session.json (Schema existiert, lokaler minimaler Builder via session.py vorhanden, CLI-Output noch offen)
+- [ ] 5. agent_query_session.json (teilweise: Schema und lokaler minimaler Builder via session.py vorhanden, automatische Erzeugung in API/CLI noch offen)
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik
 - [ ] 7. Agent-Guardrails
 

@@ -89,3 +89,56 @@ def test_build_agent_query_session_from_projected_context():
     assert session["resolved_bundles"] == ["proj-r1"]
     assert session["refs"]["query_trace_ref"] is None
     jsonschema.validate(instance=session, schema=schema)
+
+def test_build_agent_query_session_full_projection():
+    """
+    Tests that a fully projected API response (wrapper with bundle, warnings, federation)
+    is correctly parsed by the builder.
+    """
+    try:
+        _require_module()
+    except RuntimeError:
+        pytest.skip("jsonschema not installed")
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "agent-query-session.v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    mock_request = {"q": "federation query", "k": 10, "output_profile": "agent_minimal"}
+    mock_result = {
+        "context_bundle": {
+            "hits": [
+                {"repo_id": "primary-repo", "path": "test1.txt"}
+            ]
+        },
+        "federation_trace": {
+            "queried_bundles": [
+                {"repo_id": "remote-repo-1", "status": "resolved"},
+                {"repo_id": "remote-repo-2", "status": "missing"}
+            ]
+        },
+        "warnings": ["Cross repo identity collision", "Low evidence density"]
+    }
+
+    session = build_agent_query_session(
+        request_contract=mock_request,
+        result=mock_result,
+        query_trace_ref="qt.json",
+        context_bundle_ref="cb.json",
+        diagnostics_ref="diag.json"
+    )
+
+    # Must contain both the primary hit and the successfully resolved remote
+    assert "primary-repo" in session["resolved_bundles"]
+    assert "remote-repo-1" in session["resolved_bundles"]
+    # Must NOT contain the missing one
+    assert "remote-repo-2" not in session["resolved_bundles"]
+
+    assert len(session["resolved_bundles"]) == 2
+
+    assert session["refs"]["query_trace_ref"] == "qt.json"
+    assert session["refs"]["context_bundle_ref"] == "cb.json"
+    assert session["refs"]["diagnostics_ref"] == "diag.json"
+
+    assert len(session["warnings"]) == 2
+
+    jsonschema.validate(instance=session, schema=schema)
