@@ -13,7 +13,6 @@ def build_agent_query_session(
     This function adheres to the agent_query_session.v1 contract and strictly extracts
     resolved bundles and warnings from the provided result without inventing references.
     """
-    # 1. Extract resolved bundles (unique repo_ids from the results)
     resolved_bundles = set()
 
     # Depending on whether we're dealing with a raw result or a projected context_bundle
@@ -28,21 +27,30 @@ def build_agent_query_session(
         hits = result["results"]
 
     for hit in hits:
-        if "repo_id" in hit:
+        # 1. Backwards compatible top-level repo_id
+        if "repo_id" in hit and isinstance(hit["repo_id"], str):
             resolved_bundles.add(hit["repo_id"])
+        # 2. Epistemics bundle_origin (Context-Bundle.v1 contract)
+        elif "epistemics" in hit and isinstance(hit["epistemics"], dict):
+            bundle_origin = hit["epistemics"].get("bundle_origin")
+            if bundle_origin and isinstance(bundle_origin, str):
+                resolved_bundles.add(bundle_origin)
+        # 3. Explicit range_ref repo_id
+        elif "range_ref" in hit and isinstance(hit["range_ref"], dict):
+            repo_id = hit["range_ref"].get("repo_id")
+            if repo_id and isinstance(repo_id, str):
+                resolved_bundles.add(repo_id)
 
-    # Also check if it's a federated trace containing resolved bundles info
-    if "federation_trace" in result and "queried_bundles" in result["federation_trace"]:
-        for bundle in result["federation_trace"]["queried_bundles"]:
-            if bundle.get("status") == "resolved" and "repo_id" in bundle:
+    # 4. Extract from federation_trace.v1 contract
+    if "federation_trace" in result and "bundles" in result["federation_trace"]:
+        for bundle in result["federation_trace"]["bundles"]:
+            if bundle.get("status") == "ok" and "repo_id" in bundle and isinstance(bundle["repo_id"], str):
                 resolved_bundles.add(bundle["repo_id"])
 
-    # 2. Extract warnings
     warnings: List[str] = []
     if "warnings" in result:
         warnings = result["warnings"]
 
-    # 3. Assemble contract
     session = {
         "request": request_contract,
         "resolved_bundles": sorted(list(resolved_bundles)),

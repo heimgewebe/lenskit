@@ -19,6 +19,7 @@
     },
     "resolved_bundles": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "string"
       },
@@ -48,6 +49,7 @@
     },
     "warnings": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "string"
       },
