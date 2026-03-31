@@ -105,8 +105,8 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
         with open(inv1, "w") as f:
             f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\\n")
 
-        # Artifacts should be relative to atlas base, resolving backwards like the artifact resolver expects
-        # typically this is `machines/m1/roots/root_m1/snapshots/snap1/inventory.jsonl`
+        # Artifacts in the registry must be exactly relative to the atlas base directory.
+        # The cross-root comparison resolver relies on this exact relative path geometry.
         inv1_rel = inv1.relative_to(atlas_base).as_posix()
         reg.update_snapshot_artifacts("snap1", {"inventory": inv1_rel})
 
@@ -131,6 +131,8 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
     assert "From: m1:/data1 (snap1)" in res.stdout
     assert "To:   m2:/data2 (snap2)" in res.stdout
     assert "Mode: cross-root-comparison" in res.stdout
+    assert "Summary:" in res.stdout
+    assert "New files:" in res.stdout
 
     # 2. Unknown label
     cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "diff", "m1:label:unknown", "m2:label:docs"]
