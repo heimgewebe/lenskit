@@ -16,13 +16,13 @@ class MockRegistry:
 @pytest.fixture
 def mock_registry():
     roots = [
-        {"root_id": "r1", "machine_id": "m1", "root_value": "/path1", "root_label": "docs"},
-        {"root_id": "r2", "machine_id": "m2", "root_value": "/path2", "root_label": "docs"},
-        {"root_id": "r3", "machine_id": "m1", "root_value": "/path3", "root_label": "images"},
-        {"root_id": "r4", "machine_id": "m3", "root_value": "/path4", "root_label": "multi"},
-        {"root_id": "r5", "machine_id": "m3", "root_value": "/path5", "root_label": "multi"},
-        {"root_id": "r6", "machine_id": "m4", "root_value": "/path6", "root_label": "nodata"},
-        {"root_id": "r7", "machine_id": "m5", "root_value": "/path/with:colon", "root_label": "weird"},
+        {"root_id": "r1", "machine_id": "m1", "root_value": "/path1", "label": "docs"},
+        {"root_id": "r2", "machine_id": "m2", "root_value": "/path2", "label": "docs"},
+        {"root_id": "r3", "machine_id": "m1", "root_value": "/path3", "label": "images"},
+        {"root_id": "r4", "machine_id": "m3", "root_value": "/path4", "label": "multi"},
+        {"root_id": "r5", "machine_id": "m3", "root_value": "/path5", "label": "multi"},
+        {"root_id": "r6", "machine_id": "m4", "root_value": "/path6", "label": "nodata"},
+        {"root_id": "r7", "machine_id": "m5", "root_value": "/path/with:colon", "label": "weird"},
     ]
     snapshots = [
         {"snapshot_id": "s1", "root_id": "r1", "created_at": "2023-01-01T00:00:00Z"},
@@ -68,3 +68,70 @@ def test_resolve_path_with_colon(mock_registry):
     # Ensure a path with a colon works in the old machine:path branch
     snap_id = _resolve_snapshot_ref("m5:/path/with:colon", mock_registry)
     assert snap_id == "s7"
+
+
+import sys
+import subprocess
+import os
+
+def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
+    registry_dir = tmp_path / "atlas" / "registry"
+    registry_dir.mkdir(parents=True)
+    registry_path = registry_dir / "atlas_registry.sqlite"
+
+    monkeypatch.chdir(tmp_path)
+
+    from merger.lenskit.atlas.registry import AtlasRegistry
+    with AtlasRegistry(registry_path) as reg:
+        reg.register_machine("m1", "host1")
+        reg.register_machine("m2", "host2")
+        reg.register_machine("m3", "host3")
+
+        reg.register_root("root_m1", "m1", "abs_path", "/data1", label="docs")
+        reg.register_root("root_m2", "m2", "abs_path", "/data2", label="docs")
+        reg.register_root("root_m3_a", "m3", "abs_path", "/data3a", label="ambiguous")
+        reg.register_root("root_m3_b", "m3", "abs_path", "/data3b", label="ambiguous")
+
+        reg.create_snapshot("snap1", "m1", "root_m1", "hash", "complete")
+        reg.create_snapshot("snap2", "m2", "root_m2", "hash", "complete")
+        reg.create_snapshot("snap3", "m3", "root_m3_a", "hash", "complete")
+
+        # We need mock inventories because the cross-root diff tries to load them
+        import json
+        snap1_dir = tmp_path / "atlas" / "m1" / "root_m1" / "snap1"
+        snap1_dir.mkdir(parents=True)
+        inv1 = snap1_dir / "inventory.jsonl"
+        with open(inv1, "w") as f:
+            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\\n")
+        reg.update_snapshot_artifacts("snap1", {"inventory": "m1/root_m1/snap1/inventory.jsonl"})
+
+        snap2_dir = tmp_path / "atlas" / "m2" / "root_m2" / "snap2"
+        snap2_dir.mkdir(parents=True)
+        inv2 = snap2_dir / "inventory.jsonl"
+        with open(inv2, "w") as f:
+            f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\\n")
+        reg.update_snapshot_artifacts("snap2", {"inventory": "m2/root_m2/snap2/inventory.jsonl"})
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(sys.path)
+
+    # 1. Success case
+    cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "diff", "m1:label:docs", "m2:label:docs"]
+    res = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    assert res.returncode == 0
+    assert "Comparison:" in res.stdout
+    assert "From: m1:/data1 (snap1)" in res.stdout
+    assert "To:   m2:/data2 (snap2)" in res.stdout
+    assert "Mode: cross-root-comparison" in res.stdout
+
+    # 2. Unknown label
+    cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "diff", "m1:label:unknown", "m2:label:docs"]
+    res = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    assert res.returncode == 1
+    assert "No root found for machine 'm1' with label 'unknown'" in res.stderr
+
+    # 3. Ambiguous label
+    cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "diff", "m3:label:ambiguous", "m1:label:docs"]
+    res = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    assert res.returncode == 1
+    assert "Multiple roots found for machine 'm3' with label 'ambiguous'" in res.stderr

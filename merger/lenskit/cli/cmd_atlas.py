@@ -70,7 +70,7 @@ def _resolve_snapshot_ref(ref: str, registry) -> str:
 
             target_root_ids = []
             for r in registry.list_roots():
-                if r["machine_id"] == machine_id and r.get("root_label") == root_label:
+                if r["machine_id"] == machine_id and r.get("label") == root_label:
                     target_root_ids.append(r["root_id"])
 
             if not target_root_ids:
