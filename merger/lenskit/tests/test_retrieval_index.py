@@ -73,7 +73,7 @@ def test_stale_index_detection(mini_artifacts, tmp_path):
     # Check stale
     assert index_db.verify_index(db_path, dump_path, chunk_path) is False
 
-def test_index_ingest_diagnostics(tmp_path, capsys):
+def test_index_ingest_diagnostics(tmp_path, caplog):
     dump_path = tmp_path / "dump.json"
     chunk_path = tmp_path / "chunks.jsonl"
     db_path = tmp_path / "index.sqlite"
@@ -87,12 +87,13 @@ def test_index_ingest_diagnostics(tmp_path, capsys):
         f.write('{"repo": "missing_id"}\n')
         f.write('\n')
 
-    index_db.build_index(dump_path, chunk_path, db_path)
+    import logging
+    with caplog.at_level(logging.WARNING, logger="merger.lenskit.retrieval.index_db"):
+        index_db.build_index(dump_path, chunk_path, db_path)
 
-    captured = capsys.readouterr()
-    assert "Warning: Index ingest had issues" in captured.err
-    assert "invalid_json=1" in captured.err
-    assert "missing_id=1" in captured.err
+    assert "Index ingest had issues" in caplog.text
+    assert "invalid_json=1" in caplog.text
+    assert "missing_id=1" in caplog.text
 
     conn = sqlite3.connect(str(db_path))
     c = conn.cursor()
