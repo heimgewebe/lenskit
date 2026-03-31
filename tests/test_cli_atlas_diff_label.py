@@ -1,3 +1,7 @@
+import sys
+import subprocess
+import os
+import json
 import pytest
 from pathlib import Path
 from merger.lenskit.cli.cmd_atlas import _resolve_snapshot_ref
@@ -69,11 +73,6 @@ def test_resolve_path_with_colon(mock_registry):
     snap_id = _resolve_snapshot_ref("m5:/path/with:colon", mock_registry)
     assert snap_id == "s7"
 
-
-import sys
-import subprocess
-import os
-
 def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
     registry_dir = tmp_path / "atlas" / "registry"
     registry_dir.mkdir(parents=True)
@@ -82,6 +81,7 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     from merger.lenskit.atlas.registry import AtlasRegistry
+    from merger.lenskit.atlas.paths import resolve_snapshot_dir
     with AtlasRegistry(registry_path) as reg:
         reg.register_machine("m1", "host1")
         reg.register_machine("m2", "host2")
@@ -96,24 +96,32 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
         reg.create_snapshot("snap2", "m2", "root_m2", "hash", "complete")
         reg.create_snapshot("snap3", "m3", "root_m3_a", "hash", "complete")
 
+        atlas_base = tmp_path / "atlas"
+
         # We need mock inventories because the cross-root diff tries to load them
-        import json
-        snap1_dir = tmp_path / "atlas" / "m1" / "root_m1" / "snap1"
+        snap1_dir = resolve_snapshot_dir(atlas_base, "m1", "root_m1", "snap1")
         snap1_dir.mkdir(parents=True)
         inv1 = snap1_dir / "inventory.jsonl"
         with open(inv1, "w") as f:
             f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\\n")
-        reg.update_snapshot_artifacts("snap1", {"inventory": "m1/root_m1/snap1/inventory.jsonl"})
 
-        snap2_dir = tmp_path / "atlas" / "m2" / "root_m2" / "snap2"
+        # Artifacts should be relative to atlas base, resolving backwards like the artifact resolver expects
+        # typically this is `machines/m1/roots/root_m1/snapshots/snap1/inventory.jsonl`
+        inv1_rel = inv1.relative_to(atlas_base).as_posix()
+        reg.update_snapshot_artifacts("snap1", {"inventory": inv1_rel})
+
+        snap2_dir = resolve_snapshot_dir(atlas_base, "m2", "root_m2", "snap2")
         snap2_dir.mkdir(parents=True)
         inv2 = snap2_dir / "inventory.jsonl"
         with open(inv2, "w") as f:
             f.write(json.dumps({"rel_path": "file1.txt", "size_bytes": 100, "mtime": 1000}) + "\\n")
-        reg.update_snapshot_artifacts("snap2", {"inventory": "m2/root_m2/snap2/inventory.jsonl"})
+
+        inv2_rel = inv2.relative_to(atlas_base).as_posix()
+        reg.update_snapshot_artifacts("snap2", {"inventory": inv2_rel})
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(sys.path)
+    repo_root = Path(__file__).parent.parent.resolve()
+    env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
 
     # 1. Success case
     cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "diff", "m1:label:docs", "m2:label:docs"]
