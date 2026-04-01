@@ -95,6 +95,29 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
         reg.create_snapshot("snap1", "m1", "root_m1", "hash", "complete")
         reg.create_snapshot("snap2", "m2", "root_m2", "hash", "complete")
         reg.create_snapshot("snap3", "m3", "root_m3_a", "hash", "complete")
+        atlas_base = tmp_path / "atlas"
+
+        # Additional setup for colon in label E2E test
+        reg.register_root("root_m1_c", "m1", "abs_path", "/data1c", label="docs:2024")
+        reg.register_root("root_m2_c", "m2", "abs_path", "/data2c", label="docs:2024")
+        reg.create_snapshot("snap_c1", "m1", "root_m1_c", "hash", "complete")
+        reg.create_snapshot("snap_c2", "m2", "root_m2_c", "hash", "complete")
+
+        snap_c1_dir = resolve_snapshot_dir(atlas_base, "m1", "root_m1_c", "snap_c1")
+        snap_c1_dir.mkdir(parents=True)
+        inv_c1 = snap_c1_dir / "inventory.jsonl"
+        with open(inv_c1, "w") as f:
+            f.write(json.dumps({"rel_path": "file_colon.txt", "size_bytes": 50, "mtime": 1000}) + "\n")
+        inv_c1_rel = inv_c1.relative_to(atlas_base).as_posix()
+        reg.update_snapshot_artifacts("snap_c1", {"inventory": inv_c1_rel})
+
+        snap_c2_dir = resolve_snapshot_dir(atlas_base, "m2", "root_m2_c", "snap_c2")
+        snap_c2_dir.mkdir(parents=True)
+        inv_c2 = snap_c2_dir / "inventory.jsonl"
+        with open(inv_c2, "w") as f:
+            f.write(json.dumps({"rel_path": "file_colon.txt", "size_bytes": 50, "mtime": 1000}) + "\n")
+        inv_c2_rel = inv_c2.relative_to(atlas_base).as_posix()
+        reg.update_snapshot_artifacts("snap_c2", {"inventory": inv_c2_rel})
 
         atlas_base = tmp_path / "atlas"
 
@@ -145,6 +168,15 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
     res = subprocess.run(cmd, env=env, capture_output=True, text=True)
     assert res.returncode == 1
     assert "Multiple roots found for machine 'm3' with label 'ambiguous'" in res.stderr
+
+    # 4. Success case with colon in label
+    cmd = [sys.executable, "-m", "merger.lenskit.cli.main", "atlas", "diff", "m1:label:docs:2024", "m2:label:docs:2024"]
+    res = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    assert res.returncode == 0
+    assert "From: m1:/data1c (snap_c1)" in res.stdout
+    assert "To:   m2:/data2c (snap_c2)" in res.stdout
+    assert "Summary:" in res.stdout
+    assert "New files:" in res.stdout
 
 def test_resolve_by_label_malformed(mock_registry):
     with pytest.raises(ValueError, match="expected syntax 'machine_id:label:<root_label>' with a non-empty root_label"):
