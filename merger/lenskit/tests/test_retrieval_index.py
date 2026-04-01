@@ -1,4 +1,5 @@
 import json
+import logging
 import sqlite3
 import pytest
 from unittest.mock import patch, MagicMock
@@ -88,7 +89,6 @@ def test_index_ingest_diagnostics(tmp_path, caplog):
         f.write('{"repo": "missing_id"}\n')
         f.write('\n')
 
-    import logging
     with caplog.at_level(logging.WARNING, logger="merger.lenskit.retrieval.index_db"):
         index_db.build_index(dump_path, chunk_path, db_path)
 
