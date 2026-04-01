@@ -248,6 +248,68 @@ def test_build_session_resolved_bundles_sorted():
 
 
 # ---------------------------------------------------------------------------
+# Tests – defensive / negative edges
+# ---------------------------------------------------------------------------
+
+def test_build_session_bundle_status_not_dict_logs_warning(caplog):
+    """
+    bundle_status that is not a dict must not crash the builder.
+    A warning must be logged and federated resolved_bundles must stay empty.
+    """
+    import logging
+    trace = {
+        "queried_bundles_total": 1,
+        "queried_bundles_effective": 1,
+        "bundle_status": ["repo-a", "repo-b"],  # wrong type — list, not dict
+        "bundle_errors": {},
+        "bundle_traces": {},
+    }
+    with caplog.at_level(logging.WARNING, logger="merger.lenskit.retrieval.session"):
+        session = build_agent_query_session("bad trace", federation_trace=trace)
+
+    assert session["resolved_bundles"] == []
+    assert any("bundle_status" in rec.message for rec in caplog.records)
+
+
+def test_build_session_bundle_origin_non_string_ignored():
+    """
+    Hits where epistemics.bundle_origin is missing, None, or a non-string value
+    must be silently ignored — only valid non-empty strings enter resolved_bundles.
+    """
+    bundle = {
+        "query": "edge test",
+        "hits": [
+            # valid
+            _make_hit("valid-repo", "c1"),
+            # bundle_origin is None
+            {**_make_hit("x", "c2"), "epistemics": {**_make_hit("x", "c2")["epistemics"], "bundle_origin": None}},
+            # bundle_origin is an object (not a string)
+            {**_make_hit("x", "c3"), "epistemics": {**_make_hit("x", "c3")["epistemics"], "bundle_origin": {"repo_id": "wrong"}}},
+            # epistemics key missing entirely
+            {"hit_identity": "c4", "file": "f.py", "path": "f.py", "range": "L1-L1",
+             "score": 0.1, "resolved_code_snippet": "", "provenance_type": "derived",
+             "bundle_source_references": []},
+        ],
+    }
+    session = build_agent_query_session("non-string origins", context_bundle=bundle)
+
+    assert session["resolved_bundles"] == ["valid-repo"]
+    assert session["hits_count"] == 4
+
+
+def test_build_session_empty_repo_id_in_bundle_status_ignored():
+    """Empty-string keys in bundle_status must not be included in resolved_bundles."""
+    trace = _make_federation_trace({
+        "real-repo": "ok",
+        "": "ok",  # empty key — must be ignored
+    })
+    session = build_agent_query_session("empty key", federation_trace=trace)
+
+    assert session["resolved_bundles"] == ["real-repo"]
+    assert "" not in session["resolved_bundles"]
+
+
+# ---------------------------------------------------------------------------
 # Schema contract validation
 # ---------------------------------------------------------------------------
 
