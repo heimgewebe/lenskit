@@ -64,7 +64,10 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
 def _resolve_snapshot_ref(ref: str, registry) -> str:
     if ":" in ref:
         parts = ref.split(":", 2)
-        if len(parts) == 3 and parts[1] == "label":
+        if len(parts) > 1 and parts[1] == "label":
+            if len(parts) != 3 or not parts[2].strip():
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty root_label")
+
             machine_id = parts[0]
             root_label = parts[2]
 
