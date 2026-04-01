@@ -2,6 +2,7 @@ import concurrent.futures
 import sys
 import os
 import uuid
+import logging
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import List
@@ -9,6 +10,8 @@ from typing import List
 from .models import Artifact
 from .jobstore import JobStore
 from ..adapters.security import validate_source_dir, get_security_config, SecurityViolationError
+
+logger = logging.getLogger(__name__)
 
 # Import core logic.
 # Since this file is in merger/repoLens/service/runner.py,
@@ -94,7 +97,7 @@ class JobRunner:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         self.futures = {}
 
-    def submit_job(self, job_id: str):
+    def submit_job(self, job_id: str) -> None:
         job = self.job_store.get_job(job_id)
         if not job or job.status != "queued":
             return
@@ -102,7 +105,7 @@ class JobRunner:
         future = self.executor.submit(self._run_job, job_id)
         self.futures[job_id] = future
 
-    def _run_job(self, job_id: str):
+    def _run_job(self, job_id: str) -> None:
         job = self.job_store.get_job(job_id)
         if not job:
             return
@@ -118,7 +121,7 @@ class JobRunner:
         job.started_at = datetime.now(timezone.utc).isoformat()
         self.job_store.update_job(job)
 
-        def log(msg: str):
+        def log(msg: str) -> None:
             ts = datetime.now(timezone.utc).strftime("%H:%M:%SZ")
             line = f"[{ts}] {msg}"
             self.job_store.append_log_line(job.id, line)
@@ -368,6 +371,5 @@ class JobRunner:
             job.error = str(e)
             job.finished_at = datetime.now(timezone.utc).isoformat()
             log(f"Error: {e}")
-            import traceback
-            traceback.print_exc() # Print to server console too
+            logger.exception("Job %s failed", job_id)
             self.job_store.update_job(job)

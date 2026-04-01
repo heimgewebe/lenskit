@@ -71,7 +71,7 @@ def assert_report_shape(report: Dict[str, Any]) -> None:
 
         report["summary"]["error"] += len(issues)
         for i in issues:
-            logger.error(f"Report contract violation: {i}")
+            logger.error("Report contract violation: %s", i)
 
 
 def compute_file_hash(path: Path) -> str:
@@ -335,7 +335,7 @@ def sync_from_metarepo(hub_path: Path, mode: str = "dry_run", targets: Optional[
         entry_id = entry.get("id")
         src_rel = entry.get("source")
         if not entry_id or not src_rel:
-            logger.warning(f"Manifest entry missing id/source: id={entry_id!r} source={src_rel!r}")
+            logger.warning("Manifest entry missing id/source: id=%r source=%r", entry_id, src_rel)
             continue
 
         try:
@@ -347,10 +347,13 @@ def sync_from_metarepo(hub_path: Path, mode: str = "dry_run", targets: Optional[
             if h and h != HASH_COMPUTATION_ERROR and len(h) == 64 and all(c in "0123456789abcdef" for c in h):
                 source_hashes[entry_id] = h
             else:
-                logger.warning(f"Invalid hash computed for entry_id={entry_id} src={src_rel}: {h!r}")
+                logger.warning("Invalid hash computed for entry_id=%s src=%s: %r", entry_id, src_rel, h)
         except Exception as e:
             logger.warning(
-                f"Source hash precompute failed for entry_id={entry_id} src={src_rel}: {e}",
+                "Source hash precompute failed for entry_id=%s src=%s: %s",
+                entry_id,
+                src_rel,
+                e,
                 exc_info=True,
             )
 
@@ -385,7 +388,7 @@ def sync_from_metarepo(hub_path: Path, mode: str = "dry_run", targets: Optional[
                 for k in aggregated_summary:
                     aggregated_summary[k] += repo_report.get("summary", {}).get(k, 0)
             except Exception as exc:
-                logger.error(f"Sync failed for {repo_name}: {exc}", exc_info=True)
+                logger.error("Sync failed for %s: %s", repo_name, exc, exc_info=True)
                 aggregated_summary["error"] += 1
                 results[repo_name] = {
                     "status": "error",
