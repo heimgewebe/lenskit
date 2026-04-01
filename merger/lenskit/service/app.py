@@ -439,7 +439,7 @@ def api_prescan(request: PrescanRequest):
             total_bytes=result["total_bytes"]
         )
     except Exception as e:
-        logger.exception("Prescan failed: %s", e)
+        logger.exception("Prescan failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1141,7 +1141,7 @@ def api_sync_metarepo(payload: Dict[str, Any]):
         # Preserve explicit HTTP failures
         raise
     except Exception as e:
-        logger.exception("Sync failed: %s", e)
+        logger.exception("Sync failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 def _normalize_atlas_status(raw: str) -> str:
@@ -1516,7 +1516,7 @@ Run `POST /api/export/webmaschine` to update these files.
         return {"status": "ok", "path": str(target_dir)}
 
     except Exception as e:
-        logger.exception("Export failed: %s", e)
+        logger.exception("Export failed")
         raise HTTPException(status_code=500, detail=f"Export failed: {e}")
 
 # Serve static UI with Templating
