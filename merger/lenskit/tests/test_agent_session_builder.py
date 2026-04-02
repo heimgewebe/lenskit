@@ -1,5 +1,5 @@
 """
-Tests for build_agent_query_session().
+Tests for build_agent_query_session_v2().
 
 All test data uses the REAL runtime shapes produced by this repo:
 
@@ -42,7 +42,20 @@ from pathlib import Path
 
 import pytest
 
-from merger.lenskit.retrieval.session import build_agent_query_session
+from merger.lenskit.retrieval.session import build_agent_query_session_v2
+
+
+# Use the strict degradation pattern according to epistemic limits in memory
+try:
+    import jsonschema
+    from jsonschema import ValidationError
+except ImportError:
+    jsonschema = None
+    ValidationError = None
+
+def _require_module():
+    if jsonschema is None:
+        raise RuntimeError("jsonschema not installed")
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +116,7 @@ def test_build_session_from_projected_context_bundle():
         _make_hit("proj-r1", "c1"),
         _make_hit("proj-r2", "c2"),
     ])
-    session = build_agent_query_session("test query", context_bundle=bundle)
+    session = build_agent_query_session_v2("test query", context_bundle=bundle)
 
     assert session["query"] == "test query"
     assert session["hits_count"] == 2
@@ -120,7 +133,7 @@ def test_build_session_deduplicates_bundle_origins():
         _make_hit("proj-r1", "c2"),
         _make_hit("proj-r1", "c3"),
     ])
-    session = build_agent_query_session("dedup query", context_bundle=bundle)
+    session = build_agent_query_session_v2("dedup query", context_bundle=bundle)
 
     assert session["resolved_bundles"] == ["proj-r1"]
     assert session["hits_count"] == 3
@@ -128,7 +141,7 @@ def test_build_session_deduplicates_bundle_origins():
 
 def test_build_session_empty_context_bundle():
     """Zero hits → empty resolved_bundles, hits_count = 0."""
-    session = build_agent_query_session("empty", context_bundle={"query": "empty", "hits": []})
+    session = build_agent_query_session_v2("empty", context_bundle={"query": "empty", "hits": []})
 
     assert session["hits_count"] == 0
     assert session["resolved_bundles"] == []
@@ -150,7 +163,7 @@ def test_build_session_from_federation_trace_ok_bundles():
         "repo-c": "filtered_out",
         "repo-d": "index_missing",
     })
-    session = build_agent_query_session("federated query", federation_trace=trace)
+    session = build_agent_query_session_v2("federated query", federation_trace=trace)
 
     assert session["session_meta"]["context_source"] == "federated"
     assert session["hits_count"] == 0  # no context_bundle
@@ -168,7 +181,7 @@ def test_build_session_stale_bundle_is_resolved():
         "repo-stale": "stale",   # query executed, index may be outdated
         "repo-broken": "query_error",
     })
-    session = build_agent_query_session("stale test", federation_trace=trace)
+    session = build_agent_query_session_v2("stale test", federation_trace=trace)
 
     assert "repo-fresh" in session["resolved_bundles"]
     assert "repo-stale" in session["resolved_bundles"]
@@ -182,7 +195,7 @@ def test_build_session_all_bundles_failed():
         "repo-y": "filtered_out",
         "repo-z": "bundle_path_unsupported",
     })
-    session = build_agent_query_session("all bad", federation_trace=trace)
+    session = build_agent_query_session_v2("all bad", federation_trace=trace)
 
     assert session["resolved_bundles"] == []
 
@@ -202,7 +215,7 @@ def test_build_session_combined_sources():
         "repo-c": "ok",   # additional federated bundle
         "repo-d": "filtered_out",
     })
-    session = build_agent_query_session("combined", context_bundle=bundle, federation_trace=trace)
+    session = build_agent_query_session_v2("combined", context_bundle=bundle, federation_trace=trace)
 
     assert session["session_meta"]["context_source"] == "both"
     assert set(session["resolved_bundles"]) == {"repo-a", "repo-b", "repo-c"}
@@ -214,7 +227,7 @@ def test_build_session_combined_deduplicates_across_sources():
     bundle = _make_context_bundle([_make_hit("shared-repo", "c1")])
     trace = _make_federation_trace({"shared-repo": "ok"})
 
-    session = build_agent_query_session("dedup combined", context_bundle=bundle, federation_trace=trace)
+    session = build_agent_query_session_v2("dedup combined", context_bundle=bundle, federation_trace=trace)
 
     assert session["resolved_bundles"].count("shared-repo") == 1
     assert len(session["resolved_bundles"]) == 1
@@ -226,7 +239,7 @@ def test_build_session_combined_deduplicates_across_sources():
 
 def test_build_session_no_inputs():
     """Both sources absent → session_meta.context_source == 'none', empty bundles."""
-    session = build_agent_query_session("bare query")
+    session = build_agent_query_session_v2("bare query")
 
     assert session["query"] == "bare query"
     assert session["resolved_bundles"] == []
@@ -242,7 +255,7 @@ def test_build_session_resolved_bundles_sorted():
         _make_hit("aaa-repo", "c2"),
         _make_hit("mmm-repo", "c3"),
     ])
-    session = build_agent_query_session("sort test", context_bundle=bundle)
+    session = build_agent_query_session_v2("sort test", context_bundle=bundle)
 
     assert session["resolved_bundles"] == ["aaa-repo", "mmm-repo", "zzz-repo"]
 
@@ -265,7 +278,7 @@ def test_build_session_bundle_status_not_dict_logs_warning(caplog):
         "bundle_traces": {},
     }
     with caplog.at_level(logging.WARNING, logger="merger.lenskit.retrieval.session"):
-        session = build_agent_query_session("bad trace", federation_trace=trace)
+        session = build_agent_query_session_v2("bad trace", federation_trace=trace)
 
     assert session["resolved_bundles"] == []
     assert any("bundle_status" in rec.message for rec in caplog.records)
@@ -291,7 +304,7 @@ def test_build_session_bundle_origin_non_string_ignored():
              "bundle_source_references": []},
         ],
     }
-    session = build_agent_query_session("non-string origins", context_bundle=bundle)
+    session = build_agent_query_session_v2("non-string origins", context_bundle=bundle)
 
     assert session["resolved_bundles"] == ["valid-repo"]
     assert session["hits_count"] == 4
@@ -303,7 +316,7 @@ def test_build_session_empty_repo_id_in_bundle_status_ignored():
         "real-repo": "ok",
         "": "ok",  # empty key — must be ignored
     })
-    session = build_agent_query_session("empty key", federation_trace=trace)
+    session = build_agent_query_session_v2("empty key", federation_trace=trace)
 
     assert session["resolved_bundles"] == ["real-repo"]
     assert "" not in session["resolved_bundles"]
@@ -314,19 +327,19 @@ def test_build_session_empty_repo_id_in_bundle_status_ignored():
 # ---------------------------------------------------------------------------
 
 def test_build_session_output_validates_against_schema():
-    """The output must conform to agent-query-session.v1.schema.json."""
+    """The output must conform to agent-query-session.v2.schema.json."""
     try:
-        import jsonschema
-    except ImportError:
+        _require_module()
+    except RuntimeError:
         pytest.skip("jsonschema not available")
 
     schema_path = (
-        Path(__file__).parent.parent / "contracts" / "agent-query-session.v1.schema.json"
+        Path(__file__).parent.parent / "contracts" / "agent-query-session.v2.schema.json"
     )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
     bundle = _make_context_bundle([_make_hit("proj-r1", "c1"), _make_hit("proj-r2", "c2")])
     trace = _make_federation_trace({"proj-r1": "ok", "proj-r3": "stale", "proj-r4": "filtered_out"})
-    session = build_agent_query_session("schema test", context_bundle=bundle, federation_trace=trace)
+    session = build_agent_query_session_v2("schema test", context_bundle=bundle, federation_trace=trace)
 
     jsonschema.validate(instance=session, schema=schema)
