@@ -32,7 +32,8 @@
       "required": [
         "query_trace_ref",
         "context_bundle_ref",
-        "integrity"
+        "integrity",
+        "diagnostics_ref"
       ],
       "properties": {
         "query_trace_ref": {

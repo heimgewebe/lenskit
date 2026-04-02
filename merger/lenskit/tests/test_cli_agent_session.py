@@ -70,7 +70,8 @@ def test_agent_session_trace_contains_refs(mini_index, tmp_path):
     assert session["refs"]["query_trace_ref"] == "query_trace.json"
     assert "r1" in session.get("resolved_bundles", [])
     assert session["refs"].get("context_bundle_ref") is None
-    assert session["refs"].get("diagnostics_ref") is None
+    assert "diagnostics_ref" in session["refs"]
+    assert session["refs"]["diagnostics_ref"] is None
 
     # Verify new integrity and environment fields
     assert "environment" in session
