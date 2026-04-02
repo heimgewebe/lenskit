@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ..retrieval.query_core import execute_query
+from ..retrieval.session import build_agent_query_session
 from ..retrieval.output_projection import project_output
 from .stale_check import check_stale_index
 from .policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
@@ -88,6 +89,14 @@ def run_query(args: argparse.Namespace) -> int:
             trace_path.write_text(json.dumps(result["query_trace"], indent=2), encoding="utf-8")
             print(f"Query trace saved to {trace_path.absolute()}", file=sys.stderr)
 
+            request_contract = {
+                "query": args.q,
+                "k": args.k,
+                "output_profile": getattr(args, "output_profile", None),
+                "explain": getattr(args, "explain", False)
+            }
+            session = build_agent_query_session(request_contract, result, query_trace_ref="query_trace.json")
+            Path("agent_query_session.json").write_text(json.dumps(session, indent=2), encoding="utf-8")
 
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)
