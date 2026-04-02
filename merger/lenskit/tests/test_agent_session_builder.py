@@ -343,3 +343,47 @@ def test_build_session_output_validates_against_schema():
     session = build_agent_query_session_v2("schema test", context_bundle=bundle, federation_trace=trace)
 
     jsonschema.validate(instance=session, schema=schema)
+
+# ---------------------------------------------------------------------------
+# Backward Compatibility Tests (v1)
+# ---------------------------------------------------------------------------
+
+def test_build_agent_query_session_v1_backward_compatibility():
+    """Ensure the old v1 builder still produces output valid against v1 schema."""
+    from merger.lenskit.retrieval.session import build_agent_query_session
+    try:
+        _require_module()
+    except RuntimeError:
+        pytest.skip("jsonschema not available")
+
+    schema_path = (
+        Path(__file__).parent.parent / "contracts" / "agent-query-session.v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    # Simulate a raw result shape typical of v1
+    mock_request = {"q": "legacy query"}
+    mock_result = {
+        "results": [
+            {"repo_id": "legacy-repo-1"},
+            {"repo_id": "legacy-repo-2"}
+        ],
+        "warnings": ["Legacy warning"]
+    }
+
+    session = build_agent_query_session(
+        request_contract=mock_request,
+        result=mock_result,
+        query_trace_ref="trace.json",
+        context_bundle_ref="bundle.json",
+        diagnostics_ref=None
+    )
+
+    # Validate core fields
+    assert session["request"] == mock_request
+    assert set(session["resolved_bundles"]) == {"legacy-repo-1", "legacy-repo-2"}
+    assert session["refs"]["query_trace_ref"] == "trace.json"
+    assert session["warnings"] == ["Legacy warning"]
+
+    # Validate against v1 schema
+    jsonschema.validate(instance=session, schema=schema)
