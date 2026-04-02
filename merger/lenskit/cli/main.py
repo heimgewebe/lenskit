@@ -1,5 +1,6 @@
 import argparse
 import sys
+import logging
 from typing import List, Optional
 from . import cmd_index
 from . import cmd_query
@@ -8,6 +9,8 @@ from . import cmd_eval
 def main(args: Optional[List[str]] = None) -> int:
     if args is None:
         args = sys.argv[1:]
+
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 
     parser = argparse.ArgumentParser(
         prog="lenskit",

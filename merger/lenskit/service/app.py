@@ -585,13 +585,13 @@ def create_job(request: JobRequest):
     if existing and not request.force_new:
         # Check if we should reuse
         if existing.status in ("queued", "running", "canceling"):
-             logger.info("Reusing existing active job %s", existing.id)
-             return existing
+            logger.info("Reusing existing active job %s", existing.id)
+            return existing
 
         # Policy: Reuse succeeded jobs (server-side default: yes)
         if existing.status == "succeeded":
-             logger.info("Reusing existing succeeded job %s", existing.id)
-             return existing
+            logger.info("Reusing existing succeeded job %s", existing.id)
+            return existing
 
     job = Job.create(request, content_hash=content_hash)
     job.hub_resolved = resolved_hub_str
