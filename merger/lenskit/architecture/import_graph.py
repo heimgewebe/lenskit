@@ -103,7 +103,7 @@ def generate_import_graph_document(
                     tree = ast.parse(content, filename=rel_path)
                     files_parsed += 1
                 except Exception as e:
-                    logger.warning(f"Could not parse AST for {rel_path}: {e}")
+                    logger.warning("Could not parse AST for %s: %s", rel_path, e)
                     continue
 
                 # Register the file as a node

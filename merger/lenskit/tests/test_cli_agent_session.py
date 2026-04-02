@@ -34,7 +34,7 @@ def mini_index(tmp_path, monkeypatch):
     index_db.build_index(dump_path, chunk_path, db_path)
     return db_path
 
-def test_agent_session_trace_contains_refs(mini_index):
+def test_agent_session_trace_contains_refs(mini_index, tmp_path):
     args = argparse.Namespace(
         index=str(mini_index),
         q="hello",
@@ -58,8 +58,8 @@ def test_agent_session_trace_contains_refs(mini_index):
     ret = cmd_query.run_query(args)
     assert ret == 0
 
-    trace_path = Path("query_trace.json")
-    session_path = Path("agent_query_session.json")
+    trace_path = tmp_path / "query_trace.json"
+    session_path = tmp_path / "agent_query_session.json"
 
     assert trace_path.exists()
     assert session_path.exists()
@@ -79,4 +79,4 @@ def test_agent_session_trace_contains_refs(mini_index):
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         jsonschema.validate(instance=session, schema=schema)
     except ImportError:
-        pass # Skip if jsonschema not available
+        pytest.skip("jsonschema is not installed; skipping agent session schema validation")

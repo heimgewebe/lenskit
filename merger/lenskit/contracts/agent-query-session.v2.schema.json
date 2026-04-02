@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/agent-query-session.v2.schema.json",
+  "title": "Agent Query Session (agent-query-session v2.0)",
+  "description": "Structured session built from a query result, capturing resolved bundle provenance for agentic workflows.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "query",
+    "resolved_bundles",
+    "hits_count",
+    "session_meta"
+  ],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The original search query text."
+    },
+    "resolved_bundles": {
+      "type": "array",
+      "description": "Unique set of bundle/repo identifiers that contributed hits or were successfully queried.",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "hits_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of hits present in the projected context bundle."
+    },
+    "session_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_source",
+        "federation_bundle_count",
+        "federation_effective_count"
+      ],
+      "properties": {
+        "context_source": {
+          "type": "string",
+          "enum": ["projected", "federated", "both", "none"],
+          "description": "Indicates which data sources were used to build the session."
+        },
+        "federation_bundle_count": {
+          "type": ["integer", "null"],
+          "description": "Total number of bundles attempted in the federation query, or null for non-federated sessions."
+        },
+        "federation_effective_count": {
+          "type": ["integer", "null"],
+          "description": "Number of bundles that were effectively queried (not filtered or skipped), or null for non-federated sessions."
+        }
+      }
+    }
+  }
+}

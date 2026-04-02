@@ -943,7 +943,11 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
   - *Semantische Notiz: `atlas diff` leitet cross-root Anfragen intern auf `cross-root-comparison` um (statt strengem `same-root-delta`). Der aktuelle Vergleich ist ein strukturbezogener Metadatenabgleich (`rel_path`, `size_bytes`, `mtime`) und kein inhaltlich tief gehärteter Gleichheitsbeweis.*
 - [x] teilweise gehärtet: Backup-gap-Analyse definieren (als `atlas analyze backup-gap` CLI command)
 - [ ] Remote-Collector-/SSH-Modell festlegen
-- [ ] Konfliktfälle (gleiches root label, andere Pfade) definieren
+- [x] Konfliktfälle (gleiches root label, andere Pfade) definieren
+  - *Semantische Notiz: Die label-basierte Diff-Auflösung verlangt pro Maschine Eindeutigkeit. Wenn ein Label auf einer Maschine mehrdeutig ist, muss zwingend `machine:path` oder `snapshot_id` verwendet werden.*
+- [x] CLI: label-basierte Referenzauflösung in `atlas diff` (`machine_id:label:root_label`)
+  - *Beispiel: `atlas diff laptop:label:documents nas:label:documents`*
+  - *Syntax-Notiz: Das Parsing erfolgt über `split(":", 2)`, wodurch ein `:` im dritten Segment (dem `root_label`) erhalten bleibt und adressierbar ist. Malformte Kurzformen wie `machine:label` oder `machine:label:` werden explizit mit einem Fehler abgelehnt. Für Ambiguitäten oder sonstige Sonderfälle bleiben `machine:path` oder `snapshot_id` valide Alternativen.*
 - [x] Maschinen-Health-/Last-Seen-Sicht ergänzen
 
 **Stop-Kriterium**: Atlas kann Root- und Snapshot-Zustände über Maschinen hinweg vergleichen.

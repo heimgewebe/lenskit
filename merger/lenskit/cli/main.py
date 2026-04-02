@@ -1,5 +1,6 @@
 import argparse
 import sys
+import logging
 from typing import List, Optional
 from . import cmd_index
 from . import cmd_query
@@ -8,6 +9,8 @@ from . import cmd_eval
 def main(args: Optional[List[str]] = None) -> int:
     if args is None:
         args = sys.argv[1:]
+
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 
     parser = argparse.ArgumentParser(
         prog="lenskit",
@@ -49,6 +52,7 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--output-profile", choices=["human_review", "agent_minimal", "ui_navigation", "lookup_minimal", "review_context"], help="Projection profile for the query result")
     query_parser.add_argument("--context-mode", choices=["exact", "block", "window", "file"], default="exact", help="Context expansion mode")
     query_parser.add_argument("--context-window-lines", type=int, default=0, help="Number of lines to expand in window mode")
+    query_parser.add_argument("--trace", action="store_true", help="Generate query_trace.json and agent_query_session.json in the current directory")
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")

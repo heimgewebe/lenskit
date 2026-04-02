@@ -31,7 +31,7 @@ class JobStore:
 
         self._load()
 
-    def _load(self):
+    def _load(self) -> None:
         with self._lock:
             if self.jobs_file.exists():
                 try:
@@ -40,7 +40,7 @@ class JobStore:
                         job = Job(**j)
                         self._jobs_cache[job.id] = job
                 except Exception as e:
-                    print(f"Error loading jobs: {e}")
+                    logger.error("Error loading jobs: %s", e)
 
             if self.artifacts_file.exists():
                 try:
@@ -49,15 +49,15 @@ class JobStore:
                         art = Artifact(**a)
                         self._artifacts_cache[art.id] = art
                 except Exception as e:
-                    print(f"Error loading artifacts: {e}")
+                    logger.error("Error loading artifacts: %s", e)
 
-    def _save_jobs(self):
+    def _save_jobs(self) -> None:
         tmp_file = self.jobs_file.with_suffix(".tmp")
         data = [j.model_dump() for j in self._jobs_cache.values()]
         tmp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         tmp_file.rename(self.jobs_file)
 
-    def _save_artifacts(self):
+    def _save_artifacts(self) -> None:
         tmp_file = self.artifacts_file.with_suffix(".tmp")
         data = [a.model_dump() for a in self._artifacts_cache.values()]
         tmp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -92,7 +92,7 @@ class JobStore:
             try:
                 callback()
             except Exception as e:
-                logger.debug(f"Error in log subscriber callback for {job_id}: {e}")
+                logger.debug("Error in log subscriber callback for %s: %s", job_id, e)
 
     def update_job(self, job: Job):
         with self._lock:
