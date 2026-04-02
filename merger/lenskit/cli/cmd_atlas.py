@@ -7,6 +7,7 @@ import socket
 import datetime
 import hashlib
 import tempfile
+from enum import Enum
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -62,9 +63,14 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
     return 0
 
 
+class SnapshotRefKind(Enum):
+    SNAPSHOT_ID = "snapshot_id"
+    MACHINE_PATH = "machine_path"
+    MACHINE_LABEL = "machine_label"
+
 @dataclass
 class ParsedSnapshotRef:
-    kind: str  # "snapshot_id", "machine_path", "machine_label"
+    kind: SnapshotRefKind
     value: str
     machine_id: Optional[str] = None
 
@@ -72,23 +78,38 @@ def parse_snapshot_ref(ref: str) -> ParsedSnapshotRef:
     if ":" in ref:
         parts = ref.split(":", 2)
         if len(parts) > 1 and parts[1] == "label":
-            if len(parts) != 3 or not parts[2].strip():
+            machine_id = parts[0].strip()
+            if not machine_id:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty machine_id")
+            if len(parts) != 3:
                 raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty root_label")
-            return ParsedSnapshotRef(kind="machine_label", machine_id=parts[0], value=parts[2])
+            root_label = parts[2].strip()
+            if not root_label:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty root_label")
+            return ParsedSnapshotRef(kind=SnapshotRefKind.MACHINE_LABEL, machine_id=machine_id, value=root_label)
         else:
             machine_id, root_value = ref.split(":", 1)
-            return ParsedSnapshotRef(kind="machine_path", machine_id=machine_id, value=root_value)
-    return ParsedSnapshotRef(kind="snapshot_id", value=ref)
+            machine_id = machine_id.strip()
+            if not machine_id:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:path' with a non-empty machine_id")
+            if not root_value:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:path' with a non-empty path")
+            return ParsedSnapshotRef(kind=SnapshotRefKind.MACHINE_PATH, machine_id=machine_id, value=root_value)
+
+    value = ref.strip()
+    if not value:
+        raise ValueError("Invalid snapshot reference: cannot be empty")
+    return ParsedSnapshotRef(kind=SnapshotRefKind.SNAPSHOT_ID, value=value)
 
 def _resolve_snapshot_ref(ref: str, registry) -> str:
     parsed = parse_snapshot_ref(ref)
 
-    if parsed.kind == "snapshot_id":
+    if parsed.kind == SnapshotRefKind.SNAPSHOT_ID:
         return parsed.value
 
     target_root_ids = []
 
-    if parsed.kind == "machine_label":
+    if parsed.kind == SnapshotRefKind.MACHINE_LABEL:
         for r in registry.list_roots():
             if r["machine_id"] == parsed.machine_id and r.get("label") == parsed.value:
                 target_root_ids.append(r["root_id"])
@@ -105,7 +126,7 @@ def _resolve_snapshot_ref(ref: str, registry) -> str:
         if not snapshots:
             raise ValueError(f"No complete snapshot found for machine '{parsed.machine_id}' and label '{parsed.value}'")
 
-    elif parsed.kind == "machine_path":
+    elif parsed.kind == SnapshotRefKind.MACHINE_PATH:
         def normalize_path(p: str) -> str:
             # Conservative normalization for trivial variants (e.g., trailing slashes, /./)
             # without semantically reinterpreting absolute/relative meanings.

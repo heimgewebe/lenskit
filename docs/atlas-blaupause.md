@@ -947,7 +947,11 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
   - *Semantische Notiz: Die label-basierte Diff-Auflösung verlangt pro Maschine Eindeutigkeit. Wenn ein Label auf einer Maschine mehrdeutig ist, muss zwingend `machine:path` oder `snapshot_id` verwendet werden.*
 - [x] CLI: label-basierte Referenzauflösung in `atlas diff` (`machine_id:label:root_label`)
   - *Beispiel: `atlas diff laptop:label:documents nas:label:documents`*
-  - *Syntax-Notiz: Das Parsing für Snapshot-Referenzen (`machine:path`, `machine:label:root_label` oder `snapshot_id`) ist als explizite Parser-Funktion konsolidiert. Malformte Kurzformen wie `machine:label` oder `machine:label:` werden explizit abgelehnt. Für Ambiguitäten bleiben `machine:path` oder `snapshot_id` valide Alternativen.*
+  - *Syntax-Notiz: Die zulässigen Snapshot-Referenzen sind explizit definiert:*
+    * `snapshot_id`
+    * `machine_id:path`
+    * `machine_id:label:root_label`
+  - *Regeln: `machine_id` darf kein `:` enthalten und nicht leer sein. `root_label` darf `:` enthalten. Ein Label muss pro Maschine für den Diff-Vergleich eindeutig sein.*
 - [x] Maschinen-Health-/Last-Seen-Sicht ergänzen
 
 **Stop-Kriterium**: Atlas kann Root- und Snapshot-Zustände über Maschinen hinweg vergleichen.

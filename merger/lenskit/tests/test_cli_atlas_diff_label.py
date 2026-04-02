@@ -41,26 +41,52 @@ def mock_registry():
 # --- A. Parser tests ---
 def test_parse_snapshot_id_directly():
     parsed = parse_snapshot_ref("s123")
-    assert parsed.kind == "snapshot_id"
+    assert parsed.kind.value == "snapshot_id"
     assert parsed.value == "s123"
 
 def test_parse_machine_path():
     parsed = parse_snapshot_ref("m1:/path3")
-    assert parsed.kind == "machine_path"
+    assert parsed.kind.value == "machine_path"
     assert parsed.machine_id == "m1"
     assert parsed.value == "/path3"
 
 def test_parse_machine_label():
     parsed = parse_snapshot_ref("m1:label:docs")
-    assert parsed.kind == "machine_label"
+    assert parsed.kind.value == "machine_label"
     assert parsed.machine_id == "m1"
     assert parsed.value == "docs"
 
 def test_parse_machine_label_with_colon():
     parsed = parse_snapshot_ref("m1:label:docs:2024")
-    assert parsed.kind == "machine_label"
+    assert parsed.kind.value == "machine_label"
     assert parsed.machine_id == "m1"
     assert parsed.value == "docs:2024"
+
+def test_parse_whitespace_handling():
+    # Spaces inside fields are trimmed
+    parsed = parse_snapshot_ref(" m1 :label: docs ")
+    assert parsed.kind.value == "machine_label"
+    assert parsed.machine_id == "m1"
+    assert parsed.value == "docs"
+
+    parsed2 = parse_snapshot_ref(" m1 : /path ")
+    assert parsed2.kind.value == "machine_path"
+    assert parsed2.machine_id == "m1"
+    # root_value path is not stripped by the parser to maintain trailing spaces if needed
+    assert parsed2.value == " /path "
+
+def test_parse_error_cases():
+    with pytest.raises(ValueError, match="with a non-empty machine_id"):
+        parse_snapshot_ref(":label:docs")
+    with pytest.raises(ValueError, match="with a non-empty root_label"):
+        parse_snapshot_ref("m1:label:")
+    with pytest.raises(ValueError, match="with a non-empty machine_id"):
+        parse_snapshot_ref(" :/path")
+    with pytest.raises(ValueError, match="with a non-empty path"):
+        parse_snapshot_ref("m1:")
+    with pytest.raises(ValueError, match="cannot be empty"):
+        parse_snapshot_ref("   ")
+
 
 # --- B. Resolver/E2E tests ---
 def test_resolve_by_label_success(mock_registry):
