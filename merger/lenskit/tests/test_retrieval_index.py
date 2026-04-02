@@ -1,6 +1,8 @@
 import json
+import logging
 import sqlite3
 import pytest
+from unittest.mock import patch, MagicMock
 from merger.lenskit.retrieval import index_db
 
 @pytest.fixture
@@ -73,7 +75,7 @@ def test_stale_index_detection(mini_artifacts, tmp_path):
     # Check stale
     assert index_db.verify_index(db_path, dump_path, chunk_path) is False
 
-def test_index_ingest_diagnostics(tmp_path, capsys):
+def test_index_ingest_diagnostics(tmp_path, caplog):
     dump_path = tmp_path / "dump.json"
     chunk_path = tmp_path / "chunks.jsonl"
     db_path = tmp_path / "index.sqlite"
@@ -87,12 +89,12 @@ def test_index_ingest_diagnostics(tmp_path, capsys):
         f.write('{"repo": "missing_id"}\n')
         f.write('\n')
 
-    index_db.build_index(dump_path, chunk_path, db_path)
+    with caplog.at_level(logging.WARNING, logger="merger.lenskit.retrieval.index_db"):
+        index_db.build_index(dump_path, chunk_path, db_path)
 
-    captured = capsys.readouterr()
-    assert "Warning: Index ingest had issues" in captured.err
-    assert "invalid_json=1" in captured.err
-    assert "missing_id=1" in captured.err
+    assert "Index ingest had issues" in caplog.text
+    assert "invalid_json=1" in caplog.text
+    assert "missing_id=1" in caplog.text
 
     conn = sqlite3.connect(str(db_path))
     c = conn.cursor()
@@ -106,3 +108,26 @@ def test_index_ingest_diagnostics(tmp_path, capsys):
     assert meta["ingest.ingested_chunks_count"] == "1"
 
     conn.close()
+
+
+def test_build_index_closes_connection_on_error(tmp_path):
+    """Regression: connection must be closed even when create_schema raises."""
+    dump_path = tmp_path / "dump.json"
+    chunk_path = tmp_path / "chunks.jsonl"
+    db_path = tmp_path / "index.sqlite"
+
+    dump_path.write_text("{}")
+    chunk_path.write_text("")
+
+    mock_conn = MagicMock(spec=sqlite3.Connection)
+    mock_conn.close = MagicMock()
+
+    with patch("merger.lenskit.retrieval.index_db.sqlite3") as mock_sqlite3:
+        mock_sqlite3.connect.return_value = mock_conn
+        # Simulate failure during schema creation
+        mock_conn.cursor.side_effect = RuntimeError("injected schema failure")
+
+        with pytest.raises(RuntimeError, match="injected schema failure"):
+            index_db.build_index(dump_path, chunk_path, db_path)
+
+    mock_conn.close.assert_called_once()

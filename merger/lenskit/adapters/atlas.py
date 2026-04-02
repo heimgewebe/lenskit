@@ -192,9 +192,9 @@ class AtlasScanner:
                                 raise TypeError(f"rel_path must be string, got {type(rel_path).__name__}")
                             result[rel_path] = item
                         except (json.JSONDecodeError, KeyError, TypeError) as e:
-                            logger.warning(f"Malformed {entry_label} at {source}:{line_idx}. Error: {type(e).__name__} - {e}. Skipping.")
+                            logger.warning("Malformed %s at %s:%d. Error: %s - %s. Skipping.", entry_label, source, line_idx, type(e).__name__, e)
             except OSError as e:
-                logger.warning(f"Failed to load {inventory_label} from {source}: {e}")
+                logger.warning("Failed to load %s from %s: %s", inventory_label, source, e)
         elif isinstance(source, dict):
             result = source
         return result
@@ -410,7 +410,7 @@ class AtlasScanner:
             if dirs_inventory_file:
                 dirs_inv_f = dirs_inventory_file.open("w", encoding="utf-8")
         except OSError as e:
-            logger.error(f"Failed to open inventory files: {e}")
+            logger.error("Failed to open inventory files: %s", e)
 
         dir_sizes = {} # path -> size
         dir_file_counts = {}
