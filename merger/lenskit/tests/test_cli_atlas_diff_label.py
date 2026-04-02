@@ -79,6 +79,8 @@ def test_parse_error_cases():
     with pytest.raises(ValueError, match="with a non-empty machine_id"):
         parse_snapshot_ref(":label:docs")
     with pytest.raises(ValueError, match="with a non-empty root_label"):
+        parse_snapshot_ref("m1:label")
+    with pytest.raises(ValueError, match="with a non-empty root_label"):
         parse_snapshot_ref("m1:label:")
     with pytest.raises(ValueError, match="with a non-empty machine_id"):
         parse_snapshot_ref(" :/path")
