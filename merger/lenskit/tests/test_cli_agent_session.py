@@ -34,7 +34,7 @@ def mini_index(tmp_path, monkeypatch):
     index_db.build_index(dump_path, chunk_path, db_path)
     return db_path
 
-def test_agent_session_trace_contains_refs(mini_index, tmp_path):
+def test_agent_session_trace_contains_refs(mini_index):
     args = argparse.Namespace(
         index=str(mini_index),
         q="hello",
@@ -69,6 +69,8 @@ def test_agent_session_trace_contains_refs(mini_index, tmp_path):
     assert "refs" in session
     assert session["refs"]["query_trace_ref"] == "query_trace.json"
     assert "r1" in session.get("resolved_bundles", [])
+    assert session["refs"].get("context_bundle_ref") is None
+    assert session["refs"].get("diagnostics_ref") is None
 
     # Verify the structure using the schema
     try:
