@@ -9,7 +9,8 @@
     "request",
     "resolved_bundles",
     "refs",
-    "warnings"
+    "warnings",
+    "environment"
   ],
   "properties": {
     "request": {
@@ -30,7 +31,8 @@
       "additionalProperties": false,
       "required": [
         "query_trace_ref",
-        "context_bundle_ref"
+        "context_bundle_ref",
+        "integrity"
       ],
       "properties": {
         "query_trace_ref": {
@@ -70,7 +72,11 @@
                 "null"
               ]
             }
-          }
+          },
+          "required": [
+            "query_trace_sha256",
+            "context_bundle_sha256"
+          ]
         }
       }
     },
