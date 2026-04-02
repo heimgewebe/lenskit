@@ -945,7 +945,7 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [x] Konfliktfälle (gleiches root label, andere Pfade) definieren
   - *Semantische Notiz: Die label-basierte Diff-Auflösung verlangt pro Maschine Eindeutigkeit. Wenn ein Label auf einer Maschine mehrdeutig ist, muss zwingend `machine:path` oder `snapshot_id` verwendet werden.*
-- [x] CLI: Semantische Operanden in `atlas diff` (`machine_id:label:root_label`)
+- [x] CLI: label-basierte Referenzauflösung in `atlas diff` (`machine_id:label:root_label`)
   - *Beispiel: `atlas diff laptop:label:documents nas:label:documents`*
   - *Syntax-Notiz: Das Parsing erfolgt über `split(":", 2)`, wodurch ein `:` im dritten Segment (dem `root_label`) erhalten bleibt und adressierbar ist. Malformte Kurzformen wie `machine:label` oder `machine:label:` werden explizit mit einem Fehler abgelehnt. Für Ambiguitäten oder sonstige Sonderfälle bleiben `machine:path` oder `snapshot_id` valide Alternativen.*
 - [x] Maschinen-Health-/Last-Seen-Sicht ergänzen
