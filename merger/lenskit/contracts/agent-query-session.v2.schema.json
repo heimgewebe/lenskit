@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://heimgewebe.local/schema/agent-query-session.v1.schema.json",
-  "title": "Agent Query Session (agent-query-session v1.0)",
+  "$id": "https://heimgewebe.local/schema/agent-query-session.v2.schema.json",
+  "title": "Agent Query Session (agent-query-session v2.0)",
   "description": "Structured session built from a query result, capturing resolved bundle provenance for agentic workflows.",
   "type": "object",
   "additionalProperties": false,
