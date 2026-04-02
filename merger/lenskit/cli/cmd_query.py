@@ -85,7 +85,12 @@ def run_query(args: argparse.Namespace) -> int:
         )
 
         if getattr(args, "trace", False) and "query_trace" in result:
-            trace_path = Path("query_trace.json")
+            out_dir_str = getattr(args, "trace_out_dir", None)
+            out_dir = Path(out_dir_str) if out_dir_str else Path.cwd()
+            if not out_dir.exists():
+                out_dir.mkdir(parents=True, exist_ok=True)
+
+            trace_path = out_dir / "query_trace.json"
             trace_path.write_text(json.dumps(result["query_trace"], indent=2), encoding="utf-8")
             print(f"Query trace saved to {trace_path.absolute()}", file=sys.stderr)
 
@@ -95,8 +100,17 @@ def run_query(args: argparse.Namespace) -> int:
                 "output_profile": getattr(args, "output_profile", None),
                 "explain": getattr(args, "explain", False)
             }
-            session = build_agent_query_session(request_contract, result, query_trace_ref="query_trace.json")
-            Path("agent_query_session.json").write_text(json.dumps(session, indent=2), encoding="utf-8")
+
+            # Pass out_dir and index_path to compute hashes and populate env block
+            session = build_agent_query_session(
+                request_contract,
+                result,
+                query_trace_ref="query_trace.json",
+                out_dir=out_dir,
+                index_path=str(args.index)
+            )
+            session_path = out_dir / "agent_query_session.json"
+            session_path.write_text(json.dumps(session, indent=2), encoding="utf-8")
 
     except RuntimeError as e:
         print(f"❌ Error: {e}", file=sys.stderr)

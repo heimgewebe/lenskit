@@ -53,6 +53,7 @@ def main(args: Optional[List[str]] = None) -> int:
     query_parser.add_argument("--context-mode", choices=["exact", "block", "window", "file"], default="exact", help="Context expansion mode")
     query_parser.add_argument("--context-window-lines", type=int, default=0, help="Number of lines to expand in window mode")
     query_parser.add_argument("--trace", action="store_true", help="Generate query_trace.json and agent_query_session.json in the current directory")
+    query_parser.add_argument("--trace-out-dir", help="Output directory for trace and session artifacts")
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Evaluate retrieval quality against Gold Queries")
