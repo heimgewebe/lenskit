@@ -4,7 +4,7 @@ import os
 import json
 import pytest
 from pathlib import Path
-from merger.lenskit.cli.cmd_atlas import _resolve_snapshot_ref
+from merger.lenskit.cli.cmd_atlas import _resolve_snapshot_ref, parse_snapshot_ref, SnapshotRefKind
 
 class MockRegistry:
     def __init__(self, roots, complete_snapshots):
@@ -37,6 +37,70 @@ def mock_registry():
     ]
     return MockRegistry(roots, snapshots)
 
+
+# --- A. Parser tests ---
+def test_parse_snapshot_id_directly():
+    parsed = parse_snapshot_ref("s123")
+    assert parsed.kind == SnapshotRefKind.SNAPSHOT_ID
+    assert parsed.value == "s123"
+
+def test_parse_machine_path():
+    parsed = parse_snapshot_ref("m1:/path3")
+    assert parsed.kind == SnapshotRefKind.MACHINE_PATH
+    assert parsed.machine_id == "m1"
+    assert parsed.value == "/path3"
+
+def test_parse_machine_label():
+    parsed = parse_snapshot_ref("m1:label:docs")
+    assert parsed.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed.machine_id == "m1"
+    assert parsed.value == "docs"
+
+def test_parse_machine_label_with_colon():
+    parsed = parse_snapshot_ref("m1:label:docs:2024")
+    assert parsed.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed.machine_id == "m1"
+    assert parsed.value == "docs:2024"
+
+def test_parse_whitespace_handling():
+    # Spaces inside fields are trimmed
+    parsed = parse_snapshot_ref(" m1 :label: docs ")
+    assert parsed.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed.machine_id == "m1"
+    assert parsed.value == "docs"
+
+    parsed3 = parse_snapshot_ref("m1: label :docs")
+    assert parsed3.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed3.machine_id == "m1"
+    assert parsed3.value == "docs"
+
+    parsed4 = parse_snapshot_ref("m1:  label: docs")
+    assert parsed4.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed4.machine_id == "m1"
+    assert parsed4.value == "docs"
+
+    parsed2 = parse_snapshot_ref(" m1 : /path ")
+    assert parsed2.kind == SnapshotRefKind.MACHINE_PATH
+    assert parsed2.machine_id == "m1"
+    # root_value path is not stripped by the parser to maintain trailing spaces if needed
+    assert parsed2.value == " /path "
+
+def test_parse_error_cases():
+    with pytest.raises(ValueError, match="with a non-empty machine_id"):
+        parse_snapshot_ref(":label:docs")
+    with pytest.raises(ValueError, match="with a non-empty root_label"):
+        parse_snapshot_ref("m1:label")
+    with pytest.raises(ValueError, match="with a non-empty root_label"):
+        parse_snapshot_ref("m1:label:")
+    with pytest.raises(ValueError, match="with a non-empty machine_id"):
+        parse_snapshot_ref(" :/path")
+    with pytest.raises(ValueError, match="with a non-empty path"):
+        parse_snapshot_ref("m1:")
+    with pytest.raises(ValueError, match="cannot be empty"):
+        parse_snapshot_ref("   ")
+
+
+# --- B. Resolver/E2E tests ---
 def test_resolve_by_label_success(mock_registry):
     # Should find r1, and then the latest snapshot (s2)
     snap_id = _resolve_snapshot_ref("m1:label:docs", mock_registry)
@@ -72,6 +136,15 @@ def test_resolve_path_with_colon(mock_registry):
     # Ensure a path with a colon works in the old machine:path branch
     snap_id = _resolve_snapshot_ref("m5:/path/with:colon", mock_registry)
     assert snap_id == "s7"
+
+def test_resolve_by_label_with_colon(mock_registry):
+    # This proves that `m1:label:weird:label` is parsed as root_label = `weird:label`
+    # We will register a mock root for this
+    mock_registry._roots.append({"root_id": "r8", "machine_id": "m1", "root_value": "/weird", "label": "weird:label"})
+    mock_registry._complete_snapshots.append({"snapshot_id": "s8", "root_id": "r8", "created_at": "2023-01-01T00:00:00Z"})
+
+    snap_id = _resolve_snapshot_ref("m1:label:weird:label", mock_registry)
+    assert snap_id == "s8"
 
 def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
     registry_dir = tmp_path / "atlas" / "registry"
@@ -188,11 +261,3 @@ def test_resolve_by_label_malformed(mock_registry):
     with pytest.raises(ValueError, match="expected syntax 'machine_id:label:<root_label>' with a non-empty root_label"):
         _resolve_snapshot_ref("m1:label:   ", mock_registry)
 
-def test_resolve_by_label_with_colon(mock_registry):
-    # This proves that `m1:label:weird:label` is parsed as root_label = `weird:label`
-    # We will register a mock root for this
-    mock_registry._roots.append({"root_id": "r8", "machine_id": "m1", "root_value": "/weird", "label": "weird:label"})
-    mock_registry._complete_snapshots.append({"snapshot_id": "s8", "root_id": "r8", "created_at": "2023-01-01T00:00:00Z"})
-
-    snap_id = _resolve_snapshot_ref("m1:label:weird:label", mock_registry)
-    assert snap_id == "s8"

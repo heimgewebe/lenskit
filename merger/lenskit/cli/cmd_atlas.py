@@ -7,8 +7,10 @@ import socket
 import datetime
 import hashlib
 import tempfile
+from enum import Enum
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from merger.lenskit.adapters.atlas import AtlasScanner, render_atlas_md
 from merger.lenskit.atlas.planner import plan_atlas_outputs, write_mode_outputs
@@ -61,69 +63,117 @@ def run_atlas_snapshots(args: argparse.Namespace) -> int:
     return 0
 
 
-def _resolve_snapshot_ref(ref: str, registry) -> str:
+class SnapshotRefKind(Enum):
+    SNAPSHOT_ID = "snapshot_id"
+    MACHINE_PATH = "machine_path"
+    MACHINE_LABEL = "machine_label"
+
+@dataclass
+class ParsedSnapshotRef:
+    kind: SnapshotRefKind
+    value: str
+    machine_id: Optional[str] = None
+
+def parse_snapshot_ref(ref: str) -> ParsedSnapshotRef:
+    """
+    Parses an Atlas snapshot reference string into a structured Enum-typed object.
+
+    Explicit Grammar rules:
+    - `machine_id:label:root_label`: Resolves against a semantic label on a given machine.
+      `machine_id` and `root_label` are explicitly trimmed. Neither may be empty.
+      `root_label` may contain further colons.
+    - `machine_id:path`: Resolves against a specific absolute path on a given machine.
+      `machine_id` is trimmed and must not be empty.
+      `path` is intentionally NOT trimmed to support trailing whitespaces in valid filesystem paths.
+      It must not be empty.
+    - `snapshot_id` (fallback): Resolves directly against an exact snapshot identifier. Must not be empty.
+    """
     if ":" in ref:
         parts = ref.split(":", 2)
-        if len(parts) > 1 and parts[1] == "label":
-            if len(parts) != 3 or not parts[2].strip():
+        if len(parts) > 1 and parts[1].strip() == "label":
+            machine_id = parts[0].strip()
+            if not machine_id:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty machine_id")
+            if len(parts) != 3:
                 raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty root_label")
-
-            machine_id = parts[0]
-            root_label = parts[2]
-
-            target_root_ids = []
-            for r in registry.list_roots():
-                if r["machine_id"] == machine_id and r.get("label") == root_label:
-                    target_root_ids.append(r["root_id"])
-
-            if not target_root_ids:
-                raise ValueError(f"No root found for machine '{machine_id}' with label '{root_label}'")
-
-            if len(target_root_ids) > 1:
-                raise ValueError(f"Multiple roots found for machine '{machine_id}' with label '{root_label}'; use machine:path or snapshot_id for explicit disambiguation")
-
-            target_root_id = target_root_ids[0]
-
-            snapshots = registry.list_complete_snapshots(root_id=target_root_id)
-            if not snapshots:
-                raise ValueError(f"No complete snapshot found for machine '{machine_id}' and label '{root_label}'")
-
+            root_label = parts[2].strip()
+            if not root_label:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty root_label")
+            return ParsedSnapshotRef(kind=SnapshotRefKind.MACHINE_LABEL, machine_id=machine_id, value=root_label)
         else:
             machine_id, root_value = ref.split(":", 1)
+            machine_id = machine_id.strip()
+            if not machine_id:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:path' with a non-empty machine_id")
+            if not root_value:
+                raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:path' with a non-empty path")
+            return ParsedSnapshotRef(kind=SnapshotRefKind.MACHINE_PATH, machine_id=machine_id, value=root_value)
 
-            def normalize_path(p: str) -> str:
-                # Conservative normalization for trivial variants (e.g., trailing slashes, /./)
-                # without semantically reinterpreting absolute/relative meanings.
-                import posixpath
-                return posixpath.normpath(p)
+    value = ref.strip()
+    if not value:
+        raise ValueError("Invalid snapshot reference: cannot be empty")
+    return ParsedSnapshotRef(kind=SnapshotRefKind.SNAPSHOT_ID, value=value)
 
-            target_root_ids = []
-            norm_root_value = normalize_path(root_value)
+def _resolve_snapshot_ref(ref: str, registry) -> str:
+    parsed = parse_snapshot_ref(ref)
 
-            for r in registry.list_roots():
-                if r["machine_id"] == machine_id and normalize_path(r["root_value"]) == norm_root_value:
-                    target_root_ids.append(r["root_id"])
+    if parsed.kind == SnapshotRefKind.SNAPSHOT_ID:
+        return parsed.value
 
-            if not target_root_ids:
-                raise ValueError(f"No root found for machine '{machine_id}' and path '{root_value}'")
+    target_root_ids = []
 
-            if len(target_root_ids) > 1:
-                raise ValueError(f"Ambiguous root reference: multiple roots match machine '{machine_id}' and path '{root_value}'")
+    if parsed.kind == SnapshotRefKind.MACHINE_LABEL:
+        for r in registry.list_roots():
+            if r["machine_id"] == parsed.machine_id and r.get("label") == parsed.value:
+                target_root_ids.append(r["root_id"])
 
-            target_root_id = target_root_ids[0]
+        if not target_root_ids:
+            raise ValueError(f"No root found for machine '{parsed.machine_id}' with label '{parsed.value}'")
 
-            snapshots = registry.list_complete_snapshots(root_id=target_root_id)
-            if not snapshots:
-                raise ValueError(f"No complete snapshots found for root '{target_root_id}'")
+        if len(target_root_ids) > 1:
+            raise ValueError(f"Multiple roots found for machine '{parsed.machine_id}' with label '{parsed.value}'; use machine:path or snapshot_id for explicit disambiguation")
 
-        # Ensure deterministic sort by created_at descending just in case DB defaults shift
-        # missing created_at should sink to bottom or error, but they should all have it
-        def safe_sort_key(s):
-            return (s.get("created_at", ""), s.get("snapshot_id", ""))
+        target_root_id = target_root_ids[0]
 
-        sorted_snaps = sorted(snapshots, key=safe_sort_key, reverse=True)
-        return sorted_snaps[0]["snapshot_id"]
-    return ref
+        snapshots = registry.list_complete_snapshots(root_id=target_root_id)
+        if not snapshots:
+            raise ValueError(f"No complete snapshot found for machine '{parsed.machine_id}' and label '{parsed.value}'")
+
+    elif parsed.kind == SnapshotRefKind.MACHINE_PATH:
+        def normalize_path(p: str) -> str:
+            # Conservative normalization for trivial variants (e.g., trailing slashes, /./)
+            # without semantically reinterpreting absolute/relative meanings.
+            import posixpath
+            return posixpath.normpath(p)
+
+        norm_root_value = normalize_path(parsed.value)
+
+        for r in registry.list_roots():
+            if r["machine_id"] == parsed.machine_id and normalize_path(r["root_value"]) == norm_root_value:
+                target_root_ids.append(r["root_id"])
+
+        if not target_root_ids:
+            raise ValueError(f"No root found for machine '{parsed.machine_id}' and path '{parsed.value}'")
+
+        if len(target_root_ids) > 1:
+            raise ValueError(f"Ambiguous root reference: multiple roots match machine '{parsed.machine_id}' and path '{parsed.value}'")
+
+        target_root_id = target_root_ids[0]
+
+        snapshots = registry.list_complete_snapshots(root_id=target_root_id)
+        if not snapshots:
+            raise ValueError(f"No complete snapshots found for root '{target_root_id}'")
+
+    else:
+        raise ValueError(f"Unsupported snapshot reference kind: {parsed.kind}")
+
+    # Ensure deterministic sort by created_at descending just in case DB defaults shift
+    # missing created_at should sink to bottom or error, but they should all have it
+    def safe_sort_key(s):
+        return (s.get("created_at", ""), s.get("snapshot_id", ""))
+
+    sorted_snaps = sorted(snapshots, key=safe_sort_key, reverse=True)
+    return sorted_snaps[0]["snapshot_id"]
 
 def run_atlas_diff(args: argparse.Namespace) -> int:
     from merger.lenskit.atlas.diff import compute_snapshot_delta, compute_snapshot_comparison
