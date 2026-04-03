@@ -152,6 +152,8 @@ def test_api_query_invalid_params(mini_index):
     assert response.status_code == 400
     assert "requires" in response.json()["detail"]
 
+# This test verifies the generic API wrapper contract (context_bundle + query_trace)
+# when trace=True, independently of specific agent session payloads.
 def test_api_query_trace_wrapper(mini_index):
     art = setup_test_artifact(mini_index)
 
@@ -568,6 +570,8 @@ def test_agent_response_surfaces_uncertainty_contrasts():
         assert hit3_epist["interpolation"]["reason"] is None
 
 
+# This test specifically verifies the semantic payload of the agent_query_session
+# added to the trace wrapper, distinct from the generic wrapper contract tested above.
 def test_api_query_agent_session_trace(mini_index):
     art = setup_test_artifact(mini_index)
 

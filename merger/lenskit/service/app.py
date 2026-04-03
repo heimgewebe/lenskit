@@ -548,6 +548,9 @@ def api_query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     projected = project_output(result, request.output_profile)
+    # The projected output can be the raw bundle or a wrapper object.
+    # If tracing is enabled and a wrapper (containing context_bundle) is returned,
+    # the final API response wrapper will additionally contain 'agent_query_session'.
     if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
         session = build_agent_query_session_v2(request.q, projected.get("context_bundle"))
         projected["agent_query_session"] = session
