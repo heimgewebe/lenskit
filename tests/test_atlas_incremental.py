@@ -528,3 +528,54 @@ def test_incremental_scan_huge_file_behavior(tmp_path: Path):
     # The formerly small file is now huge. It should not inherit the old quick_hash.
     assert "quick_hash" not in inv2_data["small.txt"], "quick_hash was improperly reused for a file that became huge"
     assert "is_text" not in inv2_data["small.txt"], "is_text was improperly reused for a file that became huge"
+
+def test_incremental_scan_huge_file_config_change_reuse(tmp_path: Path):
+    root_dir = tmp_path / "test_root_huge_config"
+    root_dir.mkdir()
+
+    # Create a file that is small initially
+    test_file = root_dir / "test.txt"
+    test_file.write_bytes(b"0" * 50)
+
+    inventory_file1 = tmp_path / "inventory_cfg1.jsonl"
+
+    # Scan 1: max_file_size is large enough (100)
+    scanner1 = AtlasScanner(
+        root=root_dir,
+        snapshot_id="snap1",
+        enable_content_stats=True,
+        max_file_size=100
+    )
+    scanner1.scan(inventory_file=inventory_file1)
+
+    inv1_data = {}
+    with inventory_file1.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip(): continue
+            item = json.loads(line)
+            inv1_data[item["rel_path"]] = item
+
+    # The file should have quick_hash
+    assert "quick_hash" in inv1_data["test.txt"]
+
+    # Scan 2: File is completely UNCHANGED (same size, same mtime).
+    # But configuration changes so that max_file_size = 10, meaning the 50-byte file is now HUGE.
+    inventory_file2 = tmp_path / "inventory_cfg2.jsonl"
+    scanner2 = AtlasScanner(
+        root=root_dir,
+        snapshot_id="snap2",
+        enable_content_stats=True,
+        max_file_size=10,
+        incremental_inventory=inventory_file1
+    )
+    scanner2.scan(inventory_file=inventory_file2)
+
+    inv2_data = {}
+    with inventory_file2.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip(): continue
+            item = json.loads(line)
+            inv2_data[item["rel_path"]] = item
+
+    # The file is now huge. It should not have quick_hash inherited from the previous scan!
+    assert "quick_hash" not in inv2_data["test.txt"]

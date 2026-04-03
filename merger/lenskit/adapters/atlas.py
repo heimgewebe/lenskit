@@ -696,7 +696,7 @@ class AtlasScanner:
                                             encoding = prev_entry["encoding"]
                                         if "line_count" in prev_entry:
                                             line_count = prev_entry["line_count"]
-                                if "quick_hash" in prev_entry and not file_hash:
+                                if not is_huge and "quick_hash" in prev_entry and not file_hash:
                                     file_hash = prev_entry["quick_hash"]
 
                         if self.enable_content_stats and not is_huge:
