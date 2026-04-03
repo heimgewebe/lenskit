@@ -449,6 +449,7 @@ def api_query(request: QueryRequest):
     from ..retrieval.output_projection import project_output
     from ..cli.stale_check import check_stale_index
     from ..cli.policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
+    from ..retrieval.session import build_agent_query_session_v2
 
     art = state.job_store.get_artifact(request.index_id)
     if not art:
@@ -546,7 +547,11 @@ def api_query(request: QueryRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return project_output(result, request.output_profile)
+    projected = project_output(result, request.output_profile)
+    if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
+        session = build_agent_query_session_v2(request.q, projected.get("context_bundle"))
+        projected["agent_query_session"] = session
+    return projected
 
 @app.post("/api/jobs", response_model=Job, dependencies=[Depends(verify_token)])
 def create_job(request: JobRequest):
