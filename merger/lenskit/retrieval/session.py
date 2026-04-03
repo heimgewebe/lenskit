@@ -12,6 +12,7 @@ Design notes:
   queried_bundles list. Successfully queried bundles have status "ok" or "stale"
   (stale bundles still ran the query against their potentially outdated index).
 """
+from pathlib import Path
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -111,7 +112,9 @@ def build_agent_query_session(
     result: Dict[str, Any],
     query_trace_ref: Optional[str] = None,
     context_bundle_ref: Optional[str] = None,
-    diagnostics_ref: Optional[str] = None
+    diagnostics_ref: Optional[str] = None,
+    out_dir: Optional[Path] = None,
+    index_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Builds the formal agent_query_session.json artifact from query execution results.
@@ -121,6 +124,10 @@ def build_agent_query_session(
 
     DEPRECATED: Use build_agent_query_session_v2 for the v2 schema.
     """
+    import importlib.metadata
+    from datetime import datetime, timezone
+    import hashlib
+
     resolved_bundles = set()
 
     # Depending on whether we're dealing with a raw result or a projected context_bundle
@@ -159,15 +166,52 @@ def build_agent_query_session(
     if "warnings" in result:
         warnings = result["warnings"]
 
+    # Calculate integrity hashes
+    integrity = {
+        "query_trace_sha256": None,
+        "context_bundle_sha256": None
+    }
+
+    base_dir = out_dir if out_dir else Path.cwd()
+
+    if query_trace_ref:
+        trace_path = base_dir / query_trace_ref
+        try:
+            if trace_path.exists():
+                integrity["query_trace_sha256"] = hashlib.sha256(trace_path.read_bytes()).hexdigest()
+        except OSError as e:
+            logger.warning("Failed to compute SHA256 for query trace at %s: %s", trace_path, e)
+
+    if context_bundle_ref:
+        bundle_path = base_dir / context_bundle_ref
+        try:
+            if bundle_path.exists():
+                integrity["context_bundle_sha256"] = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+        except OSError as e:
+            logger.warning("Failed to compute SHA256 for context bundle at %s: %s", bundle_path, e)
+
+    try:
+        lenskit_version = importlib.metadata.version("lenskit")
+    except importlib.metadata.PackageNotFoundError:
+        lenskit_version = "unknown"
+
+    environment = {
+        "lenskit_version": lenskit_version,
+        "index_path": index_path,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat()
+    }
+
     session = {
         "request": request_contract,
         "resolved_bundles": sorted(list(resolved_bundles)),
         "refs": {
             "query_trace_ref": query_trace_ref,
             "context_bundle_ref": context_bundle_ref,
-            "diagnostics_ref": diagnostics_ref
+            "diagnostics_ref": diagnostics_ref,
+            "integrity": integrity
         },
-        "warnings": warnings
+        "warnings": warnings,
+        "environment": environment
     }
 
     return session

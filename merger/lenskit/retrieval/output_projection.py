@@ -10,8 +10,11 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
     - Case 2 (Profile specified, e.g. 'agent_minimal'): Returns the canonical Context-Bundle
       structure directly at the top level (contains 'hits' array).
     - Case 3 (Profile + Diagnostics/Guardrails): Returns a wrapper {"context_bundle": ..., ...}
-      to ensure the strict Context-Bundle schema is not violated by additional top-level properties
-      like 'query_trace', 'federation_conflicts', or 'warnings'.
+      to ensure the strict Context-Bundle schema is not violated.
+      Wrapper is created if at least one applies:
+        - query_trace is present
+        - federation_conflicts is non-empty
+        - warnings is non-empty
 
     Args:
         result: The raw evaluation result from `execute_query`.
@@ -46,8 +49,10 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
             pass # Structure already ui-ready based on chunk_id/file
 
         # The bundle schema forbids additional top-level properties.
-        # If diagnostic or guardrail fields such as query_trace, federation_conflicts,
-        # or warnings are present, return a wrapper object instead of the bare bundle.
+        # Wrapper is created if at least one applies:
+        # - query_trace is present
+        # - federation_conflicts is non-empty
+        # - warnings is non-empty
         wrapper = {"context_bundle": bundle}
         needs_wrapper = False
 

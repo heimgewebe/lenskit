@@ -9,7 +9,8 @@
     "request",
     "resolved_bundles",
     "refs",
-    "warnings"
+    "warnings",
+    "environment"
   ],
   "properties": {
     "request": {
@@ -30,20 +31,53 @@
       "additionalProperties": false,
       "required": [
         "query_trace_ref",
-        "context_bundle_ref"
+        "context_bundle_ref",
+        "integrity",
+        "diagnostics_ref"
       ],
       "properties": {
         "query_trace_ref": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Reference (path/ID) to the generated query trace."
         },
         "context_bundle_ref": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Reference (path/ID) to the generated context bundle."
         },
         "diagnostics_ref": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Reference to additional diagnostics or federated conflicts."
+        },
+        "integrity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "query_trace_sha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "context_bundle_sha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "query_trace_sha256",
+            "context_bundle_sha256"
+          ]
         }
       }
     },
@@ -54,6 +88,29 @@
         "type": "string"
       },
       "description": "Agent-guardrail warnings emitted during the session."
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lenskit_version",
+        "index_path",
+        "timestamp_utc"
+      ],
+      "properties": {
+        "lenskit_version": {
+          "type": "string"
+        },
+        "index_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp_utc": {
+          "type": "string"
+        }
+      }
     }
   }
 }

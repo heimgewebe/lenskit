@@ -70,7 +70,22 @@ def test_agent_session_trace_contains_refs(mini_index, tmp_path):
     assert session["refs"]["query_trace_ref"] == "query_trace.json"
     assert "r1" in session.get("resolved_bundles", [])
     assert session["refs"].get("context_bundle_ref") is None
-    assert session["refs"].get("diagnostics_ref") is None
+    assert "diagnostics_ref" in session["refs"]
+    assert session["refs"]["diagnostics_ref"] is None
+
+    # Verify new integrity and environment fields
+    assert "environment" in session
+    assert "lenskit_version" in session["environment"]
+    assert "index_path" in session["environment"]
+    assert "timestamp_utc" in session["environment"]
+
+    assert "integrity" in session["refs"]
+    assert "query_trace_sha256" in session["refs"]["integrity"]
+
+    # Hash check
+    import hashlib
+    expected_hash = hashlib.sha256(trace_path.read_bytes()).hexdigest()
+    assert session["refs"]["integrity"]["query_trace_sha256"] == expected_hash
 
     # Verify the structure using the schema
     try:
@@ -80,3 +95,77 @@ def test_agent_session_trace_contains_refs(mini_index, tmp_path):
         jsonschema.validate(instance=session, schema=schema)
     except ImportError:
         pytest.skip("jsonschema is not installed; skipping agent session schema validation")
+
+def test_agent_session_trace_out_dir(mini_index, tmp_path):
+    out_dir = tmp_path / "custom_out"
+    out_dir.mkdir()
+
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=1,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=True,
+        graph_index=None,
+        graph_weights=None,
+        test_penalty=0.75,
+        output_profile="agent_minimal",
+        context_window_lines=0,
+        context_mode="exact",
+        build_context_bundle=False,
+        overmatch_guard=False,
+        trace=True,
+        trace_out_dir=str(out_dir)
+    )
+
+    ret = cmd_query.run_query(args)
+    assert ret == 0
+
+    trace_path = out_dir / "query_trace.json"
+    session_path = out_dir / "agent_query_session.json"
+
+    assert trace_path.exists()
+    assert session_path.exists()
+
+    session = json.loads(session_path.read_text(encoding="utf-8"))
+
+    import hashlib
+    expected_hash = hashlib.sha256(trace_path.read_bytes()).hexdigest()
+    assert session["refs"]["integrity"]["query_trace_sha256"] == expected_hash
+
+def test_agent_session_trace_out_dir_is_file(mini_index, tmp_path, capsys):
+    # Create a file where the directory should be
+    bad_dir = tmp_path / "not_a_dir"
+    bad_dir.write_text("i am a file")
+
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=1,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=True,
+        graph_index=None,
+        graph_weights=None,
+        test_penalty=0.75,
+        output_profile="agent_minimal",
+        context_window_lines=0,
+        context_mode="exact",
+        build_context_bundle=False,
+        overmatch_guard=False,
+        trace=True,
+        trace_out_dir=str(bad_dir)
+    )
+
+    ret = cmd_query.run_query(args)
+    # The CLI catches RuntimeError and prints to stderr, returning 1
+    assert ret == 1
+
+    captured = capsys.readouterr()
+    assert "--trace-out-dir" in captured.err
+    assert "not a directory" in captured.err
