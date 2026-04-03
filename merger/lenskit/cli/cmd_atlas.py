@@ -90,7 +90,7 @@ def parse_snapshot_ref(ref: str) -> ParsedSnapshotRef:
     """
     if ":" in ref:
         parts = ref.split(":", 2)
-        if len(parts) > 1 and parts[1] == "label":
+        if len(parts) > 1 and parts[1].strip() == "label":
             machine_id = parts[0].strip()
             if not machine_id:
                 raise ValueError(f"Invalid snapshot reference '{ref}': expected syntax 'machine_id:label:<root_label>' with a non-empty machine_id")
@@ -163,6 +163,9 @@ def _resolve_snapshot_ref(ref: str, registry) -> str:
         snapshots = registry.list_complete_snapshots(root_id=target_root_id)
         if not snapshots:
             raise ValueError(f"No complete snapshots found for root '{target_root_id}'")
+
+    else:
+        raise ValueError(f"Unsupported snapshot reference kind: {parsed.kind}")
 
     # Ensure deterministic sort by created_at descending just in case DB defaults shift
     # missing created_at should sink to bottom or error, but they should all have it

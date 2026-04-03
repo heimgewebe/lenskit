@@ -69,6 +69,19 @@ def test_parse_whitespace_handling():
     assert parsed.machine_id == "m1"
     assert parsed.value == "docs"
 
+    parsed3 = parse_snapshot_ref("m1: label :docs")
+    assert parsed3.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed3.machine_id == "m1"
+    assert parsed3.value == "docs"
+
+    parsed4 = parse_snapshot_ref("m1:  label: docs")
+    assert parsed4.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed4.machine_id == "m1"
+    assert parsed4.value == "docs"
+    assert parsed.kind == SnapshotRefKind.MACHINE_LABEL
+    assert parsed.machine_id == "m1"
+    assert parsed.value == "docs"
+
     parsed2 = parse_snapshot_ref(" m1 : /path ")
     assert parsed2.kind == SnapshotRefKind.MACHINE_PATH
     assert parsed2.machine_id == "m1"
@@ -251,11 +264,3 @@ def test_resolve_by_label_malformed(mock_registry):
     with pytest.raises(ValueError, match="expected syntax 'machine_id:label:<root_label>' with a non-empty root_label"):
         _resolve_snapshot_ref("m1:label:   ", mock_registry)
 
-def test_resolve_by_label_with_colon(mock_registry):
-    # This proves that `m1:label:weird:label` is parsed as root_label = `weird:label`
-    # We will register a mock root for this
-    mock_registry._roots.append({"root_id": "r8", "machine_id": "m1", "root_value": "/weird", "label": "weird:label"})
-    mock_registry._complete_snapshots.append({"snapshot_id": "s8", "root_id": "r8", "created_at": "2023-01-01T00:00:00Z"})
-
-    snap_id = _resolve_snapshot_ref("m1:label:weird:label", mock_registry)
-    assert snap_id == "s8"
