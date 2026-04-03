@@ -78,9 +78,6 @@ def test_parse_whitespace_handling():
     assert parsed4.kind == SnapshotRefKind.MACHINE_LABEL
     assert parsed4.machine_id == "m1"
     assert parsed4.value == "docs"
-    assert parsed.kind == SnapshotRefKind.MACHINE_LABEL
-    assert parsed.machine_id == "m1"
-    assert parsed.value == "docs"
 
     parsed2 = parse_snapshot_ref(" m1 : /path ")
     assert parsed2.kind == SnapshotRefKind.MACHINE_PATH
