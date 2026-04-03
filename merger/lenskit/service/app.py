@@ -546,7 +546,18 @@ def api_query(request: QueryRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return project_output(result, request.output_profile)
+    projected = project_output(result, request.output_profile)
+    if request.trace:
+        from ..retrieval.session import build_agent_query_session_v2
+        session = build_agent_query_session_v2(
+            query=request.q,
+            context_bundle=result.get("context_bundle"),
+            federation_trace=result.get("federation_trace")
+        )
+        if isinstance(projected, dict) and "context_bundle" in projected:
+            projected["agent_query_session"] = session
+
+    return projected
 
 @app.post("/api/jobs", response_model=Job, dependencies=[Depends(verify_token)])
 def create_job(request: JobRequest):

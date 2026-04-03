@@ -566,3 +566,33 @@ def test_agent_response_surfaces_uncertainty_contrasts():
         assert hit3_epist["resolver_status"] == "unresolved"
         assert hit3_epist["interpolation"]["used"] is False
         assert hit3_epist["interpolation"]["reason"] is None
+
+def test_api_agent_session_trace_contains_refs(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "agent_query_session" in data
+    session = data["agent_query_session"]
+
+    assert "resolved_bundles" in session
+    assert "r1" in session["resolved_bundles"]
+
+    # Contract schema tests can be minimal
+    assert "query" in session
+    assert session["query"] == "hello"
+    assert "hits_count" in session
+
+    # The API version generates this inline without saving to disk right now, so checking refs is good enough.
