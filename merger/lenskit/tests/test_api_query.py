@@ -152,6 +152,8 @@ def test_api_query_invalid_params(mini_index):
     assert response.status_code == 400
     assert "requires" in response.json()["detail"]
 
+# This test verifies the generic API wrapper contract (context_bundle + query_trace)
+# when trace=True, independently of specific agent session payloads.
 def test_api_query_trace_wrapper(mini_index):
     art = setup_test_artifact(mini_index)
 
@@ -566,3 +568,57 @@ def test_agent_response_surfaces_uncertainty_contrasts():
         assert hit3_epist["resolver_status"] == "unresolved"
         assert hit3_epist["interpolation"]["used"] is False
         assert hit3_epist["interpolation"]["reason"] is None
+
+
+# This test specifically verifies the semantic payload of the agent_query_session
+# added to the trace wrapper, distinct from the generic wrapper contract tested above.
+def test_api_query_agent_session_trace(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    assert "agent_query_session" in data
+
+    session = data["agent_query_session"]
+    assert "query" in session
+    assert session["query"] == "hello"
+    assert "resolved_bundles" in session
+    assert isinstance(session["resolved_bundles"], list)
+    assert "hits_count" in session
+    assert "session_meta" in session
+    assert session["session_meta"]["context_source"] == "projected"
+
+
+
+def test_api_query_agent_session_no_trace(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": False,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    # When trace is False and there are no conflicts/warnings, output profile "agent_minimal"
+    # returns the bundle contents directly at the top level, without the "context_bundle" wrapper.
+    assert "hits" in data
+    assert "agent_query_session" not in data

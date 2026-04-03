@@ -15,6 +15,8 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
         - query_trace is present
         - federation_conflicts is non-empty
         - warnings is non-empty
+      Note: Downstream API handlers (like /api/query) may append additional
+      top-level fields to this wrapper (e.g., agent_query_session).
 
     Args:
         result: The raw evaluation result from `execute_query`.
