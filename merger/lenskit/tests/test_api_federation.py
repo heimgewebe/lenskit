@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from pathlib import Path
@@ -71,52 +72,36 @@ def test_api_federation_query_invalid_path(fed_setup):
     assert response.status_code == 400
     assert "Invalid federation_index path" in response.json()["detail"]
 
+
 def test_api_federation_query_stale_policy_fail(fed_setup):
-    # fed_setup returns the path to the federation index: merges_dir / "federation.json"
-    # The actual db is at tmp_path / "1.chunk_index.index.sqlite"
-    merges_dir = fed_setup.parent
-    tmp_path = merges_dir.parent
-
-    # 1. To make the index stale deterministically, modify the dump_index.json
-    # check_stale_index uses glob("*.dump_index.json") or base matching.
-    # We must ensure there is a dump_index.json and its hash differs from DB metadata.
-    # index_db.build_index(dump_path1, chunk_path1, db_path1) -> it might just read dump_path1, not create dump_index.json.
-    # check_stale_index fallback looks for *.dump_index.json. Let's create one that has a mismatched hash.
-    # Or simply renaming the original dump file to *.dump_index.json and modifying it.
-
-    db_path = tmp_path / "1.chunk_index.index.sqlite"
-    dump_manifest = tmp_path / "1.chunk_index.dump_index.json"
-
-    # Create the dump manifest with wrong content to simulate staleness
-    dump_manifest.write_text("stale content", encoding="utf-8")
-
     request_data = {
         "federation_index": "federation.json",
         "q": "hello",
         "k": 1,
         "stale_policy": "fail"
     }
-    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+
+    # Deterministically mock check_stale_index to return True
+    with patch("merger.lenskit.cli.stale_check.check_stale_index", return_value=True):
+        response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
 
     assert response.status_code == 400
     assert "stale" in response.json()["detail"].lower()
 
 def test_api_federation_query_stale_policy_ignore(fed_setup):
-    merges_dir = fed_setup.parent
-    tmp_path = merges_dir.parent
-
-    dump_manifest = tmp_path / "1.chunk_index.dump_index.json"
-    dump_manifest.write_text("stale content", encoding="utf-8")
-
     request_data = {
         "federation_index": "federation.json",
         "q": "hello",
         "k": 1,
         "stale_policy": "ignore"
     }
-    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+
+    # Even if check_stale_index says True, policy "ignore" must allow the query to pass
+    with patch("merger.lenskit.cli.stale_check.check_stale_index", return_value=True):
+        response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
 
     assert response.status_code == 200
+
 def test_api_federation_query_no_trace(fed_setup):
     request_data = {
         "federation_index": "federation.json",
