@@ -901,15 +901,15 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
 
-*(Konvention: Checkboxes markieren vollständig gehärtete Umsetzung. „implementiert“ bedeutet funktional vorhanden, aber noch nicht abgeschlossen.)*
+*(Konvention: [ ] = offen, [~] = substanziell begonnen bzw. funktional vorhanden, [x] = vollständig gehärtet und abgeschlossen.)*
 
 *(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
 
-- [ ] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback) implementiert; noch nicht gehärtet (Robustheit und Formatabdeckung offen)
+- [~] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback); Robustheit und Formatabdeckung offen
   - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
-- [ ] teilweise gehärtet: Encoding-Erkennung (kleines best-effort Set); weitere Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
+- [~] Encoding-Erkennung (kleines best-effort Set); Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
   - *Semantische Notiz: `encoding` ist ein best-effort Feld basierend auf einer 4KB-Heuristik. Es wird nur für plausibel textuelle Inhalte emittiert und ist keine garantierte Klassifikation.*
-- [ ] teilweise gehärtet: line_count im Content-Modus (`enable_content_stats`); Verhalten für Non-Content-Scans offen
+- [~] line_count im Content-Modus (`enable_content_stats`); Verhalten für Non-Content-Scans offen
   - *Semantische Notiz: `line_count` ist ein best-effort Feld basierend auf zeilenweiser Zählung innerhalb des Content-Modus. Dateien >20MB werden aus Performance-Gründen übersprungen. Die Genauigkeit hängt bei Nicht-UTF-8-Dateien von der best-effort Encoding-Erkennung ab.*
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
