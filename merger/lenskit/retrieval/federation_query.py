@@ -232,6 +232,14 @@ def execute_federated_query(
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }
 
+
+    if build_context:
+        out["context_bundle"] = {
+            "query": query_text,
+            "hits": top_k
+        }
+        del out["results"]
+
     if conflicts:
         out["federation_conflicts"] = conflicts
 

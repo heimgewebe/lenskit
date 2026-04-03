@@ -1708,7 +1708,7 @@ Tests:
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
 - [~] 5. `agent_query_session.json` (teilweise: Schema und Erzeugung des vollen Artefakts im CLI sind implementiert und testbelegt; der API-Pfad erzeugt hingegen kein separates Artefakt, sondern integriert eine minimale Session als Inline-Feld `agent_query_session`).
-- [ ] 6. service-/MCP-fähige Schnittstellenlogik
+- [~] 6. service-/MCP-fähige Schnittstellenlogik (federation query hinzugefügt)
 - [ ] 7. Agent-Guardrails
 
 ### 2.13 Gate für Phase 6
@@ -1745,7 +1745,7 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [ ] **7.3 Service-Endpunkte:** /query, /context, /trace, /artifact, /federation/query, /diagnostics.
+- [~] **7.3 Service-Endpunkte:** /query, /context, /trace, /artifact, /federation/query, /diagnostics.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:

@@ -16,7 +16,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, QueryRequest
+from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, FederationQueryRequest, QueryRequest
 from .jobstore import JobStore
 from .runner import JobRunner
 from .logging_provider import LogProvider, FileLogProvider
@@ -442,6 +442,71 @@ def api_prescan(request: PrescanRequest):
         logger.exception("Prescan failed")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/federation/query", dependencies=[Depends(verify_token)])
+def api_federation_query(request: FederationQueryRequest):
+    from ..retrieval.federation_query import execute_federated_query
+    from ..retrieval.output_projection import project_output
+    from ..cli.stale_check import check_stale_index
+    from ..cli.policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
+    from ..retrieval.session import build_agent_query_session_v2
+
+    if not state.hub:
+        raise HTTPException(status_code=400, detail="Hub not configured")
+
+    merges_dir = state.merges_dir or get_merges_dir(state.hub)
+    fed_index_path = merges_dir / request.federation_index
+
+    if not fed_index_path.exists():
+        raise HTTPException(status_code=404, detail="Federation index not found")
+
+    applied_filters = {
+        "repo": request.repo,
+        "path": request.path,
+        "ext": request.ext,
+        "layer": request.layer,
+        "artifact_type": request.artifact_type
+    }
+
+    def _is_safe_filename(name: str) -> bool:
+        if not name or name in {".", ".."}:
+            return False
+        if "/" in name or "\\" in name or ":" in name:
+            return False
+        p = Path(name)
+        return p.name == name and not p.is_absolute()
+
+    policy_instance = None
+    if request.embedding_policy:
+        if not _is_safe_filename(request.embedding_policy):
+            raise HTTPException(status_code=400, detail="Invalid embedding_policy path")
+        policy_path = fed_index_path.parent / request.embedding_policy
+        try:
+            policy_instance = load_and_validate_embedding_policy(policy_path)
+        except EmbeddingPolicyError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        result = execute_federated_query(
+            federation_index_path=fed_index_path,
+            query_text=request.q,
+            k=request.k,
+            filters=applied_filters,
+            embedding_policy=policy_instance,
+            explain=request.explain,
+            trace=request.trace,
+            build_context=request.build_context_bundle or bool(request.output_profile)
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    projected = project_output(result, request.output_profile)
+
+    if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
+        session = build_agent_query_session_v2(request.q, context_bundle=projected.get("context_bundle"), federation_trace=result.get("federation_trace"))
+        projected["agent_query_session"] = session
+
+    return projected
 
 @app.post("/api/query", dependencies=[Depends(verify_token)])
 def api_query(request: QueryRequest):

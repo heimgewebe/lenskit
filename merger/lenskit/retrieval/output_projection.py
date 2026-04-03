@@ -58,6 +58,10 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
         wrapper = {"context_bundle": bundle}
         needs_wrapper = False
 
+
+        if "federation_trace" in res:
+            wrapper["federation_trace"] = res["federation_trace"]
+            needs_wrapper = True
         if "query_trace" in res:
             wrapper["query_trace"] = res["query_trace"]
             needs_wrapper = True

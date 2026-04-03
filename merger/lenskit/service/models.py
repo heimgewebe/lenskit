@@ -232,6 +232,22 @@ except AttributeError:
     except AttributeError:
         pass
 
+class FederationQueryRequest(BaseModel):
+    federation_index: str
+    q: str
+    k: int = 10
+    repo: Optional[str] = None
+    path: Optional[str] = None
+    ext: Optional[str] = None
+    layer: Optional[str] = None
+    artifact_type: Optional[str] = None
+    embedding_policy: Optional[str] = None
+    explain: bool = False
+    trace: bool = False
+    build_context_bundle: bool = False
+    output_profile: Optional[str] = None
+    stale_policy: str = "warn"
+
 class PrescanResponse(BaseModel):
     root: str
     tree: PrescanNode
