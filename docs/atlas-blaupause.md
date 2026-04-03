@@ -884,7 +884,7 @@ Ziel: Große Roots effizient aktualisierbar machen.
 
 ### Phase 4 — Suchschicht
 Ziel: Dateien und Inhalte systemweit abfragbar machen.
-- [~] SQLite-FTS evaluieren und festziehen
+- [ ] SQLite-FTS evaluieren und festziehen (teilweise: FTS5 technologisch inChunks bestätigt, aber in Atlas-Suche unvollständig)
   - *Architekturnotiz: FTS5 ist technologisch bestätigt (bereits für Chunks im Einsatz) und performant (Context7). Die Atlas-spezifische Integration ist jedoch unvollständig: `search.py` nutzt aktuell noch lineares Scannen der JSONL-Inventare. Das erforderliche Integrationsdesign ist in `docs/architecture/atlas-fts-integration.md` konzipiert; die dort benannten offenen Entscheidungen müssen vor einer vollständigen Markierung als `[x]` verbindlich entschieden werden.*
 - [x] Metadaten-Suchschema definieren
 - [x] Path-Search implementieren
