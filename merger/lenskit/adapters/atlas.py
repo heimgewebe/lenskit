@@ -629,8 +629,7 @@ class AtlasScanner:
                         stat = f_path.stat()
                         size = stat.st_size
 
-                        if self.max_file_size is not None and size > self.max_file_size:
-                            continue
+                        is_huge = self.max_file_size is not None and size > self.max_file_size
 
                         mtime = stat.st_mtime
                         ext = f_path.suffix.lower()
@@ -690,7 +689,7 @@ class AtlasScanner:
                                     if "is_text" in prev_entry:
                                         is_txt = prev_entry["is_text"]
                                         self.stats["incremental"]["skipped_analysis_count"] += 1
-                                    if self.enable_content_stats:
+                                    if self.enable_content_stats and not is_huge:
                                         if "mime_type" in prev_entry:
                                             mime_type = prev_entry["mime_type"]
                                         if "encoding" in prev_entry:
@@ -700,7 +699,7 @@ class AtlasScanner:
                                 if "quick_hash" in prev_entry and not file_hash:
                                     file_hash = prev_entry["quick_hash"]
 
-                        if self.enable_content_stats:
+                        if self.enable_content_stats and not is_huge:
                             # 1. Determine or reuse MIME type
                             if not is_reused or mime_type is None or self.config_changed:
                                 mime_type = detect_mime_type(f_path)
@@ -732,7 +731,7 @@ class AtlasScanner:
                                 large_files.append({"path": f_rel, "size": size})
 
                         # Conditionally generate quick_hash for small files if not reused and not yet computed
-                        if not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
+                        if not is_huge and not file_hash and size < 1024 * 1024 and size > 0 and not is_sym:
                             try:
                                 with f_path.open("rb") as hf:
                                     hf.seek(0)
@@ -784,7 +783,7 @@ class AtlasScanner:
 
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
-                            if self.enable_content_stats:
+                            if self.enable_content_stats and not is_huge:
                                 if is_txt is not None:
                                     entry["is_text"] = is_txt
                                 if mime_type is not None:
