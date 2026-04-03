@@ -179,16 +179,16 @@ def build_agent_query_session(
         try:
             if trace_path.exists():
                 integrity["query_trace_sha256"] = hashlib.sha256(trace_path.read_bytes()).hexdigest()
-        except OSError:
-            pass
+        except OSError as e:
+            logger.warning("Failed to compute SHA256 for query trace at %s: %s", trace_path, e)
 
     if context_bundle_ref:
         bundle_path = base_dir / context_bundle_ref
         try:
             if bundle_path.exists():
                 integrity["context_bundle_sha256"] = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
-        except OSError:
-            pass
+        except OSError as e:
+            logger.warning("Failed to compute SHA256 for context bundle at %s: %s", bundle_path, e)
 
     try:
         lenskit_version = importlib.metadata.version("lenskit")

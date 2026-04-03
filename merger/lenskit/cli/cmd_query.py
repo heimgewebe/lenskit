@@ -87,6 +87,10 @@ def run_query(args: argparse.Namespace) -> int:
         if getattr(args, "trace", False) and "query_trace" in result:
             out_dir_str = getattr(args, "trace_out_dir", None)
             out_dir = Path(out_dir_str) if out_dir_str else Path.cwd()
+
+            if out_dir.exists() and not out_dir.is_dir():
+                raise RuntimeError(f"--trace-out-dir path exists but is not a directory: {out_dir}")
+
             if not out_dir.exists():
                 out_dir.mkdir(parents=True, exist_ok=True)
 

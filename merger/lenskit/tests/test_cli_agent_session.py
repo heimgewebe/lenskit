@@ -135,3 +135,33 @@ def test_agent_session_trace_out_dir(mini_index, tmp_path):
     import hashlib
     expected_hash = hashlib.sha256(trace_path.read_bytes()).hexdigest()
     assert session["refs"]["integrity"]["query_trace_sha256"] == expected_hash
+
+def test_agent_session_trace_out_dir_is_file(mini_index, tmp_path):
+    # Create a file where the directory should be
+    bad_dir = tmp_path / "not_a_dir"
+    bad_dir.write_text("i am a file")
+
+    args = argparse.Namespace(
+        index=str(mini_index),
+        q="hello",
+        k=1,
+        repo=None, path=None, ext=None, layer=None, artifact_type=None,
+        emit="json",
+        stale_policy="ignore",
+        embedding_policy=None,
+        explain=True,
+        graph_index=None,
+        graph_weights=None,
+        test_penalty=0.75,
+        output_profile="agent_minimal",
+        context_window_lines=0,
+        context_mode="exact",
+        build_context_bundle=False,
+        overmatch_guard=False,
+        trace=True,
+        trace_out_dir=str(bad_dir)
+    )
+
+    ret = cmd_query.run_query(args)
+    # The CLI catches RuntimeError and prints to stderr, returning 1
+    assert ret == 1

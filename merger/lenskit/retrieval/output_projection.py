@@ -12,9 +12,9 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
     - Case 3 (Profile + Diagnostics/Guardrails): Returns a wrapper {"context_bundle": ..., ...}
       to ensure the strict Context-Bundle schema is not violated.
       Wrapper is created if at least one applies:
-        - trace vorhanden ('query_trace' in result)
-        - federation_conflicts nicht leer
-        - warnings nicht leer
+        - query_trace is present
+        - federation_conflicts is non-empty
+        - warnings is non-empty
 
     Args:
         result: The raw evaluation result from `execute_query`.
@@ -50,9 +50,9 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
 
         # The bundle schema forbids additional top-level properties.
         # Wrapper is created if at least one applies:
-        # - trace vorhanden ('query_trace' in result)
-        # - federation_conflicts nicht leer
-        # - warnings nicht leer
+        # - query_trace is present
+        # - federation_conflicts is non-empty
+        # - warnings is non-empty
         wrapper = {"context_bundle": bundle}
         needs_wrapper = False
 
