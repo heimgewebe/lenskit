@@ -901,9 +901,11 @@ Ziel: Dateien und Inhalte systemweit abfragbar machen.
 ### Phase 5 — Inhaltsanreicherung
 Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überladen.
 
+*(Konvention: Checkboxes markieren vollständig gehärtete Umsetzung. „implementiert“ bedeutet funktional vorhanden, aber noch nicht abgeschlossen.)*
+
 *(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
 
-- [ ] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback) implementiert; Robustheit und Formatabdeckung noch unvollständig
+- [ ] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback) implementiert; noch nicht gehärtet (Robustheit und Formatabdeckung offen)
   - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
 - [ ] teilweise gehärtet: Encoding-Erkennung (kleines best-effort Set); weitere Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
   - *Semantische Notiz: `encoding` ist ein best-effort Feld basierend auf einer 4KB-Heuristik. Es wird nur für plausibel textuelle Inhalte emittiert und ist keine garantierte Klassifikation.*
