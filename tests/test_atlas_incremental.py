@@ -458,3 +458,73 @@ def test_recursive_hash_determinism_and_bubbling(tmp_path: Path):
     # Because quick_hash captures the altered byte "X".
     assert hash_child5 != hash_child1
     assert hash_root5 != hash_root1
+
+def test_incremental_scan_huge_file_behavior(tmp_path: Path):
+    root_dir = tmp_path / "test_root_huge"
+    root_dir.mkdir()
+
+    # Create a small file
+    small_file = root_dir / "small.txt"
+    small_file.write_text("Hello Small!")
+
+    # Create a file that is "huge" by our test standard (e.g. > 100 bytes)
+    huge_file = root_dir / "huge.txt"
+    huge_file.write_bytes(b"0" * 150)
+
+    inventory_file1 = tmp_path / "inventory_huge1.jsonl"
+
+    # Scan 1: Set max_file_size to 100 bytes
+    scanner1 = AtlasScanner(
+        root=root_dir,
+        snapshot_id="snap1",
+        enable_content_stats=True,
+        max_file_size=100
+    )
+    scanner1.scan(inventory_file=inventory_file1)
+
+    inv1_data = {}
+    with inventory_file1.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip(): continue
+            item = json.loads(line)
+            inv1_data[item["rel_path"]] = item
+
+    # Both files must be in the inventory
+    assert "small.txt" in inv1_data
+    assert "huge.txt" in inv1_data
+
+    # Small file should have content fields and quick_hash
+    assert "quick_hash" in inv1_data["small.txt"]
+    assert "is_text" in inv1_data["small.txt"]
+
+    # Huge file should NOT have content fields or quick_hash
+    assert "quick_hash" not in inv1_data["huge.txt"]
+    assert "is_text" not in inv1_data["huge.txt"]
+    assert "mime_type" not in inv1_data["huge.txt"]
+
+    # Scan 2: Modify the small file to become huge.
+    small_file.write_bytes(b"1" * 150)
+    # Ensure mtime updates for incremental check
+    old_mtime = small_file.stat().st_mtime
+    os.utime(small_file, (old_mtime + 10.0, old_mtime + 10.0))
+
+    inventory_file2 = tmp_path / "inventory_huge2.jsonl"
+    scanner2 = AtlasScanner(
+        root=root_dir,
+        snapshot_id="snap2",
+        enable_content_stats=True,
+        max_file_size=100,
+        incremental_inventory=inventory_file1
+    )
+    scanner2.scan(inventory_file=inventory_file2)
+
+    inv2_data = {}
+    with inventory_file2.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip(): continue
+            item = json.loads(line)
+            inv2_data[item["rel_path"]] = item
+
+    # The formerly small file is now huge. It should not inherit the old quick_hash.
+    assert "quick_hash" not in inv2_data["small.txt"], "quick_hash was improperly reused for a file that became huge"
+    assert "is_text" not in inv2_data["small.txt"], "is_text was improperly reused for a file that became huge"
