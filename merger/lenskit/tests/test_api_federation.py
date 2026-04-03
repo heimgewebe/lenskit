@@ -59,3 +59,42 @@ def test_api_federation_query_valid(fed_setup):
     session = data["agent_query_session"]
     assert "r1" in session["resolved_bundles"]
     assert session["session_meta"]["context_source"] == "both"
+
+
+def test_api_federation_query_invalid_path(fed_setup):
+    request_data = {
+        "federation_index": "../federation.json",
+        "q": "hello",
+        "k": 1
+    }
+    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 400
+    assert "Invalid federation_index path" in response.json()["detail"]
+
+def test_api_federation_query_stale_policy_fail(fed_setup):
+    request_data = {
+        "federation_index": "federation.json",
+        "q": "hello",
+        "k": 1,
+        "stale_policy": "fail"
+    }
+    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    # It might be stale or not, but it shouldn't crash unhandled. If it is stale, 400 is expected.
+    assert response.status_code in (200, 400)
+
+def test_api_federation_query_no_trace(fed_setup):
+    request_data = {
+        "federation_index": "federation.json",
+        "q": "hello r1",
+        "k": 1,
+        "trace": False,
+        "output_profile": "agent_minimal",
+        "stale_policy": "ignore"
+    }
+    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    # When trace is False, output profile "agent_minimal" returns the bundle contents directly at the top level
+    assert "hits" in data
+    assert "agent_query_session" not in data

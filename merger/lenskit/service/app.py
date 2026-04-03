@@ -454,11 +454,26 @@ def api_federation_query(request: FederationQueryRequest):
     if not state.hub:
         raise HTTPException(status_code=400, detail="Hub not configured")
 
+    def _is_safe_filename(name: str) -> bool:
+        if not name or name in {".", ".."}:
+            return False
+        if "/" in name or "\\" in name or ":" in name:
+            return False
+        p = Path(name)
+        return p.name == name and not p.is_absolute()
+
+    if not _is_safe_filename(request.federation_index):
+        raise HTTPException(status_code=400, detail="Invalid federation_index path")
+
     merges_dir = state.merges_dir or get_merges_dir(state.hub)
     fed_index_path = merges_dir / request.federation_index
 
     if not fed_index_path.exists():
         raise HTTPException(status_code=404, detail="Federation index not found")
+
+    is_stale = check_stale_index(fed_index_path, stale_policy=request.stale_policy)
+    if is_stale and request.stale_policy == "fail":
+        raise HTTPException(status_code=400, detail="Federation index is stale")
 
     applied_filters = {
         "repo": request.repo,
@@ -467,14 +482,6 @@ def api_federation_query(request: FederationQueryRequest):
         "layer": request.layer,
         "artifact_type": request.artifact_type
     }
-
-    def _is_safe_filename(name: str) -> bool:
-        if not name or name in {".", ".."}:
-            return False
-        if "/" in name or "\\" in name or ":" in name:
-            return False
-        p = Path(name)
-        return p.name == name and not p.is_absolute()
 
     policy_instance = None
     if request.embedding_policy:
