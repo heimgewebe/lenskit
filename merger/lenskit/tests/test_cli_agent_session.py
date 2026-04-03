@@ -136,7 +136,7 @@ def test_agent_session_trace_out_dir(mini_index, tmp_path):
     expected_hash = hashlib.sha256(trace_path.read_bytes()).hexdigest()
     assert session["refs"]["integrity"]["query_trace_sha256"] == expected_hash
 
-def test_agent_session_trace_out_dir_is_file(mini_index, tmp_path):
+def test_agent_session_trace_out_dir_is_file(mini_index, tmp_path, capsys):
     # Create a file where the directory should be
     bad_dir = tmp_path / "not_a_dir"
     bad_dir.write_text("i am a file")
@@ -165,3 +165,7 @@ def test_agent_session_trace_out_dir_is_file(mini_index, tmp_path):
     ret = cmd_query.run_query(args)
     # The CLI catches RuntimeError and prints to stderr, returning 1
     assert ret == 1
+
+    captured = capsys.readouterr()
+    assert "--trace-out-dir" in captured.err
+    assert "not a directory" in captured.err

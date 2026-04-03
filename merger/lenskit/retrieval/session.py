@@ -1,4 +1,3 @@
-from pathlib import Path
 """
 Agent query session builder.
 
@@ -13,6 +12,7 @@ Design notes:
   queried_bundles list. Successfully queried bundles have status "ok" or "stale"
   (stale bundles still ran the query against their potentially outdated index).
 """
+from pathlib import Path
 
 import logging
 from typing import Any, Dict, List, Optional
