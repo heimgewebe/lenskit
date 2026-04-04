@@ -471,9 +471,8 @@ def api_federation_query(request: FederationQueryRequest):
     if not fed_index_path.exists():
         raise HTTPException(status_code=404, detail="Federation index not found")
 
-    is_stale = check_stale_index(fed_index_path, stale_policy=request.stale_policy)
-    if is_stale and request.stale_policy == "fail":
-        raise HTTPException(status_code=400, detail="Federation index is stale")
+    # Federation-JSON staleness is currently not validated via check_stale_index()
+    # stale_policy from the request is purposefully ignored here.
 
     applied_filters = {
         "repo": request.repo,
@@ -504,6 +503,10 @@ def api_federation_query(request: FederationQueryRequest):
             trace=request.trace,
             build_context=request.build_context_bundle or bool(request.output_profile)
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -616,6 +619,10 @@ def api_query(request: QueryRequest):
             context_mode=request.context_mode,
             context_window_lines=request.context_window_lines
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 

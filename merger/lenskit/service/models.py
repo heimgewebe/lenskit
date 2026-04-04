@@ -245,8 +245,8 @@ class FederationQueryRequest(BaseModel):
     explain: bool = False
     trace: bool = False
     build_context_bundle: bool = False
-    output_profile: Optional[str] = None
-    stale_policy: str = "warn"
+    output_profile: Optional[Literal["human_review", "agent_minimal", "ui_navigation", "lookup_minimal", "review_context"]] = None
+    stale_policy: Literal["fail", "warn", "ignore"] = "warn"
 
 class PrescanResponse(BaseModel):
     root: str

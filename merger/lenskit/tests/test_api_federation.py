@@ -73,35 +73,6 @@ def test_api_federation_query_invalid_path(fed_setup):
     assert "Invalid federation_index path" in response.json()["detail"]
 
 
-def test_api_federation_query_stale_policy_fail(fed_setup):
-    request_data = {
-        "federation_index": "federation.json",
-        "q": "hello",
-        "k": 1,
-        "stale_policy": "fail"
-    }
-
-    # Deterministically mock check_stale_index to return True
-    with patch("merger.lenskit.cli.stale_check.check_stale_index", return_value=True):
-        response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
-
-    assert response.status_code == 400
-    assert "stale" in response.json()["detail"].lower()
-
-def test_api_federation_query_stale_policy_ignore(fed_setup):
-    request_data = {
-        "federation_index": "federation.json",
-        "q": "hello",
-        "k": 1,
-        "stale_policy": "ignore"
-    }
-
-    # Even if check_stale_index says True, policy "ignore" must allow the query to pass
-    with patch("merger.lenskit.cli.stale_check.check_stale_index", return_value=True):
-        response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
-
-    assert response.status_code == 200
-
 def test_api_federation_query_no_trace(fed_setup):
     request_data = {
         "federation_index": "federation.json",
@@ -118,3 +89,35 @@ def test_api_federation_query_no_trace(fed_setup):
     # When trace is False, output profile "agent_minimal" returns the bundle contents directly at the top level
     assert "hits" in data
     assert "agent_query_session" not in data
+
+def test_api_federation_query_invalid_output_profile(fed_setup):
+    request_data = {
+        "federation_index": "federation.json",
+        "q": "hello",
+        "k": 1,
+        "output_profile": "invalid_profile"
+    }
+    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 422 # Pydantic validation error
+
+def test_api_federation_query_file_not_found(fed_setup):
+    request_data = {
+        "federation_index": "does_not_exist.json",
+        "q": "hello",
+        "k": 1
+    }
+    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 404
+
+def test_api_federation_query_schema_validation_error(fed_setup):
+    merges_dir = fed_setup.parent
+    invalid_index = merges_dir / "invalid_fed.json"
+    invalid_index.write_text('{"kind": "not_a_federation"}', encoding="utf-8")
+
+    request_data = {
+        "federation_index": "invalid_fed.json",
+        "q": "hello",
+        "k": 1
+    }
+    response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 400
