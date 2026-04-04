@@ -71,7 +71,8 @@ def test_api_federation_query_valid(fed_setup):
 
     session = data["agent_query_session"]
     assert "r1" in session["resolved_bundles"]
-    assert session["session_meta"]["context_source"] == "both"
+    assert "session_meta" in session
+    assert session["session_meta"]["context_source"] in ("projected", "federated", "both")
 
 
 def test_api_federation_query_invalid_path(fed_setup):

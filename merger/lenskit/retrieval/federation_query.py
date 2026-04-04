@@ -234,7 +234,8 @@ def execute_federated_query(
 
 
     # Minimal projection: This currently produces only a bare-bones context_bundle
-    # structure (`query` and `hits`), without fully resolving extended context blocks.
+    # structure (`query` and `hits`) as a transport layer. This is not a fully resolved
+    # semantic bundle and does not include extended context blocks.
     if build_context:
         out["context_bundle"] = {
             "query": query_text,
