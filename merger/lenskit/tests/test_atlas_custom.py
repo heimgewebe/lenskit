@@ -83,7 +83,7 @@ def test_atlas_excludes_proc(tmp_path: Path):
     paths = []
     with open(inv_file, "r") as f:
         for line in f:
-                    paths.append(json.loads(line)["rel_path"])
+            paths.append(json.loads(line)["rel_path"])
 
     assert not any(p.startswith("proc/") or p == "proc" for p in paths), f"Root /proc was not excluded. Found: {paths}"
     assert any(p == "home/proc/notes.txt" for p in paths), f"Nested /home/proc was improperly excluded. Found: {paths}"
@@ -167,6 +167,8 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     assert entry_unlimited["rel_path"] == "big.bin"
     # Content-Analyse findet statt
     assert "is_text" in entry_unlimited
+    assert "mime_type" in entry_unlimited
+    assert "encoding" in entry_unlimited
 
 def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
     my_excludes = ["**/.custom"]
