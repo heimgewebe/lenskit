@@ -1573,6 +1573,10 @@ Wichtige Tests:
 * kein stilles Vermischen konkurrierender Wahrheiten passiert [x]
 -> Hinweis: Der aktuelle Stand bietet praktische Föderationsnutzbarkeit (Aggregation), schließt Phase 5 aber architektonisch noch nicht vollständig ab (fehlende kanonische Trace-Artefakte, echtes Identity-System, tiefes Ranking-Alignment).
 
+
+> **Epistemische Leerstelle: Federation-Staleness**
+> Die Eigenschaft `stale_policy` wird am `/api/federation/query` Endpunkt aktuell nicht unterstützt und wurde aus dem Contract (`FederationQueryRequest`) entfernt. Der Versuch, `check_stale_index` auf ein Federation-JSON anzuwenden, war fachlich falsch (da es auf SQLite-Indizes ausgelegt ist). Eine übergreifende Staleness-Architektur für föderierte Bundles ist ungelöst.
+
 ### 1.14 Gate für Phase 6
 Phase 6 darf erst beginnen, wenn die Minimalaggregation aus Phase 5 ausreichend diagnostizierbar ist:
 * federation_trace Output liefert verlässliche Bundle-Zustände (missing, stale, error)
@@ -1668,7 +1672,7 @@ Trennung:
 ### 2.8 Arbeitspaket F – Agent Traceability
 
 Ziel:
-- [~] Jede Agent-Nutzung ist nachvollziehbar (teilweise: Schema und lokaler Builder für das CLI-Artefakt `agent_query_session.json` existent und belegt; API liefert über `merger/lenskit/service/app.py` jedoch nur ein Inline-Session-Objekt nach dem v2-Contract ohne `refs`).
+- [ ] Jede Agent-Nutzung ist nachvollziehbar (offen: API liefert lediglich eine Inline-v2-Session ohne `refs`, während das vollwertige CLI-Artefakt `agent_query_session.json` im Servicepfad fehlt).
 
 Neues Artefakt: `agent_query_session.json`
 
@@ -1698,7 +1702,7 @@ Tests:
 - [x] 1. test_agent_query_contract_roundtrip
 - [x] 2. test_agent_profile_lookup_minimal
 - [x] 3. test_agent_profile_review_context
-- [~] 4. test_agent_session_trace_contains_refs (teilweise: lokaler Builder-Test vorhanden, CLI-Trace-Test vorhanden; E2E-API-Test `test_api_query_agent_session_trace` prüft nur die Existenz der Inline-Session, kann aber keine `refs` prüfen, da der API v2-Contract diese nicht enthält).
+- [ ] 4. test_agent_session_trace_contains_refs (teilweise: lokaler Builder-Test vorhanden, CLI-Trace-Test vorhanden; E2E-API-Test `test_api_query_agent_session_trace` prüft nur die Existenz der Inline-Session, kann aber keine `refs` prüfen, da der API v2-Contract diese nicht enthält).
 - [x] 5. test_agent_response_surfaces_uncertainty
 - [x] 6. test_agent_federated_conflict_warning
 
@@ -1707,8 +1711,8 @@ Tests:
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
-- [~] 5. `agent_query_session.json` (teilweise: Schema und Erzeugung des vollen Artefakts im CLI sind implementiert und testbelegt; der API-Pfad erzeugt hingegen kein separates Artefakt, sondern integriert eine minimale Session als Inline-Feld `agent_query_session`).
-- [ ] 6. service-/MCP-fähige Schnittstellenlogik
+- [ ] 5. `agent_query_session.json` (offen: das physische Artefakt mit Trace-Referenzen fehlt im API-Pfad gänzlich; es wird lediglich ein Inline-Feld `agent_query_session` v2 ergänzt).
+- [ ] 6. service-/MCP-fähige Schnittstellenlogik (offen: reiner Servicepfad /api/federation/query vorhanden, MCP-Protokoll fehlt gänzlich)
 - [ ] 7. Agent-Guardrails
 
 ### 2.13 Gate für Phase 6
@@ -1745,7 +1749,7 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [ ] **7.3 Service-Endpunkte:** /query, /context, /trace, /artifact, /federation/query, /diagnostics.
+- [ ] **7.3 Service-Endpunkte:** /query, /context, /trace, /artifact, /federation/query, /diagnostics. (teilweise: /api/federation/query vorhanden, restliche Endpunkte offen)
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
