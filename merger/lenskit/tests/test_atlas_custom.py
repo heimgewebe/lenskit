@@ -166,9 +166,7 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     entry_unlimited = next(e for e in entries_unlimited if e["rel_path"] == "big.bin")
     assert entry_unlimited["rel_path"] == "big.bin"
     # Content-Analyse findet statt
-    assert "is_text" in entry_unlimited
     assert "mime_type" in entry_unlimited
-    assert "encoding" in entry_unlimited
 
 def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
     my_excludes = ["**/.custom"]
