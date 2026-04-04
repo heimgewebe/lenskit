@@ -537,6 +537,10 @@ def execute_query(
             "count": len(results),
             "results": results
         }
+
+        # Agent Guardrail: Low evidence density
+        if k > 0 and len(results) < (k / 2.0):
+            out.setdefault("warnings", []).append("Low evidence density")
         if fts_query_str is not None:
             out["fts_query"] = fts_query_str
 

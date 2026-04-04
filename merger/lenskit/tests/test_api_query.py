@@ -622,3 +622,28 @@ def test_api_query_agent_session_no_trace(mini_index):
     # returns the bundle contents directly at the top level, without the "context_bundle" wrapper.
     assert "hits" in data
     assert "agent_query_session" not in data
+
+
+def test_api_query_guardrail_low_evidence_density(mini_index):
+    # Tests that the agent guardrail 'Low evidence density' is correctly surfaced
+    # when the number of returned hits is less than half of k.
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 10,  # Requesting 10, but mini_index only has 1 match
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "warnings" in data
+    assert "Low evidence density" in data["warnings"]
+
+    assert "context_bundle" in data
+    assert len(data["context_bundle"].get("hits", [])) == 1
