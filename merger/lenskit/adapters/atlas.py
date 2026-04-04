@@ -666,7 +666,7 @@ class AtlasScanner:
                             else:
                                 # Selective Hash for disambiguation (if size matches but mtime changed, maybe it was just touched)
                                 # Only hash if file is < 1MB to avoid heavy IO
-                                if size < 1024 * 1024 and "quick_hash" in prev_entry:
+                                if not is_huge and size < 1024 * 1024 and "quick_hash" in prev_entry:
                                     try:
                                         with f_path.open("rb") as hf:
                                             # Read first and last 4KB
