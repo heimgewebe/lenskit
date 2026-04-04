@@ -134,14 +134,40 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     big_file.write_bytes(b"0" * 2048)
 
     # 1. With a limit strictly smaller than the file, the big file should be included in the inventory but marked as huge
-    scanner = AtlasScanner(tmp_path, max_file_size=1024)
-    res = scanner.scan()
-    assert scanner.stats["total_files"] == 1
+    inv_file = tmp_path / "inv1.jsonl"
+    scanner = AtlasScanner(tmp_path, max_file_size=1024, enable_content_stats=True, snapshot_id="snap1")
+    res = scanner.scan(inventory_file=inv_file)
+
+    import json
+    entries = []
+    with open(inv_file, "r") as f:
+        for line in f:
+            entries.append(json.loads(line))
+
+    assert scanner.stats["total_files"] == len(entries)
+
+    entry = next(e for e in entries if e["rel_path"] == "big.bin")
+    assert entry["rel_path"] == "big.bin"
+    # Content-Analyse bleibt ausgespart
+    assert "is_text" not in entry
+    assert "quick_hash" not in entry
 
     # 2. With no limit (None), the big file should be included
-    scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None)
-    res_unlimited = scanner_unlimited.scan()
-    assert scanner_unlimited.stats["total_files"] == 1
+    inv_file_unlimited = tmp_path / "inv2.jsonl"
+    scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None, enable_content_stats=True, snapshot_id="snap2")
+    res_unlimited = scanner_unlimited.scan(inventory_file=inv_file_unlimited)
+
+    entries_unlimited = []
+    with open(inv_file_unlimited, "r") as f:
+        for line in f:
+            entries_unlimited.append(json.loads(line))
+
+    assert scanner_unlimited.stats["total_files"] == len(entries_unlimited)
+
+    entry_unlimited = next(e for e in entries_unlimited if e["rel_path"] == "big.bin")
+    assert entry_unlimited["rel_path"] == "big.bin"
+    # Content-Analyse findet statt
+    assert "is_text" in entry_unlimited
 
 def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
     my_excludes = ["**/.custom"]
