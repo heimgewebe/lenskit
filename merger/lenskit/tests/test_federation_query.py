@@ -475,3 +475,22 @@ def test_execute_federated_query_handles_query_error(federated_setup, monkeypatc
     assert trace["queried_bundles_effective"] == 1
     # Ein Bundle liefert Ergebnisse
     assert res["count"] > 0
+
+def test_execute_federated_query_trace_behavior(federated_setup):
+    from merger.lenskit.retrieval.federation_query import execute_federated_query
+
+    # Prove trace=False correctly omits federation_trace at the source
+    res_no_trace = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="foo",
+        trace=False
+    )
+    assert "federation_trace" not in res_no_trace
+
+    # Prove trace=True correctly includes federation_trace
+    res_with_trace = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="foo",
+        trace=True
+    )
+    assert "federation_trace" in res_with_trace

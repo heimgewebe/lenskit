@@ -508,9 +508,6 @@ def api_federation_query(request: FederationQueryRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    if not request.trace:
-        result.pop("federation_trace", None)
-
     projected = project_output(result, request.output_profile)
 
     if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
@@ -622,9 +619,6 @@ def api_query(request: QueryRequest):
         raise HTTPException(status_code=404, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    if not request.trace:
-        result.pop("federation_trace", None)
 
     projected = project_output(result, request.output_profile)
     # The projected output can be the raw bundle or a wrapper object.
