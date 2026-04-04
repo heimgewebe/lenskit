@@ -133,10 +133,10 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     # Create a real file that is e.g. 2048 bytes
     big_file.write_bytes(b"0" * 2048)
 
-    # 1. With a limit strictly smaller than the file, the big file should be skipped
+    # 1. With a limit strictly smaller than the file, the big file should be included in the inventory but marked as huge
     scanner = AtlasScanner(tmp_path, max_file_size=1024)
     res = scanner.scan()
-    assert scanner.stats["total_files"] == 0
+    assert scanner.stats["total_files"] == 1
 
     # 2. With no limit (None), the big file should be included
     scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None)
