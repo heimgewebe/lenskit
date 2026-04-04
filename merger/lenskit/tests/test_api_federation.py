@@ -100,6 +100,8 @@ def test_api_federation_query_no_trace(fed_setup):
     data = response.json()
     # When trace is False, output profile "agent_minimal" returns the bundle contents directly at the top level
     assert "hits" in data
+    assert "context_bundle" not in data
+    assert "federation_trace" not in data
     assert "agent_query_session" not in data
 
 def test_api_federation_query_invalid_output_profile(fed_setup):
