@@ -1672,7 +1672,7 @@ Trennung:
 ### 2.8 Arbeitspaket F – Agent Traceability
 
 Ziel:
-- [ ] Jede Agent-Nutzung ist nachvollziehbar (teilweise: Schema und lokaler Builder für das CLI-Artefakt `agent_query_session.json` existent und belegt; API liefert über `merger/lenskit/service/app.py` jedoch nur ein Inline-Session-Objekt nach dem v2-Contract ohne `refs`).
+- [ ] Jede Agent-Nutzung ist nachvollziehbar (offen: API liefert lediglich eine Inline-v2-Session ohne `refs`, während das vollwertige CLI-Artefakt `agent_query_session.json` im Servicepfad fehlt).
 
 Neues Artefakt: `agent_query_session.json`
 
@@ -1711,7 +1711,7 @@ Tests:
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
-- [ ] 5. `agent_query_session.json` (teilweise: Schema und Erzeugung des vollen Artefakts im CLI sind implementiert und testbelegt; der API-Pfad erzeugt hingegen kein separates Artefakt, sondern integriert eine minimale Session als Inline-Feld `agent_query_session`).
+- [ ] 5. `agent_query_session.json` (offen: das physische Artefakt mit Trace-Referenzen fehlt im API-Pfad gänzlich; es wird lediglich ein Inline-Feld `agent_query_session` v2 ergänzt).
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik (offen: reiner Servicepfad /api/federation/query vorhanden, MCP-Protokoll fehlt gänzlich)
 - [ ] 7. Agent-Guardrails
 

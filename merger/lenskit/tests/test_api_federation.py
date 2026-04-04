@@ -57,11 +57,14 @@ def test_api_federation_query_valid(fed_setup):
     assert "federation_trace" in data
     assert "agent_query_session" in data
     assert "hits" not in data  # hits must be strictly inside context_bundle
+    assert "query_trace" not in data  # Federation trace replaces query trace entirely at top level
 
     bundle = data["context_bundle"]
     assert "hits" in bundle
 
     # Verify agent_minimal projection acted on federation hits
+    # Note: `agent_minimal` projection applies only to existing fields on the federated hits structure.
+    # It does not construct full semantic bundle context, only strips what exists.
     if len(bundle["hits"]) > 0:
         hit = bundle["hits"][0]
         assert "explain" not in hit  # stripped by agent_minimal
