@@ -447,7 +447,6 @@ def api_prescan(request: PrescanRequest):
 def api_federation_query(request: FederationQueryRequest):
     from ..retrieval.federation_query import execute_federated_query
     from ..retrieval.output_projection import project_output
-    from ..cli.stale_check import check_stale_index
     from ..cli.policy_loader import load_and_validate_embedding_policy, EmbeddingPolicyError
     from ..retrieval.session import build_agent_query_session_v2
 
@@ -471,8 +470,6 @@ def api_federation_query(request: FederationQueryRequest):
     if not fed_index_path.exists():
         raise HTTPException(status_code=404, detail="Federation index not found")
 
-    # Federation-JSON staleness is currently not validated via check_stale_index()
-    # stale_policy from the request is purposefully ignored here.
 
     applied_filters = {
         "repo": request.repo,

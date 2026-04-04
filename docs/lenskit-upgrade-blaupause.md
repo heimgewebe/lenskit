@@ -1573,6 +1573,10 @@ Wichtige Tests:
 * kein stilles Vermischen konkurrierender Wahrheiten passiert [x]
 -> Hinweis: Der aktuelle Stand bietet praktische Föderationsnutzbarkeit (Aggregation), schließt Phase 5 aber architektonisch noch nicht vollständig ab (fehlende kanonische Trace-Artefakte, echtes Identity-System, tiefes Ranking-Alignment).
 
+
+> **Epistemische Leerstelle: Federation-Staleness**
+> Die Eigenschaft `stale_policy` wird am `/api/federation/query` Endpunkt aktuell nicht unterstützt und wurde aus dem Contract (`FederationQueryRequest`) entfernt. Der Versuch, `check_stale_index` auf ein Federation-JSON anzuwenden, war fachlich falsch (da es auf SQLite-Indizes ausgelegt ist). Eine übergreifende Staleness-Architektur für föderierte Bundles ist ungelöst.
+
 ### 1.14 Gate für Phase 6
 Phase 6 darf erst beginnen, wenn die Minimalaggregation aus Phase 5 ausreichend diagnostizierbar ist:
 * federation_trace Output liefert verlässliche Bundle-Zustände (missing, stale, error)

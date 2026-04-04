@@ -1,4 +1,3 @@
-from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from pathlib import Path
@@ -47,7 +46,6 @@ def test_api_federation_query_valid(fed_setup):
         "explain": True,
         "trace": True,
         "output_profile": "agent_minimal",
-        "stale_policy": "ignore"
     }
 
     response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
@@ -80,7 +78,6 @@ def test_api_federation_query_no_trace(fed_setup):
         "k": 1,
         "trace": False,
         "output_profile": "agent_minimal",
-        "stale_policy": "ignore"
     }
     response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
     assert response.status_code == 200
