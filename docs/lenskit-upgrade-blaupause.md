@@ -1672,7 +1672,7 @@ Trennung:
 ### 2.8 Arbeitspaket F – Agent Traceability
 
 Ziel:
-- [~] Jede Agent-Nutzung ist nachvollziehbar (teilweise: Schema und lokaler Builder für das CLI-Artefakt `agent_query_session.json` existent und belegt; API liefert über `merger/lenskit/service/app.py` jedoch nur ein Inline-Session-Objekt nach dem v2-Contract ohne `refs`).
+- [ ] Jede Agent-Nutzung ist nachvollziehbar (teilweise: Schema und lokaler Builder für das CLI-Artefakt `agent_query_session.json` existent und belegt; API liefert über `merger/lenskit/service/app.py` jedoch nur ein Inline-Session-Objekt nach dem v2-Contract ohne `refs`).
 
 Neues Artefakt: `agent_query_session.json`
 
@@ -1702,7 +1702,7 @@ Tests:
 - [x] 1. test_agent_query_contract_roundtrip
 - [x] 2. test_agent_profile_lookup_minimal
 - [x] 3. test_agent_profile_review_context
-- [~] 4. test_agent_session_trace_contains_refs (teilweise: lokaler Builder-Test vorhanden, CLI-Trace-Test vorhanden; E2E-API-Test `test_api_query_agent_session_trace` prüft nur die Existenz der Inline-Session, kann aber keine `refs` prüfen, da der API v2-Contract diese nicht enthält).
+- [ ] 4. test_agent_session_trace_contains_refs (teilweise: lokaler Builder-Test vorhanden, CLI-Trace-Test vorhanden; E2E-API-Test `test_api_query_agent_session_trace` prüft nur die Existenz der Inline-Session, kann aber keine `refs` prüfen, da der API v2-Contract diese nicht enthält).
 - [x] 5. test_agent_response_surfaces_uncertainty
 - [x] 6. test_agent_federated_conflict_warning
 
@@ -1711,8 +1711,8 @@ Tests:
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
-- [~] 5. `agent_query_session.json` (teilweise: Schema und Erzeugung des vollen Artefakts im CLI sind implementiert und testbelegt; der API-Pfad erzeugt hingegen kein separates Artefakt, sondern integriert eine minimale Session als Inline-Feld `agent_query_session`).
-- [~] 6. service-/MCP-fähige Schnittstellenlogik (federation query hinzugefügt)
+- [ ] 5. `agent_query_session.json` (teilweise: Schema und Erzeugung des vollen Artefakts im CLI sind implementiert und testbelegt; der API-Pfad erzeugt hingegen kein separates Artefakt, sondern integriert eine minimale Session als Inline-Feld `agent_query_session`).
+- [ ] 6. service-/MCP-fähige Schnittstellenlogik (teilweise: /api/federation/query als reiner Servicepfad ohne expliziten MCP-Anspruch hinzugefügt)
 - [ ] 7. Agent-Guardrails
 
 ### 2.13 Gate für Phase 6
@@ -1749,7 +1749,7 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [~] **7.3 Service-Endpunkte:** /query, /context, /trace, /artifact, /federation/query, /diagnostics.
+- [ ] **7.3 Service-Endpunkte:** /query, /context, /trace, /artifact, /federation/query, /diagnostics. (teilweise: /api/federation/query vorhanden, restliche Endpunkte offen)
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:

@@ -443,6 +443,14 @@ def api_prescan(request: PrescanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _is_safe_filename(name: str) -> bool:
+    if not name or name in {".", ".."}:
+        return False
+    if "/" in name or "\\" in name or ":" in name:
+        return False
+    p = Path(name)
+    return p.name == name and not p.is_absolute()
+
 @app.post("/api/federation/query", dependencies=[Depends(verify_token)])
 def api_federation_query(request: FederationQueryRequest):
     from ..retrieval.federation_query import execute_federated_query
@@ -453,13 +461,6 @@ def api_federation_query(request: FederationQueryRequest):
     if not state.hub:
         raise HTTPException(status_code=400, detail="Hub not configured")
 
-    def _is_safe_filename(name: str) -> bool:
-        if not name or name in {".", ".."}:
-            return False
-        if "/" in name or "\\" in name or ":" in name:
-            return False
-        p = Path(name)
-        return p.name == name and not p.is_absolute()
 
     if not _is_safe_filename(request.federation_index):
         raise HTTPException(status_code=400, detail="Invalid federation_index path")
@@ -560,13 +561,6 @@ def api_query(request: QueryRequest):
         "artifact_type": request.artifact_type
     }
 
-    def _is_safe_filename(name: str) -> bool:
-        if not name or name in {".", ".."}:
-            return False
-        if "/" in name or "\\" in name or ":" in name:
-            return False
-        p = Path(name)
-        return p.name == name and not p.is_absolute()
 
     policy_instance = None
     if request.embedding_policy:
