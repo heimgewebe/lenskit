@@ -623,7 +623,7 @@ def test_api_query_agent_session_no_trace(mini_index):
     assert "hits" in data
     assert "agent_query_session" not in data
 
-def test_api_agent_session_trace_contains_refs(mini_index):
+def test_api_query_trace_includes_agent_session(mini_index):
     art = setup_test_artifact(mini_index)
 
     request_data = {
@@ -651,4 +651,4 @@ def test_api_agent_session_trace_contains_refs(mini_index):
     assert session["query"] == "hello"
     assert "hits_count" in session
 
-    # The API version generates this inline without saving to disk right now, so checking refs is good enough.
+    # The API version generates this inline without saving to disk right now, so checking these core fields is good enough.
