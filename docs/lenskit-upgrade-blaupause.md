@@ -1668,7 +1668,7 @@ Trennung:
 ### 2.8 Arbeitspaket F – Agent Traceability
 
 Ziel:
-- [x] Jede Agent-Nutzung ist nachvollziehbar (mit folgenden Grenzen: API liefert Inline-Session statt separatem Artefakt).
+- [x] Agent-Nutzung ist im CLI und im getesteten API-Trace-Pfad nachvollziehbar (mit folgenden Grenzen: API liefert Inline-Session in Wrapper-Antworten statt separatem Artefakt).
 
 Neues Artefakt: `agent_query_session.json`
 
