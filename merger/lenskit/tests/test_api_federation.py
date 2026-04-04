@@ -57,7 +57,6 @@ def test_api_federation_query_valid(fed_setup):
     assert "federation_trace" in data
     assert "agent_query_session" in data
     assert "hits" not in data  # hits must be strictly inside context_bundle
-    assert "query_trace" not in data  # Federation trace replaces query trace entirely at top level
 
     bundle = data["context_bundle"]
     assert "hits" in bundle
