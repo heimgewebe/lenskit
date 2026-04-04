@@ -1,3 +1,4 @@
+import json
 import pytest
 from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
@@ -82,8 +83,7 @@ def test_atlas_excludes_proc(tmp_path: Path):
     paths = []
     with open(inv_file, "r") as f:
         for line in f:
-            import json
-            paths.append(json.loads(line)["rel_path"])
+                    paths.append(json.loads(line)["rel_path"])
 
     assert not any(p.startswith("proc/") or p == "proc" for p in paths), f"Root /proc was not excluded. Found: {paths}"
     assert any(p == "home/proc/notes.txt" for p in paths), f"Nested /home/proc was improperly excluded. Found: {paths}"
@@ -99,7 +99,6 @@ def test_atlas_excludes_sys(tmp_path: Path):
 
     paths = []
     with open(inv_file, "r") as f:
-        import json
         for line in f:
             paths.append(json.loads(line)["rel_path"])
 
@@ -115,7 +114,6 @@ def test_atlas_override_excludes(tmp_path: Path):
 
     paths = []
     with open(inv_file, "r") as f:
-        import json
         for line in f:
             paths.append(json.loads(line)["rel_path"])
 
@@ -136,9 +134,8 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     # 1. With a limit strictly smaller than the file, the big file should be included in the inventory but marked as huge
     inv_file = tmp_path / "inv1.jsonl"
     scanner = AtlasScanner(tmp_path, max_file_size=1024, enable_content_stats=True, snapshot_id="snap1")
-    res = scanner.scan(inventory_file=inv_file)
+    scanner.scan(inventory_file=inv_file)
 
-    import json
     entries = []
     with open(inv_file, "r") as f:
         for line in f:
@@ -151,11 +148,13 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     # Content-Analyse bleibt ausgespart
     assert "is_text" not in entry
     assert "quick_hash" not in entry
+    assert "mime_type" not in entry
+    assert "encoding" not in entry
 
     # 2. With no limit (None), the big file should be included
     inv_file_unlimited = tmp_path / "inv2.jsonl"
     scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None, enable_content_stats=True, snapshot_id="snap2")
-    res_unlimited = scanner_unlimited.scan(inventory_file=inv_file_unlimited)
+    scanner_unlimited.scan(inventory_file=inv_file_unlimited)
 
     entries_unlimited = []
     with open(inv_file_unlimited, "r") as f:
