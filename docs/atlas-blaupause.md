@@ -923,10 +923,10 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 ### Phase 6 — Analyseartefakte
 Ziel: Atlas wird diagnostisch.
 - [ ] Hotspots erweitern um Growth-/Change-Achsen
-- [x] teilweise gehärtet: Duplicate Detection (size prefilter + hash confirm) (Im CLI `atlas analyze duplicates <snapshot_id>` abrufbar. Unterscheidet heuristische und bestätigte Matches, Offline-Generierung, über duplicates_ref in der Registry referenziert. Echtzeit-/Online-Erkennung noch offen.)
-- [x] teilweise gehärtet: duplicates.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter duplicates_ref hinterlegt)
-- [x] teilweise gehärtet: orphans.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter orphans_ref hinterlegt)
-- [x] teilweise gehärtet: analyze disk standardisieren (Offline-Generierung über CLI, noch unvollständige Historienauswertung)
+- [~] Duplicate Detection (size prefilter + hash confirm) (teilweise gehärtet: Im CLI `atlas analyze duplicates <snapshot_id>` abrufbar. Unterscheidet heuristische und bestätigte Matches, Offline-Generierung, über duplicates_ref in der Registry referenziert. Echtzeit-/Online-Erkennung noch offen.)
+- [x] duplicates.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter duplicates_ref hinterlegt)
+- [x] orphans.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter orphans_ref hinterlegt)
+- [~] analyze disk standardisieren (teilweise gehärtet: Offline-Generierung über CLI, noch unvollständige Historienauswertung)
 - [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
 - [x] analyze orphans implementieren (als CLI command `atlas analyze orphans <snapshot_id>`)
 - [x] Oldest-/Largest-Files-Artefakte vereinheitlichen
@@ -939,11 +939,11 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
 - [x] mehrere Machines sauber registrieren (via --machine-id/--hostname CLI flags)
 - [x] Root-Namenskonventionen zwischen Hosts vereinheitlichen
   - *Architekturnotiz: `root_label` ist nun systemisch als semantische Gruppierungsachse etabliert. Fehlende explizite Labels werden kanonisch aus dem Verzeichnisnamen generiert.*
-- [ ] teilweise gehärtet: Cross-machine snapshot diff definieren (aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
+- [~] Cross-machine snapshot diff definieren (teilweise gehärtet: aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
   - *Semantische Notiz: `atlas diff` leitet cross-root Anfragen intern auf `cross-root-comparison` um (statt strengem `same-root-delta`). Der aktuelle Vergleich ist ein strukturbezogener Metadatenabgleich (`rel_path`, `size_bytes`, `mtime`) und kein inhaltlich tief gehärteter Gleichheitsbeweis.*
-- [x] teilweise gehärtet: Backup-gap-Analyse definieren (als `atlas analyze backup-gap` CLI command)
+- [x] Backup-gap-Analyse definieren (als `atlas analyze backup-gap` CLI command)
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [x] Konfliktfälle (gleiches root label, andere Pfade) definieren
   - *Semantische Notiz: Die label-basierte Diff-Auflösung verlangt pro Maschine Eindeutigkeit. Wenn ein Label auf einer Maschine mehrdeutig ist, muss zwingend `machine:path` oder `snapshot_id` verwendet werden.*
