@@ -52,8 +52,20 @@ def test_api_federation_query_valid(fed_setup):
     assert response.status_code == 200
 
     data = response.json()
+    # Contract constraint: with trace=True and a profile, we must receive a wrapper
     assert "context_bundle" in data
+    assert "federation_trace" in data
     assert "agent_query_session" in data
+    assert "hits" not in data  # hits must be strictly inside context_bundle
+
+    bundle = data["context_bundle"]
+    assert "hits" in bundle
+
+    # Verify agent_minimal projection acted on federation hits
+    if len(bundle["hits"]) > 0:
+        hit = bundle["hits"][0]
+        assert "explain" not in hit  # stripped by agent_minimal
+        assert "graph_context" not in hit
 
     session = data["agent_query_session"]
     assert "r1" in session["resolved_bundles"]

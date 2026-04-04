@@ -1712,7 +1712,7 @@ Tests:
 - [ ] 3. bounded API/tool surface
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
 - [ ] 5. `agent_query_session.json` (teilweise: Schema und Erzeugung des vollen Artefakts im CLI sind implementiert und testbelegt; der API-Pfad erzeugt hingegen kein separates Artefakt, sondern integriert eine minimale Session als Inline-Feld `agent_query_session`).
-- [ ] 6. service-/MCP-fähige Schnittstellenlogik (teilweise: /api/federation/query als reiner Servicepfad ohne expliziten MCP-Anspruch hinzugefügt)
+- [ ] 6. service-/MCP-fähige Schnittstellenlogik (offen: reiner Servicepfad /api/federation/query vorhanden, MCP-Protokoll fehlt gänzlich)
 - [ ] 7. Agent-Guardrails
 
 ### 2.13 Gate für Phase 6
