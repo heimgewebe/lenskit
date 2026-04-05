@@ -1,3 +1,4 @@
+import json
 import pytest
 from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
@@ -80,9 +81,8 @@ def test_atlas_excludes_proc(tmp_path: Path):
 
     # Get relative paths of all files found
     paths = []
-    with open(inv_file, "r") as f:
+    with open(inv_file, "r", encoding="utf-8") as f:
         for line in f:
-            import json
             paths.append(json.loads(line)["rel_path"])
 
     assert not any(p.startswith("proc/") or p == "proc" for p in paths), f"Root /proc was not excluded. Found: {paths}"
@@ -98,8 +98,7 @@ def test_atlas_excludes_sys(tmp_path: Path):
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []
-    with open(inv_file, "r") as f:
-        import json
+    with open(inv_file, "r", encoding="utf-8") as f:
         for line in f:
             paths.append(json.loads(line)["rel_path"])
 
@@ -114,8 +113,7 @@ def test_atlas_override_excludes(tmp_path: Path):
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []
-    with open(inv_file, "r") as f:
-        import json
+    with open(inv_file, "r", encoding="utf-8") as f:
         for line in f:
             paths.append(json.loads(line)["rel_path"])
 
@@ -133,15 +131,42 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     # Create a real file that is e.g. 2048 bytes
     big_file.write_bytes(b"0" * 2048)
 
-    # 1. With a limit strictly smaller than the file, the big file should be skipped
-    scanner = AtlasScanner(tmp_path, max_file_size=1024)
-    res = scanner.scan()
-    assert scanner.stats["total_files"] == 0
+    # 1. With a limit smaller than the file, the file should still be included in the inventory, but content analysis should be skipped due to size
+    inv_file = tmp_path / "inv1.jsonl"
+    scanner = AtlasScanner(tmp_path, max_file_size=1024, enable_content_stats=True, snapshot_id="snap1")
+    scanner.scan(inventory_file=inv_file)
+
+    entries = []
+    with open(inv_file, "r", encoding="utf-8") as f:
+        for line in f:
+            entries.append(json.loads(line))
+
+    assert scanner.stats["total_files"] == len(entries)
+
+    entry = next(e for e in entries if e["rel_path"] == "big.bin")
+    assert entry["rel_path"] == "big.bin"
+    # Content analysis is skipped
+    assert "is_text" not in entry
+    assert "quick_hash" not in entry
+    assert "mime_type" not in entry
+    assert "encoding" not in entry
 
     # 2. With no limit (None), the big file should be included
-    scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None)
-    res_unlimited = scanner_unlimited.scan()
-    assert scanner_unlimited.stats["total_files"] == 1
+    inv_file_unlimited = tmp_path / "inv2.jsonl"
+    scanner_unlimited = AtlasScanner(tmp_path, max_file_size=None, enable_content_stats=True, snapshot_id="snap2")
+    scanner_unlimited.scan(inventory_file=inv_file_unlimited)
+
+    entries_unlimited = []
+    with open(inv_file_unlimited, "r", encoding="utf-8") as f:
+        for line in f:
+            entries_unlimited.append(json.loads(line))
+
+    assert scanner_unlimited.stats["total_files"] == len(entries_unlimited)
+
+    entry_unlimited = next(e for e in entries_unlimited if e["rel_path"] == "big.bin")
+    assert entry_unlimited["rel_path"] == "big.bin"
+    # Content analysis is performed
+    assert "quick_hash" in entry_unlimited
 
 def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
     my_excludes = ["**/.custom"]
