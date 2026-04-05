@@ -274,3 +274,38 @@ def test_no_mime_type_incremental_when_stats_disabled(tmp_path: Path):
 
     # The file itself should be counted as reused in terms of base file metadata
     assert scanner2.stats["incremental"]["reused_files_count"] == 1
+
+def test_atlas_is_huge_serialization(tmp_path: Path):
+    """
+    Test that is_huge is correctly serialized into the inventory
+    if the file exceeds max_file_size.
+    """
+    test_dir = tmp_path / "test_is_huge"
+    test_dir.mkdir()
+
+    # Small file
+    small_file = test_dir / "small.txt"
+    small_file.write_text("Hello")  # 5 bytes
+
+    # Huge file (for our scanner max_size = 10)
+    huge_file = test_dir / "huge.txt"
+    huge_file.write_text("This is definitely larger than ten bytes.")  # 41 bytes
+
+    inv_file = tmp_path / "inventory.jsonl"
+
+    scanner = AtlasScanner(
+        root=test_dir,
+        snapshot_id="test_snap",
+        enable_content_stats=True,
+        max_file_size=10
+    )
+    scanner.scan(inventory_file=inv_file)
+
+    results = {}
+    with inv_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            entry = json.loads(line)
+            results[entry["name"]] = entry
+
+    assert results["huge.txt"].get("is_huge") is True
+    assert "is_huge" not in results["small.txt"]

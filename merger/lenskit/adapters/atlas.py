@@ -783,6 +783,8 @@ class AtlasScanner:
 
                             if self.snapshot_id:
                                 entry["snapshot_id"] = self.snapshot_id
+                            if is_huge:
+                                entry["is_huge"] = True
                             if self.enable_content_stats and not is_huge:
                                 if is_txt is not None:
                                     entry["is_text"] = is_txt

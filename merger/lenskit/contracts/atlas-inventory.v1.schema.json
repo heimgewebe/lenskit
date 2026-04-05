@@ -74,6 +74,10 @@
     "permissions": {
       "type": "string",
       "description": "Optional file permissions."
+    },
+    "is_huge": {
+      "type": "boolean",
+      "description": "Optional boolean indicating whether the file size exceeded max_file_size during scan."
     }
   }
 }
