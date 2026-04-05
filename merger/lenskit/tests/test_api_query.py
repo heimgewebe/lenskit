@@ -700,4 +700,6 @@ def test_api_query_trace_includes_agent_session(mini_index):
     assert session["query"] == "hello"
     assert "hits_count" in session
 
-    # Der Test belegt explizit die Generierung der Inline-v2-Session im API-Trace-Pfad.\n    # Er validiert nicht den CLI-v1-Artefakt-Contract (inkl. `refs`), da die API\n    # diese strukturell nicht ausgibt.
+    # Der Test belegt explizit die Generierung der Inline-v2-Session im API-Trace-Pfad.
+    # Er validiert nicht den CLI-v1-Artefakt-Contract (inkl. `refs`), da die API
+    # diese strukturell nicht ausgibt.
