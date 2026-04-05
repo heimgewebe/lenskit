@@ -670,3 +670,34 @@ def test_api_query_guardrail_sufficient_coverage(mini_index):
     # The warnings key might not exist, or if it does, it should not contain the specific warning
     warnings = data.get("warnings", [])
     assert "Low result coverage" not in warnings
+
+def test_api_query_trace_includes_agent_session(mini_index):
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "explain": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data
+    assert "agent_query_session" in data
+    session = data["agent_query_session"]
+
+    assert "resolved_bundles" in session
+    assert "r1" in session["resolved_bundles"]
+
+    # Contract schema tests can be minimal
+    assert "query" in session
+    assert session["query"] == "hello"
+    assert "hits_count" in session
+
+    # The API version generates this inline without saving to disk right now, so checking these core fields is good enough.
