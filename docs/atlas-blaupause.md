@@ -915,7 +915,7 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
-- [x] Binary-/Huge-file-Strategie klären (Dateien oberhalb von `max_file_size` werden im Inventar erfasst; Content-Analyse bleibt ausgespart. Grundverhalten und Incremental-Reuse (Transition small->huge sowie Config-Wechsel) sind getestet.)
+- [~] Binary-/Huge-file-Strategie klären (Dateien oberhalb von `max_file_size` werden im Inventar erfasst; Content-Analyse bleibt ausgespart. Incremental-Reuse-Verhalten (Transition small->huge sowie Config-Wechsel) ist implementiert und getestet. Offen: formale Semantik (z. B. `is_huge`), Abgrenzung zu Binary-Dateien, Grenzfalldefinitionen (size == max_file_size, huge->small transition) sowie Policy-Ebene.)
 - [x] Tests für modeabhängige Inhaltsfelder ergänzen (vorheriger `test_atlas_content_fields.py` war methodisch zu dünn)
 
 **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
