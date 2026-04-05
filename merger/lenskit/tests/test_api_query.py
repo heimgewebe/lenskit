@@ -647,3 +647,26 @@ def test_api_query_guardrail_low_result_coverage(mini_index):
 
     assert "context_bundle" in data
     assert len(data["context_bundle"].get("hits", [])) == 1
+
+
+def test_api_query_guardrail_sufficient_coverage(mini_index):
+    # Tests that the agent guardrail 'Low result coverage' is NOT surfaced
+    # when the number of returned hits is equal to or greater than half of k.
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 2,  # Requesting 2, mini_index has 1 match, 1 >= (2/2)
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "stale_policy": "ignore"
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    # The warnings key might not exist, or if it does, it should not contain the specific warning
+    warnings = data.get("warnings", [])
+    assert "Low result coverage" not in warnings
