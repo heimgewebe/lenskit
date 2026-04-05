@@ -537,6 +537,13 @@ def execute_query(
             "count": len(results),
             "results": results
         }
+
+        # Agent Guardrail: Low result coverage
+        # Note: This is currently just a simple quantity heuristic
+        # (returned hits relative to requested k), not a true
+        # evaluation of evidence density or quality.
+        if k > 0 and len(results) < (k / 2.0):
+            out.setdefault("warnings", []).append("Low result coverage")
         if fts_query_str is not None:
             out["fts_query"] = fts_query_str
 
