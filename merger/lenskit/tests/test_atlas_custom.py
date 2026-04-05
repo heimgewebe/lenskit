@@ -81,7 +81,7 @@ def test_atlas_excludes_proc(tmp_path: Path):
 
     # Get relative paths of all files found
     paths = []
-    with open(inv_file, "r") as f:
+    with open(inv_file, "r", encoding="utf-8") as f:
         for line in f:
             paths.append(json.loads(line)["rel_path"])
 
@@ -98,7 +98,7 @@ def test_atlas_excludes_sys(tmp_path: Path):
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []
-    with open(inv_file, "r") as f:
+    with open(inv_file, "r", encoding="utf-8") as f:
         for line in f:
             paths.append(json.loads(line)["rel_path"])
 
@@ -113,7 +113,7 @@ def test_atlas_override_excludes(tmp_path: Path):
     result = scanner.scan(inventory_file=inv_file)
 
     paths = []
-    with open(inv_file, "r") as f:
+    with open(inv_file, "r", encoding="utf-8") as f:
         for line in f:
             paths.append(json.loads(line)["rel_path"])
 
@@ -131,13 +131,13 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     # Create a real file that is e.g. 2048 bytes
     big_file.write_bytes(b"0" * 2048)
 
-    # 1. With a limit strictly smaller than the file, the big file should be included in the inventory but marked as huge
+    # 1. With a limit smaller than the file, the file should still be included in the inventory, but content analysis should be skipped due to size
     inv_file = tmp_path / "inv1.jsonl"
     scanner = AtlasScanner(tmp_path, max_file_size=1024, enable_content_stats=True, snapshot_id="snap1")
     scanner.scan(inventory_file=inv_file)
 
     entries = []
-    with open(inv_file, "r") as f:
+    with open(inv_file, "r", encoding="utf-8") as f:
         for line in f:
             entries.append(json.loads(line))
 
@@ -145,7 +145,7 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
 
     entry = next(e for e in entries if e["rel_path"] == "big.bin")
     assert entry["rel_path"] == "big.bin"
-    # Content-Analyse bleibt ausgespart
+    # Content analysis is skipped
     assert "is_text" not in entry
     assert "quick_hash" not in entry
     assert "mime_type" not in entry
@@ -157,7 +157,7 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     scanner_unlimited.scan(inventory_file=inv_file_unlimited)
 
     entries_unlimited = []
-    with open(inv_file_unlimited, "r") as f:
+    with open(inv_file_unlimited, "r", encoding="utf-8") as f:
         for line in f:
             entries_unlimited.append(json.loads(line))
 
@@ -165,7 +165,7 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
 
     entry_unlimited = next(e for e in entries_unlimited if e["rel_path"] == "big.bin")
     assert entry_unlimited["rel_path"] == "big.bin"
-    # Content-Analyse findet statt
+    # Content analysis is performed
     assert "mime_type" in entry_unlimited
 
 def test_atlas_exclude_globs_no_mutation(tmp_path: Path):
