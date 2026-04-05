@@ -163,7 +163,7 @@ def test_agent_federated_conflict_warning():
                 "involved_results": ["1"]
             }
         ],
-        "warnings": ["Low evidence density"]
+        "warnings": ["Low result coverage"]
     }
 
     # Contract says if federation_conflicts or warnings are present, it returns a wrapper

@@ -35,9 +35,18 @@ def test_agent_session_schema_valid():
         "refs": {
             "query_trace_ref": "traces/trace_123.json",
             "context_bundle_ref": "bundles/bundle_123.json",
-            "diagnostics_ref": None
+            "diagnostics_ref": None,
+            "integrity": {
+                "query_trace_sha256": "abcdef",
+                "context_bundle_sha256": "123456"
+            }
         },
-        "warnings": ["Low evidence density"]
+        "environment": {
+            "lenskit_version": "1.0",
+            "index_path": "/tmp/idx",
+            "timestamp_utc": "2024-01-01T00:00:00Z"
+        },
+        "warnings": ["Low result coverage"]
     }
 
     # Should not raise

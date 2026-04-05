@@ -1688,9 +1688,9 @@ Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/que
 ### 2.10 Arbeitspaket H – Guardrails für Agenten
 
 Ziel:
-- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, Guardrail für "low evidence density" ist in der Core-Engine umgesetzt; weitere Guardrails fehlen noch)
+- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, einfache Guardrail-Heuristik auf Basis geringer Trefferabdeckung ("low result coverage") ist umgesetzt; weitergehende Guardrails fehlen noch)
 
-Warnungen: stale bundle, invalid graph, missing provenance, derived fallback only, cross-repo conflict, incomplete scope, low evidence density.
+Warnungen: stale bundle, invalid graph, missing provenance, derived fallback only, cross-repo conflict, incomplete scope, low result coverage.
 Reaktion: Nicht blockieren, aber markieren.
 
 ### 2.11 Arbeitspaket I – Evaluierung der Agent-Nutzung
@@ -1713,7 +1713,7 @@ Tests:
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
 - [ ] 5. `agent_query_session.json` (offen: das physische Artefakt mit Trace-Referenzen fehlt im API-Pfad gänzlich; es wird lediglich ein Inline-Feld `agent_query_session` v2 ergänzt).
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik (offen: reiner Servicepfad /api/federation/query vorhanden, MCP-Protokoll fehlt gänzlich)
-- [~] 7. Agent-Guardrails (teilweise: Guardrail für "low evidence density" verifiziert, vollständige Liste offen)
+- [~] 7. Agent-Guardrails (teilweise: einfache Guardrail-Heuristik für "low result coverage" verifiziert, vollständige Liste und tiefergehende Guardrails offen)
 
 ### 2.13 Gate für Phase 6
 - [ ] Phase 6 ist fertig, wenn:
