@@ -1698,7 +1698,7 @@ Tests:
 - [x] 1. test_agent_query_contract_roundtrip
 - [x] 2. test_agent_profile_lookup_minimal
 - [x] 3. test_agent_profile_review_context
-- [x] 4. test_agent_session_trace_contains_session_fields (lokaler Builder-Test vorhanden, CLI-Trace-Test vorhanden, E2E-API-Test für Session-Erzeugung implementiert)
+- [x] 4. Traceability Session Tests (lokale Builder-Tests in `merger/lenskit/tests/test_agent_session_builder.py`, CLI-Trace-Test in `merger/lenskit/tests/test_cli_agent_session.py`, E2E-API-Test in `merger/lenskit/tests/test_api_query.py` implementiert)
 - [x] 5. test_agent_response_surfaces_uncertainty
 - [x] 6. test_agent_federated_conflict_warning
 

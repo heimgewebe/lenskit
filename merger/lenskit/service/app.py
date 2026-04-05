@@ -548,14 +548,14 @@ def api_query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     projected = project_output(result, request.output_profile)
+    from ..retrieval.session import build_agent_query_session_v2
     if request.trace:
-        from ..retrieval.session import build_agent_query_session_v2
-        session = build_agent_query_session_v2(
-            query=request.q,
-            context_bundle=result.get("context_bundle"),
-            federation_trace=result.get("federation_trace")
-        )
         if isinstance(projected, dict) and "context_bundle" in projected:
+            session = build_agent_query_session_v2(
+                query=request.q,
+                context_bundle=result.get("context_bundle"),
+                federation_trace=result.get("federation_trace")
+            )
             projected["agent_query_session"] = session
 
     return projected

@@ -640,6 +640,7 @@ def test_api_query_trace_includes_agent_session(mini_index):
     assert response.status_code == 200
 
     data = response.json()
+    assert "context_bundle" in data
     assert "agent_query_session" in data
     session = data["agent_query_session"]
 
