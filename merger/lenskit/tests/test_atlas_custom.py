@@ -150,6 +150,7 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     assert "quick_hash" not in entry
     assert "mime_type" not in entry
     assert "encoding" not in entry
+    assert entry.get("is_huge") is True
 
     # 2. With no limit (None), the big file should be included
     inv_file_unlimited = tmp_path / "inv2.jsonl"
@@ -164,6 +165,7 @@ def test_atlas_max_file_size_unlimited(tmp_path: Path):
     assert scanner_unlimited.stats["total_files"] == len(entries_unlimited)
 
     entry_unlimited = next(e for e in entries_unlimited if e["rel_path"] == "big.bin")
+    assert "is_huge" not in entry_unlimited
     assert entry_unlimited["rel_path"] == "big.bin"
     # Content analysis is performed
     assert "quick_hash" in entry_unlimited
