@@ -296,18 +296,42 @@ def test_target_hash_error(tmp_path: Path) -> None:
     assert details["reason"] == "target_hash_failed"
 
 
-def test_load_manifest_error_paths(tmp_path: Path) -> None:
+def test_load_manifest_returns_none_when_manifest_missing(tmp_path: Path) -> None:
     """
-    Test that load_manifest handles missing files and invalid YAML correctly.
+    Test that load_manifest returns None when the manifest file is missing.
     """
-    # Case 1: Manifest file does not exist
     assert load_manifest(tmp_path) is None
 
-    # Case 2: Manifest file contains invalid YAML
+
+def test_load_manifest_returns_none_when_manifest_yaml_invalid(tmp_path: Path) -> None:
+    """
+    Test that load_manifest returns None when the manifest contains invalid YAML.
+    """
     metarepo_path = tmp_path / "metarepo"
     metarepo_path.mkdir()
     manifest_file = metarepo_path / MANIFEST_REL_PATH
     manifest_file.parent.mkdir(parents=True, exist_ok=True)
-    manifest_file.write_text("invalid: yaml: :", encoding="utf-8")
+    # Eindeutig invalid: ungeschlossene Liste
+    manifest_file.write_text("entries: [ unclosed list", encoding="utf-8")
 
     assert load_manifest(metarepo_path) is None
+
+
+def test_load_manifest_returns_data_for_valid_manifest(tmp_path: Path) -> None:
+    """
+    Test that load_manifest returns parsed data for a valid manifest file.
+    """
+    metarepo_path = tmp_path / "metarepo"
+    metarepo_path.mkdir()
+    manifest_file = metarepo_path / MANIFEST_REL_PATH
+    manifest_file.parent.mkdir(parents=True, exist_ok=True)
+
+    manifest_data = {
+        "version": 1,
+        "entries": [{"id": "test", "source": "src.txt", "targets": ["tgt.txt"]}]
+    }
+    with manifest_file.open("w", encoding="utf-8") as f:
+        yaml.dump(manifest_data, f)
+
+    loaded = load_manifest(metarepo_path)
+    assert loaded == manifest_data
