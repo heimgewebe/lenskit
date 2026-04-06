@@ -1,6 +1,5 @@
 import json
 import pytest
-import os
 import argparse
 from pathlib import Path
 from merger.lenskit.atlas.diff import _compare_file_sets
@@ -81,14 +80,14 @@ def backup_gap_registry_setup(tmp_path):
     reg.update_snapshot_artifacts("s_backup", {"inventory": inv_backup_rel})
 
     reg.close()
-    return tmp_path, registry_db
+    return registry_db
 
 def test_run_atlas_analyze_backup_gap_cli(backup_gap_registry_setup, capsys, monkeypatch):
     """
     Test the CLI integration for 'atlas analyze backup-gap'
     ensuring it produces the expected JSON report with correct mappings.
     """
-    tmp_path, registry_db = backup_gap_registry_setup
+    registry_db = backup_gap_registry_setup
 
     # Mock the registry resolution path
     monkeypatch.setattr("merger.lenskit.cli.cmd_atlas.Path", lambda p: registry_db if "atlas_registry.sqlite" in str(p) else Path(p))
