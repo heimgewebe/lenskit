@@ -671,7 +671,7 @@ def test_api_query_guardrail_sufficient_coverage(mini_index):
     warnings = data.get("warnings", [])
     assert "Low result coverage" not in warnings
 
-def test_api_query_trace_includes_agent_session(mini_index):
+def test_api_query_trace_includes_resolved_bundles(mini_index):
     art = setup_test_artifact(mini_index)
 
     request_data = {
@@ -695,10 +695,10 @@ def test_api_query_trace_includes_agent_session(mini_index):
     assert "resolved_bundles" in session
     assert "r1" in session["resolved_bundles"]
 
-    # This test validates core inline-v2 session fields surfaced by the API trace path.
+    # This test validates that the API trace includes resolved bundle references
+    # within the inline v2 session (not just session presence).
     assert "query" in session
     assert session["query"] == "hello"
     assert "hits_count" in session
 
-    # This test validates the inline v2 session surfaced by the API trace path.
     # It does not validate the CLI v1 artifact contract including `refs`.
