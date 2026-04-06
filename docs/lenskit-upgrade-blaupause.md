@@ -1639,28 +1639,49 @@ Profile:
 * debug_trace
 
 ### 2.5 Arbeitspaket C – Bounded Tool Surface
+Priority: P0
 
 Ziel:
-- [~] Lenskit soll als Werkzeug präzise Grenzen haben. (teilweise: `/api/query` und `/api/federation/query` setzen Scope-Grenzen, dedizierte Lookup-Endpunkte fehlen)
+- [ ] Lenskit soll als Werkzeug präzise Grenzen haben.
+  erfüllt: `/api/query` und `/api/federation/query` existieren und setzen Scope-Grenzen.
+  fehlt: dedizierte Lookup-Endpunkte zur isolierten Rekonstruktion fehlen.
 
 Operationen:
-- [x] 1. query (vorhanden via `/api/query`)
-- [ ] 2. context_bundle (offen: dedizierter Endpunkt fehlt in `app.py`)
-- [ ] 3. trace_lookup (offen: dedizierter Endpunkt fehlt in `app.py`)
-- [ ] 4. artifact_lookup (offen: dedizierter Endpunkt fehlt in `app.py`)
-- [x] 5. federation_query (vorhanden via `/api/federation/query`)
-- [ ] 6. diagnostics (offen: dedizierter Endpunkt fehlt in `app.py`)
+- [x] 1. query (API vorhanden)
+- [ ] 2. context_bundle
+  - Zweck: deterministische Rekonstruktion eines Bundles ohne erneutes Ranking
+  - Input: `{ "bundle_id": "string", "index_id": "string" }`
+  - Output: `ContextBundle`
+  - Abgrenzung: keine freie Suche, nur Abruf bereits gesicherter Bundles
+- [ ] 3. trace_lookup
+  - Zweck: Abruf struktureller Laufzeitmetadaten einer vergangenen Query
+  - Input: `{ "trace_id": "string" }`
+  - Output: `QueryTrace` oder `FederationTrace`
+  - Abgrenzung: reiner Status- und Path-Lookup
+- [ ] 4. artifact_lookup
+  - Zweck: Download generierter physischer Dateien
+  - Input: `{ "artifact_id": "string" }`
+  - Output: Binary / JSON Payload
+- [x] 5. federation_query (API vorhanden)
+- [ ] 6. diagnostics
+  - Zweck: Systemgesundheit und Identitätskonflikte prüfen
+  - Input: `{ "scope": "string" }`
+  - Output: `DiagnosticReport`
 
 Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusammenmischen beliebiger Bundles, ungebundene „find everything about X“-Operationen ohne Grenzen.
 
 ### 2.6 Arbeitspaket D – Uncertainty / Provenance maschinenlesbar machen
+Priority: P1
 
 Ziel:
-- [~] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen. (teilweise: `epistemics` Contract definiert und in `test_api_query.py` getestet, jedoch bleiben komplexe Status wie `semantic_status` oft `unknown`, da Interpolation/Guardrails nicht vollständig durchgereicht werden)
+- [ ] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen.
+  erfüllt: `epistemics` Contract definiert und für lokale Basisdaten getestet.
+  fehlt: Durchgängige Interpolation und Fallback-Signale für komplexe Status (z.B. `semantic_status` bleibt meist `unknown`).
 
 Felder: provenance_type, bundle_origin, resolver_status, graph_status, semantic_status, federation_status, uncertainty, interpolation.
 
 ### 2.7 Arbeitspaket E – Decision-Support von Retrieval trennen
+Priority: P1
 
 Ziel:
 - [ ] Lenskit bleibt Retrieval- und Evidenzsystem, kein Entscheidungsautomat.
@@ -1670,22 +1691,34 @@ Trennung:
 * Agent / Orchestrator entscheidet: was relevant ist, welche Handlung folgt, welche Synthese gebildet wird.
 
 ### 2.8 Arbeitspaket F – Agent Traceability
+Priority: P0
 
 Ziel:
-- [~] Jede Agent-Nutzung ist nachvollziehbar (teilweise: CLI erzeugt physisches Artefakt `agent_query_session.v1` inkl. Hashes in `refs`; API liefert in `/api/query` eine Inline `agent_query_session.v2` ohne physische Trace-Referenzen).
+- [~] Jede Agent-Nutzung ist nachvollziehbar.
+  erfüllt: Architektonische Trennung zwischen CLI-Trace und API-Inline Session implementiert.
+  fehlt: Einheitlicher physischer Trace-Layer für die API.
+
+Traceability Model (Expliziter Architektur-Entscheid):
+- **v1 (CLI)**: Physisches Artefakt (`agent_query_session.v1`). Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
+- **v2 (API)**: Inline Session. Enthält keine `refs`.
+*Die API ist aktuell bewusst nicht referenzierbar reproduzierbar, da sie als reines Transportmedium fungiert. Langfristiges Ziel: API erzeugt referenzierbare Artefakte (Storage Backing).*
 
 Neues Artefakt: `agent_query_session.json`
 
 Inhalt: request contract, resolved bundle set, query trace refs, context bundle refs, diagnostics refs, warnings.
 
 ### 2.9 Arbeitspaket G – Service-Endpunkte / MCP-fähige Form
+Priority: P0
 
 Ziel:
-- [~] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen (teilweise: HTTP `/api/query` und `/api/federation/query` existieren in `app.py`, jedoch fehlen MCP Protocol Bindings vollständig).
+- [ ] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen.
+  erfüllt: HTTP API für `/query` und `/federation/query` implementiert.
+  fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen gänzlich.
 
 Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
 
 ### 2.10 Arbeitspaket H – Guardrails für Agenten
+Priority: P1
 
 Ziel:
 - [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, Guardrail \"low result coverage\" ist in `test_api_query.py` belegt; Guardrails für invalid graph, missing provenance, cross-repo conflict bleiben offen)
@@ -1694,6 +1727,7 @@ Warnungen: stale bundle, invalid graph, missing provenance, derived fallback onl
 Reaktion: Nicht blockieren, aber markieren.
 
 ### 2.11 Arbeitspaket I – Evaluierung der Agent-Nutzung
+Priority: P1
 
 Ziel:
 - [ ] Nicht nur Query-Qualität, sondern Agent-Tauglichkeit prüfen.
@@ -1709,10 +1743,18 @@ Tests:
 ### 2.12 Deliverables Phase 6
 - [x] 1. Agent Query Contract (für /api/query im API-Roundtrip minimal belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
-- [~] 3. bounded API/tool surface (teilweise: query/federation existieren, isolierte Lookups für context/trace/artifact fehlen)
-- [~] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
-- [~] 5. `agent_query_session.json` (teilweise: Das CLI erzeugt das vollständige physische Artefakt inkl. Trace-Referenzen; die API erzeugt stattdessen ein Inline-Feld `agent_query_session` v2 und kein separates JSON-Artefakt).
-- [~] 6. service-/MCP-fähige Schnittstellenlogik (teilweise: Servicepfad `/api/federation/query` und `/api/query` vorhanden, MCP-Protokoll fehlt gänzlich)
+- [ ] 3. bounded API/tool surface
+  erfüllt: query/federation Servicepfade vorhanden.
+  fehlt: isolierte Lookups für context/trace/artifact.
+- [ ] 4. maschinenlesbare uncertainty/provenance Felder
+  erfüllt: Contract existiert und Validierung steht.
+  fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
+- [~] 5. `agent_query_session.json`
+  erfüllt: CLI Artefakt (v1) und API Inline (v2) Contract aktiv.
+  fehlt: Konsolidierung der API hin zu physischen Artefakten (Storage Backing).
+- [ ] 6. service-/MCP-fähige Schnittstellenlogik
+  erfüllt: API Servicepfade existieren.
+  fehlt: MCP Protocol Implementation.
 - [~] 7. Agent-Guardrails (teilweise: Guardrail-Heuristik \"low result coverage\" belegt, strukturelle Härtung für fehlende Provenance etc. offen)
 
 ### 2.13 Gate für Phase 6
@@ -1749,7 +1791,9 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [~] **7.3 Service-Endpunkte:** `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`. (teilweise: `/api/query` und `/api/federation/query` in `app.py` vorhanden, Lookup-Endpunkte fehlen)
+- [ ] **7.3 Service-Endpunkte:** `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
+  erfüllt: API für Query/Federation vorhanden.
+  fehlt: Echte REST-Trennung für Lookups.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
