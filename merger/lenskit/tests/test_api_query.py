@@ -570,8 +570,9 @@ def test_agent_response_surfaces_uncertainty_contrasts():
         assert hit3_epist["interpolation"]["reason"] is None
 
 
-# This test specifically verifies the semantic payload of the agent_query_session
-# added to the trace wrapper, distinct from the generic wrapper contract tested above.
+# This test verifies the semantic payload of the inline v2 agent_query_session
+# within the API trace wrapper (including resolved bundles).
+# It explicitly does not validate the CLI v1 artifact contract (i.e. `refs`).
 def test_api_query_agent_session_trace_exists(mini_index):
     art = setup_test_artifact(mini_index)
 
@@ -596,6 +597,7 @@ def test_api_query_agent_session_trace_exists(mini_index):
     assert session["query"] == "hello"
     assert "resolved_bundles" in session
     assert isinstance(session["resolved_bundles"], list)
+    assert "r1" in session["resolved_bundles"]
     assert "hits_count" in session
     assert "session_meta" in session
     assert session["session_meta"]["context_source"] == "projected"
@@ -670,35 +672,3 @@ def test_api_query_guardrail_sufficient_coverage(mini_index):
     # The warnings key might not exist, or if it does, it should not contain the specific warning
     warnings = data.get("warnings", [])
     assert "Low result coverage" not in warnings
-
-def test_api_query_trace_includes_resolved_bundles(mini_index):
-    art = setup_test_artifact(mini_index)
-
-    request_data = {
-        "index_id": art.id,
-        "q": "hello",
-        "k": 1,
-        "output_profile": "agent_minimal",
-        "trace": True,
-        "explain": True,
-        "stale_policy": "ignore"
-    }
-
-    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
-    assert response.status_code == 200
-
-    data = response.json()
-    assert "context_bundle" in data
-    assert "agent_query_session" in data
-    session = data["agent_query_session"]
-
-    assert "resolved_bundles" in session
-    assert "r1" in session["resolved_bundles"]
-
-    # This test validates that the API trace includes resolved bundle references
-    # within the inline v2 session (not just session presence).
-    assert "query" in session
-    assert session["query"] == "hello"
-    assert "hits_count" in session
-
-    # It does not validate the CLI v1 artifact contract including `refs`.
