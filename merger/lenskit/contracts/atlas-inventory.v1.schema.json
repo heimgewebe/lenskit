@@ -77,7 +77,7 @@
     },
     "is_huge": {
       "type": "boolean",
-      "description": "Optional boolean indicating whether the file size exceeded max_file_size during scan."
+      "description": "Optional boolean indicating whether the file size exceeded max_file_size during scan. When true, content analysis is typically skipped due to size constraints; as a result, content-enrichment fields (e.g. mime_type, is_text, encoding, line_count, quick_hash) may be absent."
     }
   }
 }
