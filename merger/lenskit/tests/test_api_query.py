@@ -695,7 +695,7 @@ def test_api_query_trace_includes_agent_session(mini_index):
     assert "resolved_bundles" in session
     assert "r1" in session["resolved_bundles"]
 
-    # Contract schema tests can be minimal
+    # This test validates core inline-v2 session fields surfaced by the API trace path.
     assert "query" in session
     assert session["query"] == "hello"
     assert "hits_count" in session
