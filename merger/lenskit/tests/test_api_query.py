@@ -572,7 +572,7 @@ def test_agent_response_surfaces_uncertainty_contrasts():
 
 # This test specifically verifies the semantic payload of the agent_query_session
 # added to the trace wrapper, distinct from the generic wrapper contract tested above.
-def test_api_query_agent_session_trace(mini_index):
+def test_api_query_agent_session_trace_exists(mini_index):
     art = setup_test_artifact(mini_index)
 
     request_data = {
