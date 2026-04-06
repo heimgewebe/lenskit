@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from merger.lenskit.adapters.metarepo import (
+    load_manifest,
     sync_from_metarepo,
     MANIFEST_REL_PATH,
     HASH_COMPUTATION_ERROR,
@@ -293,3 +294,20 @@ def test_target_hash_error(tmp_path: Path) -> None:
     details = repo_report["details"][0]
     assert details["action"] == "ERROR"
     assert details["reason"] == "target_hash_failed"
+
+
+def test_load_manifest_error_paths(tmp_path: Path) -> None:
+    """
+    Test that load_manifest handles missing files and invalid YAML correctly.
+    """
+    # Case 1: Manifest file does not exist
+    assert load_manifest(tmp_path) is None
+
+    # Case 2: Manifest file contains invalid YAML
+    metarepo_path = tmp_path / "metarepo"
+    metarepo_path.mkdir()
+    manifest_file = metarepo_path / MANIFEST_REL_PATH
+    manifest_file.parent.mkdir(parents=True, exist_ok=True)
+    manifest_file.write_text("invalid: yaml: :", encoding="utf-8")
+
+    assert load_manifest(metarepo_path) is None
