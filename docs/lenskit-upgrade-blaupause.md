@@ -1648,25 +1648,11 @@ Ziel:
 
 Operationen:
 - [x] 1. query (API vorhanden)
-- [ ] 2. context_bundle
-  - Zweck: deterministische Rekonstruktion eines Bundles ohne erneutes Ranking
-  - Input: `{ "bundle_id": "string", "index_id": "string" }`
-  - Output: `ContextBundle`
-  - Abgrenzung: keine freie Suche, nur Abruf bereits gesicherter Bundles
-- [ ] 3. trace_lookup
-  - Zweck: Abruf struktureller Laufzeitmetadaten einer vergangenen Query
-  - Input: `{ "trace_id": "string" }`
-  - Output: `QueryTrace` oder `FederationTrace`
-  - Abgrenzung: reiner Status- und Path-Lookup
-- [ ] 4. artifact_lookup
-  - Zweck: Download generierter physischer Dateien
-  - Input: `{ "artifact_id": "string" }`
-  - Output: Binary / JSON Payload
-- [x] 5. federation_query (API vorhanden)
-- [ ] 6. diagnostics
-  - Zweck: Systemgesundheit und Identitätskonflikte prüfen
-  - Input: `{ "scope": "string" }`
-  - Output: `DiagnosticReport`
+- [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
+- [ ] 3. trace_lookup (Trace-Lookup ist architektonisch vorgesehen, aber Request/Response-Contract ist noch nicht festgelegt)
+- [ ] 4. artifact_lookup (Artifact-Download ist logisch erforderlich, aber als eigener Servicevertrag noch nicht definiert)
+- [x] 5. federation_query (als HTTP-Servicepfad vorhanden)
+- [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
 
 Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusammenmischen beliebiger Bundles, ungebundene „find everything about X“-Operationen ohne Grenzen.
 
@@ -1701,7 +1687,7 @@ Ziel:
 Traceability Model (Expliziter Architektur-Entscheid):
 - **v1 (CLI)**: Physisches Artefakt (`agent_query_session.v1`). Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
 - **v2 (API)**: Inline Session. Enthält keine `refs`.
-*Die API ist aktuell bewusst nicht referenzierbar reproduzierbar, da sie als reines Transportmedium fungiert. Langfristiges Ziel: API erzeugt referenzierbare Artefakte (Storage Backing).*
+*Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
 
 Neues Artefakt: `agent_query_session.json`
 
@@ -1723,8 +1709,17 @@ Priority: P1
 Ziel:
 - [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, Guardrail \"low result coverage\" ist in `test_api_query.py` belegt; Guardrails für invalid graph, missing provenance, cross-repo conflict bleiben offen)
 
-Warnungen: stale bundle, invalid graph, missing provenance, derived fallback only, cross-repo conflict, incomplete scope, low result coverage.
-Reaktion: Nicht blockieren, aber markieren.
+Guardrails:
+- **low_result_coverage**:
+  - signal: `warning.low_coverage` (als belegter Output-Warning Mechanismus implementiert)
+- **stale_bundle**:
+  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
+- **invalid_graph**:
+  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
+- **missing_provenance**:
+  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
+- **cross_repo_conflict**:
+  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
 
 ### 2.11 Arbeitspaket I – Evaluierung der Agent-Nutzung
 Priority: P1
@@ -1751,7 +1746,7 @@ Tests:
   fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
 - [~] 5. `agent_query_session.json`
   erfüllt: CLI Artefakt (v1) und API Inline (v2) Contract aktiv.
-  fehlt: Konsolidierung der API hin zu physischen Artefakten (Storage Backing).
+  fehlt: Physischer Artefakt-Layer für API-Sessions.
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik
   erfüllt: API Servicepfade existieren.
   fehlt: MCP Protocol Implementation.
