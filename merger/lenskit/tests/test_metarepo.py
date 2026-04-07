@@ -311,7 +311,7 @@ def test_load_manifest_returns_none_when_manifest_yaml_invalid(tmp_path: Path) -
     metarepo_path.mkdir()
     manifest_file = metarepo_path / MANIFEST_REL_PATH
     manifest_file.parent.mkdir(parents=True, exist_ok=True)
-    # Eindeutig invalid: ungeschlossene Liste
+    # Clearly invalid: unclosed list
     manifest_file.write_text("entries: [ unclosed list", encoding="utf-8")
 
     assert load_manifest(metarepo_path) is None
