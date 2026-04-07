@@ -1662,7 +1662,7 @@ Priority: P1
 Ziel:
 - [ ] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen.
   erfüllt: `epistemics` Contract definiert und für lokale Basisdaten getestet.
-  fehlt: Durchgängige Interpolation und Fallback-Signale für komplexe Status (z.B. `semantic_status` bleibt meist `unknown`).
+  fehlt: Komplexe Status werden noch nicht durchgängig aus allen Pfaden in den Contract überführt (z.B. `semantic_status` bleibt konservativ `unknown`).
 
 Felder: provenance_type, bundle_origin, resolver_status, graph_status, semantic_status, federation_status, uncertainty, interpolation.
 
@@ -1684,7 +1684,7 @@ Ziel:
   erfüllt: Architektonische Trennung zwischen CLI-Trace und API-Inline Session implementiert.
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 
-Traceability Model (Expliziter Architektur-Entscheid):
+Traceability Model (aktueller repo-belegter Stand):
 - **v1 (CLI)**: Physisches Artefakt (`agent_query_session.v1`). Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
 - **v2 (API)**: Inline Session. Enthält keine `refs`.
 *Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
@@ -1711,7 +1711,7 @@ Ziel:
 
 Guardrails:
 - **low_result_coverage**:
-  - signal: `warning.low_coverage` (als belegter Output-Warning Mechanismus implementiert)
+  - belegter Runtime-Warning-Output: "Low result coverage"
 - **stale_bundle**:
   - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
 - **invalid_graph**:
@@ -1740,7 +1740,7 @@ Tests:
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
   erfüllt: query/federation Servicepfade vorhanden.
-  fehlt: isolierte Lookups für context/trace/artifact.
+  fehlt: dedizierte Lookup-Endpunkte (context/trace/artifact).
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
   erfüllt: Contract existiert und Validierung steht.
   fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
@@ -1788,7 +1788,7 @@ Arbeitspakete:
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
 - [ ] **7.3 Service-Endpunkte:** `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
   erfüllt: API für Query/Federation vorhanden.
-  fehlt: Echte REST-Trennung für Lookups.
+  fehlt: Lookup-Operationen sind noch nicht als getrennte Serviceverträge ausgebildet.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
