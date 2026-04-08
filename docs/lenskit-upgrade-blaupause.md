@@ -1638,6 +1638,8 @@ Profile:
 * federated_search
 * debug_trace
 
+Priority-Hinweis: P0 = kurzfristig architekturkritisch / blocker-nah, P1 = wichtig, aber nachgeordnet.
+
 ### 2.5 Arbeitspaket C – Bounded Tool Surface
 Priority: P0
 
@@ -1649,8 +1651,8 @@ Ziel:
 Operationen:
 - [x] 1. query (API vorhanden)
 - [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
-- [ ] 3. trace_lookup (Trace-Lookup ist architektonisch vorgesehen, aber Request/Response-Contract ist noch nicht festgelegt)
-- [ ] 4. artifact_lookup (Artifact-Download ist logisch erforderlich, aber als eigener Servicevertrag noch nicht definiert)
+- [ ] 3. trace_lookup (als getrennte Operation vorgesehen, aber Request/Response-Contract ist noch nicht festgelegt)
+- [ ] 4. artifact_lookup (Roadmap-seitig erforderlich, aber als eigener Servicevertrag noch nicht definiert)
 - [x] 5. federation_query (als HTTP-Servicepfad vorhanden)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
 
@@ -1689,7 +1691,7 @@ Traceability Model (aktueller repo-belegter Stand):
 - **v2 (API)**: Inline Session (nach v2-Contract). Enthält keine `refs`.
 *Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
 
-Neues Artefakt: `agent_query_session.json`
+Physisches CLI-Artefakt: `agent_query_session.json`
 
 Inhalt: request contract, resolved bundle set, query trace refs, context bundle refs, diagnostics refs, warnings.
 
