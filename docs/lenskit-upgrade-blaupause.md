@@ -1685,8 +1685,8 @@ Ziel:
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 
 Traceability Model (aktueller repo-belegter Stand):
-- **v1 (CLI)**: Physisches Artefakt (`agent_query_session.v1`). Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
-- **v2 (API)**: Inline Session. Enthält keine `refs`.
+- **v1 (CLI)**: Physisches Artefakt `agent_query_session.json` (nach v1-Contract). Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
+- **v2 (API)**: Inline Session (nach v2-Contract). Enthält keine `refs`.
 *Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
 
 Neues Artefakt: `agent_query_session.json`
@@ -1745,7 +1745,7 @@ Tests:
   erfüllt: Contract existiert und Validierung steht.
   fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
 - [~] 5. `agent_query_session.json`
-  erfüllt: CLI Artefakt (v1) und API Inline (v2) Contract aktiv.
+  erfüllt: CLI erzeugt physisches Artefakt (nach v1-Contract), API erzeugt Inline-Session (nach v2-Contract).
   fehlt: Physischer Artefakt-Layer für API-Sessions.
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik
   erfüllt: API Servicepfade existieren.
