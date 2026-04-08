@@ -1652,7 +1652,7 @@ Operationen:
 - [x] 1. query (API vorhanden)
 - [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
 - [ ] 3. trace_lookup (als getrennte Operation vorgesehen, aber Request/Response-Contract ist noch nicht festgelegt)
-- [ ] 4. artifact_lookup (Roadmap-seitig erforderlich, aber als eigener Servicevertrag noch nicht definiert)
+- [ ] 4. artifact_lookup (als getrennte Lookup-Operation naheliegend, aber als eigener Servicevertrag noch nicht definiert)
 - [x] 5. federation_query (als HTTP-Servicepfad vorhanden)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
 
@@ -1687,8 +1687,8 @@ Ziel:
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 
 Traceability Model (aktueller repo-belegter Stand):
-- **v1 (CLI)**: Physisches Artefakt `agent_query_session.json` (nach v1-Contract). Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
-- **v2 (API)**: Inline Session (nach v2-Contract). Enthält keine `refs`.
+- CLI-Pfad: physisches Artefakt `agent_query_session.json` nach v1-Contract. Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
+- API-Pfad: Inline Session nach v2-Contract. Enthält keine `refs`.
 *Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
 
 Physisches CLI-Artefakt: `agent_query_session.json`
@@ -1709,7 +1709,7 @@ Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/que
 Priority: P1
 
 Ziel:
-- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, Guardrail \"low result coverage\" ist in `test_api_query.py` belegt; Guardrails für invalid graph, missing provenance, cross-repo conflict bleiben offen)
+- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, Guardrail "low result coverage" ist in `test_api_query.py` belegt; Guardrails für invalid graph, missing provenance, cross-repo conflict bleiben offen)
 
 Guardrails:
 - **low_result_coverage**:
@@ -1752,7 +1752,7 @@ Tests:
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik
   erfüllt: API Servicepfade existieren.
   fehlt: MCP Protocol Implementation.
-- [~] 7. Agent-Guardrails (teilweise: Guardrail-Heuristik \"low result coverage\" belegt, strukturelle Härtung für fehlende Provenance etc. offen)
+- [~] 7. Agent-Guardrails (teilweise: Guardrail-Heuristik "low result coverage" belegt, strukturelle Härtung für fehlende Provenance etc. offen)
 
 ### 2.13 Gate für Phase 6
 - [ ] Phase 6 ist fertig, wenn:
