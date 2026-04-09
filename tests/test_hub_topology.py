@@ -111,8 +111,5 @@ def test_detect_hub_dir_no_pythonista_fallback(monkeypatch, tmp_path):
 
     monkeypatch.setattr("pathlib.Path.home", lambda: fake_home)
 
-    import pytest
-    from merger.lenskit.core.merge import detect_hub_dir
-
     with pytest.raises(FileNotFoundError, match="Hub-Verzeichnis"):
         detect_hub_dir(script_path)
