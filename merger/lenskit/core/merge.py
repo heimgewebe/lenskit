@@ -1687,7 +1687,14 @@ def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Pat
     if saved is not None:
         return saved
 
-    raise FileNotFoundError("Hub-Verzeichnis nicht gefunden. Gepruefte Quellen: explizites Argument, Environment-Variable, gespeicherter Pfad. Hinweis: Bei Pythonista/iCloud koennen Script und Hub in getrennten Speicherwelten liegen; in diesem Fall muss ein gueltiger Hub-Pfad explizit bereitgestellt werden.")
+    raise FileNotFoundError(
+        "Hub-Verzeichnis nicht gefunden. "
+        "Gepruefte Quellen: explizites Argument, Environment-Variable, "
+        "gespeicherter Pfad. "
+        "Hinweis: Bei Pythonista/iCloud koennen Script und Hub in getrennten "
+        "Speicherwelten liegen; in diesem Fall muss ein gueltiger Hub-Pfad "
+        "explizit bereitgestellt werden."
+    )
 
 
 def get_merges_dir(hub: Path) -> Path:

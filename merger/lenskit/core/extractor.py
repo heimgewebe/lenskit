@@ -1069,7 +1069,7 @@ def run_extractor(
         try:
             hub = detect_hub_dir(SCRIPT_PATH)
         except FileNotFoundError as e:
-            msg = f"Working Copy Hub not found: {e}"
+            msg = f"Working Copy Hub not found. {e}"
             if show_alert:
                 _console_alert(msg, "Please open Working Copy at least once.")
             return 1, msg

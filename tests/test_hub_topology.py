@@ -1,10 +1,9 @@
 import pytest
 from pathlib import Path
-import os
 import tempfile
 from merger.lenskit.core.merge import detect_hub_dir
 
-def test_detect_hub_dir_saved_path(monkeypatch):
+def test_detect_hub_dir_saved_path():
     with tempfile.TemporaryDirectory() as script_dir, tempfile.TemporaryDirectory() as hub_dir:
         script_path = Path(script_dir) / "repolens.py"
         script_path.touch()
@@ -15,7 +14,7 @@ def test_detect_hub_dir_saved_path(monkeypatch):
         detected = detect_hub_dir(script_path)
         assert detected == Path(hub_dir)
 
-def test_detect_hub_dir_arg_base(monkeypatch):
+def test_detect_hub_dir_arg_base():
     with tempfile.TemporaryDirectory() as script_dir, tempfile.TemporaryDirectory() as hub_dir:
         script_path = Path(script_dir) / "repolens.py"
         script_path.touch()
@@ -23,7 +22,7 @@ def test_detect_hub_dir_arg_base(monkeypatch):
         detected = detect_hub_dir(script_path, arg_base_dir=hub_dir)
         assert detected == Path(hub_dir)
 
-def test_detect_hub_dir_not_found(monkeypatch):
+def test_detect_hub_dir_not_found():
     with tempfile.TemporaryDirectory() as script_dir:
         script_path = Path(script_dir) / "repolens.py"
         script_path.touch()
@@ -31,7 +30,7 @@ def test_detect_hub_dir_not_found(monkeypatch):
         with pytest.raises(FileNotFoundError, match="Hub-Verzeichnis"):
             detect_hub_dir(script_path)
 
-def test_detect_hub_dir_invalid_saved_path(monkeypatch):
+def test_detect_hub_dir_invalid_saved_path():
     with tempfile.TemporaryDirectory() as script_dir:
         script_path = Path(script_dir) / "repolens.py"
         script_path.touch()
