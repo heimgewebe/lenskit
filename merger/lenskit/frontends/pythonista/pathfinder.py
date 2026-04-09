@@ -23,7 +23,7 @@ def safe_script_path() -> Path:
 
 def _is_pythonista_runtime() -> bool:
     sp = str(sys.executable)
-    return ("Pythonista" in sp)
+    return ("/private/var/mobile/" in sp) or ("Pythonista" in sp)
 
 
 def _depth(root: Path, p: Path) -> int:

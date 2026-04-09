@@ -67,3 +67,16 @@ def test_detect_hub_dir_env_overrides_saved(monkeypatch):
 
         detected = detect_hub_dir(script_path)
         assert detected == Path(hub_dir_env)
+
+def test_is_pythonista_runtime(monkeypatch):
+    from merger.lenskit.frontends.pythonista.pathfinder import _is_pythonista_runtime
+    import sys
+
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3")
+    assert not _is_pythonista_runtime()
+
+    monkeypatch.setattr(sys, "executable", "/private/var/mobile/Containers/Shared/AppGroup/Python3")
+    assert _is_pythonista_runtime()
+
+    monkeypatch.setattr(sys, "executable", "/Applications/Pythonista3.app/python3")
+    assert _is_pythonista_runtime()
