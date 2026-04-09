@@ -41,3 +41,29 @@ def test_detect_hub_dir_invalid_saved_path(monkeypatch):
 
         with pytest.raises(FileNotFoundError, match="Hub-Verzeichnis"):
             detect_hub_dir(script_path)
+
+def test_detect_hub_dir_arg_overrides_saved_and_env(monkeypatch):
+    with tempfile.TemporaryDirectory() as script_dir, tempfile.TemporaryDirectory() as hub_dir_arg, tempfile.TemporaryDirectory() as hub_dir_env, tempfile.TemporaryDirectory() as hub_dir_saved:
+        script_path = Path(script_dir) / "repolens.py"
+        script_path.touch()
+
+        hub_path_file = Path(script_dir) / ".repolens-hub-path.txt"
+        hub_path_file.write_text(hub_dir_saved)
+
+        monkeypatch.setenv("REPOLENS_BASEDIR", hub_dir_env)
+
+        detected = detect_hub_dir(script_path, arg_base_dir=hub_dir_arg)
+        assert detected == Path(hub_dir_arg)
+
+def test_detect_hub_dir_env_overrides_saved(monkeypatch):
+    with tempfile.TemporaryDirectory() as script_dir, tempfile.TemporaryDirectory() as hub_dir_env, tempfile.TemporaryDirectory() as hub_dir_saved:
+        script_path = Path(script_dir) / "repolens.py"
+        script_path.touch()
+
+        hub_path_file = Path(script_dir) / ".repolens-hub-path.txt"
+        hub_path_file.write_text(hub_dir_saved)
+
+        monkeypatch.setenv("REPOLENS_BASEDIR", hub_dir_env)
+
+        detected = detect_hub_dir(script_path)
+        assert detected == Path(hub_dir_env)

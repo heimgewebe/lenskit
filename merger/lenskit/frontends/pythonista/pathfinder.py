@@ -88,7 +88,7 @@ def find_repolens_dirs(home: Path) -> list[Path]:
             icloud_docs / "merger" / "wc-merger",
         ])
 
-found: list[Path] = []
+    found: list[Path] = []
     for d in candidates:
         try:
             if d.is_dir():

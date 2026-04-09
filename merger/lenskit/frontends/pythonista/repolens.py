@@ -26,11 +26,10 @@ from pathlib import Path
 
 SCRIPT_BASE = Path(__file__).resolve().parent
 
-def script_path(*parts):
-    return os.path.join(SCRIPT_BASE, *parts)
+def script_path(*parts) -> Path:
+    return SCRIPT_BASE.joinpath(*parts)
 
 import sys
-import os
 import json
 import re
 import traceback
