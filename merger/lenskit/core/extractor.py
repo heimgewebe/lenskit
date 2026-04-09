@@ -1125,7 +1125,11 @@ def main() -> int:
     parser.add_argument("--hub", help="Hub directory override.")
     args = parser.parse_args()
 
-    hub = detect_hub_dir(SCRIPT_PATH, args.hub)
+    try:
+        hub = detect_hub_dir(SCRIPT_PATH, args.hub)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     if not hub.exists():
          print(f"Hub directory not found: {hub}")
