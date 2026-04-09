@@ -1688,18 +1688,26 @@ def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Pat
         return saved
 
     # Pythonista local Documents fallback
-    try:
-        local_docs = Path.home() / "Documents"
-        candidate = local_docs / "wc-hub"
-        if candidate.is_dir():
-            return candidate
-    except Exception:
-        pass
+    script_str = str(script_path)
+    is_pythonista_like = (
+        "Pythonista" in script_str
+        or "/private/var/mobile/" in script_str
+        or "Mobile Documents" in script_str
+    )
+
+    if is_pythonista_like:
+        try:
+            local_docs = Path.home() / "Documents"
+            candidate = local_docs / "wc-hub"
+            if candidate.is_dir():
+                return candidate
+        except Exception:
+            pass
 
     raise FileNotFoundError(
         "Hub-Verzeichnis nicht gefunden. "
         "Gepruefte Quellen: explizites Argument, Environment-Variable, "
-        "gespeicherter Pfad, lokales Pythonista Documents/wc-hub. "
+        "gespeicherter Pfad sowie - im Pythonista-Kontext - lokales Documents/wc-hub. "
         "Hinweis: Bei Pythonista/iCloud koennen Script und Hub in getrennten "
         "Speicherwelten liegen; in diesem Fall muss ein gueltiger Hub-Pfad "
         "explizit bereitgestellt werden."

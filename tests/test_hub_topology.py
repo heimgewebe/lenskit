@@ -81,8 +81,8 @@ def test_is_pythonista_runtime(monkeypatch):
     assert _is_pythonista_runtime()
 
 def test_detect_hub_dir_pythonista_local_fallback(monkeypatch, tmp_path):
-    script_dir = tmp_path / "script"
-    script_dir.mkdir()
+    script_dir = tmp_path / "Pythonista" / "script"
+    script_dir.mkdir(parents=True)
     script_path = script_dir / "repolens.py"
     script_path.touch()
 
@@ -96,3 +96,23 @@ def test_detect_hub_dir_pythonista_local_fallback(monkeypatch, tmp_path):
 
     detected = detect_hub_dir(script_path)
     assert detected == hub
+
+def test_detect_hub_dir_no_pythonista_fallback(monkeypatch, tmp_path):
+    # script_path clearly outside Pythonista
+    script_dir = tmp_path / "usr" / "local" / "bin"
+    script_dir.mkdir(parents=True)
+    script_path = script_dir / "repolens.py"
+    script_path.touch()
+
+    fake_home = tmp_path / "home"
+    docs = fake_home / "Documents"
+    hub = docs / "wc-hub"
+    hub.mkdir(parents=True)
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: fake_home)
+
+    import pytest
+    from merger.lenskit.core.merge import detect_hub_dir
+
+    with pytest.raises(FileNotFoundError, match="Hub-Verzeichnis"):
+        detect_hub_dir(script_path)
