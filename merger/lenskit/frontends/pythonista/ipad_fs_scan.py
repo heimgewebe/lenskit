@@ -407,9 +407,7 @@ def run_ui():
         return
 
     # Define Defaults
-    default_roots = [
-        "/private/var/mobile/Containers/Shared/AppGroup/605C3346-6819-4F54-8B7C-A5A43D2101F4/Pythonista3/Documents"
-    ]
+    default_roots = [os.path.expanduser("~/Documents")]
     # Try to detect if we are running in Pythonista and get the documents dir cleaner
     try:
         # Standard Pythonista documents path

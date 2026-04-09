@@ -19,6 +19,9 @@ Rationale:
 - Split ist logistisch: alles bleibt drin, nur auf mehrere Parts verteilt.
 """
 
+
+
+
 import sys
 import os
 import json
@@ -3294,7 +3297,11 @@ def main_cli():
 
     args = parser.parse_args()
 
-    hub = detect_hub_dir(SCRIPT_PATH, args.hub)
+    try:
+        hub = detect_hub_dir(SCRIPT_PATH, args.hub)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     sources = []
     if args.paths:

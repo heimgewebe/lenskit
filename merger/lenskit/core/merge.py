@@ -1338,11 +1338,6 @@ LANG_MAP = {
     "ai-context": "yaml"
 }
 
-HARDCODED_HUB_PATH = (
-    "/private/var/mobile/Containers/Data/Application/"
-    "B60D0157-973D-489A-AA59-464C3BF6D240/Documents/wc-hub"
-)
-
 HUB_PATH_FILENAME = ".repolens-hub-path.txt"
 
 # Constants
@@ -1677,6 +1672,11 @@ def is_noise_file(fi: "FileInfo") -> bool:
     return False
 
 def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Path:
+    if arg_base_dir:
+        p = Path(arg_base_dir).expanduser()
+        if p.is_dir():
+            return p
+
     env_base = os.environ.get("REPOLENS_BASEDIR")
     if env_base:
         p = Path(env_base).expanduser()
@@ -1687,19 +1687,14 @@ def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Pat
     if saved is not None:
         return saved
 
-    p = Path(HARDCODED_HUB_PATH)
-    try:
-        if p.expanduser().is_dir():
-            return p
-    except Exception as e:
-        sys.stderr.write(f"Warning: Failed to check hub dir {p}: {e}\n")
-
-    if arg_base_dir:
-        p = Path(arg_base_dir).expanduser()
-        if p.is_dir():
-            return p
-
-    return script_path.parent
+    raise FileNotFoundError(
+        "Hub-Verzeichnis nicht gefunden. "
+        "Gepruefte Quellen: explizites Argument, Environment-Variable, "
+        "gespeicherter Pfad. "
+        "Hinweis: Bei Pythonista/iCloud koennen Script und Hub in getrennten "
+        "Speicherwelten liegen; in diesem Fall muss ein gueltiger Hub-Pfad "
+        "explizit bereitgestellt werden."
+    )
 
 
 def get_merges_dir(hub: Path) -> Path:
