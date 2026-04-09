@@ -20,26 +20,14 @@ Rationale:
 """
 
 
+
 import os
+from pathlib import Path
 
-def find_root(marker="wc-hub", max_up=5):
-    cur = os.path.dirname(os.path.abspath(__file__))
-    for _ in range(max_up):
-        candidate = os.path.join(cur, marker)
-        if os.path.isdir(candidate):
-            return cur
-        cur = os.path.dirname(cur)
-    return os.path.dirname(os.path.abspath(__file__))  # fallback
+SCRIPT_BASE = Path(__file__).resolve().parent
 
-BASE = find_root()
-
-def path(*parts):
-    return os.path.join(BASE, *parts)
-
-def assert_exists(p, label):
-    if not os.path.exists(p):
-        raise FileNotFoundError(f"{label} fehlt: {p}")
-
+def script_path(*parts):
+    return os.path.join(SCRIPT_BASE, *parts)
 
 import sys
 import os

@@ -76,7 +76,19 @@ def find_repolens_dirs(home: Path) -> list[Path]:
         home / "merger" / "wc-merger",
     ]
 
-    found: list[Path] = []
+
+    # Add standard iCloud path for Pythonista (diagnostic candidate only)
+    icloud_docs = Path("/private/var/mobile/Library/Mobile Documents/iCloud~com~omz-software~Pythonista3/Documents")
+    if icloud_docs.exists():
+        candidates.extend([
+            icloud_docs / "merger" / "lenskit" / "frontends" / "pythonista",
+            icloud_docs / "merger" / "repoLens",
+            icloud_docs / "repoLens",
+            icloud_docs / "wc-merger",
+            icloud_docs / "merger" / "wc-merger",
+        ])
+
+found: list[Path] = []
     for d in candidates:
         try:
             if d.is_dir():

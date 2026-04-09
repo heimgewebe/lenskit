@@ -1672,12 +1672,6 @@ def is_noise_file(fi: "FileInfo") -> bool:
     return False
 
 def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Path:
-    env_base = os.environ.get("REPOLENS_BASEDIR")
-    if env_base:
-        p = Path(env_base).expanduser()
-        if p.is_dir():
-            return p
-
     saved = load_saved_hub_path(script_path)
     if saved is not None:
         return saved
@@ -1687,7 +1681,13 @@ def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Pat
         if p.is_dir():
             return p
 
-    return script_path.parent
+    env_base = os.environ.get("REPOLENS_BASEDIR")
+    if env_base:
+        p = Path(env_base).expanduser()
+        if p.is_dir():
+            return p
+
+    raise FileNotFoundError("Hub-Verzeichnis (wc-hub) nicht gefunden. Script und Hub liegen in getrennten Speicherwelten, ein gueltiger Hub-Pfad muss ueber .repolens-hub-path.txt, Argument oder Environment bereitgestellt werden.")
 
 
 def get_merges_dir(hub: Path) -> Path:
