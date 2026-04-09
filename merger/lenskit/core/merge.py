@@ -1692,7 +1692,6 @@ def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Pat
     is_pythonista_like = (
         "Pythonista" in script_str
         or "/private/var/mobile/" in script_str
-        or "Mobile Documents" in script_str
     )
 
     if is_pythonista_like:
@@ -1701,7 +1700,7 @@ def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Pat
             candidate = local_docs / "wc-hub"
             if candidate.is_dir():
                 return candidate
-        except Exception:
+        except OSError:
             pass
 
     raise FileNotFoundError(
