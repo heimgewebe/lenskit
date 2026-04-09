@@ -1063,12 +1063,16 @@ def run_extractor(
 
     By default: quiet (no alerts), best-effort, returns a status+message.
     """
-    hub = hub_override if hub_override is not None else detect_hub_dir(SCRIPT_PATH)
-    if hub is None:
-        msg = "Working Copy Hub not found"
-        if show_alert:
-            _console_alert(msg, "Please open Working Copy at least once.")
-        return 1, msg
+    if hub_override is not None:
+        hub = hub_override
+    else:
+        try:
+            hub = detect_hub_dir(SCRIPT_PATH)
+        except FileNotFoundError as e:
+            msg = f"Working Copy Hub not found: {e}"
+            if show_alert:
+                _console_alert(msg, "Please open Working Copy at least once.")
+            return 1, msg
 
     merges_dir = get_merges_dir(hub)
     zips = sorted(hub.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
