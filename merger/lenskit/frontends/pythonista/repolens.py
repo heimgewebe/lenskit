@@ -19,6 +19,28 @@ Rationale:
 - Split ist logistisch: alles bleibt drin, nur auf mehrere Parts verteilt.
 """
 
+
+import os
+
+def find_root(marker="wc-hub", max_up=5):
+    cur = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(max_up):
+        candidate = os.path.join(cur, marker)
+        if os.path.isdir(candidate):
+            return cur
+        cur = os.path.dirname(cur)
+    return os.path.dirname(os.path.abspath(__file__))  # fallback
+
+BASE = find_root()
+
+def path(*parts):
+    return os.path.join(BASE, *parts)
+
+def assert_exists(p, label):
+    if not os.path.exists(p):
+        raise FileNotFoundError(f"{label} fehlt: {p}")
+
+
 import sys
 import os
 import json

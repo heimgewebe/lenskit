@@ -23,7 +23,7 @@ def safe_script_path() -> Path:
 
 def _is_pythonista_runtime() -> bool:
     sp = str(sys.executable)
-    return ("/private/var/mobile/" in sp) or ("Pythonista" in sp)
+    return ("Pythonista" in sp)
 
 
 def _depth(root: Path, p: Path) -> int:
@@ -75,20 +75,6 @@ def find_repolens_dirs(home: Path) -> list[Path]:
         home / "wc-merger",
         home / "merger" / "wc-merger",
     ]
-
-    # Add standard iCloud path for Pythonista
-    icloud_docs = Path("/private/var/mobile/Library/Mobile Documents/iCloud~com~omz-software~Pythonista3/Documents")
-    if icloud_docs.exists():
-        candidates.extend([
-            # New canonical path (v2.4+)
-            icloud_docs / "merger" / "lenskit" / "frontends" / "pythonista",
-
-            # Legacy paths (deprecated)
-            icloud_docs / "merger" / "repoLens",
-            icloud_docs / "repoLens",
-            icloud_docs / "wc-merger",
-            icloud_docs / "merger" / "wc-merger",
-        ])
 
     found: list[Path] = []
     for d in candidates:

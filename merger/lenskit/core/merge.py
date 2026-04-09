@@ -1338,11 +1338,6 @@ LANG_MAP = {
     "ai-context": "yaml"
 }
 
-HARDCODED_HUB_PATH = (
-    "/private/var/mobile/Containers/Data/Application/"
-    "B60D0157-973D-489A-AA59-464C3BF6D240/Documents/wc-hub"
-)
-
 HUB_PATH_FILENAME = ".repolens-hub-path.txt"
 
 # Constants
@@ -1686,13 +1681,6 @@ def detect_hub_dir(script_path: Path, arg_base_dir: Optional[str] = None) -> Pat
     saved = load_saved_hub_path(script_path)
     if saved is not None:
         return saved
-
-    p = Path(HARDCODED_HUB_PATH)
-    try:
-        if p.expanduser().is_dir():
-            return p
-    except Exception as e:
-        sys.stderr.write(f"Warning: Failed to check hub dir {p}: {e}\n")
 
     if arg_base_dir:
         p = Path(arg_base_dir).expanduser()
