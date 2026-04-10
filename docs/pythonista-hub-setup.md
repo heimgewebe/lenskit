@@ -7,6 +7,14 @@ In Pythonista existieren getrennte Speicherwelten:
 - iCloud → enthält repoLens
 - Lokales Pythonista Documents → enthält wc-hub
 
+Konkrete Pfade (Beispiel):
+
+- iCloud:
+  /private/var/mobile/Library/Mobile Documents/iCloud~com~omz-software~Pythonista3/Documents/...
+
+- Lokal:
+  /private/var/mobile/Containers/Data/Application/.../Documents/...
+
 → repoLens kann den Hub **nicht selbst finden**, da beide Welten isoliert sind.
 
 ---
@@ -14,6 +22,7 @@ In Pythonista existieren getrennte Speicherwelten:
 ## Prinzip
 
 Der `pathfinder.py` muss **im Kontext des Hubs ausgeführt werden**.
+Der Ausführungsort bestimmt die Sicht auf das Dateisystem.
 
 → Nur dort kann er den echten Pfad bestimmen.
 
@@ -29,7 +38,7 @@ merger/lenskit/frontends/pythonista/pathfinder.py
 
 nach:
 
-/wc-hub/
+<lokales Pythonista Documents>/wc-hub/
 
 ---
 
@@ -37,7 +46,7 @@ nach:
 
 In Pythonista:
 
-wc-hub/pathfinder.py starten
+<lokales Pythonista Documents>/wc-hub/pathfinder.py starten
 
 ---
 
@@ -48,11 +57,11 @@ Der Pathfinder:
 - erkennt den aktuellen Hub-Pfad
 - schreibt diesen in:
 
-wc-hub/.repolens-hub-path.txt
+<lokales Pythonista Documents>/wc-hub/.repolens-hub-path.txt
 
 und zusätzlich nach:
 
-/.repolens-hub-path.txt
+<repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt
 
 → Damit entsteht ein persistenter Pfad-Contract.
 
@@ -70,13 +79,31 @@ Nach erfolgreichem Lauf:
 
 repoLens startet **ohne Fehler**.
 
-Optional prüfen:
+Zusätzlich prüfen:
 
-/.repolens-hub-path.txt
+1. Öffne:
+   <repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt
 
-enthält:
+2. Inhalt muss exakt sein:
+   /private/var/mobile/.../Documents/wc-hub
 
-/private/var/mobile/…/Documents/wc-hub
+Wenn diese Datei fehlt oder leer ist → Pathfinder erneut ausführen.
+
+---
+
+## 🧯 Wenn es nicht funktioniert
+
+1. Prüfen:
+   Existiert <repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt?
+
+2. Wenn nein:
+   → Pathfinder erneut im wc-hub ausführen
+
+3. Wenn ja:
+   → repoLens komplett neu starten
+
+4. Wenn weiterhin Fehler:
+   → falscher Script-Kontext (Pathfinder im falschen Ort ausgeführt)
 
 ---
 
