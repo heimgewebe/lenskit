@@ -1,7 +1,9 @@
+from typing import List, Dict, Any
 from pathlib import Path
+
 from merger.lenskit.adapters.atlas import AtlasScanner
 
-def _scan_workspaces(root: Path):
+def _scan_workspaces(root: Path) -> List[Dict[str, Any]]:
     scanner = AtlasScanner(root)
     result = scanner.scan()
     return result["stats"]["workspaces"]
@@ -60,3 +62,4 @@ def test_atlas_scanner_constants_accessible():
     assert isinstance(AtlasScanner.WORKSPACE_SIGNALS, tuple)
     assert ".ai-context.yml" in AtlasScanner.WORKSPACE_SIGNALS
     assert isinstance(AtlasScanner.DEFAULT_ATLAS_EXCLUDES, tuple)
+    assert "proc/**" in AtlasScanner.DEFAULT_ATLAS_EXCLUDES
