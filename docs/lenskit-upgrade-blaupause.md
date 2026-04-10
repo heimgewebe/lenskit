@@ -1651,7 +1651,7 @@ Ziel:
 Operationen:
 - [x] 1. query (API vorhanden)
 - [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
-- [ ] 3. trace_lookup (Request/Response-Contract fehlt)
+- [ ] 3. trace_lookup (als repo-belegter Request/Response-Contract noch nicht festgelegt)
 - [ ] 4. artifact_lookup (als separater Servicepfad nicht implementiert)
 - [x] 5. federation_query (als HTTP-Servicepfad vorhanden)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
@@ -1714,7 +1714,7 @@ Ziel:
 Guardrails:
 - **Repo-belegt implementiert**:
   - `low_result_coverage` (Runtime-Warning-Output belegt)
-- **Fachlich relevante, aber derzeit nicht repo-belegte Runtime-Guardrails**:
+- **Fachlich relevante Guardrail-Klassen (derzeit nicht als strukturierte Runtime-Signale repo-belegt)**:
   - `stale_bundle`
   - `invalid_graph`
   - `missing_provenance`
