@@ -74,7 +74,7 @@ def main(args: Optional[List[str]] = None) -> int:
     pr_explain_parser.add_argument("--delta", required=True, help="Path to delta.json file")
 
     # Verify command (placeholder)
-    verify_parser = subparsers.add_parser("verify", help="Verify artifacts or bundles")
+    subparsers.add_parser("verify", help="Verify artifacts or bundles")
 
     # Architecture command
     architecture_parser = subparsers.add_parser("architecture", help="Extract architecture views")
