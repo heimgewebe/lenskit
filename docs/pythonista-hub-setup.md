@@ -15,7 +15,8 @@ Konkrete Pfade (Beispiel):
 - Lokal:
   /private/var/mobile/Containers/Data/Application/.../Documents/...
 
-→ repoLens kann den Hub **nicht selbst finden**, da beide Welten isoliert sind.
+→ repoLens kann den Hub teils automatisch erkennen (z. B. über Argument, Environment oder gespeicherten Pfad),
+  aber über die getrennten iCloud-/lokalen Documents-Welten hinweg ist diese Erkennung nicht verlässlich.
 
 ---
 
@@ -38,7 +39,7 @@ merger/lenskit/frontends/pythonista/pathfinder.py
 
 nach:
 
-<lokales Pythonista Documents>/wc-hub/
+`<lokales Pythonista Documents>/wc-hub/`
 
 ---
 
@@ -46,7 +47,7 @@ nach:
 
 In Pythonista:
 
-<lokales Pythonista Documents>/wc-hub/pathfinder.py starten
+`<lokales Pythonista Documents>/wc-hub/pathfinder.py` starten (bzw. `repolens-hub-pathfinder.py`)
 
 ---
 
@@ -57,11 +58,11 @@ Der Pathfinder:
 - erkennt den aktuellen Hub-Pfad
 - schreibt diesen in:
 
-<lokales Pythonista Documents>/wc-hub/.repolens-hub-path.txt
+`<lokales Pythonista Documents>/wc-hub/.repolens-hub-path.txt`
 
 und zusätzlich nach:
 
-<repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt
+`<repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt`
 
 → Damit entsteht ein persistenter Pfad-Contract.
 
@@ -82,7 +83,7 @@ repoLens startet **ohne Fehler**.
 Zusätzlich prüfen:
 
 1. Öffne:
-   <repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt
+   `<repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt`
 
 2. Inhalt muss exakt sein:
    /private/var/mobile/.../Documents/wc-hub
@@ -94,7 +95,7 @@ Wenn diese Datei fehlt oder leer ist → Pathfinder erneut ausführen.
 ## 🧯 Wenn es nicht funktioniert
 
 1. Prüfen:
-   Existiert <repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt?
+   Existiert `<repoLens iCloud-Verzeichnis>/.repolens-hub-path.txt`?
 
 2. Wenn nein:
    → Pathfinder erneut im wc-hub ausführen
@@ -126,7 +127,9 @@ Ein Lauf aus iCloud heraus liefert falsche oder unvollständige Ergebnisse.
 
 ## 🧠 Designentscheidung
 
-repoLens nutzt bewusst **keine unsichere Auto-Erkennung**, sondern einen expliziten Pfad-Contract.
+repoLens bevorzugt bewusst einen expliziten gespeicherten Pfad-Contract
+statt sich primär auf Auto-Erkennung zu verlassen.
+Begrenzte Fallbacks existieren, können aber in getrennten Speicherwelten fehlschlagen.
 
 → Pathfinder ist Teil der Architektur, nicht nur ein Debug-Tool.
 
