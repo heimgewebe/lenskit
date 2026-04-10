@@ -1651,8 +1651,8 @@ Ziel:
 Operationen:
 - [x] 1. query (API vorhanden)
 - [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
-- [ ] 3. trace_lookup (als getrennte Operation vorgesehen, aber Request/Response-Contract ist noch nicht festgelegt)
-- [ ] 4. artifact_lookup (als getrennte Lookup-Operation naheliegend, aber als eigener Servicevertrag noch nicht definiert)
+- [ ] 3. trace_lookup (Request/Response-Contract ist nicht repo-belegt festgelegt)
+- [ ] 4. artifact_lookup (als separater Servicepfad nicht implementiert)
 - [x] 5. federation_query (als HTTP-Servicepfad vorhanden)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
 
@@ -1687,8 +1687,8 @@ Ziel:
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 
 Traceability Model (aktueller repo-belegter Stand):
-- CLI-Pfad: physisches Artefakt `agent_query_session.json` nach v1-Contract. Enthält `refs` + Hashes. Referenzierbar und reproduzierbar.
-- API-Pfad: Inline Session nach v2-Contract. Enthält keine `refs`.
+- CLI nutzt aktuell das physische Artefakt `agent_query_session.json` nach v1-Contract. Enthält `refs` + Hashes.
+- API liefert aktuell eine Inline-Session nach v2-Contract. Enthält keine `refs`.
 *Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
 
 Physisches CLI-Artefakt: `agent_query_session.json`
@@ -1712,16 +1712,13 @@ Ziel:
 - [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, Guardrail "low result coverage" ist in `test_api_query.py` belegt; Guardrails für invalid graph, missing provenance, cross-repo conflict bleiben offen)
 
 Guardrails:
-- **low_result_coverage**:
-  - belegter Runtime-Warning-Output: "Low result coverage"
-- **stale_bundle**:
-  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
-- **invalid_graph**:
-  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
-- **missing_provenance**:
-  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
-- **cross_repo_conflict**:
-  - für diese Guardrail existiert noch keine repo-belegte strukturierte Runtime-Markierung
+- **Repo-belegt implementiert**:
+  - `low_result_coverage` (belegter Runtime-Warning-Output: "Low result coverage")
+- **Fachlich relevante, aber derzeit nicht repo-belegte Runtime-Guardrails**:
+  - `stale_bundle`
+  - `invalid_graph`
+  - `missing_provenance`
+  - `cross_repo_conflict`
 
 ### 2.11 Arbeitspaket I – Evaluierung der Agent-Nutzung
 Priority: P1
@@ -1747,8 +1744,8 @@ Tests:
   erfüllt: Contract existiert und Validierung steht.
   fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
 - [~] 5. `agent_query_session.json`
-  erfüllt: CLI erzeugt physisches Artefakt (nach v1-Contract), API erzeugt Inline-Session (nach v2-Contract).
-  fehlt: Physischer Artefakt-Layer für API-Sessions.
+  erfüllt: CLI nutzt physisches Artefakt (v1), API liefert Inline-Session (v2).
+  fehlt: Einheitlicher physischer Trace-Layer für die API.
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik
   erfüllt: API Servicepfade existieren.
   fehlt: MCP Protocol Implementation.
