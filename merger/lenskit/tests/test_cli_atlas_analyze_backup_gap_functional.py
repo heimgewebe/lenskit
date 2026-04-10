@@ -169,11 +169,12 @@ def test_cli_atlas_analyze_backup_gap_label_resolution(tmp_path, monkeypatch):
     from merger.lenskit.atlas.registry import AtlasRegistry
     with AtlasRegistry(registry_path) as reg:
         reg.register_machine("machine-a", "host-a")
+        reg.register_machine("machine-b", "host-b")
         reg.register_root("root-src", "machine-a", "abs_path", "/src", label="src-label")
-        reg.register_root("root-backup", "machine-a", "abs_path", "/backup", label="backup-label")
+        reg.register_root("root-backup", "machine-b", "abs_path", "/backup", label="backup-label")
 
         reg.create_snapshot("snap_src_1", "machine-a", "root-src", "hash1", "complete")
-        reg.create_snapshot("snap_backup_1", "machine-a", "root-backup", "hash2", "complete")
+        reg.create_snapshot("snap_backup_1", "machine-b", "root-backup", "hash2", "complete")
 
         inv_src_path = atlas_base / "inv_src.jsonl"
         with open(inv_src_path, "w", encoding="utf-8") as f:
@@ -206,7 +207,7 @@ def test_cli_atlas_analyze_backup_gap_label_resolution(tmp_path, monkeypatch):
             "analyze",
             "backup-gap",
             "machine-a:label:src-label",     # Explicit machine:label routing
-            "machine-a:label:backup-label"   # Explicit machine:label routing
+            "machine-b:label:backup-label"   # Explicit machine:label routing
         ],
         capture_output=True,
         text=True,
