@@ -1787,7 +1787,7 @@ Arbeitspakete:
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
 - [ ] **7.3 Service-Endpunkte:** `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
   erfüllt: API für Query/Federation vorhanden.
-  fehlt: Lookup-Operationen sind noch nicht als getrennte Serviceverträge ausgebildet.
+  fehlt: dedizierte Lookup-Endpunkte fehlen.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
