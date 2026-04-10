@@ -1638,7 +1638,7 @@ Profile:
 * federated_search
 * debug_trace
 
-Priority-Hinweis: P0 = kurzfristig architekturkritisch / blocker-nah, P1 = wichtig, aber nachgeordnet.
+Priority-Hinweis: P0 = kurzfristig architekturkritisch / blocker-nah, P1 = wichtig, aber nachgeordnet. (Die Prioritäten sind redaktionelle Planungsgewichtungen dieser Blaupause, keine direkten Repo-Statusangaben.)
 
 ### 2.5 Arbeitspaket C – Bounded Tool Surface
 Priority: P0
@@ -1651,7 +1651,7 @@ Ziel:
 Operationen:
 - [x] 1. query (API vorhanden)
 - [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
-- [ ] 3. trace_lookup (Request/Response-Contract ist nicht repo-belegt festgelegt)
+- [ ] 3. trace_lookup (Request/Response-Contract fehlt)
 - [ ] 4. artifact_lookup (als separater Servicepfad nicht implementiert)
 - [x] 5. federation_query (als HTTP-Servicepfad vorhanden)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
@@ -1687,8 +1687,8 @@ Ziel:
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 
 Traceability Model (aktueller repo-belegter Stand):
-- CLI nutzt aktuell das physische Artefakt `agent_query_session.json` nach v1-Contract. Enthält `refs` + Hashes.
-- API liefert aktuell eine Inline-Session nach v2-Contract. Enthält keine `refs`.
+- CLI-Pfad: nutzt aktuell das physische Artefakt `agent_query_session.json` nach v1-Contract. Enthält `refs` + Hashes.
+- API-Pfad: liefert aktuell eine Inline-Session nach v2-Contract. Enthält keine `refs`.
 *Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
 
 Physisches CLI-Artefakt: `agent_query_session.json`
@@ -1713,7 +1713,7 @@ Ziel:
 
 Guardrails:
 - **Repo-belegt implementiert**:
-  - `low_result_coverage` (belegter Runtime-Warning-Output: "Low result coverage")
+  - `low_result_coverage` (Runtime-Warning-Output belegt)
 - **Fachlich relevante, aber derzeit nicht repo-belegte Runtime-Guardrails**:
   - `stale_bundle`
   - `invalid_graph`
@@ -1744,7 +1744,7 @@ Tests:
   erfüllt: Contract existiert und Validierung steht.
   fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
 - [~] 5. `agent_query_session.json`
-  erfüllt: CLI nutzt physisches Artefakt (v1), API liefert Inline-Session (v2).
+  erfüllt: CLI-Pfad nutzt physisches Artefakt (v1), API-Pfad liefert Inline-Session (v2).
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 - [ ] 6. service-/MCP-fähige Schnittstellenlogik
   erfüllt: API Servicepfade existieren.
