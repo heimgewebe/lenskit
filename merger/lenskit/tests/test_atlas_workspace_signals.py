@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from merger.lenskit.adapters.atlas import AtlasScanner
 
 def _scan_workspaces(root: Path) -> List[Dict[str, Any]]:
+    """Helper to run a scan and return detected workspaces."""
     scanner = AtlasScanner(root)
     result = scanner.scan()
     return result["stats"]["workspaces"]
