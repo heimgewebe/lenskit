@@ -1,7 +1,7 @@
+from pathlib import Path
 from merger.lenskit.adapters.atlas import AtlasScanner
 
-def test_atlas_workspace_git_detection(tmp_path):
-    # A Git repo
+def test_atlas_workspace_git_detection(tmp_path: Path):
     git_repo = tmp_path / "git_repo"
     git_repo.mkdir()
     (git_repo / ".git").mkdir()
@@ -16,8 +16,7 @@ def test_atlas_workspace_git_detection(tmp_path):
     assert ".git" in ws["signals"]
     assert "README.md" in ws["signals"]
 
-def test_atlas_workspace_node_detection(tmp_path):
-    # A Node project
+def test_atlas_workspace_node_detection(tmp_path: Path):
     node_proj = tmp_path / "node_project"
     node_proj.mkdir()
     (node_proj / "package.json").write_text('{"name": "test"}', encoding="utf-8")
@@ -30,8 +29,7 @@ def test_atlas_workspace_node_detection(tmp_path):
     assert ws["workspace_kind"] == "node_project"
     assert "package.json" in ws["signals"]
 
-def test_atlas_workspace_python_detection(tmp_path):
-    # A Python project
+def test_atlas_workspace_python_detection(tmp_path: Path):
     py_proj = tmp_path / "python_project"
     py_proj.mkdir()
     (py_proj / "pyproject.toml").write_text("[tool.poetry]", encoding="utf-8")
@@ -46,8 +44,7 @@ def test_atlas_workspace_python_detection(tmp_path):
     assert "pyproject.toml" in ws["signals"]
     assert "README.md" in ws["signals"]
 
-def test_atlas_workspace_mixed_detection(tmp_path):
-    # Mixed workspace (signals that don't trigger a specific project type)
+def test_atlas_workspace_mixed_detection(tmp_path: Path):
     mixed_ws = tmp_path / "mixed"
     mixed_ws.mkdir()
     (mixed_ws / ".ai-context.yml").write_text("context: test", encoding="utf-8")
@@ -63,7 +60,6 @@ def test_atlas_workspace_mixed_detection(tmp_path):
     assert "README.md" in ws["signals"]
 
 def test_atlas_scanner_constants_accessible():
-    """Ensures constants are correctly defined on the class."""
     assert isinstance(AtlasScanner.WORKSPACE_SIGNALS, tuple)
     assert ".ai-context.yml" in AtlasScanner.WORKSPACE_SIGNALS
     assert isinstance(AtlasScanner.DEFAULT_ATLAS_EXCLUDES, tuple)
