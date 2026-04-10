@@ -163,7 +163,7 @@ logger = logging.getLogger(__name__)
 _PROGRESS_FILE_COUNT_THRESHOLD = 1000
 
 class AtlasScanner:
-    DEFAULT_ATLAS_EXCLUDES = [
+    DEFAULT_ATLAS_EXCLUDES = (
         "proc/**",
         "sys/**",
         "dev/**",
@@ -172,7 +172,17 @@ class AtlasScanner:
         "var/tmp/**",
         "var/run/**",
         "lost+found/**"
-    ]
+    )
+
+    WORKSPACE_SIGNALS = (
+        ".ai-context.yml",
+        "pyproject.toml",
+        "requirements.txt",
+        "package.json",
+        "compose.yml",
+        "docker-compose.yml",
+        "README.md"
+    )
 
     @staticmethod
     def _load_jsonl_inventory_map(source: Optional[Union[Dict[str, Any], Path]], inventory_label: str, entry_label: str) -> Dict[str, Any]:
@@ -471,7 +481,7 @@ class AtlasScanner:
                 if has_git:
                     workspace_signals.append(".git")
 
-                for sig in [".ai-context.yml", "pyproject.toml", "requirements.txt", "package.json", "compose.yml", "docker-compose.yml", "README.md"]:
+                for sig in self.WORKSPACE_SIGNALS:
                     if sig in dirs or sig in files:
                         workspace_signals.append(sig)
 
