@@ -79,3 +79,39 @@ def test_is_pythonista_runtime(monkeypatch):
 
     monkeypatch.setattr(sys, "executable", "/Applications/Pythonista3.app/python3")
     assert _is_pythonista_runtime()
+
+def test_detect_hub_dir_pythonista_local_fallback(monkeypatch, tmp_path):
+    monkeypatch.delenv("REPOLENS_BASEDIR", raising=False)
+    script_dir = tmp_path / "Pythonista" / "script"
+    script_dir.mkdir(parents=True)
+    script_path = script_dir / "repolens.py"
+    script_path.touch()
+
+    fake_home = tmp_path / "home"
+    docs = fake_home / "Documents"
+    hub = docs / "wc-hub"
+
+    hub.mkdir(parents=True)
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: fake_home)
+
+    detected = detect_hub_dir(script_path)
+    assert detected == hub
+
+def test_detect_hub_dir_no_pythonista_fallback(monkeypatch, tmp_path):
+    monkeypatch.delenv("REPOLENS_BASEDIR", raising=False)
+    # script_path clearly outside Pythonista
+    script_dir = tmp_path / "usr" / "local" / "bin"
+    script_dir.mkdir(parents=True)
+    script_path = script_dir / "repolens.py"
+    script_path.touch()
+
+    fake_home = tmp_path / "home"
+    docs = fake_home / "Documents"
+    hub = docs / "wc-hub"
+    hub.mkdir(parents=True)
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: fake_home)
+
+    with pytest.raises(FileNotFoundError, match="Hub-Verzeichnis"):
+        detect_hub_dir(script_path)
