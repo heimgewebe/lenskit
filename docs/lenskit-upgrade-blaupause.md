@@ -1709,7 +1709,7 @@ Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/que
 Priority: P1
 
 Ziel:
-- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, Guardrail "low result coverage" ist in `test_api_query.py` belegt; Guardrails für invalid graph, missing provenance, cross-repo conflict bleiben offen)
+- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Guardrail "low result coverage" ist als Runtime-Warning belegt; Guardrails für stale bundle, invalid graph, missing provenance und cross-repo conflict bleiben als strukturierte Runtime-Signale noch offen)
 
 Guardrails:
 - **Repo-belegt implementiert**:
