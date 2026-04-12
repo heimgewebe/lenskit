@@ -905,17 +905,25 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 
 *(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
 
-- [~] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback); Robustheit und Formatabdeckung offen
+- [~] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback)
+  - erfüllt: Basis-Erkennung implementiert und getestet
+  - fehlt: Härtung der Robustheit und breitere Formatabdeckung
   - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
-- [~] Encoding-Erkennung (kleines best-effort Set); Robustheit, Reproduzierbarkeit und breitere Formatabdeckung offen
+- [~] Encoding-Erkennung (kleines best-effort Set)
+  - erfüllt: Best-effort Set implementiert und getestet
+  - fehlt: Reproduzierbarkeit und Härtung
   - *Semantische Notiz: `encoding` ist ein best-effort Feld basierend auf einer 4KB-Heuristik. Es wird nur für plausibel textuelle Inhalte emittiert und ist keine garantierte Klassifikation.*
-- [~] line_count im Content-Modus (`enable_content_stats`); Verhalten für Non-Content-Scans offen
+- [~] line_count im Content-Modus (`enable_content_stats`)
+  - erfüllt: Zeilenzählung im Content-Modus implementiert
+  - fehlt: Eindeutiges Verhalten für Non-Content-Scans
   - *Semantische Notiz: `line_count` ist ein best-effort Feld basierend auf zeilenweiser Zählung innerhalb des Content-Modus. Dateien >20MB werden aus Performance-Gründen übersprungen. Die Genauigkeit hängt bei Nicht-UTF-8-Dateien von der best-effort Encoding-Erkennung ab.*
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
-- [~] Binary-/Huge-file-Strategie klären (Dateien oberhalb von `max_file_size` werden im Inventar erfasst; Content-Analyse bleibt ausgespart. Incremental-Reuse-Verhalten (Transition small->huge sowie Config-Wechsel) ist implementiert und getestet. Geklärt: explizites optionales Inventory-Feld `is_huge` im Inventory-Contract. Offen: Abgrenzung zu Binary-Dateien, Grenzfälle (`size == max_file_size`, `huge->small`), Policy-Ebene.)
+- [~] Binary-/Huge-file-Strategie klären
+  - erfüllt: `is_huge` Feld im Contract, Content-Ausschluss, Incremental-Reuse implementiert
+  - fehlt: Abgrenzung zu Binary-Dateien, Grenzfälle, Policy-Ebene
 - [x] Tests für modeabhängige Inhaltsfelder ergänzen (vorheriger `test_atlas_content_fields.py` war methodisch zu dünn)
 
 **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
@@ -923,10 +931,14 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 ### Phase 6 — Analyseartefakte
 Ziel: Atlas wird diagnostisch.
 - [ ] Hotspots erweitern um Growth-/Change-Achsen
-- [~] Duplicate Detection (size prefilter + hash confirm) (teilweise gehärtet: Im CLI `atlas analyze duplicates <snapshot_id>` abrufbar. Unterscheidet heuristische und bestätigte Matches, Offline-Generierung, über duplicates_ref in der Registry referenziert. Echtzeit-/Online-Erkennung noch offen.)
+- [~] Duplicate Detection (size prefilter + hash confirm)
+  - erfüllt: CLI Command implementiert, Artifacts generiert und in Registry referenziert
+  - fehlt: Echtzeit-/Online-Erkennung
 - [x] duplicates.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter duplicates_ref hinterlegt)
 - [x] orphans.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter orphans_ref hinterlegt)
-- [~] analyze disk standardisieren (teilweise gehärtet: Offline-Generierung über CLI, noch unvollständige Historienauswertung)
+- [~] analyze disk standardisieren
+  - erfüllt: Offline-Generierung über CLI Command vorhanden
+  - fehlt: Vollständige Historienauswertung
 - [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
 - [x] analyze orphans implementieren (als CLI command `atlas analyze orphans <snapshot_id>`)
 - [x] Oldest-/Largest-Files-Artefakte vereinheitlichen
@@ -939,11 +951,15 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
 - [x] mehrere Machines sauber registrieren (via --machine-id/--hostname CLI flags)
 - [x] Root-Namenskonventionen zwischen Hosts vereinheitlichen
   - *Architekturnotiz: `root_label` ist nun systemisch als semantische Gruppierungsachse etabliert. Fehlende explizite Labels werden kanonisch aus dem Verzeichnisnamen generiert.*
-- [~] Cross-machine snapshot diff definieren (teilweise gehärtet: aktuell nur struktureller Metadaten-Vergleich, keine tiefe Inhaltsgleichheit)
+- [~] Cross-machine snapshot diff definieren
+  - erfüllt: CLI Command und struktureller Metadaten-Vergleich implementiert
+  - fehlt: Tiefe Inhaltsgleichheit / voll gehärtete Semantik
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
   - *Semantische Notiz: `atlas diff` leitet cross-root Anfragen intern auf `cross-root-comparison` um (statt strengem `same-root-delta`). Der aktuelle Vergleich ist ein strukturbezogener Metadatenabgleich (`rel_path`, `size_bytes`, `mtime`) und kein inhaltlich tief gehärteter Gleichheitsbeweis.*
-- [~] Backup-gap-Analyse definieren (teilweise gehärtet: als `atlas analyze backup-gap` CLI command; JSON-Output durch funktionale CLI-Tests für Snapshot-ID-, machine:path- und Label-Auflösung abgesichert)
+- [~] Backup-gap-Analyse definieren
+  - erfüllt: CLI Command implementiert und durch CLI-Tests (Label/Path/ID-Auflösung) abgesichert
+  - fehlt: Tiefergehende Härtung der Inhaltsgleichheit
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [x] Konfliktfälle (gleiches root label, andere Pfade) definieren
   - *Semantische Notiz: Die label-basierte Diff-Auflösung verlangt pro Maschine Eindeutigkeit. Wenn ein Label auf einer Maschine mehrdeutig ist, muss zwingend `machine:path` oder `snapshot_id` verwendet werden.*
