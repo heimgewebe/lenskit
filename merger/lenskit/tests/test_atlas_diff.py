@@ -1,8 +1,8 @@
-import argparse
 import json
 import os
-import tempfile
 import pytest
+from pathlib import Path
+from typing import Optional, Dict, Any, List
 from merger.lenskit.atlas.registry import AtlasRegistry
 from merger.lenskit.atlas.diff import (
     compute_snapshot_delta,
@@ -27,7 +27,7 @@ def populated_registry(temp_workspace):
         reg.register_root("r1", "m1", "abs_path", "/var/www")
 
         # In Atlas, artifacts are stored relative to atlas_base (which is two levels up from registry.db_path)
-        # So here, atlas_base = registry_db.parent.parent
+        # So here, atlas_base is tmp_path / "atlas"
         atlas_base = registry_db.parent.parent
         atlas_base.mkdir(parents=True, exist_ok=True)
 
@@ -66,6 +66,7 @@ def populated_registry(temp_workspace):
 def test_compute_snapshot_delta(populated_registry):
     # Prove CWD independence by executing from a random temporary directory
     old_cwd = os.getcwd()
+    import tempfile
     with tempfile.TemporaryDirectory() as td:
         os.chdir(td)
         try:
@@ -134,6 +135,7 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
     populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_rel})
 
     old_cwd = os.getcwd()
+    import tempfile
     with tempfile.TemporaryDirectory() as td:
         os.chdir(td)
         try:
@@ -204,6 +206,7 @@ def test_resolve_snapshot_ref(populated_registry):
 
 def test_cli_diff_routing(temp_workspace, populated_registry, capsys):
     tmp_path, registry_db = temp_workspace
+    import argparse
     from merger.lenskit.cli.cmd_atlas import run_atlas_diff
 
     old_cwd = os.getcwd()
@@ -388,19 +391,20 @@ def test_load_inventory_index_whitespace_only_line(tmp_path):
     index = _load_inventory_index(inv_path)
     assert sorted(index.keys()) == ["file1.txt", "file2.txt"]
 
-def test_compute_snapshot_comparison_integration_lean(tmp_path):
+def test_compute_snapshot_comparison_public_entry_point(tmp_path):
     """
     Lean integration test for compute_snapshot_comparison.
-    Ensures component collaboration via the public entry point.
+    Ensures component collaboration via the public entry point using a mock registry
+    and canonical inventory paths.
     """
     atlas_base = tmp_path / "atlas"
     registry_db = atlas_base / "registry" / "atlas.db"
     registry_db.parent.mkdir(parents=True)
 
     class MockRegistry:
-        def __init__(self, db_path):
+        def __init__(self, db_path: Path):
             self.db_path = db_path
-        def get_snapshot(self, snap_id):
+        def get_snapshot(self, snap_id: str) -> Optional[Dict[str, Any]]:
             if snap_id == "s1":
                 return {
                     "machine_id": "m1", "root_id": "r1", "status": "complete",
@@ -412,7 +416,7 @@ def test_compute_snapshot_comparison_integration_lean(tmp_path):
                     "inventory_ref": "machines/m2/roots/r2/snapshots/s2/inv.jsonl"
                 }
             return None
-        def get_root(self, root_id):
+        def get_root(self, root_id: str) -> Optional[Dict[str, Any]]:
             return {"root_id": root_id, "root_value": f"/path/to/{root_id}"}
 
     registry = MockRegistry(registry_db)
