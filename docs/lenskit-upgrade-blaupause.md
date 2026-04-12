@@ -1645,7 +1645,7 @@ Priority: P0
 
 Ziel:
 - [ ] Lenskit soll als Werkzeug präzise Grenzen haben.
-  erfüllt: `/api/query` und `/api/federation/query` sind als begrenzte API-Pfade implementiert.
+  erfüllt: HTTP-seitig repo-belegt vorhanden: `/api/query`, `/api/federation/query`; logisch entspricht dies den Endpunkten `/query` und `/federation/query`.
   fehlt: dedizierte Lookup-Endpunkte zur isolierten Rekonstruktion fehlen.
 
 Operationen:
@@ -1700,7 +1700,7 @@ Priority: P0
 
 Ziel:
 - [ ] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen.
-  erfüllt: HTTP API für `/query` und `/federation/query` implementiert.
+  erfüllt: HTTP-seitig repo-belegt implementiert sind aktuell `/api/query` und `/api/federation/query` (logisch: `/query`, `/federation/query`).
   fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen gänzlich.
 
 Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
@@ -1738,7 +1738,7 @@ Tests:
 - [x] 1. Agent Query Contract (für /api/query im API-Roundtrip minimal belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
-  erfüllt: query/federation Servicepfade vorhanden.
+  erfüllt: HTTP-seitig belegt vorhanden: `/api/query`, `/api/federation/query` (logische Endpunkte `/query`, `/federation/query`).
   fehlt: dedizierte Lookup-Endpunkte (context/trace/artifact).
 - [ ] 4. maschinenlesbare uncertainty/provenance Felder
   erfüllt: Contract existiert und Validierung steht.
@@ -1785,8 +1785,8 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [ ] **7.3 Service-Endpunkte:** `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
-  erfüllt: API für Query/Federation vorhanden.
+- [ ] **7.3 Service-Endpunkte:** logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
+  erfüllt: repo-belegt als HTTP-Servicepfade aktuell implementiert: `/api/query` und `/api/federation/query`.
   fehlt: dedizierte Lookup-Endpunkte fehlen.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
