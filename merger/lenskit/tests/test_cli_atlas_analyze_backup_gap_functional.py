@@ -5,6 +5,10 @@ import os
 from pathlib import Path
 
 def test_cli_atlas_analyze_backup_gap(tmp_path, monkeypatch):
+    """
+    Tests the user-facing contract of providing explicit 'snapshot_id' references.
+    This serves as the foundational functional CLI test for Snapshot-ID resolution.
+    """
     # Setup registry and environments
     registry_path = tmp_path / "atlas/registry/atlas_registry.sqlite"
     atlas_base = tmp_path / "atlas"
