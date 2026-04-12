@@ -327,7 +327,7 @@ def _run_analyze_orphans(snapshot_id: str) -> int:
 
     # Load live files from the root
     live_files = set()
-    for root_dir, dirs, files in os.walk(root_path):
+    for root_dir, _, files in os.walk(root_path):
         rel_root = Path(root_dir).relative_to(root_path)
         for name in files:
             rel_file_path = rel_root / name
