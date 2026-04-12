@@ -943,7 +943,7 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
   - *Semantische Notiz: `atlas diff` leitet cross-root Anfragen intern auf `cross-root-comparison` um (statt strengem `same-root-delta`). Der aktuelle Vergleich ist ein strukturbezogener Metadatenabgleich (`rel_path`, `size_bytes`, `mtime`) und kein inhaltlich tief gehärteter Gleichheitsbeweis.*
-- [~] Backup-gap-Analyse definieren (teilweise gehärtet: als `atlas analyze backup-gap` CLI command; JSON-Output und Snapshot-ID-Auflösung durch CLI-nahen Integrationstest abgesichert)
+- [~] Backup-gap-Analyse definieren (teilweise gehärtet: als `atlas analyze backup-gap` CLI command; JSON-Output durch funktionale CLI-Tests für Snapshot-ID-, machine:path- und Label-Auflösung abgesichert)
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [x] Konfliktfälle (gleiches root label, andere Pfade) definieren
   - *Semantische Notiz: Die label-basierte Diff-Auflösung verlangt pro Maschine Eindeutigkeit. Wenn ein Label auf einer Maschine mehrdeutig ist, muss zwingend `machine:path` oder `snapshot_id` verwendet werden.*
