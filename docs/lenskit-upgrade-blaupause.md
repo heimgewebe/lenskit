@@ -1662,7 +1662,7 @@ Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusamm
 Priority: P1
 
 Ziel:
-- [ ] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen.
+- [~] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen.
   erfüllt: `epistemics` Contract definiert und für lokale Basisdaten getestet.
   fehlt: Komplexe Status werden noch nicht durchgängig aus allen Pfaden in den Contract überführt (z.B. `semantic_status` bleibt konservativ `unknown`).
 
