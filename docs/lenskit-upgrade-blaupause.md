@@ -1649,11 +1649,11 @@ Ziel:
   fehlt: dedizierte Lookup-Endpunkte zur isolierten Rekonstruktion fehlen.
 
 Operationen:
-- [x] 1. query (API vorhanden)
+- [x] 1. query (logisch vorgesehen als `/query`; HTTP-seitig repo-belegt via `/api/query`)
 - [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
 - [ ] 3. trace_lookup (als repo-belegter Request/Response-Contract noch nicht festgelegt)
 - [ ] 4. artifact_lookup (als separater Servicepfad nicht implementiert)
-- [x] 5. federation_query (als HTTP-Servicepfad vorhanden)
+- [x] 5. federation_query (logisch vorgesehen als `/federation/query`; HTTP-seitig repo-belegt via `/api/federation/query`)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
 
 Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusammenmischen beliebiger Bundles, ungebundene „find everything about X“-Operationen ohne Grenzen.
@@ -1735,7 +1735,7 @@ Tests:
 - [x] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
-- [x] 1. Agent Query Contract (für /api/query im API-Roundtrip minimal belegt und getestet)
+- [x] 1. Agent Query Contract (minimaler HTTP-Roundtrip über `/api/query` repo-belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [ ] 3. bounded API/tool surface
   erfüllt: HTTP-seitig belegt vorhanden: `/api/query`, `/api/federation/query` (logische Endpunkte `/query`, `/federation/query`).
