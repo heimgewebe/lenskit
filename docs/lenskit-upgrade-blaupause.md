@@ -1645,7 +1645,7 @@ Priority: P0
 
 Ziel:
 - [ ] Lenskit soll als Werkzeug präzise Grenzen haben.
-  erfüllt: `/api/query` und `/api/federation/query` existieren und setzen Scope-Grenzen.
+  erfüllt: `/api/query` und `/api/federation/query` sind als begrenzte API-Pfade implementiert.
   fehlt: dedizierte Lookup-Endpunkte zur isolierten Rekonstruktion fehlen.
 
 Operationen:
@@ -1683,7 +1683,7 @@ Priority: P0
 
 Ziel:
 - [~] Jede Agent-Nutzung ist nachvollziehbar.
-  erfüllt: Architektonische Trennung zwischen CLI-Trace und API-Inline Session implementiert.
+  erfüllt: CLI-/API-Verhalten unterscheiden sich belegbar in Trace-Artefakt vs. Inline-Session.
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 
 Traceability Model (aktueller repo-belegter Stand):
