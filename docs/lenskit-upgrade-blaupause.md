@@ -1644,14 +1644,14 @@ Priority-Hinweis: P0 = kurzfristig architekturkritisch / blocker-nah, P1 = wicht
 Priority: P0
 
 Ziel:
-- [ ] Lenskit soll als Werkzeug präzise Grenzen haben.
+- [~] Lenskit soll als Werkzeug präzise Grenzen haben.
   erfüllt: HTTP-seitig repo-belegt vorhanden: `/api/query`, `/api/federation/query`; logisch entspricht dies den Endpunkten `/query` und `/federation/query`.
   fehlt: dedizierte Lookup-Endpunkte zur isolierten Rekonstruktion fehlen.
 
 Operationen:
 - [x] 1. query (logisch vorgesehen als `/query`; HTTP-seitig repo-belegt via `/api/query`)
-- [ ] 2. context_bundle (dedizierter Lookup-Endpunkt fehlt)
-- [ ] 3. trace_lookup (als repo-belegter Request/Response-Contract noch nicht festgelegt)
+- [ ] 2. context_bundle (dedizierter Endpunkt fehlt)
+- [ ] 3. trace_lookup (Request/Response-Contract fehlt)
 - [ ] 4. artifact_lookup (als separater Servicepfad nicht implementiert)
 - [x] 5. federation_query (logisch vorgesehen als `/federation/query`; HTTP-seitig repo-belegt via `/api/federation/query`)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
@@ -1687,8 +1687,8 @@ Ziel:
   fehlt: Einheitlicher physischer Trace-Layer für die API.
 
 Traceability Model (aktueller repo-belegter Stand):
-- CLI-Pfad: nutzt aktuell das physische Artefakt `agent_query_session.json` nach v1-Contract. Enthält `refs` + Hashes.
-- API-Pfad: liefert aktuell eine Inline-Session nach v2-Contract. Enthält keine `refs`.
+- CLI nutzt aktuell das physische Artefakt `agent_query_session.json` nach v1-Contract.
+- API liefert aktuell eine Inline-Session nach v2-Contract.
 *Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
 
 Physisches CLI-Artefakt: `agent_query_session.json`
@@ -1699,7 +1699,7 @@ Inhalt: request contract, resolved bundle set, query trace refs, context bundle 
 Priority: P0
 
 Ziel:
-- [ ] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen.
+- [~] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen.
   erfüllt: HTTP-seitig repo-belegt implementiert sind aktuell `/api/query` und `/api/federation/query` (logisch: `/query`, `/federation/query`).
   fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen gänzlich.
 
@@ -1714,7 +1714,7 @@ Ziel:
 Guardrails:
 - **Repo-belegt implementiert**:
   - `low_result_coverage` (Runtime-Warning-Output belegt)
-- **Fachlich relevante Guardrail-Klassen (derzeit nicht als strukturierte Runtime-Signale repo-belegt)**:
+- **Fachlich relevante, aber derzeit nicht repo-belegte Runtime-Guardrails**:
   - `stale_bundle`
   - `invalid_graph`
   - `missing_provenance`
@@ -1737,16 +1737,16 @@ Tests:
 ### 2.12 Deliverables Phase 6
 - [x] 1. Agent Query Contract (minimaler HTTP-Roundtrip über `/api/query` repo-belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
-- [ ] 3. bounded API/tool surface
+- [~] 3. bounded API/tool surface
   erfüllt: HTTP-seitig belegt vorhanden: `/api/query`, `/api/federation/query` (logische Endpunkte `/query`, `/federation/query`).
   fehlt: dedizierte Lookup-Endpunkte (context/trace/artifact).
-- [ ] 4. maschinenlesbare uncertainty/provenance Felder
+- [~] 4. maschinenlesbare uncertainty/provenance Felder
   erfüllt: Contract existiert und Validierung steht.
   fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
 - [~] 5. `agent_query_session.json`
-  erfüllt: CLI-Pfad nutzt physisches Artefakt (v1), API-Pfad liefert Inline-Session (v2).
+  erfüllt: CLI nutzt physisches Artefakt (v1), API liefert Inline-Session (v2).
   fehlt: Einheitlicher physischer Trace-Layer für die API.
-- [ ] 6. service-/MCP-fähige Schnittstellenlogik
+- [~] 6. service-/MCP-fähige Schnittstellenlogik
   erfüllt: API Servicepfade existieren.
   fehlt: MCP Protocol Implementation.
 - [~] 7. Agent-Guardrails (teilweise: Guardrail-Heuristik "low result coverage" belegt, strukturelle Härtung für fehlende Provenance etc. offen)
@@ -1785,7 +1785,7 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [ ] **7.3 Service-Endpunkte:** logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
+- [~] **7.3 Service-Endpunkte:** logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
   erfüllt: repo-belegt als HTTP-Servicepfade aktuell implementiert: `/api/query` und `/api/federation/query`.
   fehlt: dedizierte Lookup-Endpunkte fehlen.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
