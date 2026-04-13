@@ -2,7 +2,7 @@ from pathlib import Path
 from merger.lenskit.core.merge import extract_file_offsets
 
 def test_offset_parser_handles_marker_variations(tmp_path: Path):
-    # Test 1: Standard
+    # Test 1: Quoted type + Quoted id (New Standard)
     p1 = tmp_path / "f1.md"
     p1.write_bytes(
         (
@@ -16,22 +16,21 @@ def test_offset_parser_handles_marker_variations(tmp_path: Path):
         ).encode("utf-8")
     )
 
-    # Test 2: Still handles unquoted if it happens (though we generate quoted)
-    # Actually extract_file_offsets now strictly requires quotes
+    # Test 2: Unquoted type + Quoted id (Legacy Mixed)
     p2 = tmp_path / "f2.md"
     p2.write_bytes(
         (
-            "<!-- zone:begin type=\"code\" id=\"FILE:test2\" -->\n"
+            "<!-- zone:begin type=code id=\"FILE:test2\" -->\n"
             "```\n"
             "x=1\n"
             "```\n"
         ).encode("utf-8")
     )
 
-    # Test 3: CRLF newlines
+    # Test 3: CRLF newlines + Unquoted type + Unquoted id (Legacy CRLF)
     p3 = tmp_path / "f3.md"
     p3.write_bytes(
-        b"<!-- zone:begin type=\"code\" id=\"FILE:test3\" -->\r\n"
+        b"<!-- zone:begin type=code id=FILE:test3 -->\r\n"
         b"\r\n"
         b"```python\r\n"
         b"x=1\r\n"

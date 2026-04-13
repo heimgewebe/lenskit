@@ -423,17 +423,15 @@ def test_json_marker_matches_markdown_marker(tmp_path):
 
     # Validate against Schema (Contract Hardness)
     # Ensure generated JSON complies with the strict schema
-    try:
-        import jsonschema
+    import pytest
+    jsonschema = pytest.importorskip("jsonschema")
 
-        # Contract v2
-        schema_path = Path(__file__).parent.parent / "contracts/repolens-agent.v2.schema.json"
-        assert schema_path.exists(), "Schema v2 file not found"
+    # Contract v2
+    schema_path = Path(__file__).parent.parent / "contracts/repolens-agent.v2.schema.json"
+    assert schema_path.exists(), "Schema v2 file not found"
 
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        jsonschema.validate(instance=json_content, schema=schema)
-    except ImportError:
-        pass # Optional dependency
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=json_content, schema=schema)
 
 def test_zone_end_parsing_with_attributes():
     """

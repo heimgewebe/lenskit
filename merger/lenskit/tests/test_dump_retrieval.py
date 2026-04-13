@@ -159,7 +159,8 @@ def test_dual_output_mode():
         # 4. Check Markdown for Deterministic Zone End
         md_content = artifacts.canonical_md.read_text(encoding="utf-8")
 
-        zone_ends = re.findall(r"<!-- zone:end type=code id=(FILE:f_[0-9a-f]+) -->", md_content)
+        # Dual-read regex to support both quoted and unquoted attributes
+        zone_ends = re.findall(r'<!-- zone:end type="?code"? id="?(FILE:f_[0-9a-f]+)"? -->', md_content)
         assert len(zone_ends) > 0, "No deterministic zone:end markers found"
 
         # 5. Check JSON Sidecar for Extended Metadata
