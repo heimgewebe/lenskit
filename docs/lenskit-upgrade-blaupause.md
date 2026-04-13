@@ -1700,8 +1700,8 @@ Priority: P0
 
 Ziel:
 - [~] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen.
-  erfüllt: Basis-HTTP-Servicepfade (siehe 2.5) existieren.
-  fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen gänzlich.
+  erfüllt: HTTP-Servicepfade (siehe 2.5) vorhanden.
+  fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen.
 
 Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
 
@@ -1713,8 +1713,9 @@ Ziel:
 
 Guardrails:
 - **Repo-belegt implementiert**:
-  - Guardrail-Klasse: `low_result_coverage` (emittierter Warning-String: `"Low result coverage"`)
-- **Fachlich relevante, aber derzeit nicht repo-belegte Runtime-Guardrails**:
+  - Guardrail-Klasse: `low_result_coverage`
+  - emittierter Warning-String: `"Low result coverage"`
+- **Fachlich relevante Guardrail-Klassen (derzeit nicht als strukturierte Runtime-Signale repo-belegt)**:
   - `stale_bundle`
   - `invalid_graph`
   - `missing_provenance`
@@ -1738,8 +1739,8 @@ Tests:
 - [x] 1. Agent Query Contract (minimaler HTTP-Roundtrip über `/api/query` repo-belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [~] 3. bounded API/tool surface
-  erfüllt: Core-Query Pfade vorhanden.
-  fehlt: dedizierte Lookup-Endpunkte.
+  erfüllt: Query-/Federation-Pfade vorhanden (siehe 2.5).
+  fehlt: dedizierte Lookup-Pfade.
 - [~] 4. maschinenlesbare uncertainty/provenance Felder
   erfüllt: Contract existiert und Validierung steht.
   fehlt: Signale aus Graph/Semantik Pfaden in den Contract leiten.
@@ -1785,9 +1786,9 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [~] **7.3 Service-Endpunkte:** logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
-  erfüllt: Query/Federation-Pfade implementiert.
-  fehlt: dedizierte Lookup-Endpunkte fehlen.
+- [~] **7.3 Service-Endpunkte:**
+  erfüllt: Query-/Federation-Pfade vorhanden.
+  fehlt: dedizierte Lookup-Pfade (Context/Trace/Artifact/Diagnostics).
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
