@@ -1713,7 +1713,7 @@ Ziel:
 
 Guardrails:
 - **Repo-belegt implementiert**:
-  - `low_result_coverage` (Runtime-Warning-Output belegt)
+  - `low_result_coverage` (emittierter Warning-String: "Low result coverage")
 - **Fachlich relevante, aber derzeit nicht repo-belegte Runtime-Guardrails**:
   - `stale_bundle`
   - `invalid_graph`
