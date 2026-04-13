@@ -34,7 +34,7 @@ Dieses Fundament sichert ab, dass spätere Features stabil aufgebaut werden kön
 Um die "epistemische Leerstelle" zwischen funktionaler Existenz und architektonischer Reife explizit zu machen, gilt folgende strikte Statussemantik in der Blaupause:
 
 * **`[ ]` (Offen)**: Das Feature ist konzeptionell, aber nicht oder nur rudimentär belegbar implementiert.
-* **`[x]` (Abgeschlossen)**: Das Feature ist vollständig implementiert, getestet und **vollständig gehärtet** (Edge-Cases, Reproduzierbarkeit und Systemintegration sind belastbar nachgewiesen).
+* **`[x]` (Abgeschlossen)**: Das Feature ist vollständig implementiert, getestet und **vollständig gehärtet** (Edge-Cases, Reproduzierbarkeit und Systemintegration gelten als belastbar belegt).
 * **`[~]` (Substanziell begonnen)**: Das Feature existiert funktional, aber es fehlt mindestens eine Dimension (meistens die Härtung). Um eine Überladung dieses Symbols zu verhindern, wird das `[~]` für fortgeschrittene Features ab Phase 5 standardmäßig durch drei orthogonale Dimensionen aufgeschlüsselt:
   * `- implementation:` [done | partial | none] (Ist der Code logisch vorhanden und in die Pipeline integriert?)
   * `- tests:` [present | partial | missing] (Ist die Logik durch dedizierte Unit-/Integrationstests abgesichert?)

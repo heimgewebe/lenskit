@@ -1,6 +1,6 @@
 # BEFUND
 Die `docs/atlas-blaupause.md` wurde analysiert und gegen den aktuellen Zustand im Repository abgeglichen.
-Die Features in den fortgeschrittenen Phasen (z.B. MIME-Type, Encoding, Duplicate Detection, analyze disk, Cross-machine diff) sind zwar funktional implementiert und durch Tests belegt (nachgewiesen durch E2E-CLI-Tests und Unit-Tests), aber laut strenger Blueprint-Logik noch nicht als vollständig `[x]` gehärtet zu betrachten.
+Die Features in den fortgeschrittenen Phasen (z.B. MIME-Type, Encoding, Duplicate Detection, analyze disk, Cross-machine diff) sind zwar funktional implementiert und durch vorhandene E2E-CLI-Tests und Unit-Tests belegt, aber laut strenger Blueprint-Logik noch nicht als vollständig `[x]` gehärtet zu betrachten.
 Um das "Overloading" des `[~]`-Status zu beheben – welches fälschlicherweise reine Implementierungs-Lücken mit Härtungs-Lücken gleichsetzte –, wurde die Statussemantik im Dokument (Abschnitt 0) formell neu definiert und präzisiert. `[~]` wird für fortgeschrittene Features ab Phase 5 nun systematisch durch die drei Dimensionen `implementation`, `tests` und `hardening` unterfüttert. Ältere Phasen bleiben unberührt, um Scope-Creep zu vermeiden.
 
 # STATUSMATRIX
