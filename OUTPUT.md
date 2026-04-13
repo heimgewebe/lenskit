@@ -51,7 +51,7 @@ Phase 7 — Multi-Machine-Atlas
 
 # PLANPRÜFUNG
 Der Paradigmenwechsel vom formlosen Begleittext ("teilweise implementiert") hin zu orthogonalen Dimensionen (Implementation, Tests, Hardening) schafft epistemische Klarheit, ohne die Features verfrüht als `[x]` freizugeben.
-Wir unterscheiden nun explizit objektiv belegbare Fakten (die Funktionen laufen lokal im CLI und haben durch vorhandene Unit- und CLI-Tests abgesichert) von architektonischen Restrisiken (Hardening ist nur "partial", weil Edge-Cases oder volle Inhaltsgleichheits-Nachweise fehlen). Diese Metareflexion entspricht dem geforderten Niveau der Blaupause als strenges Steuerinstrument.
+Wir unterscheiden nun explizit objektiv belegbare Fakten (die Funktionen sind funktional implementiert und durch vorhandene Unit- und CLI-Tests abgesichert) von architektonischen Restrisiken (Hardening ist nur "partial", weil Edge-Cases oder volle Inhaltsgleichheits-Nachweise fehlen). Diese Metareflexion entspricht dem geforderten Niveau der Blaupause als strenges Steuerinstrument.
 
 # NÄCHSTER SCHRITT
 "Cross-root growth reports definieren" (Phase 6)
