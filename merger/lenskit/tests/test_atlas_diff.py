@@ -3,7 +3,7 @@ import os
 import tempfile
 import pytest
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from merger.lenskit.atlas.registry import AtlasRegistry
 from merger.lenskit.atlas.diff import (
     compute_snapshot_delta,
@@ -66,6 +66,7 @@ def populated_registry(temp_workspace):
 def test_compute_snapshot_delta(populated_registry):
     # Prove CWD independence by executing from a random temporary directory
     old_cwd = os.getcwd()
+    import tempfile
     with tempfile.TemporaryDirectory() as td:
         os.chdir(td)
         try:
@@ -134,6 +135,7 @@ def test_cross_machine_delta(temp_workspace, populated_registry):
     populated_registry.update_snapshot_artifacts("s3", {"inventory": inv3_rel})
 
     old_cwd = os.getcwd()
+    import tempfile
     with tempfile.TemporaryDirectory() as td:
         os.chdir(td)
         try:
