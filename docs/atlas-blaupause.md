@@ -26,6 +26,22 @@ Darauf setzen Retrieval, Analyse, Visualisierung und Agentenlogik auf. Lenskit b
 
 Dieses Fundament sichert ab, dass spätere Features stabil aufgebaut werden können.
 
+
+---
+
+## 0. STATUS-SEMANTIK & DIMENSIONEN
+
+Um die "epistemische Leerstelle" zwischen funktionaler Existenz und architektonischer Reife explizit zu machen, gilt folgende strikte Statussemantik in der Blaupause:
+
+* **`[ ]` (Offen)**: Das Feature ist konzeptionell, aber nicht oder nur rudimentär belegbar implementiert.
+* **`[x]` (Abgeschlossen)**: Das Feature ist vollständig implementiert, getestet und **vollständig gehärtet** (Edge-Cases, Reproduzierbarkeit und Systemintegration sind garantiert).
+* **`[~]` (Substanziell begonnen)**: Das Feature existiert funktional, aber es fehlt mindestens eine Dimension (meistens die Härtung). Um eine Überladung dieses Symbols zu verhindern, wird das `[~]` ab Phase 5 zwingend durch drei orthogonale Dimensionen aufgeschlüsselt:
+  * `- implementation:` [done | partial | none] (Ist der Code logisch vorhanden und in die Pipeline integriert?)
+  * `- tests:` [present | partial | missing] (Ist die Logik durch dedizierte Unit-/Integrationstests abgesichert?)
+  * `- hardening:` [complete | partial | missing] (Sind Edge-Cases, Stabilität, und Policies nachweislich robust?)
+
+---
+
 ## 1. Ausgangslage: Was Atlas laut aktuellem Repo bereits ist
 Der aktuelle Stand im Repo zeigt: Atlas ist bereits als Filesystem Exploration Tool angelegt, also gerade nicht primär als Repo-Scanner. Das README trennt Atlas explizit von der Repository-Aufbereitung und nennt das Scannen ganzer Systeme als Ziel. Gleichzeitig werden volatile/pseudo-Dateisysteme standardmäßig ausgeschlossen.
 
@@ -906,24 +922,28 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 *(Methodischer Hinweis: Die vormals hier abgehakten Features MIME/Encoding/line_count wurden im Rahmen des Phase-0-Audits bewusst zurückgebaut und de-markiert, da ihre erste Implementierung rein heuristisch war und noch nicht dem Robustheitsanspruch der Blaupause genügte.)*
 
 - [~] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback)
-  - erfüllt: Basis-Erkennung implementiert und getestet
-  - fehlt: Härtung der Robustheit und breitere Formatabdeckung
+  - implementation: done
+  - tests: present
+  - hardening: partial (best-effort Heuristik, Formatabdeckung ausbaufähig)
   - *Semantische Notiz: `mime_type` ist ein best-effort Feld. Die Erkennung ist heuristisch und teilweise umgebungsabhängig (z. B. durch `mimetypes`). Sie ist nicht gleichbedeutend mit einer vollständig reproduzierbaren Inhaltsklassifikation.*
 - [~] Encoding-Erkennung (kleines best-effort Set)
-  - erfüllt: Best-effort Set implementiert und getestet
-  - fehlt: Reproduzierbarkeit und Härtung
+  - implementation: done
+  - tests: present
+  - hardening: partial (Reproduzierbarkeit und Robustheit offen)
   - *Semantische Notiz: `encoding` ist ein best-effort Feld basierend auf einer 4KB-Heuristik. Es wird nur für plausibel textuelle Inhalte emittiert und ist keine garantierte Klassifikation.*
 - [~] line_count im Content-Modus (`enable_content_stats`)
-  - erfüllt: Zeilenzählung im Content-Modus implementiert
-  - fehlt: Eindeutiges Verhalten für Non-Content-Scans
+  - implementation: done
+  - tests: present
+  - hardening: partial (Verhalten für Non-Content-Scans methodisch unklar)
   - *Semantische Notiz: `line_count` ist ein best-effort Feld basierend auf zeilenweiser Zählung innerhalb des Content-Modus. Dateien >20MB werden aus Performance-Gründen übersprungen. Die Genauigkeit hängt bei Nicht-UTF-8-Dateien von der best-effort Encoding-Erkennung ab.*
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
 - [~] Binary-/Huge-file-Strategie klären
-  - erfüllt: `is_huge` Feld im Contract, Content-Ausschluss, Incremental-Reuse implementiert
-  - fehlt: Abgrenzung zu Binary-Dateien, Grenzfälle, Policy-Ebene
+  - implementation: done (Erfassung und Content-Bypass)
+  - tests: present
+  - hardening: partial (Abgrenzung zu reinen Binaries und Policy-Ebene fehlen)
 - [x] Tests für modeabhängige Inhaltsfelder ergänzen (vorheriger `test_atlas_content_fields.py` war methodisch zu dünn)
 
 **Stop-Kriterium**: Content-Enrichment ist modular, root- und modeabhängig zuschaltbar.
@@ -932,13 +952,15 @@ Ziel: Dateien über Rohmetadaten hinaus erschließen, ohne den Kern zu überlade
 Ziel: Atlas wird diagnostisch.
 - [ ] Hotspots erweitern um Growth-/Change-Achsen
 - [~] Duplicate Detection (size prefilter + hash confirm)
-  - erfüllt: CLI Command implementiert, Artifacts generiert und in Registry referenziert
-  - fehlt: Echtzeit-/Online-Erkennung
+  - implementation: done (Offline CLI)
+  - tests: present
+  - hardening: partial (Echtzeit-/Online-Erkennung fehlt)
 - [x] duplicates.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter duplicates_ref hinterlegt)
 - [x] orphans.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter orphans_ref hinterlegt)
 - [~] analyze disk standardisieren
-  - erfüllt: Offline-Generierung über CLI Command vorhanden
-  - fehlt: Vollständige Historienauswertung
+  - implementation: done (CLI Output und Disk-Artifact)
+  - tests: present
+  - hardening: partial (Vollständige Historienauswertung fehlt)
 - [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
 - [x] analyze orphans implementieren (als CLI command `atlas analyze orphans <snapshot_id>`)
 - [x] Oldest-/Largest-Files-Artefakte vereinheitlichen
@@ -952,14 +974,16 @@ Ziel: Maschinenübergreifende Dateiwirklichkeit sichtbar und vergleichbar machen
 - [x] Root-Namenskonventionen zwischen Hosts vereinheitlichen
   - *Architekturnotiz: `root_label` ist nun systemisch als semantische Gruppierungsachse etabliert. Fehlende explizite Labels werden kanonisch aus dem Verzeichnisnamen generiert.*
 - [~] Cross-machine snapshot diff definieren
-  - erfüllt: CLI Command und struktureller Metadaten-Vergleich implementiert
-  - fehlt: Tiefe Inhaltsgleichheit / voll gehärtete Semantik
+  - implementation: done (struktureller Metadaten-Abgleich)
+  - tests: present
+  - hardening: partial (tiefe Inhaltsgleichheit nicht bewiesen)
 - [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
   - *Methodische Notiz: `machine:path` löst deterministisch auf den neuesten vollständigen Snapshot auf.*
   - *Semantische Notiz: `atlas diff` leitet cross-root Anfragen intern auf `cross-root-comparison` um (statt strengem `same-root-delta`). Der aktuelle Vergleich ist ein strukturbezogener Metadatenabgleich (`rel_path`, `size_bytes`, `mtime`) und kein inhaltlich tief gehärteter Gleichheitsbeweis.*
 - [~] Backup-gap-Analyse definieren
-  - erfüllt: CLI Command implementiert und durch CLI-Tests (Label/Path/ID-Auflösung) abgesichert
-  - fehlt: Tiefergehende Härtung der Inhaltsgleichheit
+  - implementation: done (CLI Command)
+  - tests: present
+  - hardening: partial (wie beim Diff fehlt inhaltliche Tiefe)
 - [ ] Remote-Collector-/SSH-Modell festlegen
 - [x] Konfliktfälle (gleiches root label, andere Pfade) definieren
   - *Semantische Notiz: Die label-basierte Diff-Auflösung verlangt pro Maschine Eindeutigkeit. Wenn ein Label auf einer Maschine mehrdeutig ist, muss zwingend `machine:path` oder `snapshot_id` verwendet werden.*

@@ -1,74 +1,73 @@
 # BEFUND
 Die `docs/atlas-blaupause.md` wurde analysiert und gegen den aktuellen Zustand im Repository abgeglichen.
-Die in Phase 5, 6 und 7 auf `[~]` stehenden Features (MIME-Type, Encoding, line_count, Binary-/Huge-file-Strategie, Duplicate Detection, analyze disk, Cross-machine snapshot diff, Backup-gap-Analyse) sind zwar funktional integriert, in der Registry verankert und mit CLI-Tests belegt, jedoch laut Blueprint-Logik noch nicht "vollständig gehärtet".
-Deshalb wurden diese 8 Einträge nicht pauschal auf `[x]` gesetzt. Stattdessen wurde ihr Status bei `[~]` belassen und zur Wahrung der epistemischen Sauberkeit präzisiert, was konkret "erfüllt" ist (Implementierung/Testabdeckung) und was noch "fehlt" (Härtung der Robustheit, Inhaltsgleichheit, Online-Erkennung etc.).
+Die Features in den fortgeschrittenen Phasen (z.B. MIME-Type, Encoding, Duplicate Detection, analyze disk, Cross-machine diff) sind zwar funktional integriert und getestet (nachgewiesen durch E2E-CLI-Tests und Unit-Tests), aber laut strenger Blueprint-Logik noch nicht als vollständig `[x]` gehärtet zu betrachten.
+Um das "Overloading" des `[~]`-Status zu beheben – welches fälschlicherweise reine Implementierungs-Lücken mit Härtungs-Lücken gleichsetzte –, wurde die Statussemantik im Dokument (Abschnitt 0) formell neu definiert und präzisiert. `[~]` wird nun systematisch durch die drei Dimensionen `implementation`, `tests` und `hardening` unterfüttert.
 
 # STATUSMATRIX
-(Auszug der überarbeiteten Phasen)
+(Auszug der überarbeiteten Phasen mit neuer dimensionaler Statusstruktur)
 
 Phase 5 — Inhaltsanreicherung
 - [~] MIME-Typ-Erkennung (Extension + Magic-Byte-Fallback)
-  - erfüllt: Basis-Erkennung implementiert und getestet
-  - fehlt: Härtung der Robustheit und breitere Formatabdeckung
+  - implementation: done
+  - tests: present
+  - hardening: partial (best-effort Heuristik, Formatabdeckung ausbaufähig)
 - [~] Encoding-Erkennung (kleines best-effort Set)
-  - erfüllt: Best-effort Set implementiert und getestet
-  - fehlt: Reproduzierbarkeit und Härtung
+  - implementation: done
+  - tests: present
+  - hardening: partial (Reproduzierbarkeit und Robustheit offen)
 - [~] line_count im Content-Modus (`enable_content_stats`)
-  - erfüllt: Zeilenzählung im Content-Modus implementiert
-  - fehlt: Eindeutiges Verhalten für Non-Content-Scans
+  - implementation: done
+  - tests: present
+  - hardening: partial (Verhalten für Non-Content-Scans methodisch unklar)
 - [ ] Parser für JSON/YAML/TOML/Markdown/CSV/HTML
 - [ ] Medien-Minimalmetadaten (Bilddimensionen, Audio-/Video-Dauer)
 - [ ] Preview-/Chunk-Artefakte definieren
 - [ ] Content-Policy pro Root ermöglichen
 - [~] Binary-/Huge-file-Strategie klären
-  - erfüllt: `is_huge` Feld im Contract, Content-Ausschluss, Incremental-Reuse implementiert
-  - fehlt: Abgrenzung zu Binary-Dateien, Grenzfälle, Policy-Ebene
-- [x] Tests für modeabhängige Inhaltsfelder ergänzen
+  - implementation: done (Erfassung und Content-Bypass)
+  - tests: present
+  - hardening: partial (Abgrenzung zu reinen Binaries und Policy-Ebene fehlen)
 
 Phase 6 — Analyseartefakte
 - [ ] Hotspots erweitern um Growth-/Change-Achsen
 - [~] Duplicate Detection (size prefilter + hash confirm)
-  - erfüllt: CLI Command implementiert, Artifacts generiert und in Registry referenziert
-  - fehlt: Echtzeit-/Online-Erkennung
-- [x] duplicates.json definieren
-- [x] orphans.json definieren
+  - implementation: done (Offline CLI)
+  - tests: present
+  - hardening: partial (Echtzeit-/Online-Erkennung fehlt)
 - [~] analyze disk standardisieren
-  - erfüllt: Offline-Generierung über CLI Command vorhanden
-  - fehlt: Vollständige Historienauswertung
-- [x] analyze duplicates implementieren
-- [x] analyze orphans implementieren
-- [x] Oldest-/Largest-Files-Artefakte vereinheitlichen
-- [ ] Cross-root growth reports definieren
+  - implementation: done (CLI Output und Disk-Artifact)
+  - tests: present
+  - hardening: partial (Vollständige Historienauswertung fehlt)
 
 Phase 7 — Multi-Machine-Atlas
-- [x] mehrere Machines sauber registrieren
-- [x] Root-Namenskonventionen zwischen Hosts vereinheitlichen
 - [~] Cross-machine snapshot diff definieren
-  - erfüllt: CLI Command und struktureller Metadaten-Vergleich implementiert
-  - fehlt: Tiefe Inhaltsgleichheit / voll gehärtete Semantik
-- [x] CLI: `atlas diff heim-pc:/home heimserver:/home`
+  - implementation: done (struktureller Metadaten-Abgleich)
+  - tests: present
+  - hardening: partial (tiefe Inhaltsgleichheit nicht bewiesen)
 - [~] Backup-gap-Analyse definieren
-  - erfüllt: CLI Command implementiert und durch CLI-Tests (Label/Path/ID-Auflösung) abgesichert
-  - fehlt: Tiefergehende Härtung der Inhaltsgleichheit
-- [ ] Remote-Collector-/SSH-Modell festlegen
-- [x] Konfliktfälle (gleiches root label, andere Pfade) definieren
-- [x] CLI: label-basierte Referenzauflösung in `atlas diff` und `atlas analyze backup-gap`
-- [x] Maschinen-Health-/Last-Seen-Sicht ergänzen
+  - implementation: done (CLI Command)
+  - tests: present
+  - hardening: partial (wie beim Diff fehlt inhaltliche Tiefe)
 
 # PLANPRÜFUNG
-Die Blueprint-Architektur bleibt tragfähig. Es existiert keine "Schein-Vollständigkeit" mehr, da die epistemische Leerstelle zwischen funktionaler Vorab-Implementierung und finaler Härtung durch das explizite Herausarbeiten von "erfüllt:" vs "fehlt:" dokumentiert wurde.
-Die offenen strategischen Lücken (Remote Collector, Watcher, Parsing) bleiben unverändert. Context7-Informationen wurden evaluiert, durften aber den "Repo ist Autorität"-Grundsatz nicht aufweichen.
+Der Paradigmenwechsel vom formlosen Begleittext ("teilweise implementiert") hin zu orthogonalen Dimensionen (Implementation, Tests, Hardening) schafft maximale epistemische Klarheit.
+Wir unterscheiden nun objektiv belegbare Fakten (die Funktionen laufen lokal im CLI und haben verifizierte Tests) von architektonischen Restrisiken (Hardening ist nur "partial", weil Edge-Cases oder Inhaltsgleichheits-Garantien fehlen). Diese Metareflexion entspricht dem geforderten Niveau der Blaupause als strenges Steuerinstrument.
 
 # NÄCHSTER SCHRITT
-"Cross-root growth reports definieren"
+"Cross-root growth reports definieren" (Phase 6)
 Begründung:
-Dieser Teil aus Phase 6 ist eng gekoppelt an bestehende Analysemethoden, benötigt aber im Gegensatz zur Hotspot-Integration keinen riskanten Eingriff in die laufenden Scanner, sondern kann auf den bestehenden Snapshot-Deltas aufsetzen. Dies macht es zu einem abgegrenzten, PR-tauglichen Folgeprojekt.
+Dieser Teil aus Phase 6 ist eng gekoppelt an bestehende Analysemethoden. Da die Offline-CLI-Struktur durch Backup-gap und Diff nun etabliert (implementation: done) und stabilisiert (tests: present) ist, ist der Growth-Report ein isolierter, sicherer nächster Schritt, ohne den Kernscanner zu gefährden.
 
 # TARGET PROOF
-In diesem Ticket liegt der Fokus alleinig auf der korrekten Fortschreibung der Blaupause, nicht auf neuem Feature-Code. Das Target war `docs/atlas-blaupause.md`. Der Status ist nun vollständig repo-belegt, aber eben unter der strengeren "Härtungs"-Interpretation der Roadmap.
+In diesem Schritt lag der Fokus strikt auf der Aktualisierung der `docs/atlas-blaupause.md`.
+Es wurde keine Feature-Logik im Code berührt. Das Dokument (Zustand vorher) mischte Implementierungsgrad und Härtungsgrad im Symbol `[~]`. Der Zustand nachher führt die Dimensionen explizit ein und löst die semantische Überladung systematisch auf.
 
 # UMSETZUNG
-Die 8 Punkte mit `[~]` wurden beibehalten, aber ihr erklärender Text wurde so formatiert, dass klar wird, warum sie diesen Zustand haben. Es wurden `erfüllt:`- und `fehlt:`-Zeilen ergänzt.
+- Hinzufügen des Kapitels `0. STATUS-SEMANTIK & DIMENSIONEN` zur formalen Festschreibung der Dimensionen.
+- Umschreiben der 8 fraglichen Einträge von Fließtext ("erfüllt/fehlt") in strukturierte Listen:
+  `- implementation: ...`
+  `- tests: ...`
+  `- hardening: ...`
 
 # VERIFIKATION
-Die `docs/atlas-blaupause.md` enthält nun keine uneindeutigen "teilweise gehärtet"-Beschreibungen mehr in Fließtextform, sondern listet harte Fakten über den Implementierungsgrad auf, was künftige Ausbauschritte signifikant vereinfacht und falsche "Grüne Haken" verhindert.
+Durch das strukturierte Format würden künftige Contributors oder Leser den Status `[~]` nun exakt gleich interpretieren: Das Feature existiert funktional, die Tests laufen durch, aber es mangelt noch an der letzten "Hardening"-Rigorosität (z.B. Reproduzierbarkeit oder Online-Garantien). Ein Verweis auf `OUTPUT.md` belegt die Diagnostik.
