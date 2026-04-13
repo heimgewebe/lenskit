@@ -1,7 +1,7 @@
 # BEFUND
 Die `docs/atlas-blaupause.md` wurde analysiert und gegen den aktuellen Zustand im Repository abgeglichen.
 Die Features in den fortgeschrittenen Phasen (z.B. MIME-Type, Encoding, Duplicate Detection, analyze disk, Cross-machine diff) sind zwar funktional integriert und getestet (nachgewiesen durch E2E-CLI-Tests und Unit-Tests), aber laut strenger Blueprint-Logik noch nicht als vollständig `[x]` gehärtet zu betrachten.
-Um das "Overloading" des `[~]`-Status zu beheben – welches fälschlicherweise reine Implementierungs-Lücken mit Härtungs-Lücken gleichsetzte –, wurde die Statussemantik im Dokument (Abschnitt 0) formell neu definiert und präzisiert. `[~]` wird nun systematisch durch die drei Dimensionen `implementation`, `tests` und `hardening` unterfüttert.
+Um das "Overloading" des `[~]`-Status zu beheben – welches fälschlicherweise reine Implementierungs-Lücken mit Härtungs-Lücken gleichsetzte –, wurde die Statussemantik im Dokument (Abschnitt 0) formell neu definiert und präzisiert. `[~]` wird für fortgeschrittene Features ab Phase 5 nun systematisch durch die drei Dimensionen `implementation`, `tests` und `hardening` unterfüttert. Ältere Phasen bleiben unberührt, um Scope-Creep zu vermeiden.
 
 # STATUSMATRIX
 (Auszug der überarbeiteten Phasen mit neuer dimensionaler Statusstruktur)
@@ -50,8 +50,8 @@ Phase 7 — Multi-Machine-Atlas
   - hardening: partial (wie beim Diff fehlt inhaltliche Tiefe)
 
 # PLANPRÜFUNG
-Der Paradigmenwechsel vom formlosen Begleittext ("teilweise implementiert") hin zu orthogonalen Dimensionen (Implementation, Tests, Hardening) schafft maximale epistemische Klarheit.
-Wir unterscheiden nun objektiv belegbare Fakten (die Funktionen laufen lokal im CLI und haben verifizierte Tests) von architektonischen Restrisiken (Hardening ist nur "partial", weil Edge-Cases oder Inhaltsgleichheits-Garantien fehlen). Diese Metareflexion entspricht dem geforderten Niveau der Blaupause als strenges Steuerinstrument.
+Der Paradigmenwechsel vom formlosen Begleittext ("teilweise implementiert") hin zu orthogonalen Dimensionen (Implementation, Tests, Hardening) schafft epistemische Klarheit, ohne die Features verfrüht als `[x]` freizugeben.
+Wir unterscheiden nun explizit objektiv belegbare Fakten (die Funktionen laufen lokal im CLI und haben verifizierte Tests) von architektonischen Restrisiken (Hardening ist nur "partial", weil Edge-Cases oder Inhaltsgleichheits-Garantien fehlen). Diese Metareflexion entspricht dem geforderten Niveau der Blaupause als strenges Steuerinstrument.
 
 # NÄCHSTER SCHRITT
 "Cross-root growth reports definieren" (Phase 6)
@@ -60,14 +60,14 @@ Dieser Teil aus Phase 6 ist eng gekoppelt an bestehende Analysemethoden. Da die 
 
 # TARGET PROOF
 In diesem Schritt lag der Fokus strikt auf der Aktualisierung der `docs/atlas-blaupause.md`.
-Es wurde keine Feature-Logik im Code berührt. Das Dokument (Zustand vorher) mischte Implementierungsgrad und Härtungsgrad im Symbol `[~]`. Der Zustand nachher führt die Dimensionen explizit ein und löst die semantische Überladung systematisch auf.
+Es wurde keine Feature-Logik im Code berührt. Das Dokument mischte zuvor Implementierungsgrad und Härtungsgrad im Symbol `[~]`. Der Zustand nachher führt die Dimensionen explizit ein und löst diese semantische Überladung für kritische Phasen systematisch auf.
 
 # UMSETZUNG
-- Hinzufügen des Kapitels `0. STATUS-SEMANTIK & DIMENSIONEN` zur formalen Festschreibung der Dimensionen.
+- Hinzufügen des Kapitels `0. STATUS-SEMANTIK & DIMENSIONEN` zur formalen Festschreibung der Dimensionen (mit dem Hinweis, dass ältere Phasen nicht rückwirkend transformiert werden müssen).
 - Umschreiben der 8 fraglichen Einträge von Fließtext ("erfüllt/fehlt") in strukturierte Listen:
   `- implementation: ...`
   `- tests: ...`
   `- hardening: ...`
 
 # VERIFIKATION
-Durch das strukturierte Format würden künftige Contributors oder Leser den Status `[~]` nun exakt gleich interpretieren: Das Feature existiert funktional, die Tests laufen durch, aber es mangelt noch an der letzten "Hardening"-Rigorosität (z.B. Reproduzierbarkeit oder Online-Garantien). Ein Verweis auf `OUTPUT.md` belegt die Diagnostik.
+Durch das strukturierte Format wird die Interpretation der Blaupause deutlich vereinheitlicht und Ambiguität reduziert. Künftige Contributors können nun klar ablesen, dass das Feature zwar funktional existiert und Tests durchlaufen, aber es noch an der letzten "Hardening"-Rigorosität (z.B. Reproduzierbarkeit oder Online-Garantien) mangelt, was Reviews und künftige Ausbauschritte vereinfacht.

@@ -35,10 +35,11 @@ Um die "epistemische Leerstelle" zwischen funktionaler Existenz und architektoni
 
 * **`[ ]` (Offen)**: Das Feature ist konzeptionell, aber nicht oder nur rudimentär belegbar implementiert.
 * **`[x]` (Abgeschlossen)**: Das Feature ist vollständig implementiert, getestet und **vollständig gehärtet** (Edge-Cases, Reproduzierbarkeit und Systemintegration sind garantiert).
-* **`[~]` (Substanziell begonnen)**: Das Feature existiert funktional, aber es fehlt mindestens eine Dimension (meistens die Härtung). Um eine Überladung dieses Symbols zu verhindern, wird das `[~]` ab Phase 5 zwingend durch drei orthogonale Dimensionen aufgeschlüsselt:
+* **`[~]` (Substanziell begonnen)**: Das Feature existiert funktional, aber es fehlt mindestens eine Dimension (meistens die Härtung). Um eine Überladung dieses Symbols zu verhindern, wird das `[~]` für fortgeschrittene Features ab Phase 5 verpflichtend durch drei orthogonale Dimensionen aufgeschlüsselt:
   * `- implementation:` [done | partial | none] (Ist der Code logisch vorhanden und in die Pipeline integriert?)
   * `- tests:` [present | partial | missing] (Ist die Logik durch dedizierte Unit-/Integrationstests abgesichert?)
-  * `- hardening:` [complete | partial | missing] (Sind Edge-Cases, Stabilität, und Policies nachweislich robust?)
+  * `- hardening:` [complete | partial | missing] (Sind Edge-Cases, Stabilität und Policies nachweislich robust?)
+  *(Hinweis: Frühere Phasen nutzen weiterhin das einfache `[~]` und müssen nicht rückwirkend in dieses Format überführt werden.)*
 
 ---
 
