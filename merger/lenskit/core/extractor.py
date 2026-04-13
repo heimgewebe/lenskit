@@ -593,7 +593,7 @@ def generate_review_bundle(
     header_lines = []
     header_lines.append(f"# PR-Review: {repo_name}")
 
-    header_lines.append("<!-- zone:begin type=summary -->")
+    header_lines.append("<!-- zone:begin type=\"summary\" -->")
     header_lines.append(f"- **Date:** {now_utc.isoformat()}")
     header_lines.append(f"- **Summary:** +{len(added)} / ~{len(changed)} / -{len(removed)}")
     header_lines.append("<!-- zone:end -->")
@@ -612,7 +612,7 @@ def generate_review_bundle(
             continue
 
     if hotspots:
-        header_lines.append("<!-- zone:begin type=hotspots -->")
+        header_lines.append("<!-- zone:begin type=\"hotspots\" -->")
         header_lines.append("## 🔥 Hotspots")
         for h in sorted(hotspots)[:10]: # Limit list
             header_lines.append(f"- `{h}`")
@@ -622,7 +622,7 @@ def generate_review_bundle(
         header_lines.append("")
 
     # Files Manifest
-    header_lines.append("<!-- zone:begin type=files_manifest -->")
+    header_lines.append("<!-- zone:begin type=\"files_manifest\" -->")
     header_lines.append("## Details")
     header_lines.append("")
     for item in review_files:
@@ -637,7 +637,7 @@ def generate_review_bundle(
     content_chunks = [] # List of strings (blocks)
 
     # Pre-calculate content to enable splitting (logical, un-splitted payload)
-    content_chunks.append("<!-- zone:begin type=diff -->")
+    content_chunks.append("<!-- zone:begin type=\"diff\" -->")
 
     def _normalize_list(lst: List[str]) -> List[str]:
         """Ensure all strings use strictly \n, removing potential \r."""

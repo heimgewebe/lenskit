@@ -3473,7 +3473,7 @@ def iter_report_blocks(
     # Spec v2.4 requirement: @meta is mandatory in all modes, including plan-only.
     meta_lines: List[str] = []
     # Wrap in zone marker
-    meta_lines.append("<!-- zone:begin type=meta id=meta -->")
+    meta_lines.append("<!-- zone:begin type=\"meta\" id=\"meta\" -->")
     meta_lines.append("<!-- @meta:start -->")
     meta_lines.append("```yaml")
 
@@ -3597,7 +3597,7 @@ def iter_report_blocks(
 
     meta_lines.append("```")
     meta_lines.append("<!-- @meta:end -->")
-    meta_lines.append("<!-- zone:end type=meta id=meta -->")
+    meta_lines.append("<!-- zone:end type=\"meta\" id=\"meta\" -->")
     meta_lines.append("")
     header.extend(meta_lines)
 
@@ -3888,18 +3888,18 @@ def iter_report_blocks(
     # --- 6. Structure --- (skipped for machine-lean)
     if level != "machine-lean":
         structure = []
-        structure.append("<!-- zone:begin type=structure id=structure -->")
+        structure.append("<!-- zone:begin type=\"structure\" id=\"structure\" -->")
         structure.append("## 📁 Structure")
         structure.append("")
         structure.append(build_tree(files))
         structure.append("")
-        structure.append("<!-- zone:end type=structure id=structure -->")
+        structure.append("<!-- zone:end type=\"structure\" id=\"structure\" -->")
         yield "\n".join(structure) + "\n"
 
     # --- Index (Patch B) ---
     # Generated Categories Index - Only show non-empty categories/tags
     index_blocks = []
-    index_blocks.append("<!-- zone:begin type=index id=index -->")
+    index_blocks.append("<!-- zone:begin type=\"index\" id=\"index\" -->")
     index_blocks.extend(_heading_block(2, "index", "🧭 Index", nav=nav))
 
     if effective_meta_density == "min":
@@ -3951,12 +3951,12 @@ def iter_report_blocks(
                 index_blocks.append(f"- [`{f.rel_path}`](#{f.anchor})")
             index_blocks.append("")
 
-    index_blocks.append("<!-- zone:end type=index id=index -->")
+    index_blocks.append("<!-- zone:end type=\"index\" id=\"index\" -->")
     yield "\n".join(index_blocks) + "\n"
 
     # --- 7. Manifest (Patch A) ---
     manifest: List[str] = []
-    manifest.append("<!-- zone:begin type=manifest id=manifest -->")
+    manifest.append("<!-- zone:begin type=\"manifest\" id=\"manifest\" -->")
     manifest.extend(_heading_block(2, "manifest", "🧾 Manifest" if not code_only else "🧾 Manifest (Code-Only)", nav=nav))
 
     roots_sorted = sorted(files_by_root.keys())
@@ -4019,7 +4019,7 @@ def iter_report_blocks(
                 )
             manifest.append("")
 
-        manifest.append("<!-- zone:end type=manifest id=manifest -->")
+        manifest.append("<!-- zone:end type=\"manifest\" id=\"manifest\" -->")
         yield "\n".join(manifest) + "\n"
 
     # --- Optional: Fleet Consistency ---
@@ -4172,14 +4172,14 @@ def iter_report_blocks(
 
         # Zone wrapper for code content
         # Fix PR13: Quote attributes
-        block.append(f'<!-- zone:begin type=code lang="{lang}" id={fid} -->')
+        block.append(f'<!-- zone:begin type="code" lang="{lang}" id="{fid}" -->')
         block.append("")
         block.append(f"{fence}{lang}")
         block.append(content)
         block.append(f"{fence}")
         block.append("")
         # PR-Optimierung: deterministic markers
-        block.append(f"<!-- zone:end type=code id={fid} -->")
+        block.append(f'<!-- zone:end type="code" id="{fid}" -->')
 
         # Machine-First: Explicit FILE_END marker
         block.append(f'<!-- FILE_END path="{fi.rel_path}" -->')
@@ -4806,8 +4806,8 @@ def extract_file_offsets(md_paths: List[Path], debug: bool = False) -> Dict[str,
                     line_len = len(line)
                     line_str = line.decode("utf-8", errors="ignore")
 
-                    if "<!-- zone:begin" in line_str and "type=code" in line_str and "id=" in line_str:
-                        m = re.search(r'id="?([^ "]+)"?', line_str)
+                    if "<!-- zone:begin" in line_str and 'type="code"' in line_str and 'id="' in line_str:
+                        m = re.search(r'id="([^"]+)"', line_str)
                         if m:
                             current_id = m.group(1)
                     elif current_id and line_str.strip().startswith("```"):

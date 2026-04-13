@@ -173,9 +173,9 @@ def verify_full(bundle_path: Path, data: Dict[str, Any]) -> None:
         if p_path.exists():
             try:
                 text = p_path.read_text(encoding="utf-8", errors="ignore")
-                if "<!-- zone:begin type=summary -->" not in text:
+                if "<!-- zone:begin type=\"summary\" -->" not in text:
                     _fail(f"Primary part {primary} missing mandatory 'summary' zone")
-                if "<!-- zone:begin type=files_manifest -->" not in text:
+                if "<!-- zone:begin type=\"files_manifest\" -->" not in text:
                     _fail(f"Primary part {primary} missing mandatory 'files_manifest' zone")
                 _pass("Mandatory zones (summary, files_manifest) present")
             except Exception:

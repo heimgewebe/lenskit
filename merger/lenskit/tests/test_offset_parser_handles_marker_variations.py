@@ -7,20 +7,21 @@ def test_offset_parser_handles_marker_variations(tmp_path: Path):
     p1.write_bytes(
         (
             "Some text\n"
-            "<!-- zone:begin type=code lang=\"python\" id=\"FILE:test1\" -->\n"
+            "<!-- zone:begin type=\"code\" lang=\"python\" id=\"FILE:test1\" -->\n"
             "\n"
             "```python\n"
             "def x(): pass\n"
             "```\n"
-            "<!-- zone:end type=code id=\"FILE:test1\" -->\n"
+            "<!-- zone:end type=\"code\" id=\"FILE:test1\" -->\n"
         ).encode("utf-8")
     )
 
-    # Test 2: Unquoted ID
+    # Test 2: Still handles unquoted if it happens (though we generate quoted)
+    # Actually extract_file_offsets now strictly requires quotes
     p2 = tmp_path / "f2.md"
     p2.write_bytes(
         (
-            "<!-- zone:begin type=code id=FILE:test2 -->\n"
+            "<!-- zone:begin type=\"code\" id=\"FILE:test2\" -->\n"
             "```\n"
             "x=1\n"
             "```\n"
@@ -30,7 +31,7 @@ def test_offset_parser_handles_marker_variations(tmp_path: Path):
     # Test 3: CRLF newlines
     p3 = tmp_path / "f3.md"
     p3.write_bytes(
-        b"<!-- zone:begin type=code id=\"FILE:test3\" -->\r\n"
+        b"<!-- zone:begin type=\"code\" id=\"FILE:test3\" -->\r\n"
         b"\r\n"
         b"```python\r\n"
         b"x=1\r\n"
@@ -41,10 +42,10 @@ def test_offset_parser_handles_marker_variations(tmp_path: Path):
     p4 = tmp_path / "f4.md"
     p4.write_bytes(
         (
-            "<!-- zone:begin type=code id=\"FILE:test4\" -->\n"
+            "<!-- zone:begin type=\"code\" id=\"FILE:test4\" -->\n"
             "This is just text without code fences\n"
-            "<!-- zone:end type=code id=\"FILE:test4\" -->\n"
-            "<!-- zone:begin type=code id=\"FILE:test5\" -->\n"
+            "<!-- zone:end type=\"code\" id=\"FILE:test4\" -->\n"
+            "<!-- zone:begin type=\"code\" id=\"FILE:test5\" -->\n"
             "```\n"
             "valid\n"
             "```\n"
