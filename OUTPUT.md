@@ -1,6 +1,6 @@
 # BEFUND
 Die `docs/atlas-blaupause.md` wurde analysiert und gegen den aktuellen Zustand im Repository abgeglichen.
-Die Features in den fortgeschrittenen Phasen (z.B. MIME-Type, Encoding, Duplicate Detection, analyze disk, Cross-machine diff) sind zwar funktional integriert und getestet (nachgewiesen durch E2E-CLI-Tests und Unit-Tests), aber laut strenger Blueprint-Logik noch nicht als vollständig `[x]` gehärtet zu betrachten.
+Die Features in den fortgeschrittenen Phasen (z.B. MIME-Type, Encoding, Duplicate Detection, analyze disk, Cross-machine diff) sind zwar funktional implementiert und durch Tests belegt (nachgewiesen durch E2E-CLI-Tests und Unit-Tests), aber laut strenger Blueprint-Logik noch nicht als vollständig `[x]` gehärtet zu betrachten.
 Um das "Overloading" des `[~]`-Status zu beheben – welches fälschlicherweise reine Implementierungs-Lücken mit Härtungs-Lücken gleichsetzte –, wurde die Statussemantik im Dokument (Abschnitt 0) formell neu definiert und präzisiert. `[~]` wird für fortgeschrittene Features ab Phase 5 nun systematisch durch die drei Dimensionen `implementation`, `tests` und `hardening` unterfüttert. Ältere Phasen bleiben unberührt, um Scope-Creep zu vermeiden.
 
 # STATUSMATRIX
@@ -51,7 +51,7 @@ Phase 7 — Multi-Machine-Atlas
 
 # PLANPRÜFUNG
 Der Paradigmenwechsel vom formlosen Begleittext ("teilweise implementiert") hin zu orthogonalen Dimensionen (Implementation, Tests, Hardening) schafft epistemische Klarheit, ohne die Features verfrüht als `[x]` freizugeben.
-Wir unterscheiden nun explizit objektiv belegbare Fakten (die Funktionen laufen lokal im CLI und haben verifizierte Tests) von architektonischen Restrisiken (Hardening ist nur "partial", weil Edge-Cases oder Inhaltsgleichheits-Garantien fehlen). Diese Metareflexion entspricht dem geforderten Niveau der Blaupause als strenges Steuerinstrument.
+Wir unterscheiden nun explizit objektiv belegbare Fakten (die Funktionen laufen lokal im CLI und haben durch vorhandene Unit- und CLI-Tests abgesichert) von architektonischen Restrisiken (Hardening ist nur "partial", weil Edge-Cases oder volle Inhaltsgleichheits-Nachweise fehlen). Diese Metareflexion entspricht dem geforderten Niveau der Blaupause als strenges Steuerinstrument.
 
 # NÄCHSTER SCHRITT
 "Cross-root growth reports definieren" (Phase 6)
@@ -70,4 +70,4 @@ Es wurde keine Feature-Logik im Code berührt. Das Dokument mischte zuvor Implem
   `- hardening: ...`
 
 # VERIFIKATION
-Durch das strukturierte Format wird die Interpretation der Blaupause deutlich vereinheitlicht und Ambiguität reduziert. Künftige Contributors können nun klar ablesen, dass das Feature zwar funktional existiert und Tests durchlaufen, aber es noch an der letzten "Hardening"-Rigorosität (z.B. Reproduzierbarkeit oder Online-Garantien) mangelt, was Reviews und künftige Ausbauschritte vereinfacht.
+Durch das strukturierte Format wird die Interpretation der Blaupause systematischer fassbar und reduziert Ambiguität deutlich. Künftige Contributors können nun klar ablesen, dass das Feature zwar funktional existiert und Tests durchlaufen, aber es noch an der letzten "Hardening"-Rigorosität (z.B. Reproduzierbarkeit oder echter Online-Robustheit) mangelt, was Reviews und künftige Ausbauschritte vereinfacht.
