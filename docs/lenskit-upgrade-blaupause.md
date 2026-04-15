@@ -1703,8 +1703,6 @@ Ziel:
   erfüllt: HTTP-Servicepfade (siehe 2.5) vorhanden.
   fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen.
 
-Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
-
 ### 2.10 Arbeitspaket H – Guardrails für Agenten
 Priority: P1
 
@@ -1786,9 +1784,9 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [~] **7.3 Service-Endpunkte:**
+- [~] **7.3 Service-Endpunkte:** `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
   erfüllt: Query-/Federation-Pfade vorhanden.
-  fehlt: dedizierte Lookup-Pfade (Context/Trace/Artifact/Diagnostics).
+  fehlt: dedizierte Lookup-Pfade.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
