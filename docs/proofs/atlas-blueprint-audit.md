@@ -1,3 +1,5 @@
+Dieses Dokument ist ein PR-spezifischer Audit-/Diagnosebericht zur Fortschreibung der Atlas-Blaupause.
+
 # BEFUND
 Die `docs/atlas-blaupause.md` wurde analysiert und gegen den aktuellen Zustand im Repository abgeglichen.
 Die Features in den fortgeschrittenen Phasen (z.B. MIME-Type, Encoding, Duplicate Detection, analyze disk, Cross-machine diff) sind zwar funktional implementiert und durch vorhandene E2E-CLI-Tests und Unit-Tests belegt, aber laut strenger Blueprint-Logik noch nicht als vollständig `[x]` gehärtet zu betrachten.
