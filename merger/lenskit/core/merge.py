@@ -4806,11 +4806,13 @@ def extract_file_offsets(md_paths: List[Path], debug: bool = False) -> Dict[str,
                     line_len = len(line)
                     line_str = line.decode("utf-8", errors="ignore")
 
-                    if "<!-- zone:begin" in line_str and re.search(r'type="?code"?', line_str) and re.search(r'id="?', line_str):
-                        # Dual-read: extract id regardless of quotes
-                        m = re.search(r'id="?([^ "]+)"?', line_str)
+                    if "<!-- zone:begin" in line_str and re.search(r'type="?code"?', line_str):
+                        # Dual-read: extract id regardless of quotes.
+                        # Handles id="FILE:..." or id=FILE:...
+                        # Tighter regex ensures we don't grab the trailing -->
+                        m = re.search(r'id=(?:"([^"]+)"|([a-zA-Z0-9._:-]+))', line_str)
                         if m:
-                            current_id = m.group(1)
+                            current_id = m.group(1) or m.group(2)
                     elif current_id and line_str.strip().startswith("```"):
                         offsets[current_id] = (md_path.name, pos + line_len)
                         current_id = None
