@@ -15,8 +15,6 @@ try:
 except ImportError:
     yaml = None
 
-import jsonschema
-
 from lenskit.core import merge
 from lenskit.core.merge import FileInfo, ExtrasConfig
 
@@ -425,6 +423,8 @@ def test_json_marker_matches_markdown_marker(tmp_path):
 
     # Validate against Schema (Contract Hardness)
     # Ensure generated JSON complies with the strict schema
+    import jsonschema
+
     # Contract v2
     schema_path = Path(__file__).parent.parent / "contracts/repolens-agent.v2.schema.json"
     assert schema_path.exists(), "Schema v2 file not found"
