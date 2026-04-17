@@ -37,21 +37,43 @@ def test_offset_parser_handles_marker_variations(tmp_path: Path):
         b"```\r\n"
     )
 
-    # Test 4: Malformed zone marker (no code fence before end)
+    # Test 4: Quoted type + Unquoted ID
     p4 = tmp_path / "f4.md"
     p4.write_bytes(
         (
-            "<!-- zone:begin type=\"code\" id=\"FILE:test4\" -->\n"
+            "<!-- zone:begin type=\"code\" id=FILE:test4 -->\n"
+            "```\n"
+            "x=4\n"
+            "```\n"
+        ).encode("utf-8")
+    )
+
+    # Test 5: Quoted type + Mixed attributes (lang before ID)
+    p5 = tmp_path / "f5.md"
+    p5.write_bytes(
+        (
+            "<!-- zone:begin type=\"code\" lang=\"python\" id=\"FILE:test5\" -->\n"
+            "```python\n"
+            "x=5\n"
+            "```\n"
+        ).encode("utf-8")
+    )
+
+    # Test 6: Malformed zone marker (no code fence before end)
+    p6 = tmp_path / "f6.md"
+    p6.write_bytes(
+        (
+            "<!-- zone:begin type=\"code\" id=\"FILE:test6\" -->\n"
             "This is just text without code fences\n"
-            "<!-- zone:end type=\"code\" id=\"FILE:test4\" -->\n"
-            "<!-- zone:begin type=\"code\" id=\"FILE:test5\" -->\n"
+            "<!-- zone:end type=\"code\" id=\"FILE:test6\" -->\n"
+            "<!-- zone:begin type=\"code\" id=\"FILE:test7\" -->\n"
             "```\n"
             "valid\n"
             "```\n"
         ).encode("utf-8")
     )
 
-    offsets = extract_file_offsets([p1, p2, p3, p4], debug=False)
+    offsets = extract_file_offsets([p1, p2, p3, p4, p5, p6], debug=False)
 
     # p1 check
     assert "FILE:test1" in offsets
@@ -74,7 +96,15 @@ def test_offset_parser_handles_marker_variations(tmp_path: Path):
         idx = content.find(b"```python\r\n")
         assert offsets["FILE:test3"][1] == idx + len(b"```python\r\n")
 
-    # p4 check (Malformed marker correctly ignored for FILE:test4, works for FILE:test5)
-    assert "FILE:test4" not in offsets
+    # p4 check (Quoted type + Unquoted ID)
+    assert "FILE:test4" in offsets
+    assert offsets["FILE:test4"][0] == "f4.md"
+
+    # p5 check (Mixed attributes)
     assert "FILE:test5" in offsets
-    assert offsets["FILE:test5"][0] == "f4.md"
+    assert offsets["FILE:test5"][0] == "f5.md"
+
+    # p6 check (Malformed marker correctly ignored for FILE:test6, works for FILE:test7)
+    assert "FILE:test6" not in offsets
+    assert "FILE:test7" in offsets
+    assert offsets["FILE:test7"][0] == "f6.md"

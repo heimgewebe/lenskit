@@ -176,9 +176,10 @@ def verify_full(bundle_path: Path, data: Dict[str, Any]) -> None:
                 text = p_path.read_text(encoding="utf-8", errors="ignore")
                 # Dual-read: accept both quoted and unquoted type for migration compatibility.
                 # Regex handles varied whitespace and optional attributes robustly.
-                if not re.search(r'<!--\s+zone:begin\s+[^>]*?\btype=(?:"summary"|summary)(?:\s+|-->)', text):
+                # Matches: type=summary, type="summary", type="summary" id="..."
+                if not re.search(r'<!--\s+zone:begin\s+[^>]*?\btype=(?:"summary"|summary)(?:\s+|-->|[^A-Za-z0-9_-])', text):
                     _fail(f"Primary part {primary} missing mandatory 'summary' zone")
-                if not re.search(r'<!--\s+zone:begin\s+[^>]*?\btype=(?:"files_manifest"|files_manifest)(?:\s+|-->)', text):
+                if not re.search(r'<!--\s+zone:begin\s+[^>]*?\btype=(?:"files_manifest"|files_manifest)(?:\s+|-->|[^A-Za-z0-9_-])', text):
                     _fail(f"Primary part {primary} missing mandatory 'files_manifest' zone")
                 _pass("Mandatory zones (summary, files_manifest) present")
             except Exception:

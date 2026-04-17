@@ -69,3 +69,46 @@ def test_load_schema_invalid_json(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert "Failed to load schema" in captured.err
+
+def test_verify_full_zone_dual_read(tmp_path, capsys):
+    """Verify that verify_full accepts both quoted and unquoted zone markers."""
+    from merger.lenskit.cli.pr_schau_verify import verify_full
+
+    # 1. Setup a valid bundle data
+    bundle_data = {
+        "completeness": {
+            "parts": ["review.md"],
+            "primary_part": "review.md",
+            "is_complete": True,
+            "policy": "split",
+            "expected_bytes": 100,
+            "emitted_bytes": 100
+        },
+        "artifacts": [
+            {"role": "canonical_md", "basename": "review.md", "sha256": "dummy"}
+        ]
+    }
+
+    # Helper to run verification with specific content
+    def check_content(content):
+        review_md = tmp_path / "review.md"
+        review_md.write_text(content, encoding="utf-8")
+
+        # Update emitted_bytes to match actual file size
+        bundle_data["completeness"]["emitted_bytes"] = len(content.encode("utf-8"))
+        bundle_data["completeness"]["expected_bytes"] = bundle_data["completeness"]["emitted_bytes"]
+
+        # Patch SHA256 check to always pass for simplicity
+        with patch("merger.lenskit.cli.pr_schau_verify._compute_sha256", return_value="dummy"):
+            verify_full(tmp_path / "bundle.json", bundle_data)
+
+    # A: Standard Quoted
+    check_content('<!-- zone:begin type="summary" -->\n<!-- zone:begin type="files_manifest" -->')
+    # B: Legacy Unquoted
+    check_content('<!-- zone:begin type=summary -->\n<!-- zone:begin type=files_manifest -->')
+    # C: Mixed and extra whitespace
+    check_content('<!--  zone:begin  type=summary  -->\n<!-- zone:begin type="files_manifest" id="x" -->')
+
+    # D: Missing summary should fail
+    with pytest.raises(SystemExit):
+        check_content('<!-- zone:begin type="files_manifest" -->')
