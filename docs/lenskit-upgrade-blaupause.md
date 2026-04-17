@@ -1673,17 +1673,8 @@ Trennung:
 ### 2.8 Arbeitspaket F – Agent Traceability
 Ziel:
 - [~] Jede Agent-Nutzung ist nachvollziehbar.
-  erfüllt: CLI-/API-Verhalten unterscheiden sich belegbar in Trace-Artefakt vs. Inline-Session.
-  fehlt: Einheitlicher physischer Trace-Layer für die API.
-
-Traceability Model (aktueller repo-belegter Stand):
-- CLI nutzt aktuell das physische Artefakt `agent_query_session.json` nach v1-Contract.
-- API liefert aktuell eine Inline-Session nach v2-Contract.
-*Der aktuelle API-Pfad liefert nur die Inline-v2-Session; ein physischer, referenzierbarer Artefakt-Layer ist dort derzeit nicht vorhanden.*
-
-Physisches CLI-Artefakt: `agent_query_session.json`
-
-Inhalt: request contract, resolved bundle set, query trace refs, context bundle refs, diagnostics refs, warnings.
+  CLI: nutzt physisches Artefakt `agent_query_session.json` (v1-Contract).
+  API: liefert Inline-Session (v2-Contract); ein referenzierbarer, physischer Trace-Layer fehlt hier derzeit.
 
 ### 2.9 Arbeitspaket G – Service-Endpunkte / MCP-fähige Form
 Ziel:
@@ -1691,19 +1682,13 @@ Ziel:
   erfüllt: HTTP-Servicepfade (siehe 2.5) vorhanden.
   fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen.
 
+Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
+
 ### 2.10 Arbeitspaket H – Guardrails für Agenten
 Ziel:
-- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Guardrail "low result coverage" ist als Runtime-Warning belegt; Guardrails für stale bundle, invalid graph, missing provenance und cross-repo conflict bleiben als strukturierte Runtime-Signale noch offen)
-
-Guardrails:
-- **Repo-belegt implementiert**:
-  - Guardrail-Klasse: `low_result_coverage`
-  - emittierter Warning-String: `"Low result coverage"`
-- **Fachlich relevante Guardrail-Klassen (derzeit nicht als strukturierte Runtime-Signale repo-belegt)**:
-  - `stale_bundle`
-  - `invalid_graph`
-  - `missing_provenance`
-  - `cross_repo_conflict`
+- [~] Lenskit soll problematische Zustände aktiv markieren.
+  repo-belegt: Guardrail-Klasse `low_result_coverage` (emittiert `"Low result coverage"`).
+  noch offen (nicht strukturell belegt): `stale_bundle`, `invalid_graph`, `missing_provenance`, `cross_repo_conflict`.
 
 ### 2.11 Arbeitspaket I – Evaluierung der Agent-Nutzung
 Ziel:
