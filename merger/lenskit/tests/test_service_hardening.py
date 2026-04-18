@@ -256,3 +256,45 @@ def test_create_job_blocks_absolute_path_repo(client_and_hub):
 
     response = client.post("/api/jobs", json=payload, headers=headers)
     assert response.status_code == 400
+
+def test_create_job_fresh_hub_no_state_dir(client_and_hub):
+    """
+    Job creation recreates the missing .rlens-service state directory.
+    """
+    client, hub_path = client_and_hub
+
+    # 1. Simulate fresh state by deleting the .rlens-service directory
+    from merger.lenskit.core.merge import MERGES_DIR_NAME
+    storage_dir = Path(hub_path) / MERGES_DIR_NAME / ".rlens-service"
+
+    import shutil
+    if storage_dir.exists():
+        shutil.rmtree(storage_dir)
+
+    assert not storage_dir.exists(), "Setup failed: .rlens-service must not exist"
+
+    # 2. Test saving with the existing JobStore instance when the state directory is gone.
+    # Note: init_service in the fixture already created the directory,
+    # but when we call /api/jobs, it uses the existing `state.job_store`.
+    # Since we just deleted the directory, the next write operation (save_jobs)
+    # will fail if not handled properly.
+
+    headers = {"Authorization": "Bearer test-token"}
+    payload = {
+        "repos": ["repo1"],
+        "hub": hub_path,
+        "level": "max",
+        "mode": "gesamt"
+    }
+
+    # 3. Create a job. This should trigger _save_jobs which should now recreate the parent dir.
+    response = client.post("/api/jobs", json=payload, headers=headers)
+
+    # 4. Assert that it worked and no FileNotFoundError was raised
+    assert response.status_code == 200, f"Failed to create job on fresh hub: {response.text}"
+    job_data = response.json()
+    assert "id" in job_data
+
+    # 5. Verify the directory and jobs.json were created
+    assert storage_dir.exists(), "State directory was not recreated"
+    assert (storage_dir / "jobs.json").exists(), "jobs.json was not created"
