@@ -53,12 +53,14 @@ class JobStore:
 
     def _save_jobs(self) -> None:
         tmp_file = self.jobs_file.with_suffix(".tmp")
+        tmp_file.parent.mkdir(parents=True, exist_ok=True)
         data = [j.model_dump() for j in self._jobs_cache.values()]
         tmp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         tmp_file.rename(self.jobs_file)
 
     def _save_artifacts(self) -> None:
         tmp_file = self.artifacts_file.with_suffix(".tmp")
+        tmp_file.parent.mkdir(parents=True, exist_ok=True)
         data = [a.model_dump() for a in self._artifacts_cache.values()]
         tmp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         tmp_file.rename(self.artifacts_file)
