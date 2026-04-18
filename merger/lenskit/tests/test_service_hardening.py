@@ -259,8 +259,7 @@ def test_create_job_blocks_absolute_path_repo(client_and_hub):
 
 def test_create_job_fresh_hub_no_state_dir(client_and_hub):
     """
-    Test that a job can be created even if the `.rlens-service` directory does not exist.
-    This simulates a fresh hub or a situation where the state directory was deleted.
+    Job creation recreates the missing .rlens-service state directory.
     """
     client, hub_path = client_and_hub
 
