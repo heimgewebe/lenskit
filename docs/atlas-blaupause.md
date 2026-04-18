@@ -958,6 +958,7 @@ Ziel: Atlas wird diagnostisch.
   - hardening: partial (Echtzeit-/Online-Erkennung fehlt)
 - [x] duplicates.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter duplicates_ref hinterlegt)
 - [x] orphans.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter orphans_ref hinterlegt)
+- [x] disk.json definieren (Wird generiert, als Artefakt im Snapshot abgelegt und formell in der Registry unter disk_ref hinterlegt)
 - [~] analyze disk standardisieren
   - implementation: done (CLI Output und Disk-Artifact)
   - tests: present
