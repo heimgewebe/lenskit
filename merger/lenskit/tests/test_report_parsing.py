@@ -38,7 +38,7 @@ class ReportParser:
         # Group 3: end type (required)
         # Group 4: end attrs (optional, e.g. id=...)
         # Note: We match <!-- zone:begin ... --> OR <!-- zone:end ... -->
-        # Updated to handle optional quotes around type
+        # Dual-read: support both quoted and unquoted type for migration testing
         token_pattern = re.compile(
             r'<!-- zone:begin type=(?:"([^"]+)"|([a-zA-Z0-9_-]+))(.*?) -->|<!-- zone:end\s+type=(?:"([^"]+)"|([a-zA-Z0-9_-]+))(.*?) -->',
             re.DOTALL
@@ -47,6 +47,7 @@ class ReportParser:
         stack = [] # List of dicts: {type, start_content, attrs}
 
         for match in token_pattern.finditer(self.content):
+            # 1, 2 = begin (quoted, unquoted); 4, 5 = end (quoted, unquoted)
             is_begin = match.group(1) is not None or match.group(2) is not None
 
             if is_begin:
