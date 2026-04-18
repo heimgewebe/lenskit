@@ -1673,7 +1673,7 @@ Trennung:
 ### 2.8 Arbeitspaket F – Agent Traceability
 Ziel:
 - [~] Jede Agent-Nutzung ist nachvollziehbar.
-  CLI: nutzt physisches Artefakt `agent_query_session.json` (v1-Contract).
+  CLI: nutzt physisches Artefakt `agent_query_session.json` (v1-Contract). Es bündelt Request-, Bundle-, Trace- und Diagnose-Bezüge.
   API: liefert Inline-Session (v2-Contract); ein referenzierbarer, physischer Trace-Layer fehlt hier derzeit.
 
 ### 2.9 Arbeitspaket G – Service-Endpunkte / MCP-fähige Form
@@ -1745,7 +1745,9 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [~] **7.3 Service-Endpunkte:** logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`. repo-belegt vorhanden: `/api/query`, `/api/federation/query`. dedizierte Lookup-Pfade fehlen.
+- [~] **7.3 Service-Endpunkte:**
+  logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
+  repo-belegt vorhanden: `/api/query`, `/api/federation/query`. (Dedizierte Lookup-Pfade fehlen).
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
