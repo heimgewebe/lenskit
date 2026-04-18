@@ -264,7 +264,8 @@ def test_create_job_fresh_hub_no_state_dir(client_and_hub):
     client, hub_path = client_and_hub
 
     # 1. Simulate fresh state by deleting the .rlens-service directory
-    storage_dir = state.job_store.storage_dir
+    from merger.lenskit.core.merge import MERGES_DIR_NAME
+    storage_dir = Path(hub_path) / MERGES_DIR_NAME / ".rlens-service"
 
     import shutil
     if storage_dir.exists():
