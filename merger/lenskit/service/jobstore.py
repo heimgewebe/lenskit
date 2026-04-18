@@ -105,6 +105,7 @@ class JobStore:
     def append_log_line(self, job_id: str, line: str):
         with self._lock:
             p = self.logs_dir / f"{job_id}.log"
+            p.parent.mkdir(parents=True, exist_ok=True)
             with p.open("a", encoding="utf-8", errors="replace") as f:
                 f.write(line + "\n")
         self._notify_log_subscribers(job_id)

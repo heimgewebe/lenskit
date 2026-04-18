@@ -264,10 +264,7 @@ def test_create_job_fresh_hub_no_state_dir(client_and_hub):
     client, hub_path = client_and_hub
 
     # 1. Simulate fresh state by deleting the .rlens-service directory
-    hub_p = Path(hub_path)
-    # The fixture already creates it in init_service, so we remove it
-    from merger.lenskit.core.merge import MERGES_DIR_NAME
-    storage_dir = hub_p / MERGES_DIR_NAME / ".rlens-service"
+    storage_dir = state.job_store.storage_dir
 
     import shutil
     if storage_dir.exists():
@@ -275,11 +272,11 @@ def test_create_job_fresh_hub_no_state_dir(client_and_hub):
 
     assert not storage_dir.exists(), "Setup failed: .rlens-service must not exist"
 
-    # 2. Re-initialize JobStore to simulate fresh start without the directory
+    # 2. Test saving with the existing JobStore instance when the state directory is gone.
     # Note: init_service in the fixture already created the directory,
-    # but JobStore reads state in __init__. When we call /api/jobs, it uses
-    # the existing `state.job_store`. Since we just deleted the directory,
-    # the next write operation (save_jobs) will fail if not handled properly.
+    # but when we call /api/jobs, it uses the existing `state.job_store`.
+    # Since we just deleted the directory, the next write operation (save_jobs)
+    # will fail if not handled properly.
 
     headers = {"Authorization": "Bearer test-token"}
     payload = {
