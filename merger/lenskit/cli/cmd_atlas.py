@@ -271,6 +271,8 @@ def run_atlas_analyze(args: argparse.Namespace) -> int:
         return _run_analyze_disk(args.snapshot_id)
     if args.analyze_command == "backup-gap":
         return _run_analyze_backup_gap(args.source_snapshot, args.backup_snapshot)
+    if args.analyze_command == "growth":
+        return _run_analyze_growth(args.source_snapshot, args.target_snapshot)
     return 1
 
 def _run_analyze_orphans(snapshot_id: str) -> int:
@@ -1020,4 +1022,86 @@ def _run_analyze_backup_gap(source_snapshot_id: str, backup_snapshot_id: str) ->
             return 0
     except Exception as e:
         print(f"Error computing backup gap: {e}", file=sys.stderr)
+        return 1
+
+def _run_analyze_growth(source_snapshot_id: str, target_snapshot_id: str) -> int:
+    from merger.lenskit.atlas.diff import _load_inventory_index
+    from merger.lenskit.atlas.registry import AtlasRegistry
+    from merger.lenskit.atlas.paths import resolve_atlas_base_dir, resolve_artifact_ref
+    import datetime
+
+    registry_path = Path("atlas/registry/atlas_registry.sqlite").resolve()
+    try:
+        with AtlasRegistry(registry_path) as registry:
+            source_snap_id = _resolve_snapshot_ref(source_snapshot_id, registry)
+            target_snap_id = _resolve_snapshot_ref(target_snapshot_id, registry)
+
+            source_snap = registry.get_snapshot(source_snap_id)
+            target_snap = registry.get_snapshot(target_snap_id)
+
+            if not source_snap or not target_snap:
+                print("Error: One or both snapshots could not be found.", file=sys.stderr)
+                return 1
+            if source_snap["status"] != "complete" or target_snap["status"] != "complete":
+                print("Error: Snapshots must be complete.", file=sys.stderr)
+                return 1
+
+            atlas_base = resolve_atlas_base_dir(registry.db_path)
+
+            source_inv_path = None
+            if source_snap["inventory_ref"]:
+                source_inv_path = resolve_artifact_ref(atlas_base, source_snap["inventory_ref"])
+
+            target_inv_path = None
+            if target_snap["inventory_ref"]:
+                target_inv_path = resolve_artifact_ref(atlas_base, target_snap["inventory_ref"])
+
+            if not source_inv_path or not source_inv_path.exists():
+                print(f"Error: Inventory missing for source snapshot {source_snap_id}", file=sys.stderr)
+                return 1
+            if not target_inv_path or not target_inv_path.exists():
+                print(f"Error: Inventory missing for target snapshot {target_snap_id}", file=sys.stderr)
+                return 1
+
+            source_files = _load_inventory_index(source_inv_path)
+            target_files = _load_inventory_index(target_inv_path)
+
+            source_size = sum(f.get("size_bytes", 0) for f in source_files.values())
+            target_size = sum(f.get("size_bytes", 0) for f in target_files.values())
+
+            source_count = len(source_files)
+            target_count = len(target_files)
+
+            size_delta = target_size - source_size
+            count_delta = target_count - source_count
+
+            report = {
+                "source_snapshot": source_snap_id,
+                "target_snapshot": target_snap_id,
+                "analyzed_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+                "metrics": {
+                    "source_size_bytes": source_size,
+                    "target_size_bytes": target_size,
+                    "size_delta_bytes": size_delta,
+                    "source_file_count": source_count,
+                    "target_file_count": target_count,
+                    "file_count_delta": count_delta
+                },
+                "data_basis": {
+                    "source_machine": source_snap["machine_id"],
+                    "source_root": source_snap["root_id"],
+                    "target_machine": target_snap["machine_id"],
+                    "target_root": target_snap["root_id"]
+                },
+                "limitations": [
+                    "Does not track historical trends between these two snapshots.",
+                    "Only compares exact file sizes and counts, not semantic file identity.",
+                    "Does not account for file moves or renames."
+                ]
+            }
+
+            print(json.dumps(report, indent=2))
+            return 0
+    except Exception as e:
+        print(f"Error computing growth report: {e}", file=sys.stderr)
         return 1
