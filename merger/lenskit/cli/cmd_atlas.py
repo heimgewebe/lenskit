@@ -1066,8 +1066,21 @@ def _run_analyze_growth(source_snapshot_id: str, target_snapshot_id: str) -> int
             source_files = _load_inventory_index(source_inv_path)
             target_files = _load_inventory_index(target_inv_path)
 
-            source_size = sum(f.get("size_bytes", 0) for f in source_files.values())
-            target_size = sum(f.get("size_bytes", 0) for f in target_files.values())
+            def _coerce_nonnegative_size_bytes(value: object) -> int:
+                if isinstance(value, bool):
+                    return 0
+                if isinstance(value, int):
+                    return value if value >= 0 else 0
+                if isinstance(value, str):
+                    try:
+                        parsed = int(value)
+                        return parsed if parsed >= 0 else 0
+                    except ValueError:
+                        return 0
+                return 0
+
+            source_size = sum(_coerce_nonnegative_size_bytes(f.get("size_bytes", 0)) for f in source_files.values())
+            target_size = sum(_coerce_nonnegative_size_bytes(f.get("size_bytes", 0)) for f in target_files.values())
 
             source_count = len(source_files)
             target_count = len(target_files)
