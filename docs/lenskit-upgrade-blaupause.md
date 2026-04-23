@@ -1639,29 +1639,30 @@ Profile:
 * debug_trace
 
 ### 2.5 Arbeitspaket C – Bounded Tool Surface
-
 Ziel:
-- [ ] Lenskit soll als Werkzeug präzise Grenzen haben.
+- [~] Lenskit soll als Werkzeug präzise Grenzen haben.
+  erfüllt: HTTP-seitig repo-belegt vorhanden: `/api/query`, `/api/federation/query`; logisch entspricht dies den Endpunkten `/query` und `/federation/query`.
+  fehlt: dedizierte Lookup-Endpunkte zur isolierten Rekonstruktion fehlen.
 
 Operationen:
-1. query
-2. context_bundle
-3. trace_lookup
-4. artifact_lookup
-5. federation_query
-6. diagnostics
+- [x] 1. query (logisch vorgesehen als `/query`; HTTP-seitig repo-belegt via `/api/query`)
+- [ ] 2. context_bundle (dedizierter Endpunkt fehlt)
+- [ ] 3. trace_lookup (Request/Response-Contract fehlt)
+- [ ] 4. artifact_lookup (als separater Servicepfad nicht implementiert)
+- [x] 5. federation_query (logisch vorgesehen als `/federation/query`; HTTP-seitig repo-belegt via `/api/federation/query`)
+- [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
 
 Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusammenmischen beliebiger Bundles, ungebundene „find everything about X“-Operationen ohne Grenzen.
 
 ### 2.6 Arbeitspaket D – Uncertainty / Provenance maschinenlesbar machen
-
 Ziel:
-- [ ] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen. (teilweise: `epistemics` Contract definiert, Status wie `semantic_status` oder `graph_status` werden strikt konservativ aus Runtime-Logik abgeleitet)
+- [~] Agenten sollen nicht nur Ergebnisse, sondern auch deren epistemischen Status sehen.
+  erfüllt: `epistemics` Contract definiert und für lokale Basisdaten getestet.
+  fehlt: Komplexe Status werden noch nicht durchgängig aus allen Pfaden in den Contract überführt (z.B. `semantic_status` bleibt konservativ `unknown`).
 
 Felder: provenance_type, bundle_origin, resolver_status, graph_status, semantic_status, federation_status, uncertainty, interpolation.
 
 ### 2.7 Arbeitspaket E – Decision-Support von Retrieval trennen
-
 Ziel:
 - [ ] Lenskit bleibt Retrieval- und Evidenzsystem, kein Entscheidungsautomat.
 
@@ -1670,31 +1671,26 @@ Trennung:
 * Agent / Orchestrator entscheidet: was relevant ist, welche Handlung folgt, welche Synthese gebildet wird.
 
 ### 2.8 Arbeitspaket F – Agent Traceability
-
 Ziel:
-- [~] Jede Agent-Nutzung ist nachvollziehbar (teilweise: CLI-Traceability über das Artefakt `agent_query_session.json` ist implementiert und testbelegt; der API-Trace-Pfad liefert eine Inline-v2-Session, aber nicht das vollständige Artefakt mit `refs`).
-
-Neues Artefakt: `agent_query_session.json`
-
-Inhalt: request contract, resolved bundle set, query trace refs, context bundle refs, diagnostics refs, warnings.
+- [~] Jede Agent-Nutzung ist nachvollziehbar.
+  CLI: nutzt physisches Artefakt `agent_query_session.json` (v1-Contract). Es bündelt Request-, Bundle-, Trace- und Diagnose-Bezüge.
+  API: liefert Inline-Session (v2-Contract); ein referenzierbarer, physischer Trace-Layer fehlt hier derzeit.
 
 ### 2.9 Arbeitspaket G – Service-Endpunkte / MCP-fähige Form
-
 Ziel:
-- [ ] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen (HTTP /api/query existiert strukturell, aber MCP-Schnittstellen an sich fehlen).
+- [~] Lenskit soll sich sauber an Orchestratoren oder MCP-artige Systeme andocken lassen.
+  erfüllt: HTTP-Servicepfade (siehe 2.5) vorhanden.
+  fehlt: MCP Protocol Bindings (z.B. mcp-server) fehlen.
 
 Endpunkte logisch: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`
 
 ### 2.10 Arbeitspaket H – Guardrails für Agenten
-
 Ziel:
-- [~] Lenskit soll problematische Zustände aktiv markieren. (teilweise: Warnungen wie conflict oder stale werden generiert, einfache Guardrail-Heuristik auf Basis geringer Trefferabdeckung ("low result coverage") ist umgesetzt; weitergehende Guardrails fehlen noch)
-
-Warnungen: stale bundle, invalid graph, missing provenance, derived fallback only, cross-repo conflict, incomplete scope, low result coverage.
-Reaktion: Nicht blockieren, aber markieren.
+- [~] Lenskit soll problematische Zustände aktiv markieren.
+  repo-belegt: Guardrail-Klasse `low_result_coverage` (emittiert `"Low result coverage"`).
+  noch offen (nicht strukturell belegt): `stale_bundle`, `invalid_graph`, `missing_provenance`, `cross_repo_conflict`.
 
 ### 2.11 Arbeitspaket I – Evaluierung der Agent-Nutzung
-
 Ziel:
 - [ ] Nicht nur Query-Qualität, sondern Agent-Tauglichkeit prüfen.
 
@@ -1707,13 +1703,13 @@ Tests:
 - [x] 6. test_agent_federated_conflict_warning
 
 ### 2.12 Deliverables Phase 6
-- [x] 1. Agent Query Contract (für /api/query im API-Roundtrip minimal belegt und getestet)
+- [x] 1. Agent Query Contract (minimaler HTTP-Roundtrip über `/api/query` repo-belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
-- [ ] 3. bounded API/tool surface
-- [ ] 4. maschinenlesbare uncertainty/provenance Felder (teilweise: strukturierter Contract verifiziert, aber einzelne Aspekte wie `semantic_status` bleiben bewusst `unknown` zur Wahrung der epistemischen Integrität)
-- [~] 5. `agent_query_session.json` (teilweise: Das CLI erzeugt das vollständige physische Artefakt inkl. Trace-Referenzen; die API erzeugt stattdessen ein Inline-Feld `agent_query_session` v2 und kein separates JSON-Artefakt).
-- [ ] 6. service-/MCP-fähige Schnittstellenlogik (offen: reiner Servicepfad /api/federation/query vorhanden, MCP-Protokoll fehlt gänzlich)
-- [~] 7. Agent-Guardrails (teilweise: einfache Guardrail-Heuristik für "low result coverage" verifiziert, vollständige Liste und tiefergehende Guardrails offen)
+- [~] 3. bounded API/tool surface (Query-/Federation-Pfade vorhanden, dedizierte Lookup-Pfade fehlen)
+- [~] 4. maschinenlesbare uncertainty/provenance Felder (Contract existiert, komplexe Status fehlen)
+- [~] 5. `agent_query_session.json` (CLI nutzt v1 Artefakt, API liefert v2 Inline-Session)
+- [~] 6. service-/MCP-fähige Schnittstellenlogik (API Servicepfade existieren, MCP Protokoll fehlt)
+- [~] 7. Agent-Guardrails (teilweise: Guardrail-Heuristik "low result coverage" belegt, Härtung offen)
 
 ### 2.13 Gate für Phase 6
 - [ ] Phase 6 ist fertig, wenn:
@@ -1749,7 +1745,9 @@ Die vorhandene Infrastruktur wird benutzbar, ohne die Architektur zu verwässern
 Arbeitspakete:
 - [ ] **7.1 WebUI-Konsolidierung:** Bundle-Navigation, Trace-Ansicht, Explain-Ansicht, Artifact-Explorer.
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
-- [ ] **7.3 Service-Endpunkte:** /query, /context, /trace, /artifact, /federation/query, /diagnostics. (teilweise: /api/federation/query vorhanden, restliche Endpunkte offen)
+- [~] **7.3 Service-Endpunkte:**
+  logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
+  repo-belegt vorhanden: `/api/query`, `/api/federation/query`. (Dedizierte Lookup-Pfade fehlen).
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:
