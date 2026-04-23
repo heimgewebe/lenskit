@@ -966,9 +966,10 @@ Ziel: Atlas wird diagnostisch.
 - [x] analyze duplicates implementieren (als CLI command `atlas analyze duplicates <snapshot_id>`)
 - [x] analyze orphans implementieren (als CLI command `atlas analyze orphans <snapshot_id>`)
 - [x] Oldest-/Largest-Files-Artefakte vereinheitlichen
-- [x] Cross-root growth reports definieren (via `atlas analyze growth`)
-  - epistemische Basis: Datenbasis (Machine/Root) und Snapshot-IDs werden explizit mitgeführt.
-  - limitationen: Vergleicht nur Volumina und Dateianzahlen, keine semantische Inhaltsgleichheit. Trackt keine Zwischenhistorien.
+- [~] Cross-root growth reports definieren
+  - implementation: done (`atlas analyze growth`)
+  - tests: present
+  - hardening: partial (nur Snapshot-ID-Pfad und grundlegende Auflösung getestet; keine Zwischenhistorie, keine semantische Inhaltsgleichheit, keine persistierten Growth-Artefakte)
 
 **Stop-Kriterium**: Atlas zeigt nicht nur Bestände, sondern konkrete Aufräum-, Speicher- und Vergleichsprobleme.
 
