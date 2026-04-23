@@ -33,24 +33,28 @@ class ReportParser:
 
     def _parse(self):
         # Combined regex for finding tags in order
-        # Group 1: begin type
-        # Group 2: begin attrs
-        # Group 3: end type (required)
-        # Group 4: end attrs (optional, e.g. id=...)
+        # Group 1: begin quoted type
+        # Group 2: begin unquoted type
+        # Group 3: begin attrs
+        # Group 4: end quoted type
+        # Group 5: end unquoted type
+        # Group 6: end attrs (optional, e.g. id=...)
         # Note: We match <!-- zone:begin ... --> OR <!-- zone:end ... -->
+        # Dual-read: support both quoted and unquoted type for migration testing
         token_pattern = re.compile(
-            r'<!-- zone:begin type=([a-zA-Z0-9_-]+)(.*?) -->|<!-- zone:end\s+type=([a-zA-Z0-9_-]+)(.*?) -->',
+            r'<!-- zone:begin type=(?:"([^"]+)"|([a-zA-Z0-9_-]+))(.*?) -->|<!-- zone:end\s+type=(?:"([^"]+)"|([a-zA-Z0-9_-]+))(.*?) -->',
             re.DOTALL
         )
 
         stack = [] # List of dicts: {type, start_content, attrs}
 
         for match in token_pattern.finditer(self.content):
-            is_begin = match.group(1) is not None
+            # 1, 2 = begin (quoted, unquoted); 4, 5 = end (quoted, unquoted)
+            is_begin = match.group(1) is not None or match.group(2) is not None
 
             if is_begin:
-                z_type = match.group(1)
-                z_attrs_str = match.group(2)
+                z_type = match.group(1) or match.group(2)
+                z_attrs_str = match.group(3)
                 attrs = self._parse_attrs(z_attrs_str)
                 stack.append({
                     "type": z_type,
@@ -60,8 +64,8 @@ class ReportParser:
                 })
             else:
                 # is end
-                end_type = match.group(3)
-                end_attrs_str = match.group(4) # Capturing for debugging if needed
+                end_type = match.group(4) or match.group(5)
+                end_attrs_str = match.group(6) # Capturing for debugging if needed
 
                 if not stack:
                     raise ValueError(f"Orphaned end tag at {match.start()}")

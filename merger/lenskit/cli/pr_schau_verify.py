@@ -22,6 +22,7 @@ import sys
 import json
 import hashlib
 import argparse
+import re
 from pathlib import Path
 from typing import Dict, Any
 
@@ -173,9 +174,12 @@ def verify_full(bundle_path: Path, data: Dict[str, Any]) -> None:
         if p_path.exists():
             try:
                 text = p_path.read_text(encoding="utf-8", errors="ignore")
-                if "<!-- zone:begin type=summary -->" not in text:
+                # Dual-read: accept both quoted and unquoted type for migration compatibility.
+                # Robust regex handles varied whitespace and optional attributes within the marker.
+                # Matches: type=summary, type="summary", type="summary" id="..."
+                if not re.search(r'<!--\s+zone:begin\s+[^>]*?\btype=(?:"summary"|summary)(?:\s+|-->)', text):
                     _fail(f"Primary part {primary} missing mandatory 'summary' zone")
-                if "<!-- zone:begin type=files_manifest -->" not in text:
+                if not re.search(r'<!--\s+zone:begin\s+[^>]*?\btype=(?:"files_manifest"|files_manifest)(?:\s+|-->)', text):
                     _fail(f"Primary part {primary} missing mandatory 'files_manifest' zone")
                 _pass("Mandatory zones (summary, files_manifest) present")
             except Exception:
