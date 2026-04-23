@@ -155,6 +155,10 @@ def main(args: Optional[List[str]] = None) -> int:
     atlas_analyze_backup_gap_parser.add_argument("source_snapshot", help="The source snapshot ID or reference (machine:path)")
     atlas_analyze_backup_gap_parser.add_argument("backup_snapshot", help="The backup snapshot ID or reference (machine:path)")
 
+    atlas_analyze_growth_parser = atlas_analyze_subparsers.add_parser("growth", help="Analyze cross-root growth and report epistemic boundaries")
+    atlas_analyze_growth_parser.add_argument("source_snapshot", help="The source snapshot ID or reference (machine:path)")
+    atlas_analyze_growth_parser.add_argument("target_snapshot", help="The target snapshot ID or reference (machine:path)")
+
     parsed_args = parser.parse_args(args)
 
     if parsed_args.command is None:
