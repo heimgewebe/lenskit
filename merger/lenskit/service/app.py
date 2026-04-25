@@ -674,7 +674,17 @@ def api_query(request: QueryRequest):
             )
 
         if _artifact_ids:
-            projected["artifact_ids"] = _artifact_ids
+            # artifact_ids must not be injected into a direct context bundle because
+            # query-context-bundle.v1.schema.json has additionalProperties: false.
+            # Three projected shapes are possible (see project_output docstring):
+            #   1. No profile → raw result dict (no schema restriction on extra keys).
+            #   2. Profile + wrapper → {"context_bundle": ..., ...} (wrapper accepts extras).
+            #   3. Profile, no wrapper → direct bundle at top level (hits key, strict schema).
+            # Only case 3 requires wrapping.
+            if "hits" in projected and "context_bundle" not in projected:
+                projected = {"context_bundle": projected, "artifact_ids": _artifact_ids}
+            else:
+                projected["artifact_ids"] = _artifact_ids
 
     return projected
 
