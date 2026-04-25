@@ -288,3 +288,7 @@ class QueryRequest(BaseModel):
 class ArtifactLookupRequest(BaseModel):
     artifact_type: Literal["query_trace", "context_bundle", "agent_query_session"]
     id: str = Field(min_length=1)
+
+
+class TraceLookupRequest(BaseModel):
+    id: str = Field(min_length=1)

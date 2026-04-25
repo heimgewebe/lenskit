@@ -36,6 +36,49 @@ Example:
 }
 ```
 
+## Trace Lookup
+
+### `POST /api/trace_lookup`
+
+Typed read-only facade over stored `query_trace` artifacts. Returns the trace payload for a given artifact ID without re-executing any query.
+
+**Auth:** `Authorization: Bearer <token>` required.
+
+**Request:**
+```json
+{ "id": "qart-<hex>" }
+```
+
+**Response (ok):**
+```json
+{
+  "status": "ok",
+  "id": "qart-abc123",
+  "trace": { "query_input": "...", "timings": {}, "..." : "..." },
+  "provenance": { "source_query": "main", "timestamp": "2024-01-01T00:00:00+00:00", "index_id": "test-art", "run_id": null },
+  "created_at": "2024-01-01T00:00:00+00:00",
+  "warnings": []
+}
+```
+
+**Response (not found / wrong type):**
+```json
+{
+  "status": "not_found",
+  "id": "qart-abc123",
+  "trace": null,
+  "provenance": null,
+  "created_at": null,
+  "warnings": ["Artifact 'qart-abc123' has type 'context_bundle', not 'query_trace'"]
+}
+```
+
+**Notes:**
+- Read-only. Never recomputes or re-executes a query.
+- Only returns artifacts of type `query_trace`. If the ID exists but refers to a different artifact type, `status: "not_found"` is returned with a warning naming the actual type — no foreign artifact data is leaked.
+- Artifacts are stored automatically when `/api/query` is called with `trace=true`. The ID is returned in `artifact_ids.query_trace` of the query response.
+- Contract: `merger/lenskit/contracts/trace-lookup.v1.schema.json`
+
 ## Job Submission & Dispatch
 
 ### `include_paths_by_repo` Semantics

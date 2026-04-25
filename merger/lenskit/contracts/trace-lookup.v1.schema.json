@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/trace-lookup.v1.schema.json",
+  "title": "Trace Lookup (trace-lookup v1.0)",
+  "description": "Request/response contract for POST /api/trace_lookup. Typed read-only facade over stored query_trace artifacts. Only artifacts of type 'query_trace' are returned; all other artifact types yield status 'not_found'.",
+  "definitions": {
+    "TraceLookupRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The artifact ID returned at query time (e.g. 'qart-<hex>'). Must refer to a stored query_trace artifact."
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "id", "trace", "provenance", "created_at", "warnings"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "not_found", "error"],
+      "description": "Lookup outcome. 'ok': trace found. 'not_found': no artifact with this id, or artifact exists but is not query_trace. 'error': internal failure (e.g. store not initialized)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The artifact ID that was requested."
+    },
+    "trace": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": true},
+        {"type": "null"}
+      ],
+      "description": "The query_trace payload. Null when status is not 'ok'."
+    },
+    "provenance": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": true},
+        {"type": "null"}
+      ],
+      "description": "Provenance metadata (source_query, timestamp, index_id, run_id). Null when status is not 'ok'."
+    },
+    "created_at": {
+      "oneOf": [
+        {"type": "string"},
+        {"type": "null"}
+      ],
+      "description": "ISO 8601 UTC timestamp when this artifact was stored. Null when status is not 'ok'."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Non-fatal diagnostic messages (e.g. type mismatch naming the actual artifact type, store not initialized)."
+    }
+  }
+}

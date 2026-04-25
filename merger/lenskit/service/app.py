@@ -16,7 +16,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, FederationQueryRequest, QueryRequest, ArtifactLookupRequest
+from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, FederationQueryRequest, QueryRequest, ArtifactLookupRequest, TraceLookupRequest
 from .jobstore import JobStore
 from .query_artifact_store import QueryArtifactStore
 from .runner import JobRunner
@@ -953,6 +953,61 @@ def api_artifact_lookup(request: ArtifactLookupRequest):
         },
         "warnings": [],
     }
+
+@app.post("/api/trace_lookup", dependencies=[Depends(verify_token)])
+def api_trace_lookup(request: TraceLookupRequest):
+    """Retrieve a previously stored query_trace artifact by stable ID.
+
+    Typed read-only facade over the QueryArtifactStore. Only artifacts of
+    type 'query_trace' are returned. If the ID exists but refers to a
+    different artifact type, status 'not_found' is returned with a warning
+    naming the actual type — no foreign artifact data is leaked.
+
+    This endpoint is read-only and never recomputes anything.
+    """
+    if state.query_artifact_store is None:
+        return {
+            "status": "error",
+            "id": request.id,
+            "trace": None,
+            "provenance": None,
+            "created_at": None,
+            "warnings": ["Query artifact store not initialized"],
+        }
+
+    entry = state.query_artifact_store.get(request.id)
+
+    if entry is None:
+        return {
+            "status": "not_found",
+            "id": request.id,
+            "trace": None,
+            "provenance": None,
+            "created_at": None,
+            "warnings": [f"No artifact found with id={request.id!r}"],
+        }
+
+    if entry["artifact_type"] != "query_trace":
+        return {
+            "status": "not_found",
+            "id": request.id,
+            "trace": None,
+            "provenance": None,
+            "created_at": None,
+            "warnings": [
+                f"Artifact {request.id!r} has type {entry['artifact_type']!r}, not 'query_trace'"
+            ],
+        }
+
+    return {
+        "status": "ok",
+        "id": entry["id"],
+        "trace": entry["data"],
+        "provenance": entry["provenance"],
+        "created_at": entry["created_at"],
+        "warnings": [],
+    }
+
 
 def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Optional[str] = None) -> FileResponse:
     """
