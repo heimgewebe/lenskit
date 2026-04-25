@@ -17,7 +17,7 @@
         "id": {
           "type": "string",
           "minLength": 1,
-          "description": "The stable artifact ID returned at query time."
+          "description": "The artifact ID returned at query time. Stable within the local QueryArtifactStore for the lifetime of the store; not guaranteed across service restarts that change the store location."
         }
       }
     },

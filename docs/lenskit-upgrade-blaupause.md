@@ -1648,7 +1648,7 @@ Operationen:
 - [x] 1. query (logisch vorgesehen als `/query`; HTTP-seitig repo-belegt via `/api/query`)
 - [ ] 2. context_bundle (dedizierter Endpunkt fehlt)
 - [ ] 3. trace_lookup (Request/Response-Contract fehlt)
-- [ ] 4. artifact_lookup (als separater Servicepfad nicht implementiert)
+- [~] 4. artifact_lookup (`POST /api/artifact_lookup` implementiert für Query-Runtime-Artefakte: `query_trace`, `context_bundle`, `agent_query_session`; Contract `artifact-lookup.v1.schema.json`; offen: Lifecycle/Retention, raw-vs.-projizierte Artefaktform, Federation-Artefakte, MCP-Anbindung)
 - [x] 5. federation_query (logisch vorgesehen als `/federation/query`; HTTP-seitig repo-belegt via `/api/federation/query`)
 - [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
 

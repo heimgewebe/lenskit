@@ -17,9 +17,19 @@ class QueryArtifactStore:
     """Persistent store for query runtime artifacts.
 
     Artifacts (query_trace, context_bundle, agent_query_session) are produced
-    ephemerally during execute_query(). This store assigns stable IDs and
-    persists them so they can be retrieved via artifact_lookup without
-    re-executing any query.
+    ephemerally during execute_query(). This store assigns IDs and persists
+    them so they can be retrieved via artifact_lookup without re-executing any
+    query.
+
+    ID stability: IDs are stable within this store instance for the lifetime
+    of the underlying JSON file.  They are not guaranteed to be resolvable
+    after the store location changes (e.g. different merges_dir).
+
+    Known limitations (open, not in scope for this PR):
+    - No retention/GC policy: the store grows unbounded.
+    - No federation artifact support.
+    - No raw-vs-projected artifact distinction (context_bundle is stored in
+      the projected API form, not the internal execute_query() form).
 
     Storage format: JSON list at {storage_dir}/query_artifacts.json.
     All writes are atomic (tmp-rename).

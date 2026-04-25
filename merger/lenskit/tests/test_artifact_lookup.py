@@ -1,9 +1,21 @@
-"""Tests for artifact_lookup: QueryArtifactStore + /api/artifact_lookup endpoint."""
+"""Tests for artifact_lookup: QueryArtifactStore + /api/artifact_lookup endpoint.
+
+Auth convention (confirmed via merger/lenskit/service/auth.py):
+  verify_token accepts HTTPBearer credentials only.
+  Canonical header: "Authorization": "Bearer <token>"
+  "x-rlens-token" appears in CORS allow_headers but is NOT read by verify_token.
+"""
 import json
 import pytest
 from pathlib import Path
 
 from merger.lenskit.service.query_artifact_store import QueryArtifactStore, VALID_ARTIFACT_TYPES
+
+# jsonschema is an optional dependency; tests that need it skip gracefully.
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None
 
 try:
     from fastapi.testclient import TestClient
@@ -15,6 +27,12 @@ except ImportError:
     _HAS_FASTAPI = False
 
 requires_fastapi = pytest.mark.skipif(not _HAS_FASTAPI, reason="fastapi not installed")
+
+# Canonical auth header — matches HTTPBearer in verify_token.
+_AUTH = {"Authorization": "Bearer test_token"}
+
+# Path to the artifact-lookup schema for contract validation.
+_SCHEMA_PATH = Path(__file__).parent.parent / "contracts" / "artifact-lookup.v1.schema.json"
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +88,29 @@ def api_client(tmp_path, mini_index):
     return TestClient(app)
 
 
+@pytest.fixture
+def api_client_custom_merges(tmp_path, mini_index):
+    """Fixture that uses an explicit merges_dir to verify store-path drift fix."""
+    hub_path = mini_index.parent.parent
+    custom_merges = tmp_path / "custom_merges"
+    custom_merges.mkdir(parents=True, exist_ok=True)
+    service_app.init_service(hub_path=hub_path, token="test_token", merges_dir=custom_merges)
+
+    from merger.lenskit.service.models import Artifact, JobRequest
+    from merger.lenskit.service.app import state
+
+    req = JobRequest(repos=["repo"], level="max", mode="gesamt")
+    art = Artifact(
+        id="test-art", job_id="test-job", hub=str(hub_path), repos=["repo"],
+        created_at="2024-01-01T00:00:00+00:00",
+        paths={"sqlite_index": mini_index.name},
+        params=req,
+        merges_dir=str(mini_index.parent),
+    )
+    state.job_store.add_artifact(art)
+    return TestClient(app), custom_merges
+
+
 # ---------------------------------------------------------------------------
 # QueryArtifactStore unit tests
 # ---------------------------------------------------------------------------
@@ -123,14 +164,13 @@ class TestQueryArtifactStore:
         ids = [store.store("query_trace", {}, prov) for _ in range(3)]
         all_entries = store.get_all()
         assert len(all_entries) == 3
-        # stored IDs should all be present
         stored_ids = {e["id"] for e in all_entries}
         assert stored_ids == set(ids)
 
     def test_id_is_stable_and_unique(self, store):
         prov = {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"}
         ids = {store.store("query_trace", {}, prov) for _ in range(5)}
-        assert len(ids) == 5  # all unique
+        assert len(ids) == 5
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +183,7 @@ class TestApiArtifactLookup:
         resp = api_client.post(
             "/api/artifact_lookup",
             json={"artifact_type": "query_trace", "id": "qart-doesnotexist"},
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -151,7 +191,7 @@ class TestApiArtifactLookup:
         assert data["artifact"] is None
         assert len(data["warnings"]) > 0
 
-    def test_lookup_after_query_with_trace(self, api_client, mini_index):
+    def test_lookup_after_query_with_trace(self, api_client):
         resp = api_client.post(
             "/api/query",
             json={
@@ -162,16 +202,19 @@ class TestApiArtifactLookup:
                 "build_context_bundle": True,
                 "stale_policy": "ignore",
             },
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert resp.status_code == 200
         query_result = resp.json()
 
         assert "artifact_ids" in query_result, (
-            "artifact_ids not in query response — store integration failed"
+            "artifact_ids missing from query response — store integration failed"
         )
         artifact_ids = query_result["artifact_ids"]
-        assert "query_trace" in artifact_ids
+        # trace=True must always produce a query_trace artifact — no skip allowed here.
+        assert "query_trace" in artifact_ids, (
+            "query_trace not stored despite trace=True"
+        )
 
         trace_id = artifact_ids["query_trace"]
         assert trace_id.startswith("qart-")
@@ -179,7 +222,7 @@ class TestApiArtifactLookup:
         lookup_resp = api_client.post(
             "/api/artifact_lookup",
             json={"artifact_type": "query_trace", "id": trace_id},
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert lookup_resp.status_code == 200
         lookup_data = lookup_resp.json()
@@ -189,46 +232,47 @@ class TestApiArtifactLookup:
         assert "provenance" in lookup_data["artifact"]
         assert lookup_data["artifact"]["provenance"]["source_query"] == "main"
         assert lookup_data["artifact"]["provenance"]["index_id"] == "test-art"
-        # Determinism: lookup returns same object, no recomputing
         assert "data" in lookup_data["artifact"]
 
-    def test_lookup_type_mismatch_returns_not_found(self, api_client, mini_index):
-        # Store a query_trace artifact, try to look it up as context_bundle
+    def test_lookup_type_mismatch_returns_not_found(self, api_client):
         resp = api_client.post(
             "/api/query",
             json={
                 "index_id": "test-art",
-                "q": "helper",
+                "q": "main",
                 "trace": True,
                 "stale_policy": "ignore",
             },
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert resp.status_code == 200
         artifact_ids = resp.json().get("artifact_ids", {})
-        trace_id = artifact_ids.get("query_trace")
-        if not trace_id:
-            pytest.skip("No query_trace artifact was stored")
+        # trace=True must always store query_trace — no skip here.
+        assert "query_trace" in artifact_ids, (
+            "query_trace not stored despite trace=True"
+        )
+        trace_id = artifact_ids["query_trace"]
 
+        # Look up a query_trace ID under the wrong type.
         lookup_resp = api_client.post(
             "/api/artifact_lookup",
             json={"artifact_type": "context_bundle", "id": trace_id},
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert lookup_resp.status_code == 200
         data = lookup_resp.json()
         assert data["status"] == "not_found"
         assert len(data["warnings"]) > 0
+        assert "query_trace" in data["warnings"][0]  # warning names the actual type
 
     def test_lookup_requires_auth(self, api_client):
         resp = api_client.post(
             "/api/artifact_lookup",
             json={"artifact_type": "query_trace", "id": "qart-test"},
         )
-        # Without token, should be 401 or 403
-        assert resp.status_code in (401, 403)
+        assert resp.status_code == 401
 
-    def test_no_artifact_ids_without_trace_flag(self, api_client, mini_index):
+    def test_no_artifact_ids_without_trace_or_build_context(self, api_client):
         resp = api_client.post(
             "/api/query",
             json={
@@ -239,15 +283,15 @@ class TestApiArtifactLookup:
                 "build_context_bundle": False,
                 "stale_policy": "ignore",
             },
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert resp.status_code == 200
         result = resp.json()
         assert "artifact_ids" not in result, (
-            "artifact_ids should not appear when trace=False and build_context_bundle=False"
+            "artifact_ids must not appear when trace=False and build_context_bundle=False"
         )
 
-    def test_context_bundle_lookup_roundtrip(self, api_client, mini_index):
+    def test_context_bundle_lookup_roundtrip(self, api_client):
         resp = api_client.post(
             "/api/query",
             json={
@@ -256,28 +300,32 @@ class TestApiArtifactLookup:
                 "build_context_bundle": True,
                 "stale_policy": "ignore",
             },
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert resp.status_code == 200
         query_result = resp.json()
 
         artifact_ids = query_result.get("artifact_ids", {})
-        cb_id = artifact_ids.get("context_bundle")
-        if not cb_id:
-            pytest.skip("No context_bundle artifact was stored (no hits or bundle not built)")
+        assert "context_bundle" in artifact_ids, (
+            "context_bundle not stored despite build_context_bundle=True"
+        )
+        cb_id = artifact_ids["context_bundle"]
 
         lookup_resp = api_client.post(
             "/api/artifact_lookup",
             json={"artifact_type": "context_bundle", "id": cb_id},
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert lookup_resp.status_code == 200
         data = lookup_resp.json()
         assert data["status"] == "ok"
         assert data["artifact"]["data"]["query"] == "main"
 
-    def test_lookup_response_conforms_to_contract(self, api_client, mini_index):
-        # After a trace query, check the full response shape matches artifact-lookup.v1 schema
+    def test_lookup_response_conforms_to_contract(self, api_client):
+        """Response must validate against artifact-lookup.v1.schema.json."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
         resp = api_client.post(
             "/api/query",
             json={
@@ -286,32 +334,48 @@ class TestApiArtifactLookup:
                 "trace": True,
                 "stale_policy": "ignore",
             },
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
         assert resp.status_code == 200
         artifact_ids = resp.json().get("artifact_ids", {})
-        trace_id = artifact_ids.get("query_trace")
-        if not trace_id:
-            pytest.skip("No query_trace stored")
+        # trace=True must always store query_trace.
+        assert "query_trace" in artifact_ids, (
+            "query_trace not stored despite trace=True"
+        )
+        trace_id = artifact_ids["query_trace"]
 
         lookup_resp = api_client.post(
             "/api/artifact_lookup",
             json={"artifact_type": "query_trace", "id": trace_id},
-            headers={"x-rlens-token": "test_token"},
+            headers=_AUTH,
         )
+        assert lookup_resp.status_code == 200
         data = lookup_resp.json()
-        # Validate required top-level fields per artifact-lookup.v1 schema
-        assert "artifact_type" in data
-        assert "id" in data
-        assert "status" in data
-        assert "artifact" in data
-        assert "warnings" in data
-        assert isinstance(data["warnings"], list)
-        assert data["status"] in ("ok", "not_found", "error")
-        if data["status"] == "ok":
-            artifact = data["artifact"]
-            assert "provenance" in artifact
-            assert "created_at" in artifact
-            assert "data" in artifact
-            assert "source_query" in artifact["provenance"]
-            assert "timestamp" in artifact["provenance"]
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        jsonschema.validate(instance=data, schema=schema)
+
+    def test_store_path_uses_merges_dir_when_set(self, api_client_custom_merges):
+        """QueryArtifactStore must use merges_dir/.rlens-service when merges_dir is set."""
+        client, custom_merges = api_client_custom_merges
+        resp = client.post(
+            "/api/query",
+            json={
+                "index_id": "test-art",
+                "q": "main",
+                "trace": True,
+                "stale_policy": "ignore",
+            },
+            headers=_AUTH,
+        )
+        assert resp.status_code == 200
+        artifact_ids = resp.json().get("artifact_ids", {})
+        assert "query_trace" in artifact_ids, (
+            "query_trace not stored despite trace=True"
+        )
+
+        # The query_artifacts.json must exist inside the custom merges dir.
+        store_file = custom_merges / ".rlens-service" / "query_artifacts.json"
+        assert store_file.exists(), (
+            f"QueryArtifactStore did not write to custom merges_dir: {store_file}"
+        )

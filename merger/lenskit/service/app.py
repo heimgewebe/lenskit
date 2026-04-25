@@ -158,8 +158,11 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
     state.hub = hub_path
     state.merges_dir = merges_dir
     state.job_store = JobStore(hub_path)
-    _rlens_service_dir = hub_path / "merges" / ".rlens-service"
-    state.query_artifact_store = QueryArtifactStore(_rlens_service_dir)
+    # Co-locate QueryArtifactStore with the effective merges dir so query artifacts
+    # land alongside the outputs they reference.  JobStore uses hub_path/merges
+    # unconditionally; QueryArtifactStore follows state.merges_dir when set.
+    _effective_merges = merges_dir if merges_dir else get_merges_dir(hub_path)
+    state.query_artifact_store = QueryArtifactStore(_effective_merges / ".rlens-service")
     state.runner = JobRunner(state.job_store)
     state.log_provider = FileLogProvider(state.job_store)
 
@@ -651,7 +654,11 @@ def api_query(request: QueryRequest):
                 "query_trace", result["query_trace"], _provenance, run_id=_run_id
             )
 
-        # context_bundle: prefer projected form (profile-stripped if applicable)
+        # context_bundle: stored in the projected (profile-stripped) form as returned
+        # by the API — not the raw internal state from execute_query().  An artifact
+        # lookup will therefore return the same shape a client received, which may have
+        # had explain blocks or graph_context removed by the output_profile.  Known
+        # limitation: the raw pre-projection bundle is not separately addressable.
         _cb = projected.get("context_bundle")
         if _cb is None and "hits" in projected:
             _cb = projected  # direct bundle format (no-wrapper profile path)
