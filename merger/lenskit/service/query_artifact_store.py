@@ -32,7 +32,7 @@ class QueryArtifactStore:
       the projected API form, not the internal execute_query() form).
 
     Storage format: JSON list at {storage_dir}/query_artifacts.json.
-    All writes are atomic (tmp-rename).
+    All writes use tmp-file replacement.
     """
 
     def __init__(self, storage_dir: Path):
