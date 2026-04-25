@@ -81,6 +81,18 @@ def main(args: Optional[List[str]] = None) -> int:
     # Verify command (placeholder)
     subparsers.add_parser("verify", help="Verify artifacts or bundles")
 
+    # Artifact lookup command
+    artifact_parser = subparsers.add_parser("artifact", help="Look up a stored query artifact by ID")
+    artifact_parser.add_argument("--id", required=True, help="Artifact ID (e.g. qart-<hex>)")
+    artifact_parser.add_argument(
+        "--artifact-type",
+        choices=["query_trace", "context_bundle", "agent_query_session"],
+        dest="artifact_type",
+        required=True,
+        help="Expected artifact type. Returns status=not_found if ID exists but type mismatches.",
+    )
+    artifact_parser.add_argument("--hub", help="Hub root path (used to locate .rlens-service store)")
+
     # Architecture command
     architecture_parser = subparsers.add_parser("architecture", help="Extract architecture views")
     architecture_parser.add_argument("--repo", default=".", help="Path to repository root")
@@ -212,6 +224,9 @@ def main(args: Optional[List[str]] = None) -> int:
     elif parsed_args.command == "federation":
         from .cmd_federation import handle_federation_command
         return handle_federation_command(parsed_args)
+    elif parsed_args.command == "artifact":
+        from . import cmd_artifact
+        return cmd_artifact.run_artifact_lookup(parsed_args)
 
     return 0
 
