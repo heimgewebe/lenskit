@@ -61,7 +61,7 @@ class QueryArtifactStore:
             json.dumps(list(self._cache.values()), indent=2),
             encoding="utf-8",
         )
-        tmp.rename(self._store_file)
+        tmp.replace(self._store_file)
 
     def store(
         self,

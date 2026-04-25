@@ -88,7 +88,8 @@ def main(args: Optional[List[str]] = None) -> int:
         "--artifact-type",
         choices=["query_trace", "context_bundle", "agent_query_session"],
         dest="artifact_type",
-        help="Optional: expected artifact type. Returns status=not_found if ID exists but type mismatches.",
+        required=True,
+        help="Expected artifact type. Returns status=not_found if ID exists but type mismatches.",
     )
     artifact_parser.add_argument("--hub", help="Hub root path (used to locate .rlens-service store)")
 

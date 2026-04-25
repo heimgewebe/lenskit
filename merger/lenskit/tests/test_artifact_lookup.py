@@ -355,6 +355,40 @@ class TestApiArtifactLookup:
         schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
         jsonschema.validate(instance=data, schema=schema)
 
+    def test_direct_bundle_artifact_ids_wrapping(self, api_client):
+        """artifact_ids must not be injected into a bare context bundle.
+
+        When output_profile produces a direct bundle (hits at top level, no
+        context_bundle wrapper), the app must wrap it:
+          {"context_bundle": <bundle>, "artifact_ids": {...}}
+
+        Regression guard for the additionalProperties: false contract break.
+        """
+        resp = api_client.post(
+            "/api/query",
+            json={
+                "index_id": "test-art",
+                "q": "main",
+                "build_context_bundle": True,
+                "output_profile": "agent_minimal",
+                "stale_policy": "ignore",
+            },
+            headers=_AUTH,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert "artifact_ids" in data, "artifact_ids missing despite build_context_bundle=True"
+        assert "context_bundle" in data, (
+            "Direct bundle must be wrapped under 'context_bundle' key when artifact_ids are present"
+        )
+        assert "hits" not in data, (
+            "Top-level 'hits' must not appear — injecting into a strict context bundle violates schema"
+        )
+        assert "context_bundle" in data["artifact_ids"], (
+            "context_bundle artifact ID must be stored"
+        )
+
     def test_store_path_uses_merges_dir_when_set(self, api_client_custom_merges):
         """QueryArtifactStore must use merges_dir/.rlens-service when merges_dir is set."""
         client, custom_merges = api_client_custom_merges
