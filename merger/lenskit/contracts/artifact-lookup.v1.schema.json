@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/artifact-lookup.v1.schema.json",
+  "title": "Artifact Lookup (artifact-lookup v1.0)",
+  "description": "Request/response contract for the artifact_lookup endpoint. Enables first-class addressability of query runtime artifacts (query_trace, context_bundle, agent_query_session) by stable ID.",
+  "definitions": {
+    "ArtifactLookupRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_type", "id"],
+      "properties": {
+        "artifact_type": {
+          "type": "string",
+          "enum": ["query_trace", "context_bundle", "agent_query_session"],
+          "description": "The type of runtime artifact to retrieve."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The stable artifact ID returned at query time."
+        }
+      }
+    },
+    "ArtifactProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_query", "timestamp"],
+      "properties": {
+        "source_query": {
+          "type": "string",
+          "description": "The query text that produced this artifact."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601 UTC timestamp of artifact creation."
+        },
+        "index_id": {
+          "type": ["string", "null"],
+          "description": "The build artifact ID (index) used to produce this artifact."
+        },
+        "run_id": {
+          "type": ["string", "null"],
+          "description": "Optional correlation ID linking related artifacts from the same query execution."
+        }
+      }
+    },
+    "ArtifactPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenance", "created_at", "data"],
+      "properties": {
+        "provenance": {
+          "$ref": "#/definitions/ArtifactProvenance"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "ISO 8601 UTC timestamp when this artifact was stored."
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "The artifact payload. Structure depends on artifact_type."
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact_type", "id", "status", "artifact", "warnings"],
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "enum": ["query_trace", "context_bundle", "agent_query_session"],
+      "description": "The artifact type that was requested."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The artifact ID that was requested."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "not_found", "error"],
+      "description": "Lookup outcome. 'ok' means artifact was found and returned. 'not_found' means no artifact exists with this id/type. 'error' means an internal failure occurred."
+    },
+    "artifact": {
+      "oneOf": [
+        {"$ref": "#/definitions/ArtifactPayload"},
+        {"type": "null"}
+      ],
+      "description": "The artifact payload including provenance. Null when status is not 'ok'."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Non-fatal diagnostic messages (e.g. type mismatch, store not initialized)."
+    }
+  }
+}

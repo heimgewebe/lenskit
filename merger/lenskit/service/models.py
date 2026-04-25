@@ -283,3 +283,8 @@ class QueryRequest(BaseModel):
     stale_policy: Literal["fail", "warn", "ignore"] = "fail"
     test_penalty: float = 0.75
     overmatch_guard: bool = False
+
+
+class ArtifactLookupRequest(BaseModel):
+    artifact_type: Literal["query_trace", "context_bundle", "agent_query_session"]
+    id: str

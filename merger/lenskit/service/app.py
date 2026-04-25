@@ -16,8 +16,9 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, FederationQueryRequest, QueryRequest
+from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, FederationQueryRequest, QueryRequest, ArtifactLookupRequest
 from .jobstore import JobStore
+from .query_artifact_store import QueryArtifactStore
 from .runner import JobRunner
 from .logging_provider import LogProvider, FileLogProvider
 from .auth import verify_token
@@ -147,6 +148,7 @@ class ServiceState:
     hub: Path = None
     merges_dir: Path = None
     job_store: JobStore = None
+    query_artifact_store: QueryArtifactStore = None
     runner: JobRunner = None
     log_provider: LogProvider = None
 
@@ -156,6 +158,8 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
     state.hub = hub_path
     state.merges_dir = merges_dir
     state.job_store = JobStore(hub_path)
+    _rlens_service_dir = hub_path / "merges" / ".rlens-service"
+    state.query_artifact_store = QueryArtifactStore(_rlens_service_dir)
     state.runner = JobRunner(state.job_store)
     state.log_provider = FileLogProvider(state.job_store)
 
@@ -627,6 +631,44 @@ def api_query(request: QueryRequest):
     if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
         session = build_agent_query_session_v2(request.q, projected.get("context_bundle"))
         projected["agent_query_session"] = session
+
+    # Store query runtime artifacts so they can be retrieved via artifact_lookup.
+    # Triggered when trace=True or build_context_bundle=True to keep storage opt-in.
+    _should_store = request.trace or request.build_context_bundle
+    if _should_store and state.query_artifact_store is not None and isinstance(projected, dict):
+        from datetime import datetime, timezone as _tz
+        _run_id = uuid.uuid4().hex
+        _provenance = {
+            "source_query": request.q,
+            "timestamp": datetime.now(_tz.utc).isoformat(),
+            "index_id": request.index_id,
+        }
+        _artifact_ids: dict = {}
+
+        # query_trace: always in the raw result when trace=True
+        if "query_trace" in result:
+            _artifact_ids["query_trace"] = state.query_artifact_store.store(
+                "query_trace", result["query_trace"], _provenance, run_id=_run_id
+            )
+
+        # context_bundle: prefer projected form (profile-stripped if applicable)
+        _cb = projected.get("context_bundle")
+        if _cb is None and "hits" in projected:
+            _cb = projected  # direct bundle format (no-wrapper profile path)
+        if _cb is not None:
+            _artifact_ids["context_bundle"] = state.query_artifact_store.store(
+                "context_bundle", _cb, _provenance, run_id=_run_id
+            )
+
+        # agent_query_session: built above when trace=True
+        if "agent_query_session" in projected:
+            _artifact_ids["agent_query_session"] = state.query_artifact_store.store(
+                "agent_query_session", projected["agent_query_session"], _provenance, run_id=_run_id
+            )
+
+        if _artifact_ids:
+            projected["artifact_ids"] = _artifact_ids
+
     return projected
 
 @app.post("/api/jobs", response_model=Job, dependencies=[Depends(verify_token)])
@@ -838,6 +880,62 @@ def get_artifact(id: str):
     if not art:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return art
+
+
+@app.post("/api/artifact_lookup", dependencies=[Depends(verify_token)])
+def api_artifact_lookup(request: ArtifactLookupRequest):
+    """Retrieve a previously stored query runtime artifact by stable ID.
+
+    Artifacts (query_trace, context_bundle, agent_query_session) are stored
+    automatically when a query is executed with trace=True or
+    build_context_bundle=True. The artifact_ids map is included in the query
+    response so callers can extract the IDs for subsequent lookups.
+
+    This endpoint is read-only and never recomputes anything.
+    """
+    if state.query_artifact_store is None:
+        return {
+            "artifact_type": request.artifact_type,
+            "id": request.id,
+            "status": "error",
+            "artifact": None,
+            "warnings": ["Query artifact store not initialized"],
+        }
+
+    entry = state.query_artifact_store.get(request.id)
+
+    if entry is None:
+        return {
+            "artifact_type": request.artifact_type,
+            "id": request.id,
+            "status": "not_found",
+            "artifact": None,
+            "warnings": [f"No artifact found with id={request.id!r}"],
+        }
+
+    if entry["artifact_type"] != request.artifact_type:
+        return {
+            "artifact_type": request.artifact_type,
+            "id": request.id,
+            "status": "not_found",
+            "artifact": None,
+            "warnings": [
+                f"Artifact {request.id!r} has type {entry['artifact_type']!r}, "
+                f"not {request.artifact_type!r}"
+            ],
+        }
+
+    return {
+        "artifact_type": entry["artifact_type"],
+        "id": entry["id"],
+        "status": "ok",
+        "artifact": {
+            "provenance": entry["provenance"],
+            "created_at": entry["created_at"],
+            "data": entry["data"],
+        },
+        "warnings": [],
+    }
 
 def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Optional[str] = None) -> FileResponse:
     """
