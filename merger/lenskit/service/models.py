@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional, Literal, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 import uuid
 import hashlib
 import json
@@ -286,5 +286,13 @@ class QueryRequest(BaseModel):
 
 
 class ArtifactLookupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     artifact_type: Literal["query_trace", "context_bundle", "agent_query_session"]
+    id: str = Field(min_length=1)
+
+
+class TraceLookupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: str = Field(min_length=1)
