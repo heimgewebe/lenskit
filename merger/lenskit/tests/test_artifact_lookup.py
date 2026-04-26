@@ -281,6 +281,15 @@ class TestApiArtifactLookup:
         )
         assert resp.status_code == 422
 
+    def test_lookup_rejects_empty_id(self, api_client):
+        """Empty id must be rejected with 422 — contract says id.minLength: 1."""
+        resp = api_client.post(
+            "/api/artifact_lookup",
+            json={"artifact_type": "query_trace", "id": ""},
+            headers=_AUTH,
+        )
+        assert resp.status_code == 422
+
     def test_no_artifact_ids_without_trace_or_build_context(self, api_client):
         resp = api_client.post(
             "/api/query",
