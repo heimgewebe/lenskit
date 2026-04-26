@@ -77,6 +77,7 @@ Typed read-only facade over stored `query_trace` artifacts. Returns the trace pa
 - Read-only. Never recomputes or re-executes a query.
 - Only returns artifacts of type `query_trace`. If the ID exists but refers to a different artifact type, `status: "not_found"` is returned with a warning naming the actual type — no foreign artifact data is leaked.
 - Artifacts are stored automatically when `/api/query` is called with `trace=true`. The ID is returned in `artifact_ids.query_trace` of the query response.
+- Extra request fields are rejected with HTTP 422 (`additionalProperties: false` per contract).
 - Contract: `merger/lenskit/contracts/trace-lookup.v1.schema.json`
 
 ## Job Submission & Dispatch
