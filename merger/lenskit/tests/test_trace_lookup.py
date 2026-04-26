@@ -187,6 +187,15 @@ class TestApiTraceLookup:
         )
         assert resp.status_code == 422
 
+    def test_trace_lookup_rejects_extra_fields(self, api_client):
+        """Extra fields must be rejected with 422 — contract says additionalProperties: false."""
+        resp = api_client.post(
+            "/api/trace_lookup",
+            json={"id": "qart-test", "unexpected": True},
+            headers=_AUTH,
+        )
+        assert resp.status_code == 422
+
     def test_trace_lookup_response_conforms_to_contract(self, api_client):
         """Response must validate against trace-lookup.v1.schema.json."""
         if jsonschema is None:

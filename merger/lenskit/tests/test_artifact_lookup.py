@@ -272,6 +272,15 @@ class TestApiArtifactLookup:
         )
         assert resp.status_code == 401
 
+    def test_lookup_rejects_extra_fields(self, api_client):
+        """Extra fields must be rejected with 422 — contract says additionalProperties: false."""
+        resp = api_client.post(
+            "/api/artifact_lookup",
+            json={"artifact_type": "query_trace", "id": "qart-test", "unexpected": True},
+            headers=_AUTH,
+        )
+        assert resp.status_code == 422
+
     def test_no_artifact_ids_without_trace_or_build_context(self, api_client):
         resp = api_client.post(
             "/api/query",
