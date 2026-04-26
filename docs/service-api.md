@@ -36,6 +36,51 @@ Example:
 }
 ```
 
+## Context Lookup
+
+### `POST /api/context_lookup`
+
+Typed read-only facade over stored `context_bundle` artifacts. Returns the context bundle payload for a given artifact ID without re-executing any query.
+
+**Auth:** Provide a token using either `Authorization: Bearer <token>` (preferred) or the `token` query parameter.
+
+**Request:**
+```json
+{ "id": "qart-<hex>" }
+```
+
+**Response (ok):**
+```json
+{
+  "status": "ok",
+  "id": "qart-abc123",
+  "context_bundle": { "query": "main", "hits": [...] },
+  "provenance": { "source_query": "main", "timestamp": "2024-01-01T00:00:00+00:00", "index_id": "test-art", "run_id": null },
+  "created_at": "2024-01-01T00:00:00+00:00",
+  "warnings": []
+}
+```
+
+**Response (not found / wrong type):**
+```json
+{
+  "status": "not_found",
+  "id": "qart-abc123",
+  "context_bundle": null,
+  "provenance": null,
+  "created_at": null,
+  "warnings": ["Artifact 'qart-abc123' has type 'query_trace', not 'context_bundle'"]
+}
+```
+
+**Notes:**
+- Read-only. Never recomputes, reconstructs, or re-executes a query.
+- Only returns artifacts of type `context_bundle`. If the ID exists but refers to a different artifact type, `status: "not_found"` is returned with a warning naming the actual type — no foreign artifact data is leaked.
+- Context bundle artifacts are stored automatically when `/api/query` produces a `context_bundle`, for example via `build_context_bundle=true` or an output profile / context mode that includes a context bundle. In those cases, the ID is returned in `artifact_ids.context_bundle` of the query response.
+- `trace=true` alone stores a `query_trace`; it does not by itself guarantee `artifact_ids.context_bundle`.
+- Extra request fields are rejected with HTTP 422 (`additionalProperties: false` per contract).
+- Contract: `merger/lenskit/contracts/context-lookup.v1.schema.json`
+
 ## Trace Lookup
 
 ### `POST /api/trace_lookup`

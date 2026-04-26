@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/context-lookup.v1.schema.json",
+  "title": "Context Lookup (context-lookup v1.0)",
+  "description": "Request/response contract for POST /api/context_lookup. Typed read-only facade over stored context_bundle artifacts. Only artifacts of type 'context_bundle' are returned; all other artifact types yield status 'not_found'.",
+  "definitions": {
+    "ContextLookupRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The artifact ID returned at query time (e.g. 'qart-<hex>'). Must refer to a stored context_bundle artifact."
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "id", "context_bundle", "provenance", "created_at", "warnings"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "not_found", "error"],
+      "description": "Lookup outcome. 'ok': context_bundle found. 'not_found': no artifact with this id, or artifact exists but is not context_bundle. 'error': internal failure (e.g. store not initialized)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The artifact ID that was requested."
+    },
+    "context_bundle": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": true},
+        {"type": "null"}
+      ],
+      "description": "The context_bundle payload. Null when status is not 'ok'."
+    },
+    "provenance": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": true},
+        {"type": "null"}
+      ],
+      "description": "Provenance metadata (source_query, timestamp, index_id, run_id). Null when status is not 'ok'."
+    },
+    "created_at": {
+      "oneOf": [
+        {"type": "string"},
+        {"type": "null"}
+      ],
+      "description": "ISO 8601 UTC timestamp when this artifact was stored. Null when status is not 'ok'."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Non-fatal diagnostic messages (e.g. type mismatch naming the actual artifact type, store not initialized)."
+    }
+  }
+}
