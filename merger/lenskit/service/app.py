@@ -16,7 +16,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, FederationQueryRequest, QueryRequest, ArtifactLookupRequest, TraceLookupRequest
+from .models import JobRequest, Job, Artifact, AtlasRequest, AtlasArtifact, AtlasEffective, calculate_job_hash, PrescanRequest, PrescanResponse, FSRoot, FSRootsResponse, FederationQueryRequest, QueryRequest, ArtifactLookupRequest, TraceLookupRequest, ContextLookupRequest
 from .jobstore import JobStore
 from .query_artifact_store import QueryArtifactStore
 from .runner import JobRunner
@@ -1003,6 +1003,61 @@ def api_trace_lookup(request: TraceLookupRequest):
         "status": "ok",
         "id": entry["id"],
         "trace": entry["data"],
+        "provenance": entry["provenance"],
+        "created_at": entry["created_at"],
+        "warnings": [],
+    }
+
+
+@app.post("/api/context_lookup", dependencies=[Depends(verify_token)])
+def api_context_lookup(request: ContextLookupRequest):
+    """Retrieve a previously stored context_bundle artifact by stable ID.
+
+    Typed read-only facade over the QueryArtifactStore. Only artifacts of
+    type 'context_bundle' are returned. If the ID exists but refers to a
+    different artifact type, status 'not_found' is returned with a warning
+    naming the actual type — no foreign artifact data is leaked.
+
+    This endpoint is read-only and never recomputes or re-executes a query.
+    """
+    if state.query_artifact_store is None:
+        return {
+            "status": "error",
+            "id": request.id,
+            "context_bundle": None,
+            "provenance": None,
+            "created_at": None,
+            "warnings": ["Query artifact store not initialized"],
+        }
+
+    entry = state.query_artifact_store.get(request.id)
+
+    if entry is None:
+        return {
+            "status": "not_found",
+            "id": request.id,
+            "context_bundle": None,
+            "provenance": None,
+            "created_at": None,
+            "warnings": [f"No artifact found with id={request.id!r}"],
+        }
+
+    if entry["artifact_type"] != "context_bundle":
+        return {
+            "status": "not_found",
+            "id": request.id,
+            "context_bundle": None,
+            "provenance": None,
+            "created_at": None,
+            "warnings": [
+                f"Artifact {request.id!r} has type {entry['artifact_type']!r}, not 'context_bundle'"
+            ],
+        }
+
+    return {
+        "status": "ok",
+        "id": entry["id"],
+        "context_bundle": entry["data"],
         "provenance": entry["provenance"],
         "created_at": entry["created_at"],
         "warnings": [],
