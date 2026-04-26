@@ -15,6 +15,19 @@ The server guarantees:
 - **Future ID**: If `Last-Event-ID` > `len(logs)`, the stream returns only `event: end`.
 - **Reconnect after completion**: If the job is already finished and `Last-Event-ID` matches the total log count, the stream returns only `event: end`.
 
+
+## Diagnostics
+
+### `GET /api/diagnostics`
+
+Read-only diagnostics lookup that returns the cached state of the fleet health.
+
+- **Read-only**: Reads the existing `.gewebe/cache/diagnostics.snapshot.json` file.
+- **No Side Effects**: Does *not* trigger a rebuild of diagnostics.
+- **Auth Required**: Uses the standard `verify_token` mechanism.
+- **TTL Warning**: If the snapshot is older than 24 hours (`TTL_HOURS`), the overall `status` is automatically overridden to `warn` indicating that the snapshot is outdated.
+- **Contract Strictness**: The response conforms to the `diagnostics-lookup.v1.schema.json` contract. Missing or invalid snapshots are reported cleanly using `status: "not_found"` or `status: "error"` respectively without causing an internal server error.
+
 ## File System
 
 ### `/api/fs/roots`

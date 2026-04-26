@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.repolens.dev/diagnostics-lookup.v1.schema.json",
+  "title": "Diagnostics Lookup Response",
+  "description": "Contract for the read-only diagnostics lookup endpoint (/api/diagnostics). Represents the cached state of the fleet health.",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "warn", "error", "not_found"],
+      "description": "Overall status of the lookup operation or the underlying diagnostics data."
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable message, usually populated if status is error or not_found."
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version of the cached diagnostics snapshot."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the diagnostics snapshot was generated."
+    },
+    "source_snapshot": {
+      "type": "object",
+      "properties": {
+        "fleet_generated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "integer" },
+        "issue": { "type": "integer" },
+        "missing": { "type": "integer" },
+        "issues_total": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "data": {
+      "type": "object",
+      "description": "Per-repository diagnostic results.",
+      "additionalProperties": true
+    }
+  },
+  "required": ["status"],
+  "additionalProperties": false
+}

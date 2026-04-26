@@ -299,6 +299,52 @@ def api_sources_refresh():
         logger.exception("Sources refresh failed")
         raise HTTPException(status_code=500, detail="Sources refresh failed")
 
+@app.get("/api/diagnostics", dependencies=[Depends(verify_token)])
+def api_diagnostics_lookup():
+    """
+    Read-only diagnostics lookup. Reads .gewebe/cache/diagnostics.snapshot.json.
+    Does NOT trigger a rebuild.
+    """
+    if not state.hub:
+        raise HTTPException(status_code=400, detail="Hub not configured")
+
+    gewebe_dir = state.hub / ".gewebe"
+    cache_dir = gewebe_dir / "cache"
+    diag_out_path = cache_dir / "diagnostics.snapshot.json"
+
+    if not diag_out_path.exists():
+        return {
+            "status": "not_found",
+            "message": "Diagnostics snapshot missing. Please run diagnostics rebuild first."
+        }
+
+    try:
+        data = json.loads(diag_out_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("Failed to load diagnostics snapshot")
+        return {
+            "status": "error",
+            "message": "Invalid diagnostics snapshot"
+        }
+
+    # Check TTL if generated_at exists
+    from datetime import datetime, timezone, timedelta
+    from ..adapters.diagnostics import TTL_HOURS
+
+    snapshot_ts_str = data.get("generated_at")
+    if snapshot_ts_str:
+        try:
+            snap_ts = datetime.strptime(snapshot_ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            now_ts = datetime.now(timezone.utc)
+            if now_ts - snap_ts > timedelta(hours=TTL_HOURS):
+                if data.get("status") == "ok":
+                    data["status"] = "warn"
+                    data["message"] = "Diagnostics snapshot is outdated"
+        except ValueError:
+            pass
+
+    return data
+
 @app.post("/api/diagnostics/rebuild", dependencies=[Depends(verify_token)])
 def api_diagnostics_rebuild():
     if not state.hub:

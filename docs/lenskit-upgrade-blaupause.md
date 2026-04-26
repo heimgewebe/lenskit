@@ -1641,8 +1641,8 @@ Profile:
 ### 2.5 Arbeitspaket C – Bounded Tool Surface
 Ziel:
 - [~] Lenskit soll als Werkzeug präzise Grenzen haben.
-  erfüllt: HTTP-seitig repo-belegt vorhanden: `/api/query`, `/api/federation/query`, `/api/artifact_lookup`, `/api/trace_lookup`; logisch entspricht dies den Endpunkten `/query`, `/federation/query`, `/artifact`, `/trace`.
-  fehlt: dedizierter Context-Bundle-Endpunkt und Diagnostics-Endpunkt fehlen noch.
+  erfüllt: HTTP-seitig repo-belegt vorhanden: `/api/query`, `/api/federation/query`, `/api/artifact_lookup`, `/api/trace_lookup`, `/api/context_lookup`; logisch entspricht dies den Endpunkten `/query`, `/federation/query`, `/artifact`, `/trace`, `/context`.
+  fehlt: Diagnostics-Endpunkt fehlt noch.
 
 Operationen:
 - [x] 1. query (logisch vorgesehen als `/query`; HTTP-seitig repo-belegt via `/api/query`)
