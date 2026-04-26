@@ -1,8 +1,8 @@
 """Tests for POST /api/context_lookup: typed read-only facade over context_bundle artifacts.
 
 Auth convention (confirmed via merger/lenskit/service/auth.py):
-  verify_token accepts HTTPBearer credentials only.
-  Canonical header: "Authorization": "Bearer <token>"
+  verify_token accepts either HTTPBearer credentials or a token query parameter.
+  Canonical test path here: "Authorization": "Bearer <token>".
 """
 import json
 import pytest
@@ -60,7 +60,9 @@ def mini_index(tmp_path):
 @pytest.fixture
 def api_client(tmp_path, mini_index):
     hub_path = mini_index.parent.parent
-    service_app.init_service(hub_path=hub_path, token="test_token")
+    merges_dir = tmp_path / "merges"
+    merges_dir.mkdir(parents=True, exist_ok=True)
+    service_app.init_service(hub_path=hub_path, token="test_token", merges_dir=merges_dir)
 
     from merger.lenskit.service.models import Artifact, JobRequest
     from merger.lenskit.service.app import state
