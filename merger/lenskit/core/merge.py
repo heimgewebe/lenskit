@@ -5765,6 +5765,53 @@ def write_reports_v2(
         ArtifactRole.ARCHITECTURE_SUMMARY: {"id": "architecture-summary", "version": "v1"},
     }
 
+    # Authority/canonicality mapping (bundle-manifest.v1, optional fields).
+    # Roles not present here remain unannotated for now (Phase 1 scope).
+    AUTHORITY_REGISTRY = {
+        ArtifactRole.CANONICAL_MD: {
+            "authority": "canonical_content",
+            "canonicality": "content_source",
+            "regenerable": True,
+            "staleness_sensitive": False,
+        },
+        ArtifactRole.INDEX_SIDECAR_JSON: {
+            "authority": "navigation_index",
+            "canonicality": "index_only",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
+        ArtifactRole.DUMP_INDEX_JSON: {
+            "authority": "navigation_index",
+            "canonicality": "index_only",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
+        ArtifactRole.DERIVED_MANIFEST_JSON: {
+            "authority": "navigation_index",
+            "canonicality": "derived",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
+        ArtifactRole.CHUNK_INDEX_JSONL: {
+            "authority": "retrieval_index",
+            "canonicality": "derived",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
+        ArtifactRole.SQLITE_INDEX: {
+            "authority": "runtime_cache",
+            "canonicality": "cache",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
+        ArtifactRole.ARCHITECTURE_SUMMARY: {
+            "authority": "diagnostic_signal",
+            "canonicality": "diagnostic",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
+    }
+
     artifacts_list = []
     def _add_artifact(p: Optional[Path], role: ArtifactRole, content_type: str):
         if p and p.exists():
@@ -5788,6 +5835,9 @@ def write_reports_v2(
                     entry["interpretation"] = {"mode": "contract"}
                 else:
                     entry["interpretation"] = {"mode": "role_only"}
+
+                if role in AUTHORITY_REGISTRY:
+                    entry.update(AUTHORITY_REGISTRY[role])
 
                 artifacts_list.append(entry)
 

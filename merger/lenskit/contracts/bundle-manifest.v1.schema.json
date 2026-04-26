@@ -133,6 +133,38 @@
               }
             },
             "additionalProperties": false
+          },
+          "authority": {
+            "type": "string",
+            "description": "Optional authority class describing what kind of statement this artifact is allowed to make. Optional in v1.0 for backward compatibility; values are constrained per role when present.",
+            "enum": [
+              "canonical_content",
+              "navigation_index",
+              "retrieval_index",
+              "diagnostic_signal",
+              "runtime_cache",
+              "runtime_observation"
+            ]
+          },
+          "canonicality": {
+            "type": "string",
+            "description": "Optional canonicality class describing the artifact's relation to a content source. Optional in v1.0 for backward compatibility; values are constrained per role when present.",
+            "enum": [
+              "content_source",
+              "index_only",
+              "derived",
+              "diagnostic",
+              "cache",
+              "observation"
+            ]
+          },
+          "regenerable": {
+            "type": "boolean",
+            "description": "Optional flag: true if the artifact can be deterministically regenerated from its sources, false if it represents a one-time observation."
+          },
+          "staleness_sensitive": {
+            "type": "boolean",
+            "description": "Optional flag: true if the artifact can drift relative to its source and needs staleness checks, false if it is itself the source of truth."
           }
         },
         "additionalProperties": false,
@@ -239,6 +271,160 @@
               "required": [
                 "contract"
               ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "canonical_md"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "canonical_content"
+                },
+                "canonicality": {
+                  "const": "content_source"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "index_sidecar_json"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "navigation_index"
+                },
+                "canonicality": {
+                  "const": "index_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "dump_index_json"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "navigation_index"
+                },
+                "canonicality": {
+                  "const": "index_only"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "derived_manifest_json"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "navigation_index"
+                },
+                "canonicality": {
+                  "const": "derived"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "chunk_index_jsonl"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "retrieval_index"
+                },
+                "canonicality": {
+                  "const": "derived"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "sqlite_index"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "runtime_cache"
+                },
+                "canonicality": {
+                  "const": "cache"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "architecture_summary"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_signal"
+                },
+                "canonicality": {
+                  "const": "diagnostic"
+                }
+              }
             }
           }
         ]
