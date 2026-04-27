@@ -210,3 +210,138 @@ def test_invalid_bundle_manifest_bad_role(schema):
         jsonschema.validate(instance=invalid_data, schema=schema)
     assert exc.value.validator == "enum"
     assert exc.value.instance == "invalid_role_not_in_enum"
+
+
+# ---------------------------------------------------------------------------
+# Authority / canonicality (Phase 1 of Artifact Integrity blueprint).
+# Fields stay optional in v1.0 for backward compatibility, but values are
+# constrained per role when present so that index/cache/diagnostic artifacts
+# cannot disguise themselves as canonical content.
+# ---------------------------------------------------------------------------
+
+
+def _wrap_artifact(artifact_entry):
+    return {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-authority",
+        "created_at": "2026-04-26T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [artifact_entry],
+        "links": {},
+        "capabilities": {}
+    }
+
+
+def test_authority_fields_optional_for_canonical_md(schema):
+    artifact = {
+        "role": "canonical_md",
+        "path": "output.md",
+        "content_type": "text/markdown",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256
+        # authority/canonicality omitted: must remain valid (backward compat).
+    }
+    jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_authority_fields_accepted_when_correct(schema):
+    artifact = {
+        "role": "canonical_md",
+        "path": "output.md",
+        "content_type": "text/markdown",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "authority": "canonical_content",
+        "canonicality": "content_source",
+        "regenerable": True,
+        "staleness_sensitive": False
+    }
+    jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_sqlite_index_cannot_claim_canonical_content(schema):
+    artifact = {
+        "role": "sqlite_index",
+        "path": "out.index.sqlite",
+        "content_type": "application/octet-stream",
+        "bytes": 4096,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "interpretation": {"mode": "role_only"},
+        "authority": "canonical_content"  # forbidden: cache must not pose as content source
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_architecture_summary_cannot_claim_content_source(schema):
+    artifact = {
+        "role": "architecture_summary",
+        "path": "out_architecture.md",
+        "content_type": "text/markdown",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "architecture-summary", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "canonicality": "content_source"  # forbidden: diagnostic must not pose as content source
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_index_sidecar_json_cannot_claim_content_source(schema):
+    artifact = {
+        "role": "index_sidecar_json",
+        "path": "sidecar.json",
+        "content_type": "application/json",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "repolens-agent", "version": "v2"},
+        "interpretation": {"mode": "contract"},
+        "canonicality": "content_source"  # forbidden: navigation index, not content
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_canonical_md_cannot_be_marked_as_cache(schema):
+    artifact = {
+        "role": "canonical_md",
+        "path": "output.md",
+        "content_type": "text/markdown",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "authority": "runtime_cache"  # forbidden: canonical content must keep its authority
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_authority_unknown_value_rejected(schema):
+    artifact = {
+        "role": "canonical_md",
+        "path": "output.md",
+        "content_type": "text/markdown",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "authority": "not_a_real_authority"
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_canonicality_unknown_value_rejected(schema):
+    artifact = {
+        "role": "canonical_md",
+        "path": "output.md",
+        "content_type": "text/markdown",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "canonicality": "wishful_thinking"
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
