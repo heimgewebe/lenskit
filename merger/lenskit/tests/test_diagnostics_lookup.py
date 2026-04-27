@@ -209,7 +209,9 @@ class TestApiDiagnosticsLookup:
         diag_path = hub_path / ".gewebe" / "cache" / "diagnostics.snapshot.json"
 
         ttl_hours = service_app.diagnostics_rebuild.TTL_HOURS
-        stale_generated_at = (datetime.now(timezone.utc) - timedelta(hours=ttl_hours + 1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stale_generated_at = (
+            datetime.now(timezone.utc) - timedelta(hours=ttl_hours + 1)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
         diag_path.write_text(
             json.dumps(
                 {
