@@ -29,6 +29,11 @@ Dateiendung ist Kleidung; Autorität ist Identität.
 | `pr-schau-delta.json` | `delta_json` | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `core.pr_schau_bundle` | PR-Schau Frontends, Agents | `pr-schau-delta.v1.schema.json` | Optional | Code-Review Differentials |
 | `<stem>.entrypoints.json` | - (Hilfs-/Zwischenartefakt) | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `architecture.entrypoints` | `architecture.graph_index` | `entrypoints.v1.schema.json` | Nein | Berechnung des Graph-Boosts |
 
+## Verwandte Architekturregeln
+
+- Two-Layer Artifact Pattern: [docs/architecture/two-layer-artifact-pattern.md](./two-layer-artifact-pattern.md)
+- Artifact Drift Matrix: [docs/architecture/artifact-drift-matrix.md](./artifact-drift-matrix.md)
+
 ## Anmerkungen zur Artefaktarchitektur
 
 1. **`query_trace.json` vs. `context_bundle`:**
