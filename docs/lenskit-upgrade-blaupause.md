@@ -1641,8 +1641,8 @@ Profile:
 ### 2.5 Arbeitspaket C – Bounded Tool Surface
 Ziel:
 - [~] Lenskit soll als Werkzeug präzise Grenzen haben.
-  erfüllt: HTTP-seitig repo-belegt vorhanden: `/api/query`, `/api/federation/query`, `/api/artifact_lookup`, `/api/trace_lookup`; logisch entspricht dies den Endpunkten `/query`, `/federation/query`, `/artifact`, `/trace`.
-  fehlt: dedizierter Context-Bundle-Endpunkt und Diagnostics-Endpunkt fehlen noch.
+  erfüllt: HTTP-seitig repo-belegt vorhanden: `/api/query`, `/api/federation/query`, `/api/artifact_lookup`, `/api/trace_lookup`, `/api/context_lookup`, `/api/diagnostics`; logisch entspricht dies den Endpunkten `/query`, `/federation/query`, `/artifact`, `/trace`, `/context`, `/diagnostics`.
+  fehlt: offen bleiben nachgelagerte Produktisierungsaspekte (UI/Diagnostic Views, Lifecycle/Retention, MCP-Anbindung).
 
 Operationen:
 - [x] 1. query (logisch vorgesehen als `/query`; HTTP-seitig repo-belegt via `/api/query`)
@@ -1650,7 +1650,7 @@ Operationen:
 - [~] 3. trace_lookup (`POST /api/trace_lookup` implementiert für gespeicherte `query_trace`-Artefakte; Contract `trace-lookup.v1.schema.json`; Request strict (`extra="forbid"`); offen: Federation-Trace, Retention/Lifecycle, raw-vs.-projizierte Trace-Semantik, MCP-Anbindung)
 - [~] 4. artifact_lookup (`POST /api/artifact_lookup` implementiert für Query-Runtime-Artefakte: `query_trace`, `context_bundle`, `agent_query_session`; Contract `artifact-lookup.v1.schema.json`; offen: Lifecycle/Retention, raw-vs.-projizierte Artefaktform, Federation-Artefakte, MCP-Anbindung)
 - [x] 5. federation_query (logisch vorgesehen als `/federation/query`; HTTP-seitig repo-belegt via `/api/federation/query`)
-- [ ] 6. diagnostics (dedizierter Endpunkt fehlt)
+- [x] 6. diagnostics (GET `/api/diagnostics` als read-only Snapshot-Lookup implementiert; Contract `diagnostics-lookup.v1.schema.json`; offen: UI/Diagnostic Views und ggf. tiefere Runtime-Diagnostik)
 
 Nicht direkt zulassen: freie Dateisystemnavigation ohne Scope, implizites Zusammenmischen beliebiger Bundles, ungebundene „find everything about X“-Operationen ohne Grenzen.
 
@@ -1705,7 +1705,7 @@ Tests:
 ### 2.12 Deliverables Phase 6
 - [x] 1. Agent Query Contract (minimaler HTTP-Roundtrip über `/api/query` repo-belegt und getestet)
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
-- [~] 3. bounded API/tool surface (Query-/Federation-Pfade vorhanden; `POST /api/artifact_lookup`, `POST /api/trace_lookup` und `POST /api/context_lookup` für gespeicherte Query-Runtime-Artefakte implementiert; Diagnostics-Pfad fehlt noch)
+- [~] 3. bounded API/tool surface (Query-/Federation-Pfade sowie `POST /api/artifact_lookup`, `POST /api/trace_lookup`, `POST /api/context_lookup` und `GET /api/diagnostics` vorhanden; offen: Lifecycle/Retention, Federation-Vertiefung, MCP-Anbindung)
 - [~] 4. maschinenlesbare uncertainty/provenance Felder (Contract existiert, komplexe Status fehlen)
 - [~] 5. `agent_query_session.json` (CLI nutzt v1 Artefakt, API liefert v2 Inline-Session)
 - [~] 6. service-/MCP-fähige Schnittstellenlogik (API Servicepfade existieren, MCP Protokoll fehlt)
@@ -1747,7 +1747,7 @@ Arbeitspakete:
 - [ ] **7.2 Diagnostic Views:** graph health, federation conflicts, bundle provenance, query trace.
 - [~] **7.3 Service-Endpunkte:**
   logisch vorgesehen: `/query`, `/context`, `/trace`, `/artifact`, `/federation/query`, `/diagnostics`.
-  repo-belegt vorhanden: `/api/query`, `/api/federation/query`, `/api/artifact_lookup`, `/api/trace_lookup`, `/api/context_lookup`. (Diagnostics-Pfad fehlt noch).
+  repo-belegt vorhanden: `/api/query`, `/api/federation/query`, `/api/artifact_lookup`, `/api/trace_lookup`, `/api/context_lookup`, `/api/diagnostics`.
 - [ ] **7.4 Download-/Inspection-Flows:** bundle parts, traces, context bundles, diagnostics.
 
 Deliverables:

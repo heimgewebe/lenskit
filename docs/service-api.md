@@ -81,6 +81,46 @@ Typed read-only facade over stored `context_bundle` artifacts. Returns the conte
 - Extra request fields are rejected with HTTP 422 (`additionalProperties: false` per contract).
 - Contract: `merger/lenskit/contracts/context-lookup.v1.schema.json`
 
+## Diagnostics
+
+### `GET /api/diagnostics`
+
+Read-only lookup facade over the persisted diagnostics snapshot.
+
+**Auth:** Standard service auth via `verify_token` (for example `Authorization: Bearer <token>`).
+
+**Behavior:**
+- Reads `.gewebe/cache/diagnostics.snapshot.json`.
+- Does **not** trigger `POST /api/diagnostics/rebuild`.
+- Does **not** modify, rewrite, or mutate the snapshot file.
+- Returns a lookup envelope (`status`, `snapshot`, `freshness`, `warnings`) instead of projecting snapshot fields to top-level.
+
+**Response shape:**
+```json
+{
+  "status": "ok",
+  "snapshot": { "schema_version": "diagnostics.snapshot.v1", "...": "..." },
+  "freshness": {
+    "generated_at": "2026-01-01T00:00:00Z",
+    "ttl_hours": 24,
+    "is_stale": false,
+    "age_seconds": 120
+  },
+  "warnings": []
+}
+```
+
+**Status semantics:**
+- `status` is the **lookup status** (`ok`, `not_found`, `error`).
+- Staleness is represented by `freshness.is_stale` (TTL exceeded).
+- The endpoint does not remap lookup status to `warn` for stale snapshots.
+
+**Notes:**
+- `not_found`: snapshot file does not exist.
+- `error`: snapshot file exists but cannot be parsed as JSON.
+- `freshness` is `null` if `generated_at` is absent/invalid or if lookup fails.
+- Contract: `merger/lenskit/contracts/diagnostics-lookup.v1.schema.json`.
+
 ## Trace Lookup
 
 ### `POST /api/trace_lookup`

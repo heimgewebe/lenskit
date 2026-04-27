@@ -90,6 +90,22 @@ else:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _parse_iso_utc(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if not raw:
+        return None
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
 app = FastAPI(title="rLens", version=SERVER_VERSION)
 
 @app.exception_handler(InvalidPathError)
@@ -308,6 +324,50 @@ def api_diagnostics_rebuild():
     except Exception:
         logger.exception("Diagnostics rebuild failed")
         raise HTTPException(status_code=500, detail="Diagnostics rebuild failed")
+
+@app.get("/api/diagnostics", dependencies=[Depends(verify_token)])
+def api_diagnostics_lookup():
+    """Read-only diagnostics lookup over the persisted snapshot."""
+    if not state.hub:
+        raise HTTPException(status_code=400, detail="Hub not configured")
+
+    diag_path = state.hub / ".gewebe" / "cache" / "diagnostics.snapshot.json"
+    if not diag_path.exists():
+        return {
+            "status": "not_found",
+            "snapshot": None,
+            "freshness": None,
+            "warnings": ["diagnostics.snapshot.json not found"],
+        }
+
+    try:
+        snapshot = json.loads(diag_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("Failed to parse diagnostics snapshot")
+        return {
+            "status": "error",
+            "snapshot": None,
+            "freshness": None,
+            "warnings": ["Invalid diagnostics snapshot JSON"],
+        }
+
+    generated_at = _parse_iso_utc(snapshot.get("generated_at"))
+    freshness = None
+    if generated_at is not None:
+        age_seconds = max(int((datetime.now(timezone.utc) - generated_at).total_seconds()), 0)
+        freshness = {
+            "generated_at": snapshot.get("generated_at"),
+            "ttl_hours": diagnostics_rebuild.TTL_HOURS,
+            "is_stale": age_seconds > diagnostics_rebuild.TTL_HOURS * 3600,
+            "age_seconds": age_seconds,
+        }
+
+    return {
+        "status": "ok",
+        "snapshot": snapshot,
+        "freshness": freshness,
+        "warnings": [],
+    }
 
 @app.post("/api/extras/refresh_all", dependencies=[Depends(verify_token)])
 def api_extras_refresh_all(payload: Dict[str, Any] = Body(default_factory=dict)):
