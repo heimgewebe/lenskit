@@ -16,7 +16,7 @@ das Inventar listet Artefakte, diese Matrix beschreibt die Übergänge.
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `canonical_md` | `index_sidecar_json` | Sidecar verweist auf fehlende oder verschobene Section | `canonical_md` für Inhalt, Sidecar nur Navigation | `test_sidecar_contracts.py`, `test_report_parsing.py` | Sidecar regenerieren |
 | `bundle_manifest` | Artefakte | Manifest-SHA passt nicht zum Artefakt | Artefaktinhalt + Manifest müssen konsistent sein | `test_bundle_manifest_integration.py` | Manifest regenerieren |
-| `dump_index_json` | `derived_manifest_json` | `canonical_dump_index_sha256` mismatch | `dump_index_json` | bundle/derived manifest tests oder neuer späterer Guard | derived index regenerieren |
+| `dump_index_json` | `derived_manifest_json` | `canonical_dump_index_sha256` mismatch | `dump_index_json` | `test_bundle_manifest_integration.py` (aktuell), später dedizierter derived-manifest Guard | derived index regenerieren |
 | `chunk_index_jsonl` | `sqlite_index` | SQLite aus altem Chunk-Index | `chunk_index_jsonl` | `test_stale_check.py`, `test_sqlite_capabilities.py` | SQLite regenerieren |
 | `query_trace` | `context_bundle` | Trace beschreibt andere Treffer als Context Bundle | gemeinsame Run-ID und Query Trace | `test_artifact_lookup.py`, `test_trace_lookup.py`, `test_context_lookup.py` | Runtime-Artefakte neu erzeugen |
 | `context_bundle` | `agent_query_session` | Session verweist auf anderen Kontext | `context_bundle` + `artifact_refs` | `test_agent_session_builder.py` | Session neu erzeugen |

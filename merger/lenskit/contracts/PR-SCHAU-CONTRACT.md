@@ -142,11 +142,11 @@ To combat the assumption that "existence implies correctness", bundles MAY inclu
 
 ## 9. Two-Layer Artifact Pattern
 
-PR-Schau folgt dem [Two-Layer Artifact Pattern](../../../docs/architecture/two-layer-artifact-pattern.md):
+PR-Schau follows the [Two-Layer Artifact Pattern](../../../docs/architecture/two-layer-artifact-pattern.md):
 
-- JSON beschreibt Navigation, Vollständigkeit und Integrität.
-- Markdown enthält den lesbaren Inhalt.
-- JSON darf nicht als vollständiger Inhaltsbeweis verwendet werden.
+- JSON describes navigation, completeness, and integrity.
+- Markdown contains the readable content.
+- JSON must not be treated as complete content proof.
 
 ## 10. Versioning
 
