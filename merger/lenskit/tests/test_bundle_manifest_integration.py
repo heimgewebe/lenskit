@@ -296,6 +296,16 @@ def test_producer_emits_authority_metadata_per_role(tmp_path):
     assert chunk_idx["authority"] == "retrieval_index"
     assert chunk_idx["canonicality"] == "derived"
 
+    # derived_manifest_json (file: <base>.derived_index.json) is a navigation
+    # artifact linking derived artifacts back to their dump_index source —
+    # not a retrieval index itself.
+    derived_manifest = roles_map.get(ArtifactRole.DERIVED_MANIFEST_JSON.value)
+    assert derived_manifest is not None
+    assert derived_manifest["authority"] == "navigation_index"
+    assert derived_manifest["canonicality"] == "derived"
+    assert derived_manifest["regenerable"] is True
+    assert derived_manifest["staleness_sensitive"] is True
+
     # sqlite_index is a runtime cache rebuilt from chunk_index_jsonl;
     # it must never be advertised as canonical content.
     if data["capabilities"].get("fts5_bm25"):

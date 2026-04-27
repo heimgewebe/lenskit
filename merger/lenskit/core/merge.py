@@ -5804,12 +5804,6 @@ def write_reports_v2(
             "regenerable": True,
             "staleness_sensitive": True,
         },
-        ArtifactRole.ARCHITECTURE_SUMMARY: {
-            "authority": "diagnostic_signal",
-            "canonicality": "diagnostic",
-            "regenerable": True,
-            "staleness_sensitive": True,
-        },
     }
 
     artifacts_list = []
