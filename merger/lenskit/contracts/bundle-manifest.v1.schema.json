@@ -164,7 +164,7 @@
           },
           "staleness_sensitive": {
             "type": "boolean",
-            "description": "Optional flag: true if the artifact can drift relative to its source and needs staleness checks, false if it is itself the source of truth."
+            "description": "Optional flag: true if the artifact can drift relative to another artifact inside the same bundle and needs bundle-internal staleness checks; false if it is the bundle-local source for its layer. This does not assert freshness relative to the live repository."
           }
         },
         "additionalProperties": false,

@@ -290,7 +290,7 @@ def test_producer_emits_authority_metadata_per_role(tmp_path):
     assert dump_idx["authority"] == "navigation_index"
     assert dump_idx["canonicality"] == "index_only"
 
-    # chunk_index_jsonl is the retrieval index source-of-truth.
+    # chunk_index_jsonl is the derived retrieval index input.
     chunk_idx = roles_map.get(ArtifactRole.CHUNK_INDEX_JSONL.value)
     assert chunk_idx is not None
     assert chunk_idx["authority"] == "retrieval_index"
