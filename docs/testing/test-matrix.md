@@ -22,21 +22,25 @@ Architekturgrundlage:
 - [Two-Layer Artifact Pattern](../architecture/two-layer-artifact-pattern.md)
 - [Artifact Drift Matrix](../architecture/artifact-drift-matrix.md)
 
+Diese Tests sind diagnostische Ankerpunkte, aber nicht immer vollständige
+Drift-Guards. Wo ein Test nur Producer-, Schema- oder Consumer-Zugriff prüft,
+ist die fehlende Drift-Prüfung explizit markiert.
+
 Bestehende Tests als diagnostische Ankerpunkte:
 
-| Test | Drift-Paarung |
-| :--- | :--- |
-| `test_bundle_manifest_integration.py` | bundle_manifest ↔ Artefakte |
-| `test_bundle_manifest_schema.py` | bundle_manifest ↔ Artefakte |
-| `test_sidecar_contracts.py` | canonical_md ↔ index_sidecar_json |
-| `test_report_parsing.py` | canonical_md ↔ index_sidecar_json |
-| `test_stale_check.py` | chunk_index_jsonl ↔ sqlite_index |
-| `test_sqlite_capabilities.py` | chunk_index_jsonl ↔ sqlite_index |
-| `test_artifact_lookup.py` | query_trace ↔ context_bundle |
-| `test_trace_lookup.py` | query_trace ↔ context_bundle |
-| `test_context_lookup.py` | query_trace ↔ context_bundle |
-| `test_agent_session_builder.py` | context_bundle ↔ agent_query_session |
-| `test_pr_schau_consumer_gate.py` | PR-Schau JSON ↔ PR-Schau Markdown |
+| Test | Drift-Paarung | Coverage-Status |
+| :--- | :--- | :--- |
+| `test_bundle_manifest_integration.py` | bundle_manifest ↔ Artefakte | Producer-/Schema-Anker; kein nachträglicher SHA-Recompute-Drift-Guard |
+| `test_bundle_manifest_schema.py` | bundle_manifest ↔ Artefakte | Schema-Anker; kein Artefaktdatei-Rehash |
+| `test_sidecar_contracts.py` | canonical_md ↔ index_sidecar_json | struktureller Anker |
+| `test_report_parsing.py` | canonical_md ↔ index_sidecar_json | struktureller Anker |
+| `test_stale_check.py` | chunk_index_jsonl ↔ sqlite_index | diagnostischer Anker |
+| `test_sqlite_capabilities.py` | chunk_index_jsonl ↔ sqlite_index | struktureller Anker |
+| `test_artifact_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
+| `test_trace_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
+| `test_context_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
+| `test_agent_session_builder.py` | context_bundle ↔ agent_query_session | struktureller Anker |
+| `test_pr_schau_consumer_gate.py` | PR-Schau JSON ↔ PR-Schau Markdown | Consumer-Gate; kein Markdown-Completeness-Guard |
 
 Diese Tests sind noch keine vollständige Drift-Blocking-Matrix, sondern
 vorhandene Ankerpunkte für spätere Guards.
