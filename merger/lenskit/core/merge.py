@@ -5762,7 +5762,6 @@ def write_reports_v2(
         ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
         ArtifactRole.GRAPH_INDEX_JSON: {"id": "architecture.graph_index", "version": "v1"},
         ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
-        ArtifactRole.ARCHITECTURE_SUMMARY: {"id": "architecture-summary", "version": "v1"},
     }
 
     # Authority/canonicality mapping (bundle-manifest.v1, optional fields).
