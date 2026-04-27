@@ -30,7 +30,7 @@ Bestehende Tests als diagnostische Ankerpunkte:
 
 | Test | Drift-Paarung | Coverage-Status |
 | :--- | :--- | :--- |
-| `test_bundle_manifest_integration.py` | bundle_manifest ↔ Artefakte | Producer-/Schema-Anker; kein nachträglicher SHA-Recompute-Drift-Guard |
+| `test_bundle_manifest_integration.py` | bundle_manifest ↔ Artefakte | SHA-Recompute-Guard: `bytes` und `sha256` gegen reale Dateien, `canonical_dump_index_sha256` gegen `dump_index_json`, Drift-Erkennung nach Mutation |
 | `test_bundle_manifest_schema.py` | bundle_manifest ↔ Artefakte | Schema-Anker; kein Artefaktdatei-Rehash |
 | `test_sidecar_contracts.py` | canonical_md ↔ index_sidecar_json | struktureller Anker |
 | `test_report_parsing.py` | canonical_md ↔ index_sidecar_json | struktureller Anker |

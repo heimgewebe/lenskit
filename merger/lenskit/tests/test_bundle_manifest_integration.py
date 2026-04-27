@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -8,6 +9,18 @@ import pytest
 from merger.lenskit.core.constants import ArtifactRole
 from merger.lenskit.core.merge import FileInfo, write_reports_v2
 from merger.lenskit.tests._test_constants import make_generator_info
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _artifact_by_role(data: dict, role: str) -> dict | None:
+    return next((e for e in data["artifacts"] if e["role"] == role), None)
 
 class MockExtras:
     json_sidecar = True
@@ -372,3 +385,120 @@ def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
     assert "generator" in data
     assert "config_sha256" in data["generator"]
     assert re.fullmatch(r"[a-f0-9]{64}", data["generator"]["config_sha256"])
+
+
+def _make_minimal_bundle(tmp_path):
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    f1 = src_dir / "file1.txt"
+    f1.write_text("Hello World", encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    hub_dir = tmp_path / "hub"
+    hub_dir.mkdir()
+
+    fi1 = FileInfo(
+        root_label="test-repo",
+        abs_path=f1,
+        rel_path=Path("file1.txt"),
+        size=11,
+        is_text=True,
+        md5="test",
+        category="docs",
+        tags=[],
+        ext=".txt",
+        skipped=False,
+    )
+
+    repo_summary = {
+        "name": "test-repo",
+        "path": str(src_dir),
+        "root": src_dir,
+        "files": [fi1],
+        "source_files": [fi1],
+    }
+
+    artifacts = write_reports_v2(
+        merges_dir=out_dir,
+        hub=hub_dir,
+        repo_summaries=[repo_summary],
+        detail="test",
+        mode="gesamt",
+        max_bytes=1000,
+        plan_only=False,
+        code_only=False,
+        extras=MockExtras(),
+        output_mode="dual",
+        generator_info=make_generator_info(),
+    )
+    data = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
+    manifest_dir = artifacts.bundle_manifest.parent
+    return artifacts, data, manifest_dir
+
+
+def test_bundle_manifest_artifact_hashes_match_files(tmp_path):
+    """Every artifact entry's sha256 and bytes must match the file on disk."""
+    _, data, manifest_dir = _make_minimal_bundle(tmp_path)
+
+    assert data["artifacts"], "manifest must contain at least one artifact"
+    for entry in data["artifacts"]:
+        p = manifest_dir / entry["path"]
+        assert p.exists(), f"artifact file missing: {entry['path']}"
+        assert p.stat().st_size == entry["bytes"], (
+            f"bytes mismatch for {entry['path']}: "
+            f"manifest={entry['bytes']} file={p.stat().st_size}"
+        )
+        assert _sha256_file(p) == entry["sha256"], (
+            f"sha256 mismatch for {entry['path']}"
+        )
+
+
+def test_bundle_manifest_canonical_dump_index_sha_matches_dump_index_artifact(tmp_path):
+    """links.canonical_dump_index_sha256 must equal the dump_index_json artifact sha256."""
+    _, data, manifest_dir = _make_minimal_bundle(tmp_path)
+
+    assert "canonical_dump_index_sha256" in data["links"], (
+        "links.canonical_dump_index_sha256 must be present"
+    )
+    link_sha = data["links"]["canonical_dump_index_sha256"]
+
+    dump_entry = _artifact_by_role(data, ArtifactRole.DUMP_INDEX_JSON.value)
+    assert dump_entry is not None, "dump_index_json artifact must be present"
+
+    dump_path = manifest_dir / dump_entry["path"]
+    assert dump_path.exists(), f"dump_index_json file missing: {dump_entry['path']}"
+
+    assert link_sha == dump_entry["sha256"], (
+        "links.canonical_dump_index_sha256 must equal dump_index_json artifact sha256"
+    )
+    assert link_sha == _sha256_file(dump_path), (
+        "links.canonical_dump_index_sha256 must equal recomputed hash of dump_index_json file"
+    )
+
+
+def test_bundle_manifest_hash_recompute_detects_artifact_drift(tmp_path):
+    """Mutating an artifact after manifest creation must cause a sha256 mismatch on recompute."""
+    _, data, manifest_dir = _make_minimal_bundle(tmp_path)
+
+    # Prefer dump_index_json or index_sidecar_json as the target; fall back to first artifact.
+    target_role = ArtifactRole.DUMP_INDEX_JSON.value
+    entry = _artifact_by_role(data, target_role)
+    if entry is None:
+        entry = _artifact_by_role(data, ArtifactRole.INDEX_SIDECAR_JSON.value)
+    if entry is None:
+        entry = data["artifacts"][0]
+
+    target_path = manifest_dir / entry["path"]
+    assert target_path.exists()
+
+    recorded_sha = entry["sha256"]
+    assert _sha256_file(target_path) == recorded_sha, "precondition: hash matches before mutation"
+
+    # Mutate the file — append a single byte so the hash changes.
+    with open(target_path, "ab") as f:
+        f.write(b"\x00")
+
+    assert _sha256_file(target_path) != recorded_sha, (
+        "recomputed hash must differ from manifest after artifact mutation"
+    )
