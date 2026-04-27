@@ -281,8 +281,8 @@ def test_sqlite_index_cannot_claim_canonical_content(schema):
 def test_architecture_summary_cannot_claim_content_source(schema):
     artifact = {
         "role": "architecture_summary",
-        "path": "out.architecture_graph.json",
-        "content_type": "application/json",
+        "path": "out_architecture.md",
+        "content_type": "text/markdown",
         "bytes": 2048,
         "sha256": TEST_ARTIFACT_SHA256,
         "contract": {"id": "architecture-summary", "version": "v1"},
