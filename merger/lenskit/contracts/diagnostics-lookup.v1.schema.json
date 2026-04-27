@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/diagnostics-lookup.v1.schema.json",
+  "title": "Diagnostics Lookup (diagnostics-lookup v1.0)",
+  "description": "Response contract for GET /api/diagnostics. Read-only facade over persisted diagnostics.snapshot.json; does not trigger rebuild.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "snapshot", "freshness", "warnings"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "not_found", "error"],
+      "description": "Lookup outcome. 'ok' means snapshot was loaded. 'not_found' means no diagnostics snapshot file exists. 'error' means snapshot file exists but could not be parsed."
+    },
+    "snapshot": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": true},
+        {"type": "null"}
+      ],
+      "description": "Raw diagnostics snapshot payload from .gewebe/cache/diagnostics.snapshot.json. Null for not_found/error."
+    },
+    "freshness": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["generated_at", "ttl_hours", "is_stale", "age_seconds"],
+          "properties": {
+            "generated_at": {"type": "string"},
+            "ttl_hours": {"type": "integer", "minimum": 1},
+            "is_stale": {"type": "boolean"},
+            "age_seconds": {"type": "integer", "minimum": 0}
+          }
+        },
+        {"type": "null"}
+      ],
+      "description": "Derived freshness metadata from snapshot.generated_at and diagnostics TTL. Null when generated_at is missing/invalid or lookup failed."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Non-fatal diagnostics messages. Empty for status='ok'."
+    }
+  }
+}
