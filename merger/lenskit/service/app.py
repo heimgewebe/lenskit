@@ -341,14 +341,37 @@ def api_diagnostics_lookup():
         }
 
     try:
-        snapshot = json.loads(diag_path.read_text(encoding="utf-8"))
-    except Exception:
-        logger.exception("Failed to parse diagnostics snapshot")
+        snapshot_text = diag_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        logger.exception("Failed to read diagnostics snapshot")
+        return {
+            "status": "error",
+            "snapshot": None,
+            "freshness": None,
+            "warnings": ["Unable to read diagnostics snapshot"],
+        }
+
+    try:
+        snapshot = json.loads(snapshot_text)
+    except json.JSONDecodeError:
+        logger.exception("Failed to parse diagnostics snapshot JSON")
         return {
             "status": "error",
             "snapshot": None,
             "freshness": None,
             "warnings": ["Invalid diagnostics snapshot JSON"],
+        }
+
+    if not isinstance(snapshot, dict):
+        logger.warning(
+            "Diagnostics snapshot JSON must be an object, got %s",
+            type(snapshot).__name__,
+        )
+        return {
+            "status": "error",
+            "snapshot": None,
+            "freshness": None,
+            "warnings": ["Invalid diagnostics snapshot payload: expected JSON object"],
         }
 
     generated_at = _parse_iso_utc(snapshot.get("generated_at"))

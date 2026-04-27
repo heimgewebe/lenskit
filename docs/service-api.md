@@ -87,7 +87,7 @@ Typed read-only facade over stored `context_bundle` artifacts. Returns the conte
 
 Read-only lookup facade over the persisted diagnostics snapshot.
 
-**Auth:** Standard service auth via `verify_token` (for example `Authorization: Bearer <token>`).
+**Auth:** Standard service auth via `verify_token`; provide a token using either `Authorization: Bearer <token>` (preferred) or the `token` query parameter.
 
 **Behavior:**
 - Reads `.gewebe/cache/diagnostics.snapshot.json`.

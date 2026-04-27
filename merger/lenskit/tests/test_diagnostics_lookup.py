@@ -152,6 +152,36 @@ class TestApiDiagnosticsLookup:
         schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
         jsonschema.validate(instance=data, schema=schema)
 
+    @pytest.mark.parametrize("payload", ["[]", "\"x\"", "null", "123"])
+    def test_diagnostics_lookup_non_object_json_returns_error(self, api_client, payload):
+        client, hub_path = api_client
+        diag_path = hub_path / ".gewebe" / "cache" / "diagnostics.snapshot.json"
+        diag_path.write_text(payload, encoding="utf-8")
+
+        response = client.get("/api/diagnostics", headers=_AUTH)
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["status"] == "error"
+        assert data["snapshot"] is None
+        assert data["freshness"] is None
+        assert any("expected JSON object" in w for w in data["warnings"])
+
+    def test_diagnostics_lookup_non_object_json_conforms_to_contract(self, api_client):
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        client, hub_path = api_client
+        diag_path = hub_path / ".gewebe" / "cache" / "diagnostics.snapshot.json"
+        diag_path.write_text("[]", encoding="utf-8")
+
+        response = client.get("/api/diagnostics", headers=_AUTH)
+        assert response.status_code == 200
+
+        data = response.json()
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        jsonschema.validate(instance=data, schema=schema)
+
     def test_diagnostics_lookup_does_not_rebuild_or_mutate_snapshot(self, api_client):
         client, hub_path = api_client
         diag_path = hub_path / ".gewebe" / "cache" / "diagnostics.snapshot.json"
@@ -178,7 +208,8 @@ class TestApiDiagnosticsLookup:
         client, hub_path = api_client
         diag_path = hub_path / ".gewebe" / "cache" / "diagnostics.snapshot.json"
 
-        stale_generated_at = (datetime.now(timezone.utc) - timedelta(hours=72)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ttl_hours = service_app.diagnostics_rebuild.TTL_HOURS
+        stale_generated_at = (datetime.now(timezone.utc) - timedelta(hours=ttl_hours + 1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         diag_path.write_text(
             json.dumps(
                 {
