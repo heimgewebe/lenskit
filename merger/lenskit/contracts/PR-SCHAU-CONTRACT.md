@@ -140,7 +140,15 @@ To combat the assumption that "existence implies correctness", bundles MAY inclu
 
 *   **Decision Coverage:** A future evolution may introduce "Decision Coverage" – ensuring that while not *all* files are full, all *decision-critical* files (security, contracts, core logic) are present as `fullfiles`.
 
-## 9. Versioning
+## 9. Two-Layer Artifact Pattern
+
+PR-Schau follows the [Two-Layer Artifact Pattern](../../../docs/architecture/two-layer-artifact-pattern.md):
+
+- JSON describes navigation, completeness, and integrity.
+- Markdown contains the readable content.
+- JSON must not be treated as complete content proof.
+
+## 10. Versioning
 
 This is **Version 1.0** of the PR-Schau Contract.
 Schema URI: `https://heimgewebe.local/schema/pr-schau.v1.schema.json`

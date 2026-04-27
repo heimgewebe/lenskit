@@ -15,6 +15,32 @@ Diese Matrix ordnet die in `merger/lenskit/tests/` existierenden Tests nach abge
 | **Federation & Cross-Repo** | `test_federation_*.py` | Föderation-Artefakte bauen deterministisch und Query-Mechanismen greifen | **Teilweise abgedeckt.** | Tests unter `test_federation_*.py` (u. a. Add, Query, Inspect, Validate). |
 | **API/UI Integration** | `test_webui_payload.py` | Stellt sicher, dass minimale Playwright-Webseiten-Checks strukturell durchlaufen. | **Lückenhaft.** | API/UI-Strukturen sind nicht umfassend end-to-end gesichert oder als produktionsreif testbar. |
 
+## Artifact Integrity / Drift Diagnostics
+
+Architekturgrundlage:
+
+- [Two-Layer Artifact Pattern](../architecture/two-layer-artifact-pattern.md)
+- [Artifact Drift Matrix](../architecture/artifact-drift-matrix.md)
+
+Bestehende Tests als diagnostische Ankerpunkte:
+
+| Test | Drift-Paarung |
+| :--- | :--- |
+| `test_bundle_manifest_integration.py` | bundle_manifest ↔ Artefakte |
+| `test_bundle_manifest_schema.py` | bundle_manifest ↔ Artefakte |
+| `test_sidecar_contracts.py` | canonical_md ↔ index_sidecar_json |
+| `test_report_parsing.py` | canonical_md ↔ index_sidecar_json |
+| `test_stale_check.py` | chunk_index_jsonl ↔ sqlite_index |
+| `test_sqlite_capabilities.py` | chunk_index_jsonl ↔ sqlite_index |
+| `test_artifact_lookup.py` | query_trace ↔ context_bundle |
+| `test_trace_lookup.py` | query_trace ↔ context_bundle |
+| `test_context_lookup.py` | query_trace ↔ context_bundle |
+| `test_agent_session_builder.py` | context_bundle ↔ agent_query_session |
+| `test_pr_schau_consumer_gate.py` | PR-Schau JSON ↔ PR-Schau Markdown |
+
+Diese Tests sind noch keine vollständige Drift-Blocking-Matrix, sondern
+vorhandene Ankerpunkte für spätere Guards.
+
 ## Zusammenfassung der Test-Abdeckung
 
 Die Testsuite (`merger/lenskit/tests/`) belegt die Grundlagen für die Ingestion (Phase 1), die Core-Runtime (Phase 2), die Graph-Integration (Phase 3) sowie die strukturellen Erwartungen an Context-Bundles (Phase 4).
