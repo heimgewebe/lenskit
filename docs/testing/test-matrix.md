@@ -15,6 +15,36 @@ Diese Matrix ordnet die in `merger/lenskit/tests/` existierenden Tests nach abge
 | **Federation & Cross-Repo** | `test_federation_*.py` | Föderation-Artefakte bauen deterministisch und Query-Mechanismen greifen | **Teilweise abgedeckt.** | Tests unter `test_federation_*.py` (u. a. Add, Query, Inspect, Validate). |
 | **API/UI Integration** | `test_webui_payload.py` | Stellt sicher, dass minimale Playwright-Webseiten-Checks strukturell durchlaufen. | **Lückenhaft.** | API/UI-Strukturen sind nicht umfassend end-to-end gesichert oder als produktionsreif testbar. |
 
+## Artifact Integrity / Drift Diagnostics
+
+Architekturgrundlage:
+
+- [Two-Layer Artifact Pattern](../architecture/two-layer-artifact-pattern.md)
+- [Artifact Drift Matrix](../architecture/artifact-drift-matrix.md)
+
+Diese Tests sind diagnostische Ankerpunkte, aber nicht immer vollständige
+Drift-Guards. Wo ein Test nur Producer-, Schema- oder Consumer-Zugriff prüft,
+ist die fehlende Drift-Prüfung explizit markiert.
+
+Bestehende Tests als diagnostische Ankerpunkte:
+
+| Test | Drift-Paarung | Coverage-Status |
+| :--- | :--- | :--- |
+| `test_bundle_manifest_integration.py` | bundle_manifest ↔ Artefakte | Producer-/Schema-Anker; kein nachträglicher SHA-Recompute-Drift-Guard |
+| `test_bundle_manifest_schema.py` | bundle_manifest ↔ Artefakte | Schema-Anker; kein Artefaktdatei-Rehash |
+| `test_sidecar_contracts.py` | canonical_md ↔ index_sidecar_json | struktureller Anker |
+| `test_report_parsing.py` | canonical_md ↔ index_sidecar_json | struktureller Anker |
+| `test_stale_check.py` | chunk_index_jsonl ↔ sqlite_index | diagnostischer Anker |
+| `test_sqlite_capabilities.py` | chunk_index_jsonl ↔ sqlite_index | struktureller Anker |
+| `test_artifact_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
+| `test_trace_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
+| `test_context_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
+| `test_agent_session_builder.py` | context_bundle ↔ agent_query_session | struktureller Anker |
+| `test_pr_schau_consumer_gate.py` | PR-Schau JSON ↔ PR-Schau Markdown | Consumer-Gate; kein Markdown-Completeness-Guard |
+
+Diese Tests sind noch keine vollständige Drift-Blocking-Matrix, sondern
+vorhandene Ankerpunkte für spätere Guards.
+
 ## Zusammenfassung der Test-Abdeckung
 
 Die Testsuite (`merger/lenskit/tests/`) belegt die Grundlagen für die Ingestion (Phase 1), die Core-Runtime (Phase 2), die Graph-Integration (Phase 3) sowie die strukturellen Erwartungen an Context-Bundles (Phase 4).
