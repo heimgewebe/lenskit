@@ -103,7 +103,8 @@ Das rohe Query-Ergebnis (`execute_query` / kein Output-Profile) enthält ein mas
 - Dass der Snapshot dem Live-Repository entspricht.
 - Dass Explain-Ausgaben kanonische Wahrheit sind.
 
-Das Feld `evidence_basis` listet die tatsächlich verwendeten Evidenzquellen (z.B. `query`, `fts_query`, `applied_filters`, `index`, `result_ranges`). Das Feld `requires_live_check` gibt an, ob eine autoritative Antwort einen aktuellen Repository-Zugriff erfordert.
+Das Feld `evidence_basis` listet die tatsächlich verwendeten Evidenzquellen (z.B. `query`, `fts_query`, `applied_filters`, `index`, `result_ranges`). `graph_index` erscheint in `evidence_basis`, wenn Graph-Scoring tatsächlich verwendet wurde.
+`requires_live_check` ist bei Snapshot-basierten Query-Ergebnissen `true`, weil das Ergebnis nur den Indexzustand belegt. Für eine autoritative Aussage über den aktuellen Live-Repository-Zustand muss das Repository selbst geprüft werden.
 `result_ranges` erscheint nur, wenn Treffer tatsächlich `range_ref` oder `derived_range_ref` enthalten.
 
 Bei projizierten Output-Profilen kann die Rückgabeform ein Context Bundle oder Wrapper sein. Die Weitergabe von `claim_boundaries` in Projektionen ist ein separater Folge-PR, damit das Context-Bundle-Schema nicht still erweitert wird.
@@ -119,7 +120,7 @@ Bei projizierten Output-Profilen kann die Rückgabeform ein Context Bundle oder 
       "Best-effort explain output is diagnostic, not canonical truth."
     ],
     "evidence_basis": ["query", "fts_query", "applied_filters", "index"],
-    "requires_live_check": false
+    "requires_live_check": true
   }
 }
 ```
