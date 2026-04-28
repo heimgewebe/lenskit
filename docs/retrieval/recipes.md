@@ -89,3 +89,35 @@ Index neu bauen, auch wenn er aktuell scheint.
 ```bash
 python -m merger.lenskit.cli index --dump output/my_dump.json --chunk-index output/my_chunks.jsonl --rebuild
 ```
+
+
+## Query Claim Boundaries
+
+Jedes Query-Ergebnis enthält ein maschinenlesbares `claim_boundaries`-Objekt, das die epistemischen Grenzen des Treffers explizit macht.
+
+**Was ein Treffer beweist:**
+- Dieser Index lieferte unter dieser Query und diesen Filtern diese Treffer.
+
+**Was ein Treffer nicht beweist:**
+- Dass kein nicht gefundener Inhalt im Repository existiert (Abwesenheit eines Treffers ≠ Abwesenheit im Repo).
+- Dass Ranking semantische Wichtigkeit beweist.
+- Dass der Snapshot dem Live-Repository entspricht.
+- Dass Explain-Ausgaben kanonische Wahrheit sind.
+
+Das Feld `evidence_basis` listet die tatsächlich verwendeten Evidenzquellen (z.B. `query`, `fts_query`, `applied_filters`, `index`, `result_ranges`). Das Feld `requires_live_check` gibt an, ob eine autoritative Antwort einen aktuellen Repository-Zugriff erfordert.
+
+```json
+{
+  "claim_boundaries": {
+    "proves": ["These hits were returned by this index under this query and these filters."],
+    "does_not_prove": [
+      "Absence of a hit does not prove absence in the repository.",
+      "Ranking does not prove semantic importance.",
+      "Snapshot query does not prove live repository state.",
+      "Best-effort explain output is diagnostic, not canonical truth."
+    ],
+    "evidence_basis": ["query", "fts_query", "applied_filters", "index", "result_ranges"],
+    "requires_live_check": false
+  }
+}
+```

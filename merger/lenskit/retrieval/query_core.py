@@ -547,6 +547,23 @@ def execute_query(
         if fts_query_str is not None:
             out["fts_query"] = fts_query_str
 
+        evidence = ["query", "applied_filters", "index", "result_ranges"]
+        if fts_query_str is not None:
+            evidence.insert(1, "fts_query")
+        out["claim_boundaries"] = {
+            "proves": [
+                "These hits were returned by this index under this query and these filters."
+            ],
+            "does_not_prove": [
+                "Absence of a hit does not prove absence in the repository.",
+                "Ranking does not prove semantic importance.",
+                "Snapshot query does not prove live repository state.",
+                "Best-effort explain output is diagnostic, not canonical truth."
+            ],
+            "evidence_basis": evidence,
+            "requires_live_check": False
+        }
+
         if explain:
             explain_block = {}
             explain_block["fts_query"] = fts_query_str if fts_query_str is not None else ""

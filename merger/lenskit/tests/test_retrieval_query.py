@@ -683,3 +683,120 @@ def test_query_uses_stale_graph_runtime_path(mini_index, tmp_path):
     assert diagnostics["graph_used"] is True, "Graph must still be used by policy despite mismatch"
     assert diagnostics["distance"] == 0, "Graph distance must still be projected correctly"
     assert diagnostics["graph_bonus"] > 0, "Graph bonus must actually influence the score"
+
+
+# ---------------------------------------------------------------------------
+# Claim Boundaries
+# ---------------------------------------------------------------------------
+
+def test_claim_boundaries_present(mini_index):
+    import jsonschema
+    from pathlib import Path
+
+    res = query_core.execute_query(mini_index, query_text="hello", k=5)
+    assert "claim_boundaries" in res
+    cb = res["claim_boundaries"]
+    assert isinstance(cb["proves"], list)
+    assert isinstance(cb["does_not_prove"], list)
+    assert isinstance(cb["evidence_basis"], list)
+    assert isinstance(cb["requires_live_check"], bool)
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+    jsonschema.validate(instance=res, schema=schema)
+
+
+def test_claim_boundaries_content(mini_index):
+    res = query_core.execute_query(mini_index, query_text="hello", k=5)
+    cb = res["claim_boundaries"]
+
+    absence_stmt = "Absence of a hit does not prove absence in the repository."
+    ranking_stmt = "Ranking does not prove semantic importance."
+    snapshot_stmt = "Snapshot query does not prove live repository state."
+
+    assert any(absence_stmt in s for s in cb["does_not_prove"]), "Missing absence disclaimer"
+    assert any(ranking_stmt in s for s in cb["does_not_prove"]), "Missing ranking disclaimer"
+    assert any(snapshot_stmt in s for s in cb["does_not_prove"]), "Missing snapshot disclaimer"
+
+    assert cb["requires_live_check"] is False
+    assert "query" in cb["evidence_basis"]
+    assert "applied_filters" in cb["evidence_basis"]
+    assert "index" in cb["evidence_basis"]
+
+
+def test_claim_boundaries_fts_query_evidence(mini_index):
+    res = query_core.execute_query(mini_index, query_text="hello", k=5)
+    cb = res["claim_boundaries"]
+    assert "fts_query" in cb["evidence_basis"], "FTS query should appear in evidence_basis when fts_query is active"
+
+
+def test_claim_boundaries_no_fts_evidence_for_metadata_only(mini_index):
+    res = query_core.execute_query(mini_index, query_text="", k=5, filters={"layer": "core"})
+    cb = res["claim_boundaries"]
+    assert "fts_query" not in cb["evidence_basis"], "fts_query should not appear in evidence_basis for metadata-only queries"
+
+
+def test_claim_boundaries_schema_rejects_unknown_evidence(mini_index):
+    import jsonschema
+    from pathlib import Path
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    invalid = {
+        "query": "x", "k": 1, "engine": "fts5", "query_mode": "fts",
+        "applied_filters": {}, "count": 0, "results": [],
+        "claim_boundaries": {
+            "proves": [],
+            "does_not_prove": [],
+            "evidence_basis": ["not_a_valid_source"],
+            "requires_live_check": False
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid, schema=schema)
+
+
+def test_claim_boundaries_schema_rejects_extra_field(mini_index):
+    import jsonschema
+    from pathlib import Path
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    invalid = {
+        "query": "x", "k": 1, "engine": "fts5", "query_mode": "fts",
+        "applied_filters": {}, "count": 0, "results": [],
+        "claim_boundaries": {
+            "proves": [],
+            "does_not_prove": [],
+            "evidence_basis": ["query"],
+            "requires_live_check": False,
+            "unexpected_extra_field": True
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid, schema=schema)
+
+
+def test_claim_boundaries_schema_rejects_missing_required_subfield(mini_index):
+    import jsonschema
+    from pathlib import Path
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "query-result.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    invalid = {
+        "query": "x", "k": 1, "engine": "fts5", "query_mode": "fts",
+        "applied_filters": {}, "count": 0, "results": [],
+        "claim_boundaries": {
+            "proves": [],
+            "does_not_prove": []
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid, schema=schema)

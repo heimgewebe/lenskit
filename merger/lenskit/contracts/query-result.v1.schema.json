@@ -232,6 +232,13 @@
         }
       }
     },
+    "warnings": {
+      "type": "array",
+      "description": "Non-fatal advisory messages about query execution (e.g. low result coverage).",
+      "items": {
+        "type": "string"
+      }
+    },
     "query_trace": {
       "type": "object",
       "description": "Diagnostic query execution trace.",
@@ -240,6 +247,50 @@
     "context_bundle": {
       "description": "Optional portable context bundle encapsulating results and expanded textual/structural context.",
       "$ref": "query-context-bundle.v1.schema.json"
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "description": "Machine-readable epistemic boundaries of this query result. Declares what the result proves, what it does not prove, which evidence was used, and whether a live repository check is required for authoritative answers.",
+      "additionalProperties": false,
+      "required": [
+        "proves",
+        "does_not_prove",
+        "evidence_basis",
+        "requires_live_check"
+      ],
+      "properties": {
+        "proves": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Statements this result can support."
+        },
+        "does_not_prove": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Statements this result explicitly cannot support."
+        },
+        "evidence_basis": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "query",
+              "fts_query",
+              "applied_filters",
+              "index",
+              "result_ranges",
+              "bundle_manifest",
+              "graph_index",
+              "context_bundle"
+            ]
+          },
+          "description": "Which evidence sources were used to produce this result."
+        },
+        "requires_live_check": {
+          "type": "boolean",
+          "description": "Whether authoritative answers require a live repository check beyond this index snapshot."
+        }
+      }
     }
   }
 }
