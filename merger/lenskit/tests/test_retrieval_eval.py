@@ -25,6 +25,12 @@ def mini_index_for_eval(tmp_path):
     index_db.build_index(dump_path, chunk_path, db_path)
     return db_path
 
+
+def _load_retrieval_eval_schema():
+    schema_path = Path(__file__).resolve().parent.parent / "contracts" / "retrieval-eval.v1.schema.json"
+    return json.loads(schema_path.read_text(encoding="utf-8"))
+
+
 def test_parse_gold_queries_basic(tmp_path):
     md_file = tmp_path / "queries.md"
     md_content = """
@@ -158,9 +164,7 @@ def test_schema_validation(mini_index_for_eval, tmp_path):
         is_stale=False
     )
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
 
     jsonschema.validate(instance=out, schema=schema)
 
@@ -175,12 +179,10 @@ def test_schema_smoke():
     # target: merger/lenskit/contracts/retrieval-eval.v1.schema.json
     # ../../contracts/
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-
+    schema_path = Path(__file__).resolve().parent.parent / "contracts" / "retrieval-eval.v1.schema.json"
     assert schema_path.exists(), f"Schema file missing at expected path: {schema_path}"
 
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
     assert "metrics" in schema["properties"]
     assert "details" in schema["properties"]
 
@@ -359,18 +361,14 @@ def test_retrieval_eval_claim_boundaries_schema_valid(mini_index_for_eval, tmp_p
         is_stale=False
     )
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
     jsonschema.validate(instance=out, schema=schema)
 
 
 def test_retrieval_eval_claim_boundaries_reject_unknown_evidence():
     import jsonschema
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
 
     invalid_output = {
         "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
@@ -389,9 +387,7 @@ def test_retrieval_eval_claim_boundaries_reject_unknown_evidence():
 def test_retrieval_eval_claim_boundaries_reject_extra_field():
     import jsonschema
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
 
     invalid_output = {
         "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
@@ -411,9 +407,7 @@ def test_retrieval_eval_claim_boundaries_reject_extra_field():
 def test_retrieval_eval_claim_boundaries_reject_missing_required_subfield():
     import jsonschema
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
 
     invalid_output = {
         "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
@@ -432,9 +426,7 @@ def test_retrieval_eval_claim_boundaries_reject_missing_required_subfield():
 def test_retrieval_eval_schema_rejects_missing_claim_boundaries():
     import jsonschema
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
 
     invalid_output = {
         "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
