@@ -697,6 +697,8 @@ def test_query_uses_stale_graph_runtime_path(mini_index, tmp_path):
     assert diagnostics["graph_used"] is True, "Graph must still be used by policy despite mismatch"
     assert diagnostics["distance"] == 0, "Graph distance must still be projected correctly"
     assert diagnostics["graph_bonus"] > 0, "Graph bonus must actually influence the score"
+    assert "graph_index" in res["claim_boundaries"]["evidence_basis"], "Claim boundaries must record graph evidence usage"
+    assert res["claim_boundaries"]["requires_live_check"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -733,7 +735,7 @@ def test_claim_boundaries_content(mini_index):
     assert any(ranking_stmt in s for s in cb["does_not_prove"]), "Missing ranking disclaimer"
     assert any(snapshot_stmt in s for s in cb["does_not_prove"]), "Missing snapshot disclaimer"
 
-    assert cb["requires_live_check"] is False
+    assert cb["requires_live_check"] is True
     assert "query" in cb["evidence_basis"]
     assert "applied_filters" in cb["evidence_basis"]
     assert "index" in cb["evidence_basis"]
@@ -794,6 +796,52 @@ def test_claim_boundaries_result_ranges_evidence_absent_when_no_range_refs(mini_
     zero = query_core.execute_query(mini_index, query_text="zebra", k=5)
     assert zero["count"] == 0
     assert "result_ranges" not in zero["claim_boundaries"]["evidence_basis"]
+
+
+def test_claim_boundaries_graph_index_evidence_when_graph_used(mini_index, tmp_path, monkeypatch):
+    graph_index_path = tmp_path / "graph_index.json"
+    graph_index = {
+        "distances": {
+            "file:tests/test_main.py": 0,
+            "file:src/main.py": 1
+        }
+    }
+    graph_index_path.write_text(json.dumps(graph_index), encoding="utf-8")
+
+    def mock_load(path, expected_sha256=None):
+        return {"status": "ok", "graph": graph_index}
+
+    monkeypatch.setattr(query_core, "load_graph_index", mock_load)
+
+    res = query_core.execute_query(
+        mini_index,
+        query_text="def",
+        k=2,
+        explain=True,
+        graph_index_path=graph_index_path,
+    )
+
+    assert "graph_index" in res["claim_boundaries"]["evidence_basis"]
+
+
+def test_claim_boundaries_no_graph_index_evidence_when_graph_not_used(mini_index, tmp_path, monkeypatch):
+    graph_index_path = tmp_path / "graph_index.json"
+    graph_index_path.write_text("{}", encoding="utf-8")
+
+    def mock_load(path, expected_sha256=None):
+        return {"status": "invalid_schema", "graph": None}
+
+    monkeypatch.setattr(query_core, "load_graph_index", mock_load)
+
+    res = query_core.execute_query(
+        mini_index,
+        query_text="def",
+        k=2,
+        explain=True,
+        graph_index_path=graph_index_path,
+    )
+
+    assert "graph_index" not in res["claim_boundaries"]["evidence_basis"]
 
 
 def test_claim_boundaries_schema_rejects_unknown_evidence(mini_index):

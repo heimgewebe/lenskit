@@ -555,6 +555,12 @@ def execute_query(
         )
         if has_result_ranges:
             evidence.append("result_ranges")
+        graph_used_in_results = any(
+            hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_used") is True
+            for hit in out.get("results", [])
+        )
+        if graph_used_in_results:
+            evidence.append("graph_index")
         out["claim_boundaries"] = {
             "proves": [
                 "These hits were returned by this index under this query and these filters."
@@ -566,7 +572,7 @@ def execute_query(
                 "Best-effort explain output is diagnostic, not canonical truth."
             ],
             "evidence_basis": evidence,
-            "requires_live_check": False
+            "requires_live_check": True
         }
 
         if explain:
