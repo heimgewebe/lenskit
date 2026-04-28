@@ -428,6 +428,77 @@ def test_retrieval_eval_claim_boundaries_reject_missing_required_subfield(mini_i
         jsonschema.validate(instance=invalid_output, schema=schema)
 
 
+def _build_eval_env(tmp_path, graph_index_content=None, graph_invalid=False):
+    dump_path = tmp_path / "dump.json"
+    chunk_path = tmp_path / "chunks.jsonl"
+    db_path = tmp_path / "index.sqlite"
+    queries_path = tmp_path / "queries.json"
+
+    chunk_data = [
+        {"chunk_id": "c1", "repo_id": "r1", "path": "src/entry.py", "content": "def main(): pass", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1"},
+    ]
+    with chunk_path.open("w", encoding="utf-8") as f:
+        for c in chunk_data:
+            f.write(json.dumps(c) + "\n")
+
+    dump_path.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    queries_path.write_text(json.dumps([
+        {"query": "main", "expected_patterns": ["entry.py"]}
+    ]), encoding="utf-8")
+
+    graph_path = None
+    if graph_invalid:
+        graph_path = tmp_path / "bad_graph.json"
+        graph_path.write_text("{bad json")
+    elif graph_index_content is not None:
+        graph_path = tmp_path / "graph_index.json"
+        graph_path.write_text(json.dumps(graph_index_content), encoding="utf-8")
+
+    return db_path, queries_path, graph_path
+
+
+def test_retrieval_eval_claim_boundaries_graph_absent_when_graph_load_fails(tmp_path):
+    db_path, queries_path, graph_path = _build_eval_env(tmp_path, graph_invalid=True)
+
+    out = eval_core.do_eval(
+        index_path=db_path,
+        queries_path=queries_path,
+        k=5,
+        is_json_mode=True,
+        is_stale=False,
+        graph_index_path=graph_path
+    )
+
+    assert out is not None
+    assert "graph_index" not in out["claim_boundaries"]["evidence_basis"]
+
+
+def test_retrieval_eval_claim_boundaries_graph_present_when_graph_actually_used(tmp_path):
+    valid_graph = {
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": "test",
+        "canonical_dump_index_sha256": "0" * 64,
+        "distances": {"file:src/entry.py": 0},
+        "metrics": {"entrypoint_count": 1, "nodes_reachable": 1, "unreachable_nodes": 0}
+    }
+    db_path, queries_path, graph_path = _build_eval_env(tmp_path, graph_index_content=valid_graph)
+
+    out = eval_core.do_eval(
+        index_path=db_path,
+        queries_path=queries_path,
+        k=5,
+        is_json_mode=True,
+        is_stale=False,
+        graph_index_path=graph_path
+    )
+
+    assert out is not None
+    assert "graph_index" in out["claim_boundaries"]["evidence_basis"]
+
+
 def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path, capsys, monkeypatch):
     queries_json = tmp_path / "eval_queries.json"
     queries_json.write_text(json.dumps([

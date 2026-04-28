@@ -192,6 +192,7 @@ def do_eval(
     total_queries = len(gold_queries)
     results_detail = []
     category_stats: Dict[str, Dict[str, Any]] = {}
+    graph_index_used = False
 
     for q in gold_queries:
         q_text = q["query"]
@@ -216,6 +217,8 @@ def do_eval(
                     s_rel, s_match, s_why, s_paths, s_count, s_rr, s_res = evaluate_single_run(
                         q_text, filters, expected, index_path, k, embedding_policy, graph_index_path, graph_weights
                     )
+                    if "graph_index" in s_res.get("claim_boundaries", {}).get("evidence_basis", []):
+                        graph_index_used = True
                 except Exception as e:
                     # We catch a broad Exception here intentionally. This guarantees that absolutely any
                     # catastrophic failure in the semantic path (e.g. OOM, bad schema, model crash)
@@ -387,7 +390,7 @@ def do_eval(
         print("-" * 80 if compare_mode else "-" * 60)
 
     evidence_basis = ["eval_queries", "expected_targets", "query_results", "index", "retrieval_metrics"]
-    if graph_index_path is not None:
+    if graph_index_used:
         evidence_basis.append("graph_index")
 
     out = {
