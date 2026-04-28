@@ -25,6 +25,12 @@ def mini_index_for_eval(tmp_path):
     index_db.build_index(dump_path, chunk_path, db_path)
     return db_path
 
+
+def _load_retrieval_eval_schema():
+    schema_path = Path(__file__).resolve().parent.parent / "contracts" / "retrieval-eval.v1.schema.json"
+    return json.loads(schema_path.read_text(encoding="utf-8"))
+
+
 def test_parse_gold_queries_basic(tmp_path):
     md_file = tmp_path / "queries.md"
     md_content = """
@@ -158,9 +164,7 @@ def test_schema_validation(mini_index_for_eval, tmp_path):
         is_stale=False
     )
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
 
     jsonschema.validate(instance=out, schema=schema)
 
@@ -175,12 +179,10 @@ def test_schema_smoke():
     # target: merger/lenskit/contracts/retrieval-eval.v1.schema.json
     # ../../contracts/
 
-    base_dir = Path(__file__).resolve().parent.parent
-    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
-
+    schema_path = Path(__file__).resolve().parent.parent / "contracts" / "retrieval-eval.v1.schema.json"
     assert schema_path.exists(), f"Schema file missing at expected path: {schema_path}"
 
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = _load_retrieval_eval_schema()
     assert "metrics" in schema["properties"]
     assert "details" in schema["properties"]
 
@@ -319,6 +321,192 @@ def test_run_eval_invalid_threshold_fails(mini_index_for_eval, tmp_path, capsys)
     assert ret_code == 1
     captured = capsys.readouterr()
     assert "Error: Invalid recall_at_5 threshold (80.0). accept_criteria must use a ratio between 0.0 and 1.0." in captured.err
+
+
+def test_retrieval_eval_claim_boundaries_present(mini_index_for_eval, tmp_path):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    assert "claim_boundaries" in out
+    cb = out["claim_boundaries"]
+    assert cb["requires_live_check"] is True
+    standard_sources = {"eval_queries", "expected_targets", "query_results", "index", "retrieval_metrics"}
+    assert standard_sources.issubset(set(cb["evidence_basis"]))
+    assert "graph_index" not in cb["evidence_basis"]
+
+
+def test_retrieval_eval_claim_boundaries_schema_valid(mini_index_for_eval, tmp_path):
+    import jsonschema
+
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    schema = _load_retrieval_eval_schema()
+    jsonschema.validate(instance=out, schema=schema)
+
+
+def test_retrieval_eval_claim_boundaries_reject_unknown_evidence():
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["not_a_valid_source"],
+            "requires_live_check": True
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
+def test_retrieval_eval_claim_boundaries_reject_extra_field():
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"],
+            "requires_live_check": True,
+            "unknown_extra_field": "should_fail"
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
+def test_retrieval_eval_claim_boundaries_reject_missing_required_subfield():
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"]
+            # requires_live_check missing
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
+def test_retrieval_eval_schema_rejects_missing_claim_boundaries():
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": []
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
+def _build_eval_env(tmp_path, graph_index_content=None, graph_invalid=False):
+    dump_path = tmp_path / "dump.json"
+    chunk_path = tmp_path / "chunks.jsonl"
+    db_path = tmp_path / "index.sqlite"
+    queries_path = tmp_path / "queries.json"
+
+    chunk_data = [
+        {"chunk_id": "c1", "repo_id": "r1", "path": "src/entry.py", "content": "def main(): pass", "start_line": 1, "end_line": 1, "layer": "core", "artifact_type": "code", "content_sha256": "h1"},
+    ]
+    with chunk_path.open("w", encoding="utf-8") as f:
+        for c in chunk_data:
+            f.write(json.dumps(c) + "\n")
+
+    dump_path.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    queries_path.write_text(json.dumps([
+        {"query": "main", "expected_patterns": ["entry.py"]}
+    ]), encoding="utf-8")
+
+    graph_path = None
+    if graph_invalid:
+        graph_path = tmp_path / "bad_graph.json"
+        graph_path.write_text("{bad json")
+    elif graph_index_content is not None:
+        graph_path = tmp_path / "graph_index.json"
+        graph_path.write_text(json.dumps(graph_index_content), encoding="utf-8")
+
+    return db_path, queries_path, graph_path
+
+
+def test_retrieval_eval_claim_boundaries_graph_absent_when_graph_load_fails(tmp_path):
+    db_path, queries_path, graph_path = _build_eval_env(tmp_path, graph_invalid=True)
+
+    out = eval_core.do_eval(
+        index_path=db_path,
+        queries_path=queries_path,
+        k=5,
+        is_json_mode=True,
+        is_stale=False,
+        graph_index_path=graph_path
+    )
+
+    assert out is not None
+    assert "graph_index" not in out["claim_boundaries"]["evidence_basis"]
+
+
+def test_retrieval_eval_claim_boundaries_graph_present_when_graph_actually_used(tmp_path):
+    valid_graph = {
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": "test",
+        "canonical_dump_index_sha256": "0" * 64,
+        "distances": {"file:src/entry.py": 0},
+        "metrics": {"entrypoint_count": 1, "nodes_reachable": 1, "unreachable_nodes": 0}
+    }
+    db_path, queries_path, graph_path = _build_eval_env(tmp_path, graph_index_content=valid_graph)
+
+    out = eval_core.do_eval(
+        index_path=db_path,
+        queries_path=queries_path,
+        k=5,
+        is_json_mode=True,
+        is_stale=False,
+        graph_index_path=graph_path
+    )
+
+    assert out is not None
+    assert "graph_index" in out["claim_boundaries"]["evidence_basis"]
+
 
 def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path, capsys, monkeypatch):
     queries_json = tmp_path / "eval_queries.json"
