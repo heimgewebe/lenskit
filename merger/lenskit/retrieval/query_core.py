@@ -538,6 +538,23 @@ def execute_query(
             "results": results
         }
 
+        _evidence = ["query", "applied_filters", "index", "result_ranges"]
+        if fts_query_str is not None:
+            _evidence.append("fts_query")
+        out["claim_boundaries"] = {
+            "proves": [
+                "These hits were returned by this index under this query and these filters."
+            ],
+            "does_not_prove": [
+                "Absence of a hit does not prove absence in the repository.",
+                "Ranking does not prove semantic importance.",
+                "Snapshot query does not prove live repository state.",
+                "Best-effort explain output is diagnostic, not canonical truth.",
+            ],
+            "evidence_basis": _evidence,
+            "requires_live_check": False,
+        }
+
         # Agent Guardrail: Low result coverage
         # Note: This is currently just a simple quantity heuristic
         # (returned hits relative to requested k), not a true

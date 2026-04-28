@@ -237,9 +237,53 @@
       "description": "Diagnostic query execution trace.",
       "additionalProperties": true
     },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Non-fatal advisory messages about the query result, e.g. low result coverage."
+    },
     "context_bundle": {
       "description": "Optional portable context bundle encapsulating results and expanded textual/structural context.",
       "$ref": "query-context-bundle.v1.schema.json"
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "description": "Machine-readable boundaries of what this query result proves and does not prove. Consumers must treat absence as equivalent to the default boundaries documented in the retrieval recipes.",
+      "additionalProperties": false,
+      "required": ["proves", "does_not_prove", "evidence_basis", "requires_live_check"],
+      "properties": {
+        "proves": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Statements this result is evidence for."
+        },
+        "does_not_prove": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Statements this result is explicitly not evidence for."
+        },
+        "evidence_basis": {
+          "type": "array",
+          "description": "The inputs that determined these results.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "query",
+              "fts_query",
+              "applied_filters",
+              "index",
+              "result_ranges",
+              "bundle_manifest",
+              "graph_index",
+              "context_bundle"
+            ]
+          }
+        },
+        "requires_live_check": {
+          "type": "boolean",
+          "description": "Whether a live repository check is needed to verify the result is still accurate."
+        }
+      }
     }
   }
 }

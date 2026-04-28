@@ -89,3 +89,37 @@ Index neu bauen, auch wenn er aktuell scheint.
 ```bash
 python -m merger.lenskit.cli index --dump output/my_dump.json --chunk-index output/my_chunks.jsonl --rebuild
 ```
+
+## 11. Query Claim Boundaries
+
+Jedes Query-Result-Objekt enthält ein maschinenlesbares `claim_boundaries`-Feld.
+
+```json
+{
+  "claim_boundaries": {
+    "proves": [
+      "These hits were returned by this index under this query and these filters."
+    ],
+    "does_not_prove": [
+      "Absence of a hit does not prove absence in the repository.",
+      "Ranking does not prove semantic importance.",
+      "Snapshot query does not prove live repository state.",
+      "Best-effort explain output is diagnostic, not canonical truth."
+    ],
+    "evidence_basis": ["query", "fts_query", "applied_filters", "index", "result_ranges"],
+    "requires_live_check": false
+  }
+}
+```
+
+**Was ein Query-Treffer belegt:** Dieser Index hat unter dieser Query und diesen Filtern diesen Treffer zurückgegeben.
+
+**Was ein Query-Treffer nicht belegt:**
+- Dass ein nicht gefundener Inhalt im Repository fehlt (Absence of evidence ≠ evidence of absence).
+- Dass Platz 1 semantisch wichtiger ist als Platz 3.
+- Dass der Snapshot dem Live-Repository-Zustand entspricht.
+- Dass Explain-Ausgaben kanonische Wahrheit sind — sie sind diagnostisch und best-effort.
+
+`evidence_basis` spiegelt den tatsächlichen Ausführungspfad: `fts_query` erscheint nur, wenn eine FTS-Query ausgeführt wurde; bei reinen Metadata-Queries fehlt es.
+
+`requires_live_check: false` bedeutet, dass kein Live-Repository-Zugriff für die Trefferermittlung nötig war — nicht, dass die Ergebnisse mit dem aktuellen Repository-Zustand übereinstimmen.

@@ -256,6 +256,41 @@
           "expected"
         ]
       }
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "description": "Machine-readable boundaries of what this eval report proves and does not prove. Optional; mirrors the query-result claim_boundaries contract. No producer emits this yet — schema preparation only.",
+      "additionalProperties": false,
+      "required": ["proves", "does_not_prove", "evidence_basis", "requires_live_check"],
+      "properties": {
+        "proves": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "does_not_prove": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "evidence_basis": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "query",
+              "fts_query",
+              "applied_filters",
+              "index",
+              "result_ranges",
+              "bundle_manifest",
+              "graph_index",
+              "context_bundle"
+            ]
+          }
+        },
+        "requires_live_check": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "required": [
