@@ -256,6 +256,47 @@
           "expected"
         ]
       }
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "description": "Machine-readable epistemic boundaries of the evaluation output.",
+      "additionalProperties": false,
+      "required": [
+        "proves",
+        "does_not_prove",
+        "evidence_basis",
+        "requires_live_check"
+      ],
+      "properties": {
+        "proves": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        },
+        "does_not_prove": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        },
+        "evidence_basis": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "eval_queries",
+              "expected_targets",
+              "query_results",
+              "index",
+              "retrieval_metrics",
+              "graph_index"
+            ]
+          },
+          "minItems": 1
+        },
+        "requires_live_check": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "required": [

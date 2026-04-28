@@ -386,6 +386,10 @@ def do_eval(
                 print(f"  {cat} Recall@{k}: {stats[f'recall@{k}']:.1f}% | MRR: {stats['MRR']:.3f}")
         print("-" * 80 if compare_mode else "-" * 60)
 
+    evidence_basis = ["eval_queries", "expected_targets", "query_results", "index", "retrieval_metrics"]
+    if graph_index_path is not None:
+        evidence_basis.append("graph_index")
+
     out = {
         "metrics": {
             f"recall@{k}": sem_recall_at_k if compare_mode else base_recall_at_k,
@@ -399,7 +403,20 @@ def do_eval(
             "zero_hit_ratio": zero_hit_ratio,
             "categories": category_stats
         },
-        "details": results_detail
+        "details": results_detail,
+        "claim_boundaries": {
+            "proves": [
+                "These metrics were computed for this eval set against this index and query pipeline."
+            ],
+            "does_not_prove": [
+                "Recall on this eval set does not prove general retrieval quality.",
+                "Zero-hit ratio does not prove absence of relevant repository content.",
+                "MRR does not prove semantic correctness.",
+                "Eval results do not prove live repository state."
+            ],
+            "evidence_basis": evidence_basis,
+            "requires_live_check": True
+        }
     }
 
     if compare_mode:

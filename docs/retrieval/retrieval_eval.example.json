@@ -191,5 +191,24 @@
       "found_count": 1,
       "top_results": ["Dockerfile"]
     }
-  ]
+  ],
+  "claim_boundaries": {
+    "proves": [
+      "These metrics were computed for this eval set against this index and query pipeline."
+    ],
+    "does_not_prove": [
+      "Recall on this eval set does not prove general retrieval quality.",
+      "Zero-hit ratio does not prove absence of relevant repository content.",
+      "MRR does not prove semantic correctness.",
+      "Eval results do not prove live repository state."
+    ],
+    "evidence_basis": [
+      "eval_queries",
+      "expected_targets",
+      "query_results",
+      "index",
+      "retrieval_metrics"
+    ],
+    "requires_live_check": true
+  }
 }

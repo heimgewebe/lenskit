@@ -320,6 +320,114 @@ def test_run_eval_invalid_threshold_fails(mini_index_for_eval, tmp_path, capsys)
     captured = capsys.readouterr()
     assert "Error: Invalid recall_at_5 threshold (80.0). accept_criteria must use a ratio between 0.0 and 1.0." in captured.err
 
+def test_retrieval_eval_claim_boundaries_present(mini_index_for_eval, tmp_path):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    assert "claim_boundaries" in out
+    cb = out["claim_boundaries"]
+    assert cb["requires_live_check"] is True
+    standard_sources = {"eval_queries", "expected_targets", "query_results", "index", "retrieval_metrics"}
+    assert standard_sources.issubset(set(cb["evidence_basis"]))
+    assert "graph_index" not in cb["evidence_basis"]
+
+
+def test_retrieval_eval_claim_boundaries_schema_valid(mini_index_for_eval, tmp_path):
+    import jsonschema
+
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    base_dir = Path(__file__).resolve().parent.parent
+    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=out, schema=schema)
+
+
+def test_retrieval_eval_claim_boundaries_reject_unknown_evidence(mini_index_for_eval, tmp_path):
+    import jsonschema
+
+    base_dir = Path(__file__).resolve().parent.parent
+    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["not_a_valid_source"],
+            "requires_live_check": True
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
+def test_retrieval_eval_claim_boundaries_reject_extra_field(mini_index_for_eval, tmp_path):
+    import jsonschema
+
+    base_dir = Path(__file__).resolve().parent.parent
+    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"],
+            "requires_live_check": True,
+            "unknown_extra_field": "should_fail"
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
+def test_retrieval_eval_claim_boundaries_reject_missing_required_subfield(mini_index_for_eval, tmp_path):
+    import jsonschema
+
+    base_dir = Path(__file__).resolve().parent.parent
+    schema_path = base_dir / "contracts" / "retrieval-eval.v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"]
+            # requires_live_check missing
+        }
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
 def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path, capsys, monkeypatch):
     queries_json = tmp_path / "eval_queries.json"
     queries_json.write_text(json.dumps([

@@ -90,6 +90,47 @@ Index neu bauen, auch wenn er aktuell scheint.
 python -m merger.lenskit.cli index --dump output/my_dump.json --chunk-index output/my_chunks.jsonl --rebuild
 ```
 
+## Retrieval Eval Claim Boundaries
+
+Eval-Metriken (`recall@k`, `MRR`, `zero_hit_ratio`) sind maschinenlesbar, aber sie tragen eine implizite Richterrobe. Das `claim_boundaries`-Objekt macht die epistemischen Grenzen des Eval-Outputs explizit.
+
+**Was Eval-Metriken beweisen:**
+- Die Metriken wurden für dieses Eval-Set gegen diesen Index und diese Query-Pipeline berechnet.
+
+**Was Eval-Metriken nicht beweisen:**
+- Recall auf diesem Eval-Set beweist keine allgemeine Retrieval-Qualität.
+- Zero-hit-Ratio beweist keine Abwesenheit relevanter Inhalte im Repository.
+- MRR beweist keine semantische Korrektheit.
+- Eval-Ergebnisse beweisen keinen aktuellen Live-Repository-Zustand.
+
+`requires_live_check: true` gilt immer, weil Eval-Ergebnisse auf einem Index-Snapshot basieren. Für autoritative Aussagen über den aktuellen Repo-Zustand muss das Repository selbst geprüft werden.
+
+`evidence_basis` listet die tatsächlich verwendeten Evidenzquellen. `graph_index` erscheint nur, wenn Graph-basiertes Scoring tatsächlich im Eval-Pfad verwendet wurde.
+
+```json
+{
+  "claim_boundaries": {
+    "proves": [
+      "These metrics were computed for this eval set against this index and query pipeline."
+    ],
+    "does_not_prove": [
+      "Recall on this eval set does not prove general retrieval quality.",
+      "Zero-hit ratio does not prove absence of relevant repository content.",
+      "MRR does not prove semantic correctness.",
+      "Eval results do not prove live repository state."
+    ],
+    "evidence_basis": [
+      "eval_queries",
+      "expected_targets",
+      "query_results",
+      "index",
+      "retrieval_metrics"
+    ],
+    "requires_live_check": true
+  }
+}
+```
+
 ## Query Claim Boundaries
 
 Das rohe Query-Ergebnis (`execute_query` / kein Output-Profile) enthält ein maschinenlesbares `claim_boundaries`-Objekt, das die epistemischen Grenzen des Treffers explizit macht.
