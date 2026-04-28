@@ -89,3 +89,38 @@ Index neu bauen, auch wenn er aktuell scheint.
 ```bash
 python -m merger.lenskit.cli index --dump output/my_dump.json --chunk-index output/my_chunks.jsonl --rebuild
 ```
+
+## Query Claim Boundaries
+
+Das rohe Query-Ergebnis (`execute_query` / kein Output-Profile) enthält ein maschinenlesbares `claim_boundaries`-Objekt, das die epistemischen Grenzen des Treffers explizit macht.
+
+**Was ein Treffer beweist:**
+- Dieser Index lieferte unter dieser Query und diesen Filtern diese Treffer.
+
+**Was ein Treffer nicht beweist:**
+- Dass kein nicht gefundener Inhalt im Repository existiert (Abwesenheit eines Treffers ≠ Abwesenheit im Repo).
+- Dass Ranking semantische Wichtigkeit beweist.
+- Dass der Snapshot dem Live-Repository entspricht.
+- Dass Explain-Ausgaben kanonische Wahrheit sind.
+
+Das Feld `evidence_basis` listet die tatsächlich verwendeten Evidenzquellen (z.B. `query`, `fts_query`, `applied_filters`, `index`, `result_ranges`). `graph_index` erscheint in `evidence_basis`, wenn Graph-Scoring tatsächlich verwendet wurde.
+`requires_live_check` ist bei Snapshot-basierten Query-Ergebnissen `true`, weil das Ergebnis nur den Indexzustand belegt. Für eine autoritative Aussage über den aktuellen Live-Repository-Zustand muss das Repository selbst geprüft werden.
+`result_ranges` erscheint nur, wenn Treffer tatsächlich `range_ref` oder `derived_range_ref` enthalten.
+
+Bei projizierten Output-Profilen kann die Rückgabeform ein Context Bundle oder Wrapper sein. Die Weitergabe von `claim_boundaries` in Projektionen ist ein separater Folge-PR, damit das Context-Bundle-Schema nicht still erweitert wird.
+
+```json
+{
+  "claim_boundaries": {
+    "proves": ["These hits were returned by this index under this query and these filters."],
+    "does_not_prove": [
+      "Absence of a hit does not prove absence in the repository.",
+      "Ranking does not prove semantic importance.",
+      "Snapshot query does not prove live repository state.",
+      "Best-effort explain output is diagnostic, not canonical truth."
+    ],
+    "evidence_basis": ["query", "fts_query", "applied_filters", "index"],
+    "requires_live_check": true
+  }
+}
+```

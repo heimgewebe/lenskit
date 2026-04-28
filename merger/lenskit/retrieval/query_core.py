@@ -546,6 +546,34 @@ def execute_query(
             out.setdefault("warnings", []).append("Low result coverage")
         if fts_query_str is not None:
             out["fts_query"] = fts_query_str
+        evidence = ["query", "applied_filters", "index"]
+        if fts_query_str is not None:
+            evidence.insert(1, "fts_query")
+        has_result_ranges = any(
+            ("range_ref" in hit) or ("derived_range_ref" in hit)
+            for hit in out.get("results", [])
+        )
+        if has_result_ranges:
+            evidence.append("result_ranges")
+        graph_used_in_results = any(
+            hit.get("why", {}).get("diagnostics", {}).get("graph", {}).get("graph_used") is True
+            for hit in out.get("results", [])
+        )
+        if graph_used_in_results:
+            evidence.append("graph_index")
+        out["claim_boundaries"] = {
+            "proves": [
+                "These hits were returned by this index under this query and these filters."
+            ],
+            "does_not_prove": [
+                "Absence of a hit does not prove absence in the repository.",
+                "Ranking does not prove semantic importance.",
+                "Snapshot query does not prove live repository state.",
+                "Best-effort explain output is diagnostic, not canonical truth."
+            ],
+            "evidence_basis": evidence,
+            "requires_live_check": True
+        }
 
         if explain:
             explain_block = {}

@@ -237,9 +237,64 @@
       "description": "Diagnostic query execution trace.",
       "additionalProperties": true
     },
+    "warnings": {
+      "type": "array",
+      "description": "Non-fatal advisory messages emitted by query execution. These warnings are diagnostic and do not change result validity.",
+      "items": {
+        "type": "string"
+      }
+    },
     "context_bundle": {
       "description": "Optional portable context bundle encapsulating results and expanded textual/structural context.",
       "$ref": "query-context-bundle.v1.schema.json"
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "description": "Machine-readable epistemic boundaries of this raw query result.",
+      "additionalProperties": false,
+      "required": [
+        "proves",
+        "does_not_prove",
+        "evidence_basis",
+        "requires_live_check"
+      ],
+      "properties": {
+        "proves": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Statements this result can support."
+        },
+        "does_not_prove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Statements this result explicitly cannot support."
+        },
+        "evidence_basis": {
+          "type": "array",
+          "description": "Evidence sources actually used to produce this result.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "query",
+              "fts_query",
+              "applied_filters",
+              "index",
+              "result_ranges",
+              "bundle_manifest",
+              "graph_index",
+              "context_bundle"
+            ]
+          }
+        },
+        "requires_live_check": {
+          "type": "boolean",
+          "description": "Whether authoritative answers require a live repository check beyond this index snapshot."
+        }
+      }
     }
   }
 }
