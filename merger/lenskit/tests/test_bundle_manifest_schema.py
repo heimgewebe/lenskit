@@ -345,3 +345,133 @@ def test_canonicality_unknown_value_rejected(schema):
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+# Phase 3.5: per-role authority/canonicality constraints for additional
+# bundle-manifest roles. Producer-emitted roles (retrieval_eval_json,
+# graph_index_json) are now annotated by the producer; delta_json carries
+# its constraint as a future-form so that any external manifest builder
+# cannot misrepresent it as canonical content.
+
+def test_retrieval_eval_json_authority_accepted_when_correct(schema):
+    artifact = {
+        "role": "retrieval_eval_json",
+        "path": "out.retrieval_eval.json",
+        "content_type": "application/json",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "retrieval-eval", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "authority": "diagnostic_signal",
+        "canonicality": "diagnostic",
+        "regenerable": True,
+        "staleness_sensitive": True
+    }
+    jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_retrieval_eval_json_cannot_claim_content_source(schema):
+    artifact = {
+        "role": "retrieval_eval_json",
+        "path": "out.retrieval_eval.json",
+        "content_type": "application/json",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "retrieval-eval", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "canonicality": "content_source"  # forbidden: diagnostic, not content
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_retrieval_eval_json_cannot_claim_canonical_content(schema):
+    artifact = {
+        "role": "retrieval_eval_json",
+        "path": "out.retrieval_eval.json",
+        "content_type": "application/json",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "retrieval-eval", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "authority": "canonical_content"  # forbidden: eval is diagnostic, not canonical
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_graph_index_json_authority_accepted_when_correct(schema):
+    artifact = {
+        "role": "graph_index_json",
+        "path": "out.graph_index.json",
+        "content_type": "application/json",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "architecture.graph_index", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "authority": "retrieval_index",
+        "canonicality": "derived",
+        "regenerable": True,
+        "staleness_sensitive": True
+    }
+    jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_graph_index_json_cannot_claim_canonical_content(schema):
+    artifact = {
+        "role": "graph_index_json",
+        "path": "out.graph_index.json",
+        "content_type": "application/json",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "architecture.graph_index", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "authority": "canonical_content"  # forbidden: derived index, not canonical content
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_graph_index_json_cannot_claim_content_source(schema):
+    artifact = {
+        "role": "graph_index_json",
+        "path": "out.graph_index.json",
+        "content_type": "application/json",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "architecture.graph_index", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "canonicality": "content_source"  # forbidden: graph index does not contain content
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_delta_json_cannot_claim_content_source(schema):
+    artifact = {
+        "role": "delta_json",
+        "path": "delta.json",
+        "content_type": "application/json",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "pr-schau-delta", "version": "1.0"},
+        "interpretation": {"mode": "contract"},
+        "canonicality": "content_source"  # forbidden: delta is diagnostic, not content
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_delta_json_cannot_claim_canonical_content(schema):
+    artifact = {
+        "role": "delta_json",
+        "path": "delta.json",
+        "content_type": "application/json",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "pr-schau-delta", "version": "1.0"},
+        "interpretation": {"mode": "contract"},
+        "authority": "canonical_content"  # forbidden: delta is diagnostic, not canonical
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)

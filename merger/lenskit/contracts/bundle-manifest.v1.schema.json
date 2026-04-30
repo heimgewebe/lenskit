@@ -426,6 +426,72 @@
                 }
               }
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "retrieval_eval_json"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_signal"
+                },
+                "canonicality": {
+                  "const": "diagnostic"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "graph_index_json"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "retrieval_index"
+                },
+                "canonicality": {
+                  "const": "derived"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "delta_json"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_signal"
+                },
+                "canonicality": {
+                  "const": "diagnostic"
+                }
+              }
+            }
           }
         ]
       }
