@@ -5803,6 +5803,18 @@ def write_reports_v2(
             "regenerable": True,
             "staleness_sensitive": True,
         },
+        ArtifactRole.RETRIEVAL_EVAL_JSON: {
+            "authority": "diagnostic_signal",
+            "canonicality": "diagnostic",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
+        ArtifactRole.GRAPH_INDEX_JSON: {
+            "authority": "retrieval_index",
+            "canonicality": "derived",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
     }
 
     artifacts_list = []

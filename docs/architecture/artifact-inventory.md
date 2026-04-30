@@ -21,12 +21,12 @@ Dateiendung ist Kleidung; Autorität ist Identität.
 | `<stem>.dump_index.json` | `dump_index_json` | `navigation_index` | `index_only` | `core.merge` | `retrieval.index_db` | - | Ja | Initialer Index-Bau |
 | `<stem>.json` (Sidecar) | `index_sidecar_json` | `navigation_index` | `index_only` | `core.merge` | Agents, WebUI, CLI, Lenskit Service | `bundle-manifest.v1.schema.json` | Meta | Verknüpfung der Artefakte |
 | `<base>.derived_index.json` | `derived_manifest_json` | `navigation_index` | `derived` | `core.merge` | Bundle-Konsumenten | - | Ja | Verlinkt abgeleitete Artefakte |
-| `<stem>.graph_index.json` | `graph_index_json` | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `architecture.graph_index` | `retrieval.query_core`, `eval_core` | `architecture.graph_index.v1.schema.json` | Ja | Graph Penalty/Bonus, Semantic Eval |
-| `<stem>_architecture.md` | `architecture_summary` | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `write_reports_v2` / `generate_architecture_summary` | Mensch, LLMs, Report-Konsumenten | - | Nein (nicht im Bundle Manifest) | Lesbare Architektur-Zusammenfassung |
+| `<stem>.graph_index.json` | `graph_index_json` | `retrieval_index` | `derived` | `architecture.graph_index` | `retrieval.query_core`, `eval_core` | `architecture.graph_index.v1.schema.json` | Ja | Graph Penalty/Bonus, Semantic Eval |
+| `<stem>_architecture.md` | `architecture_summary` | _(Schema-Zukunftsform: `diagnostic_signal`)_ | _(Schema-Zukunftsform: `diagnostic`)_ | `write_reports_v2` / `generate_architecture_summary` | Mensch, LLMs, Report-Konsumenten | - | Nein (nicht im Bundle Manifest) | Lesbare Architektur-Zusammenfassung |
 | `query_context_bundle.json`| - (Runtime Payload) | _(Phase 4)_ | _(Phase 4)_ | `retrieval.query_core` | CLI, WebUI, Agents | `query-context-bundle.v1.schema.json` | Nein (Runtime Output) | Context Expansion, UI Display |
 | `query_trace.json` | - (Runtime Payload) | _(Phase 4)_ | _(Phase 4)_ | `retrieval.query_core` | Debug CLI, Evaluatoren | extrahiert aus `query-result.v1.schema.json` | Nein (Runtime Output) | Ranking-Analyse (via `--trace`) |
-| `<stem>.retrieval_eval.json` | `retrieval_eval_json` | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `retrieval.eval_core` | CI, Entwickler | `retrieval-eval.v1.schema.json` | Optional | Evaluierungsmetriken |
-| `pr-schau-delta.json` | `delta_json` | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `core.pr_schau_bundle` | PR-Schau Frontends, Agents | `pr-schau-delta.v1.schema.json` | Optional | Code-Review Differentials |
+| `<stem>.retrieval_eval.json` | `retrieval_eval_json` | `diagnostic_signal` | `diagnostic` | `retrieval.eval_core` | CI, Entwickler | `retrieval-eval.v1.schema.json` | Ja (wenn vorhanden) | Evaluierungsmetriken |
+| `pr-schau-delta.json` | `delta_json` | _(Schema-Zukunftsform: `diagnostic_signal`)_ | _(Schema-Zukunftsform: `diagnostic`)_ | `core.pr_schau_bundle` (separater pr-schau-Bundle, nicht `bundle-manifest.v1`) | PR-Schau Frontends, Agents | `pr-schau-delta.v1.schema.json` | Nein (nicht im `bundle-manifest.v1`) | Code-Review Differentials |
 | `<stem>.entrypoints.json` | - (Hilfs-/Zwischenartefakt) | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `architecture.entrypoints` | `architecture.graph_index` | `entrypoints.v1.schema.json` | Nein | Berechnung des Graph-Boosts |
 
 ## Verwandte Architekturregeln
@@ -47,5 +47,17 @@ Dateiendung ist Kleidung; Autorität ist Identität.
    - `index.sqlite` wird systemintern als `sqlite_index` geführt (statt `chunk_index_sqlite`).
    - `architecture_graph.json` und `architecture_summary` sind getrennt zu behandeln: `architecture_graph.json` bezeichnet Graph-/Importdaten, `architecture_summary` die lesbare `_architecture.md`-Zusammenfassung.
    - `pr-schau-delta.json` wird als `delta_json` deklariert.
-5. **Authority/Canonicality-Felder (Phase 1):**
-   Die Felder `authority`, `canonicality`, `regenerable` und `staleness_sensitive` sind in `bundle-manifest.v1.schema.json` optional. `authority` und `canonicality` sind pro Rolle wertbeschränkt (z.B. darf `sqlite_index` keine `canonical_content`-Autorität tragen, `architecture_summary` keinen `content_source`-Status). `regenerable` und `staleness_sensitive` werden in Phase 1 vom Producer emittiert und bleiben zunächst typgeprüft. `staleness_sensitive` beschreibt Bundle-interne Drift, nicht Aktualität gegenüber dem Live-Repository. Der Producer (`merger/lenskit/core/merge.py`, `AUTHORITY_REGISTRY`) emittiert diese Felder aktuell für sechs Rollen: `canonical_md`, `index_sidecar_json`, `dump_index_json`, `derived_manifest_json`, `chunk_index_jsonl`, `sqlite_index`. Für `retrieval_eval_json`, `delta_json`, `graph_index_json`, `architecture_summary` und Runtime-Artefakte folgen die Annotationen in späteren Phasen (3, 4, 5). `architecture_summary` wird vom aktuellen Producer (`write_reports_v2`) nicht in das Bundle Manifest aufgenommen; der entsprechende Schema-Constraint bleibt als zulässige Zukunftsform stehen.
+5. **Authority/Canonicality-Felder (Phase 1 + 3.5):**
+   Die Felder `authority`, `canonicality`, `regenerable` und `staleness_sensitive` sind in `bundle-manifest.v1.schema.json` optional. `authority` und `canonicality` sind pro Rolle wertbeschränkt (z.B. darf `sqlite_index` keine `canonical_content`-Autorität tragen, `architecture_summary` keinen `content_source`-Status). `regenerable` und `staleness_sensitive` werden vom Producer emittiert und bleiben typgeprüft. `staleness_sensitive` beschreibt Bundle-interne Drift, nicht Aktualität gegenüber dem Live-Repository.
+
+   **Vom Producer (`merger/lenskit/core/merge.py`, `AUTHORITY_REGISTRY`) aktiv emittiert (acht Rollen):**
+   `canonical_md`, `index_sidecar_json`, `dump_index_json`, `derived_manifest_json`, `chunk_index_jsonl`, `sqlite_index`, `retrieval_eval_json` (Phase 3.5), `graph_index_json` (Phase 3.5).
+
+   **Im Schema als Zukunftsform per-role-constrained, aber nicht vom `bundle-manifest.v1`-Producer emittiert:**
+   - `architecture_summary` — wird von `write_reports_v2` *nicht* als Manifest-Artefakt aufgenommen; der `_write_architecture_summary`-Pfad schreibt die Datei, aber `_add_artifact` wird für diese Rolle nicht aufgerufen. Schema-Constraint (`diagnostic_signal` / `diagnostic`) bleibt als zulässige Zukunftsform.
+   - `delta_json` — lebt im pr-schau-Bundle (`core.pr_schau_bundle`), das ein **eigenes** Manifest gemäß `pr-schau.v1.schema.json` produziert. Im `bundle-manifest.v1`-Pfad gibt es keinen `_add_artifact(... ArtifactRole.PR_DELTA_JSON ...)`-Aufruf. Schema-Constraint (`diagnostic_signal` / `diagnostic`) verhindert, dass extern gebaute Manifeste delta_json fälschlich als kanonischen Inhalt deklarieren.
+
+   **Außerhalb des Bundle-Manifest-Pfads (keine Schema-Constraints):**
+   `query_context_bundle.json`, `query_trace.json` — Runtime-Payloads. `entrypoints.json`, `architecture_graph.json` — Zwischenartefakte für `build_derived_artifacts`. `source_file` — Range-Resolver-Konzept (`core.range_resolver`), nicht im Manifest.
+
+   Folgepunkte (außerhalb dieser PR-Stufe): Annotation für Runtime-Artefakte (Phase 4) und föderierte Artefakte (Phase 5).

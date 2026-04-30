@@ -155,6 +155,28 @@ def test_graph_in_bundle_manifest_positive(tmp_path, monkeypatch):
     assert manifest_entry["contract"]["version"] == "v1"
     assert manifest_entry["interpretation"]["mode"] == "contract"
 
+    # Phase 3.5: producer must annotate graph_index_json as a derived retrieval
+    # index, never as canonical content.
+    assert manifest_entry["authority"] == "retrieval_index"
+    assert manifest_entry["canonicality"] == "derived"
+    assert manifest_entry["regenerable"] is True
+    assert manifest_entry["staleness_sensitive"] is True
+
+    # Phase 3.5: build_derived_artifacts produces a retrieval_eval.json
+    # alongside the graph index whenever queries.md is present (as set up
+    # above). The producer must annotate it with diagnostic authority.
+    eval_artifacts = [a for a in data.get("artifacts", []) if a.get("role") == ArtifactRole.RETRIEVAL_EVAL_JSON.value]
+    assert len(eval_artifacts) == 1, "retrieval_eval_json missing from bundle manifest"
+    eval_entry = eval_artifacts[0]
+    assert eval_entry["path"].endswith(".retrieval_eval.json")
+    assert eval_entry["contract"]["id"] == "retrieval-eval"
+    assert eval_entry["contract"]["version"] == "v1"
+    assert eval_entry["interpretation"]["mode"] == "contract"
+    assert eval_entry["authority"] == "diagnostic_signal"
+    assert eval_entry["canonicality"] == "diagnostic"
+    assert eval_entry["regenerable"] is True
+    assert eval_entry["staleness_sensitive"] is True
+
 
 def test_graph_bundle_integration_fallback(tmp_path):
     """
