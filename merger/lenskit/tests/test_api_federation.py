@@ -6,6 +6,12 @@ from merger.lenskit.service import app as service_app
 import json
 from merger.lenskit.retrieval import index_db
 
+# jsonschema is an optional dependency; tests that need it skip gracefully.
+try:
+    import jsonschema as _jsonschema
+except ImportError:
+    _jsonschema = None
+
 client = TestClient(app)
 
 @pytest.fixture
@@ -228,6 +234,13 @@ def test_api_federation_query_agent_session_artifact_refs_crosscheck(fed_setup):
     assert stored_refs["agent_query_session_id"] is None, (
         "stored agent_query_session_id must be null (self-ID is circular)"
     )
+
+    # Contract validation: lookup response must conform to artifact-lookup.v1.schema.json.
+    if _jsonschema is not None:
+        _lookup_schema = json.loads(
+            (Path(__file__).parents[1] / "contracts" / "artifact-lookup.v1.schema.json").read_text()
+        )
+        _jsonschema.validate(instance=lookup_data, schema=_lookup_schema)
 
 
 def test_api_federation_build_context_bundle_direct_form_stores_artifact(fed_setup):

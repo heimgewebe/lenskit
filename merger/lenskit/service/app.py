@@ -658,7 +658,7 @@ def api_federation_query(request: FederationQueryRequest):
         _fed_provenance = {
             "source_query": request.q,
             "timestamp": datetime.now(_tz.utc).isoformat(),
-            "federation_index": request.federation_index,
+            "index_id": request.federation_index,
         }
         _fed_artifact_ids: dict = {}
 

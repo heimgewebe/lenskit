@@ -57,7 +57,7 @@ def build_agent_query_session_v2(
         context_bundle_id: Optional stable artifact store ID of the context_bundle artifact.
         agent_query_session_id: Optional stable artifact store ID of this session artifact.
             Service responses normally keep this null because the assigned self-ID is exposed
-            via artifact_ids.agent_query_session in the lookup response.
+            via artifact_ids.agent_query_session in the API response.
 
     Returns:
         A dict conforming to agent-query-session.v2.schema.json.
