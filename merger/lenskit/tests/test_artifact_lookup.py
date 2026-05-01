@@ -302,6 +302,15 @@ class TestQueryArtifactStore:
         third = store.get(third_id)
         assert "MUTATION_SENTINEL" not in third["claim_boundaries"]["does_not_prove"]
 
+    def test_get_returns_deepcopy_not_mutable_cache_entry(self, store):
+        """Mutating a get() return value must not affect subsequent get() calls for the same id."""
+        prov = {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"}
+        aid = store.store("query_trace", {}, prov)
+        first = store.get(aid)
+        first["claim_boundaries"]["does_not_prove"].append("MUTATION_SENTINEL")
+        again = store.get(aid)
+        assert "MUTATION_SENTINEL" not in again["claim_boundaries"]["does_not_prove"]
+
 
 # ---------------------------------------------------------------------------
 # API endpoint tests

@@ -72,15 +72,17 @@ def _with_runtime_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
     dict and without overwriting any field that was already present.
 
     Unknown artifact_types (shouldn't happen, but safe to handle) are returned
-    as-is.  deepcopy on the meta template prevents claim_boundaries list
-    aliasing across callers.
+    as a deep copy.  Callers receive an independent copy of all nested
+    structures; mutations to the returned dict do not reach the cache.
     """
     artifact_type = entry.get("artifact_type")
     meta = _RUNTIME_ARTIFACT_METADATA.get(artifact_type)
+    merged = copy.deepcopy(entry)
     if not meta:
-        return dict(entry)
-    merged = copy.deepcopy(meta)
-    merged.update(entry)
+        return merged
+    for key, value in meta.items():
+        if key not in merged:
+            merged[key] = copy.deepcopy(value)
     return merged
 
 
