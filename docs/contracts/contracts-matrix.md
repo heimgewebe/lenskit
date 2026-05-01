@@ -34,5 +34,5 @@ Diese Matrix dokumentiert die Verbindungen zwischen Systemrollen, Schemata, Abh�
 
 ## Bekannte Lücken (Contract Matrix)
 
--   Kein formales Schema für `cross_repo_links.json` und `federation_conflicts.json` (Phase 5). Identitäten und Konflikte über Repositories hinweg sind noch nicht strukturell im Contract abgebildet.
+-   Formale Schemas für `cross_repo_links.json` und `federation_conflicts.json` sind vorhanden (`cross-repo-links.v1.schema.json`, `federation-conflicts.v1.schema.json`). Offen bleiben Producer-/Runtime-/Persistenz-/Integrationspfade: Die Contracts beschreiben Identitäten und Konflikte über Repositories hinweg, sind aber noch nicht durchgängig in Erzeugung, Speicherung und Laufzeitnutzung verankert. `federation_conflicts` ist heuristisch/minimal im föderierten Query-/Trace-Pfad emittiert und per CLI-Trace persistierbar; `cross_repo_links` ist als Contract vorbereitet, ohne Runtime-Producer.
 -   `agent-query-session.v2.schema.json` ist eingetragen und belegt; offen bleiben: Lifecycle/Retention-Kontrakt, MCP-Binding-Schema.

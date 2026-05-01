@@ -19,11 +19,11 @@ Welche Artefakte werden pro Endpunkt gespeichert und unter welcher Bedingung:
 
 | Endpunkt | `query_trace` gespeichert | `context_bundle` gespeichert | `agent_query_session` gespeichert | `artifact_refs.query_trace_id` |
 | :--- | :--- | :--- | :--- | :--- |
-| `/api/query` | Ja, bei `trace=true` | Ja, bei `trace=true` oder `build_context_bundle=true` | Ja, wenn `trace=true` und Context Bundle vorhanden (Session gebaut) | Entspricht `artifact_ids.query_trace` |
-| `/api/federation/query` | **Nein** (kein standalone Federation Query Trace) | Ja, bei `trace=true` oder `build_context_bundle=true` | Ja, wenn Session gebaut | **Immer null** (kein standalone trace) |
+| `/api/query` | Ja, bei `trace=true` und konfiguriertem `QueryArtifactStore` | Ja, wenn ein Context Bundle im Ergebnis vorhanden ist und (`trace=true` oder `build_context_bundle=true`) bei konfiguriertem `QueryArtifactStore` | Ja, wenn `trace=true`, ein Context Bundle (wrapper-form) vorhanden ist, die Session gebaut wird und `QueryArtifactStore` konfiguriert ist | Entspricht `artifact_ids.query_trace`, wenn gespeichert |
+| `/api/federation/query` | **Nein** (kein standalone Federation Query Trace) | Ja, wenn ein Context Bundle im Ergebnis vorhanden ist und (`trace=true` oder `build_context_bundle=true`) bei konfiguriertem `QueryArtifactStore` | Ja, wenn `trace=true`, ein Context Bundle vorhanden ist, die Session gebaut wird und `QueryArtifactStore` konfiguriert ist | **Immer null** (kein standalone trace) |
 | `/api/artifact_lookup` | — (Lookup-Endpunkt, kein Speichern) | — | Löst `agent_query_session` per `artifact_ids.agent_query_session` auf | — |
 
-Hinweis: `artifact_refs.agent_query_session_id` ist **immer null** in gespeichertem Payload und Response (Zirkel-Self-ID). Die Store-ID ist ausschließlich über `artifact_ids.agent_query_session` im API-Response-Toplevel zugänglich.
+Hinweis: `artifact_refs.agent_query_session_id` ist **immer null** in gespeichertem Payload und Response (Zirkel-Self-ID). Die Store-ID ist ausschließlich über `artifact_ids.agent_query_session` im API-Response-Toplevel zugänglich. `trace=true` allein garantiert kein gespeichertes `context_bundle`, wenn kein Context Bundle im Ergebnis vorhanden ist. Persistenz setzt in allen Fällen einen konfigurierten `QueryArtifactStore` voraus.
 
 ## Bemerkungen zur Runtime
 
@@ -36,5 +36,5 @@ Hinweis: `artifact_refs.agent_query_session_id` ist **immer null** in gespeicher
 
 ## Bekannte Lücken (Runtime Matrix)
 
--   **Phase 5 (Cross-Repo-Föderation):** `federation_index.json` und föderierte Queries (`/api/federation/query`) sind implementiert (minimale Multi-Bundle-Aggregation). Offen: `cross_repo_links.json`, `federation_conflicts.json`, vollständige föderierte Ranking-Semantik.
+-   **Phase 5 (Cross-Repo-Föderation):** `federation_index.json` und föderierte Queries (`/api/federation/query`) sind implementiert (minimale Multi-Bundle-Aggregation). `federation_conflicts.json` ist heuristisch/minimal implementiert: Runtime-Emission in `federation_query.py`, CLI-Persistenz in `cmd_federation.py`, schema-validiert per `test_federation_cli.py`; offen bleibt eine belastbare Identity-Engine jenseits einfacher Heuristiken. `cross_repo_links.json` hat einen vorhandenen Contract (`cross-repo-links.v1.schema.json`), ist aber ohne Runtime-Producer. Offen: durchgängige `cross_repo_links`-Emission/-Persistenz, vollständige föderierte Ranking-Semantik.
 -   **Agent Control Surface (Phase 6):** `agent_query_session` Provenienz-Härtung und `/api/artifact_lookup`-Roundtrip sind belegt. Offen: Agent-Orchestrierung, Feedback-Schleifen, MCP-Anbindung, Lifecycle/Retention.
