@@ -78,6 +78,15 @@
           "const": "unbounded_currently",
           "description": "Retention policy for this artifact in the store. 'unbounded_currently' means no GC is applied."
         },
+        "lifecycle_status": {
+          "type": "string",
+          "const": "active",
+          "description": "Lifecycle status of this runtime artifact. 'active' means the artifact is present and not expired. No GC or TTL is applied currently."
+        },
+        "expires_at": {
+          "type": ["string", "null"],
+          "description": "Expiry timestamp (ISO 8601) if a TTL is set; null while retention_policy is 'unbounded_currently'."
+        },
         "claim_boundaries": {
           "type": "object",
           "additionalProperties": false,

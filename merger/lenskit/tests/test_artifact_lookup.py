@@ -180,6 +180,8 @@ class TestQueryArtifactStore:
         assert entry["canonicality"] == "observation"
         assert entry["artifact_shape"] == "raw"
         assert entry["retention_policy"] == "unbounded_currently"
+        assert entry["lifecycle_status"] == "active"
+        assert entry["expires_at"] is None
         assert "claim_boundaries" in entry
         assert "does_not_prove" in entry["claim_boundaries"]
         assert len(entry["claim_boundaries"]["does_not_prove"]) >= 1
@@ -226,7 +228,7 @@ class TestQueryArtifactStore:
             "provenance": {"source_query": "legacy", "timestamp": "2024-01-01T00:00:00+00:00"},
             "created_at": "2024-01-01T00:00:00+00:00",
             # deliberately omits: authority, canonicality, artifact_shape,
-            # retention_policy, claim_boundaries
+            # retention_policy, lifecycle_status, expires_at, claim_boundaries
         }
         store_file.write_text(_json.dumps([legacy_entry]), encoding="utf-8")
 
@@ -237,6 +239,8 @@ class TestQueryArtifactStore:
         assert entry["canonicality"] == "observation"
         assert entry["artifact_shape"] == "raw"
         assert entry["retention_policy"] == "unbounded_currently"
+        assert entry["lifecycle_status"] == "active"
+        assert entry["expires_at"] is None
         assert "claim_boundaries" in entry
         assert "does_not_prove" in entry["claim_boundaries"]
         # Original fields must be preserved
@@ -575,6 +579,8 @@ class TestApiArtifactLookup:
         assert art["canonicality"] == "observation"
         assert art["artifact_shape"] == "raw"
         assert art["retention_policy"] == "unbounded_currently"
+        assert art["lifecycle_status"] == "active"
+        assert art["expires_at"] is None
         assert "claim_boundaries" in art
         assert "does_not_prove" in art["claim_boundaries"]
 

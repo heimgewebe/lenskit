@@ -1092,6 +1092,8 @@ _RUNTIME_META_FIELDS = (
     "canonicality",
     "artifact_shape",
     "retention_policy",
+    "lifecycle_status",
+    "expires_at",
     "claim_boundaries",
 )
 

@@ -273,6 +273,8 @@ class TestApiTraceLookup:
         assert data["canonicality"] == "observation"
         assert data["artifact_shape"] == "raw"
         assert data["retention_policy"] == "unbounded_currently"
+        assert data["lifecycle_status"] == "active"
+        assert data["expires_at"] is None
         assert "claim_boundaries" in data
         assert "does_not_prove" in data["claim_boundaries"]
 
