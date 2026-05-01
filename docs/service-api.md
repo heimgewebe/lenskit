@@ -57,6 +57,17 @@ Typed read-only facade over stored `context_bundle` artifacts. Returns the conte
   "context_bundle": { "query": "main", "hits": [...] },
   "provenance": { "source_query": "main", "timestamp": "2024-01-01T00:00:00+00:00", "index_id": "test-art", "run_id": null },
   "created_at": "2024-01-01T00:00:00+00:00",
+  "authority": "runtime_observation",
+  "canonicality": "observation",
+  "artifact_shape": "projected",
+  "retention_policy": "unbounded_currently",
+  "claim_boundaries": {
+    "does_not_prove": [
+      "Artifact ID stability is limited to this store location.",
+      "Runtime artifact does not prove live repository state.",
+      "Context bundle is stored in projected API form, not raw execute_query form."
+    ]
+  },
   "warnings": []
 }
 ```
@@ -142,6 +153,16 @@ Typed read-only facade over stored `query_trace` artifacts. Returns the trace pa
   "trace": { "query_input": "...", "timings": {}, "..." : "..." },
   "provenance": { "source_query": "main", "timestamp": "2024-01-01T00:00:00+00:00", "index_id": "test-art", "run_id": null },
   "created_at": "2024-01-01T00:00:00+00:00",
+  "authority": "runtime_observation",
+  "canonicality": "observation",
+  "artifact_shape": "raw",
+  "retention_policy": "unbounded_currently",
+  "claim_boundaries": {
+    "does_not_prove": [
+      "Artifact ID stability is limited to this store location.",
+      "Runtime artifact does not prove live repository state."
+    ]
+  },
   "warnings": []
 }
 ```

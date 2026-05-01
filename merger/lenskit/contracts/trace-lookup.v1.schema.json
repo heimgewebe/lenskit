@@ -56,6 +56,35 @@
       "type": "array",
       "items": {"type": "string"},
       "description": "Non-fatal diagnostic messages (e.g. type mismatch naming the actual artifact type, store not initialized)."
+    },
+    "authority": {
+      "const": "runtime_observation",
+      "description": "Authority class of this runtime artifact. Always 'runtime_observation' for query_trace artifacts."
+    },
+    "canonicality": {
+      "const": "observation",
+      "description": "Canonicality class. Always 'observation' for query_trace artifacts."
+    },
+    "artifact_shape": {
+      "const": "raw",
+      "description": "Shape of the stored trace data. Always 'raw' for query_trace: unmodified internal execute_query output."
+    },
+    "retention_policy": {
+      "const": "unbounded_currently",
+      "description": "Retention policy for this artifact in the store. 'unbounded_currently' means no GC is applied."
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["does_not_prove"],
+      "properties": {
+        "does_not_prove": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Statements this artifact does not prove."
+        }
+      },
+      "description": "Epistemic boundaries of this runtime artifact."
     }
   }
 }

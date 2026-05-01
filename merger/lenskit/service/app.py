@@ -982,6 +982,27 @@ def get_artifact(id: str):
     return art
 
 
+
+# ---------------------------------------------------------------------------
+# Runtime artifact metadata helpers (shared by artifact_lookup / trace_lookup /
+# context_lookup).  Keeping the field tuple and copy helper in one place means
+# all three endpoints update automatically when the metadata schema changes.
+# ---------------------------------------------------------------------------
+
+_RUNTIME_META_FIELDS = (
+    "authority",
+    "canonicality",
+    "artifact_shape",
+    "retention_policy",
+    "claim_boundaries",
+)
+
+
+def _copy_runtime_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a dict containing only the runtime metadata fields present in *entry*."""
+    return {field: entry[field] for field in _RUNTIME_META_FIELDS if field in entry}
+
+
 @app.post("/api/artifact_lookup", dependencies=[Depends(verify_token)])
 def api_artifact_lookup(request: ArtifactLookupRequest):
     """Retrieve a previously stored query runtime artifact by stable ID.
@@ -1025,15 +1046,18 @@ def api_artifact_lookup(request: ArtifactLookupRequest):
             ],
         }
 
+    artifact_payload: Dict[str, Any] = {
+        "provenance": entry["provenance"],
+        "created_at": entry["created_at"],
+        "data": entry["data"],
+        **_copy_runtime_metadata(entry),
+    }
+
     return {
         "artifact_type": entry["artifact_type"],
         "id": entry["id"],
         "status": "ok",
-        "artifact": {
-            "provenance": entry["provenance"],
-            "created_at": entry["created_at"],
-            "data": entry["data"],
-        },
+        "artifact": artifact_payload,
         "warnings": [],
     }
 
@@ -1082,14 +1106,16 @@ def api_trace_lookup(request: TraceLookupRequest):
             ],
         }
 
-    return {
+    resp: Dict[str, Any] = {
         "status": "ok",
         "id": entry["id"],
         "trace": entry["data"],
         "provenance": entry["provenance"],
         "created_at": entry["created_at"],
         "warnings": [],
+        **_copy_runtime_metadata(entry),
     }
+    return resp
 
 
 @app.post("/api/context_lookup", dependencies=[Depends(verify_token)])
@@ -1137,14 +1163,16 @@ def api_context_lookup(request: ContextLookupRequest):
             ],
         }
 
-    return {
+    resp: Dict[str, Any] = {
         "status": "ok",
         "id": entry["id"],
         "context_bundle": entry["data"],
         "provenance": entry["provenance"],
         "created_at": entry["created_at"],
         "warnings": [],
+        **_copy_runtime_metadata(entry),
     }
+    return resp
 
 
 def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Optional[str] = None) -> FileResponse:

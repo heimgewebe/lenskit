@@ -60,6 +60,36 @@
           "type": "object",
           "additionalProperties": true,
           "description": "The artifact payload. Structure depends on artifact_type."
+        },
+        "authority": {
+          "const": "runtime_observation",
+          "description": "Authority class of this runtime artifact. Always 'runtime_observation' for query runtime artifacts."
+        },
+        "canonicality": {
+          "const": "observation",
+          "description": "Canonicality class. Always 'observation' for query runtime artifacts."
+        },
+        "artifact_shape": {
+          "type": "string",
+          "enum": ["raw", "projected", "wrapper"],
+          "description": "Shape of the stored artifact data: 'raw' = internal execute_query form (query_trace), 'projected' = API-projected form after output-profile filtering (context_bundle), 'wrapper' = session wrapper built from the projected form (agent_query_session)."
+        },
+        "retention_policy": {
+          "const": "unbounded_currently",
+          "description": "Retention policy for this artifact in the store. 'unbounded_currently' means no GC is applied."
+        },
+        "claim_boundaries": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["does_not_prove"],
+          "properties": {
+            "does_not_prove": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Statements this artifact does not prove."
+            }
+          },
+          "description": "Epistemic boundaries of this runtime artifact."
         }
       }
     }

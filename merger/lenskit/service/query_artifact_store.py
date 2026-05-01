@@ -1,4 +1,5 @@
 import json
+import copy
 import threading
 import uuid
 import logging
@@ -8,9 +9,81 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-VALID_ARTIFACT_TYPES = frozenset({"query_trace", "context_bundle", "agent_query_session"})
-
 _STORE_FILENAME = "query_artifacts.json"
+
+# Per-type classification metadata injected into every stored entry.
+# authority/canonicality use the vocabulary from bundle-manifest.v1.schema.json.
+# artifact_shape encodes the stored data form:
+#   "raw"       — unmodified internal execute_query() output (query_trace)
+#   "projected" — API-projected form after output-profile filtering (context_bundle)
+#   "wrapper"   — session wrapper built from the projected context bundle (agent_query_session)
+# retention_policy reflects the store's current behaviour (no GC; unbounded growth).
+_RUNTIME_ARTIFACT_METADATA: Dict[str, Dict[str, Any]] = {
+    "query_trace": {
+        "authority": "runtime_observation",
+        "canonicality": "observation",
+        "artifact_shape": "raw",
+        "retention_policy": "unbounded_currently",
+        "claim_boundaries": {
+            "does_not_prove": [
+                "Artifact ID stability is limited to this store location.",
+                "Runtime artifact does not prove live repository state.",
+            ]
+        },
+    },
+    "context_bundle": {
+        "authority": "runtime_observation",
+        "canonicality": "observation",
+        "artifact_shape": "projected",
+        "retention_policy": "unbounded_currently",
+        "claim_boundaries": {
+            "does_not_prove": [
+                "Artifact ID stability is limited to this store location.",
+                "Runtime artifact does not prove live repository state.",
+                "Context bundle is stored in projected API form, not raw execute_query form.",
+            ]
+        },
+    },
+    "agent_query_session": {
+        "authority": "runtime_observation",
+        "canonicality": "observation",
+        "artifact_shape": "wrapper",
+        "retention_policy": "unbounded_currently",
+        "claim_boundaries": {
+            "does_not_prove": [
+                "Artifact ID stability is limited to this store location.",
+                "Runtime artifact does not prove live repository state.",
+            ]
+        },
+    },
+}
+
+# Derived from _RUNTIME_ARTIFACT_METADATA so it can never drift out of sync.
+VALID_ARTIFACT_TYPES = frozenset(_RUNTIME_ARTIFACT_METADATA.keys())
+
+
+def _with_runtime_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Return entry with runtime classification fields guaranteed.
+
+    New entries written by store() already contain all fields.  Legacy entries
+    loaded from disk may predate this PR and lack authority/canonicality/
+    artifact_shape/retention_policy/claim_boundaries.  This helper backfills
+    those fields from _RUNTIME_ARTIFACT_METADATA without mutating the cached
+    dict and without overwriting any field that was already present.
+
+    Unknown artifact_types (shouldn't happen, but safe to handle) are returned
+    as a deep copy.  Callers receive an independent copy of all nested
+    structures; mutations to the returned dict do not reach the cache.
+    """
+    artifact_type = entry.get("artifact_type")
+    meta = _RUNTIME_ARTIFACT_METADATA.get(artifact_type)
+    merged = copy.deepcopy(entry)
+    if not meta:
+        return merged
+    for key, value in meta.items():
+        if key not in merged:
+            merged[key] = copy.deepcopy(value)
+    return merged
 
 
 class QueryArtifactStore:
@@ -95,12 +168,14 @@ class QueryArtifactStore:
             prov.setdefault("run_id", run_id)
         prov.setdefault("run_id", None)
 
+        runtime_meta = copy.deepcopy(_RUNTIME_ARTIFACT_METADATA[artifact_type])
         entry: Dict[str, Any] = {
             "id": artifact_id,
             "artifact_type": artifact_type,
             "data": data,
             "provenance": prov,
             "created_at": now,
+            **runtime_meta,
         }
 
         with self._lock:
@@ -110,14 +185,22 @@ class QueryArtifactStore:
         return artifact_id
 
     def get(self, artifact_id: str) -> Optional[Dict[str, Any]]:
-        """Return the stored entry for artifact_id, or None if not found."""
+        """Return the stored entry for artifact_id, or None if not found.
+
+        Always returns a dict with runtime classification fields present,
+        backfilling from _RUNTIME_ARTIFACT_METADATA for legacy entries that
+        predate the metadata schema addition.
+        """
         with self._lock:
-            return self._cache.get(artifact_id)
+            raw = self._cache.get(artifact_id)
+            if raw is None:
+                return None
+            return _with_runtime_metadata(raw)
 
     def get_all(self) -> List[Dict[str, Any]]:
         with self._lock:
             return sorted(
-                self._cache.values(),
+                (_with_runtime_metadata(e) for e in self._cache.values()),
                 key=lambda e: e.get("created_at", ""),
                 reverse=True,
             )

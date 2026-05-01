@@ -246,3 +246,69 @@ class TestApiContextLookup:
 
         schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
         jsonschema.validate(instance=data, schema=schema)
+
+    def test_context_lookup_ok_includes_runtime_metadata(self, api_client):
+        resp = api_client.post(
+            "/api/query",
+            json={
+                "index_id": "test-art",
+                "q": "main",
+                "build_context_bundle": True,
+                "stale_policy": "ignore",
+            },
+            headers=_AUTH,
+        )
+        assert resp.status_code == 200
+        artifact_ids = resp.json().get("artifact_ids", {})
+        assert "context_bundle" in artifact_ids
+        cb_id = artifact_ids["context_bundle"]
+
+        lookup_resp = api_client.post(
+            "/api/context_lookup",
+            json={"id": cb_id},
+            headers=_AUTH,
+        )
+        assert lookup_resp.status_code == 200
+        data = lookup_resp.json()
+        assert data["status"] == "ok"
+        assert data["authority"] == "runtime_observation"
+        assert data["canonicality"] == "observation"
+        assert data["artifact_shape"] == "projected"
+        assert data["retention_policy"] == "unbounded_currently"
+        assert "claim_boundaries" in data
+        assert "does_not_prove" in data["claim_boundaries"]
+        # context_bundle specifically notes projected form in claim_boundaries
+        assert any(
+            "projected" in s.lower()
+            for s in data["claim_boundaries"]["does_not_prove"]
+        )
+
+    def test_context_lookup_runtime_metadata_conforms_to_contract(self, api_client):
+        """ok response with runtime metadata must validate against schema."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        resp = api_client.post(
+            "/api/query",
+            json={
+                "index_id": "test-art",
+                "q": "main",
+                "build_context_bundle": True,
+                "stale_policy": "ignore",
+            },
+            headers=_AUTH,
+        )
+        assert resp.status_code == 200
+        cb_id = resp.json().get("artifact_ids", {}).get("context_bundle")
+        assert cb_id is not None
+
+        lookup_resp = api_client.post(
+            "/api/context_lookup",
+            json={"id": cb_id},
+            headers=_AUTH,
+        )
+        assert lookup_resp.status_code == 200
+        data = lookup_resp.json()
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        jsonschema.validate(instance=data, schema=schema)
