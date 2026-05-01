@@ -1674,7 +1674,13 @@ Trennung:
 Ziel:
 - [~] Jede Agent-Nutzung ist nachvollziehbar.
   CLI: nutzt physisches Artefakt `agent_query_session.json` (v1-Contract). Es bündelt Request-, Bundle-, Trace- und Diagnose-Bezüge.
-  API: liefert Inline-Session (v2-Contract); ein referenzierbarer, physischer Trace-Layer fehlt hier derzeit.
+  API (Provenienz gehärtet): liefert v2-Session als Inline-Payload **und** speichert sie als Runtime-Artefakt.
+  Gespeicherter Stand (belegt durch `test_api_query_agent_session_artifact_refs_crosscheck` und `test_api_federation_query_agent_session_artifact_refs_crosscheck`):
+  - `/api/query` (trace=true): speichert `query_trace`; `context_bundle` und `agent_query_session` werden gespeichert, wenn ein Context Bundle im Ergebnis vorhanden ist, die Session gebaut wird und `QueryArtifactStore` konfiguriert ist. Store-IDs erscheinen in `artifact_ids`.
+  - `/api/federation/query` (trace=true): speichert `context_bundle` und `agent_query_session` nur, wenn ein Context Bundle vorhanden ist, die Session gebaut wird und `QueryArtifactStore` konfiguriert ist. Es gibt keinen standalone `query_trace`; `artifact_refs.query_trace_id` bleibt bewusst null.
+  - `artifact_refs.agent_query_session_id` bleibt **immer null** im Payload (Zirkel-Self-ID); die Store-ID liegt ausschließlich in `artifact_ids.agent_query_session`.
+  - `/api/artifact_lookup` löst gespeicherte `agent_query_session`-Artefakte per `artifact_ids.agent_query_session` auf.
+  Offen (nicht strukturell belegt): physischer Trace-Layer für Orchestrierungs-/Feedback-Schleifen, MCP-Anbindung, UI-Nutzung.
 
 ### 2.9 Arbeitspaket G – Service-Endpunkte / MCP-fähige Form
 Ziel:
@@ -1698,7 +1704,7 @@ Tests:
 - [x] 1. test_agent_query_contract_roundtrip
 - [x] 2. test_agent_profile_lookup_minimal
 - [x] 3. test_agent_profile_review_context
-- [~] 4. Agent Session Traceability (teilweise: lokaler Builder-Test und CLI-Trace-Test decken Artefakt-Aspekte inkl. `refs` ab; E2E-API-Test validiert nur die Inline-v2-Session ohne `refs`, da der API-Contract diese strukturell nicht ausgibt).
+- [~] 4. Agent Session Traceability (Provenienz gehärtet: `test_api_query_agent_session_artifact_refs_crosscheck` und `test_api_federation_query_agent_session_artifact_refs_crosscheck` belegen artifact_refs-Crosscheck, Roundtrip über `/api/artifact_lookup` und bewussten null-Self-ID-Kontrakt; offen: Orchestrierungs-/Feedback-Schleifen, MCP-Anbindung, UI-Nutzung).
 - [x] 5. test_agent_response_surfaces_uncertainty
 - [x] 6. test_agent_federated_conflict_warning
 
@@ -1707,7 +1713,7 @@ Tests:
 - [x] 2. Agent Output Profiles (strukturell existierend via `output_profile` wie `agent_minimal`, `lookup_minimal`, `review_context`)
 - [~] 3. bounded API/tool surface (Query-/Federation-Pfade sowie `POST /api/artifact_lookup`, `POST /api/trace_lookup`, `POST /api/context_lookup` und `GET /api/diagnostics` vorhanden; offen: Lifecycle/Retention, Federation-Vertiefung, MCP-Anbindung)
 - [~] 4. maschinenlesbare uncertainty/provenance Felder (Contract existiert, komplexe Status fehlen)
-- [~] 5. `agent_query_session.json` (CLI nutzt v1 Artefakt, API liefert v2 Inline-Session)
+- [~] 5. `agent_query_session.json` (CLI nutzt v1-Artefakt; API liefert v2-Inline-Session und speichert sie als Runtime-Artefakt; Provenienz-Härtung belegt; offen: Agent-Orchestrierung, UI-Nutzung, Lifecycle/Retention)
 - [~] 6. service-/MCP-fähige Schnittstellenlogik (API Servicepfade existieren, MCP Protokoll fehlt)
 - [~] 7. Agent-Guardrails (teilweise: Guardrail-Heuristik "low result coverage" belegt, Härtung offen)
 

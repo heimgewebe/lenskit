@@ -14,6 +14,7 @@ Diese Matrix ordnet die in `merger/lenskit/tests/` existierenden Tests nach abge
 | **Backwards Compatibility** | `test_contract_version_guards.py`, `test_jsonschema_degradation.py`, `test_context_bundle.py::test_cli_backward_compatibility` | Abwärtskompatibilität wirft Fehler oder nutzt saubere Fallbacks, statt Scheinfakten zu generieren. | **Durch vorhandene Tests strukturell belegt.** | Keine vollständige End-to-End-Absicherung. |
 | **Federation & Cross-Repo** | `test_federation_*.py` | Föderation-Artefakte bauen deterministisch und Query-Mechanismen greifen | **Teilweise abgedeckt.** | Tests unter `test_federation_*.py` (u. a. Add, Query, Inspect, Validate). |
 | **API/UI Integration** | `test_webui_payload.py` | Stellt sicher, dass minimale Playwright-Webseiten-Checks strukturell durchlaufen. | **Lückenhaft.** | API/UI-Strukturen sind nicht umfassend end-to-end gesichert oder als produktionsreif testbar. |
+| **Agent Query Session Provenance** | `test_api_query.py::test_api_query_agent_session_artifact_refs_crosscheck`, `test_api_federation.py::test_api_federation_query_agent_session_artifact_refs_crosscheck`, `test_agent_session_schema.py::test_agent_session_v2_rejects_partial_artifact_refs` | artifact_refs in `agent_query_session` müssen mit `artifact_ids` im Response übereinstimmen. `artifact_refs.agent_query_session_id` ist bewusst null (Zirkel-Self-ID). Federation: kein standalone `query_trace`, `artifact_refs.query_trace_id` ist null. Roundtrip über `/api/artifact_lookup` liefert konsistente gespeicherte `artifact_refs`. Schema lehnt partial `artifact_refs` ab. | **Belegt durch Crosscheck-Tests und Roundtrip-Verifikation.** | Offen: Orchestrierungs-/Feedback-Schleifen, MCP-Anbindung, Lifecycle/Retention. |
 
 ## Artifact Integrity / Drift Diagnostics
 
@@ -40,6 +41,9 @@ Bestehende Tests als diagnostische Ankerpunkte:
 | `test_trace_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
 | `test_context_lookup.py` | query_trace ↔ context_bundle | diagnostischer Anker |
 | `test_agent_session_builder.py` | context_bundle ↔ agent_query_session | struktureller Anker |
+| `test_api_query.py::test_api_query_agent_session_artifact_refs_crosscheck` | agent_query_session.artifact_refs ↔ artifact_ids (Roundtrip `/api/artifact_lookup`) | Provenienz-Crosscheck-Anker; belegt null-Self-ID-Kontrakt |
+| `test_api_federation.py::test_api_federation_query_agent_session_artifact_refs_crosscheck` | agent_query_session.artifact_refs ↔ artifact_ids (Federation; query_trace_id==null) | Federation-Sonderfall-Anker |
+| `test_agent_session_schema.py::test_agent_session_v2_rejects_partial_artifact_refs` | agent-query-session.v2.schema.json ↔ artifact_refs vollständig | Schema-Rejection-Guard |
 | `test_pr_schau_consumer_gate.py` | PR-Schau JSON ↔ PR-Schau Markdown | Consumer-Gate; kein Markdown-Completeness-Guard |
 
 Diese Tests sind noch keine vollständige Drift-Blocking-Matrix, sondern
@@ -50,4 +54,4 @@ vorhandene Ankerpunkte für spätere Guards.
 Die Testsuite (`merger/lenskit/tests/`) belegt die Grundlagen für die Ingestion (Phase 1), die Core-Runtime (Phase 2), die Graph-Integration (Phase 3) sowie die strukturellen Erwartungen an Context-Bundles (Phase 4).
 Diese Belege sichern spezifische Teilziele methodisch ab, decken jedoch weder die API-Sicherheit weitreichend ab, noch prüfen sie die tatsächliche Agent-Tauglichkeit der ausgegebenen Kontexte qualitativ.
 
-Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist durch Tests unter `test_federation_*.py` **teilweise abgedeckt**, bleibt aber insbesondere bei vollständigen End-to-End-Pfaden über mehrere Repositories unvollständig.
+Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist durch Tests unter `test_federation_*.py` **teilweise abgedeckt**, bleibt aber insbesondere bei vollständigen End-to-End-Pfaden über mehrere Repositories unvollständig. **Phase 6 (Agent Control Surface / Provenienz):** `agent_query_session`-Provenienz-Härtung ist durch Crosscheck-Tests belegt (artifact_refs-Konsistenz, null-Self-ID, Roundtrip-Lookup, Schema-Rejection); Agent-Orchestrierung, Feedback-Schleifen und MCP-Anbindung sind noch offen.

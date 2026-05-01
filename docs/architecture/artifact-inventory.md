@@ -25,6 +25,7 @@ Dateiendung ist Kleidung; Autorität ist Identität.
 | `<stem>_architecture.md` | `architecture_summary` | _(Schema-Zukunftsform: `diagnostic_signal`)_ | _(Schema-Zukunftsform: `diagnostic`)_ | `write_reports_v2` / `generate_architecture_summary` | Mensch, LLMs, Report-Konsumenten | - | Nein (nicht im Bundle Manifest) | Lesbare Architektur-Zusammenfassung |
 | `query_context_bundle.json`| - (Runtime Payload) | _(Phase 4)_ | _(Phase 4)_ | `retrieval.query_core` | CLI, WebUI, Agents | `query-context-bundle.v1.schema.json` | Nein (Runtime Output) | Context Expansion, UI Display |
 | `query_trace.json` | - (Runtime Payload) | _(Phase 4)_ | _(Phase 4)_ | `retrieval.query_core` | Debug CLI, Evaluatoren | extrahiert aus `query-result.v1.schema.json` | Nein (Runtime Output) | Ranking-Analyse (via `--trace`) |
+| `agent_query_session` (API Runtime) | - (Runtime Payload) | `runtime_observation` | `observation` | `service.app` via `retrieval.session.build_agent_query_session_v2` | Agents, Artifact Lookup (`/api/artifact_lookup`) | `merger/lenskit/contracts/agent-query-session.v2.schema.json` | Nein (Runtime Output) | Provenienz-Wrapper für Query-Kontext-Projektion; `artifact_shape`: `wrapper` |
 | `<stem>.retrieval_eval.json` | `retrieval_eval_json` | `diagnostic_signal` | `diagnostic` | `retrieval.eval_core` | CI, Entwickler | `retrieval-eval.v1.schema.json` | Ja (wenn vorhanden) | Evaluierungsmetriken |
 | `pr-schau-delta.json` | `delta_json` | _(Schema-Zukunftsform: `diagnostic_signal`)_ | _(Schema-Zukunftsform: `diagnostic`)_ | `core.pr_schau_bundle` (separater pr-schau-Bundle, nicht `bundle-manifest.v1`) | PR-Schau Frontends, Agents | `pr-schau-delta.v1.schema.json` | Nein (nicht im `bundle-manifest.v1`) | Code-Review Differentials |
 | `<stem>.entrypoints.json` | - (Hilfs-/Zwischenartefakt) | _(Phase 1: nicht annotiert)_ | _(Phase 1: nicht annotiert)_ | `architecture.entrypoints` | `architecture.graph_index` | `entrypoints.v1.schema.json` | Nein | Berechnung des Graph-Boosts |
@@ -40,14 +41,21 @@ Dateiendung ist Kleidung; Autorität ist Identität.
    In der aktuellen Implementierung ist der *Query Trace* konzeptionell als ein Teilfeld `query_trace` im `query-result.v1.schema.json` eingebettet und nicht primär als freistehendes Artefakt angelegt. Die Datei `query_trace.json` wird lediglich durch die CLI als Extrakt via `--trace` flag geschrieben.
 2. **`query_context_bundle.json`:**
    Das Context Bundle fungiert als Erweiterung des rohen Treffer-Sets und liefert neben dem Hit auch das *Evidence* (den Snippet) und die umgebenden *Contexts* (wie `graph_context`). Es ist im `query-result.v1.schema.json` via `$ref` zu `query-context-bundle.v1.schema.json` formell erlaubt und wird auf Runtime-Level (`cmd_query.py` und Output-Profile) projiziert.
-3. **Fehlende Phase-5-Artefakte:**
-   `federation_index.json`, `cross_repo_links.json`, `federation_conflicts.json` existieren derzeit nicht. Föderationsmechanismen sind nicht implementiert.
-4. **Begriffs-Dissonanzen (Repo-Kanonik vs. Dateinamen):**
+3. **`agent_query_session` (Runtime-Artefakt, Phase 6):**
+   Das `agent_query_session`-Artefakt ist ein Provenienz-Wrapper, der zur Query-Zeit gebaut und gespeichert wird (nicht beim Start oder Merge). Es beweist die Query-/Context-Projektion zum Zeitpunkt der Abfrage, **nicht** den live Repository-Zustand, semantische Vollständigkeit oder kanonischen Repository-Inhalt.
+   - `session_authority` ist immer `"agent_context_projection"` (const).
+   - `artifact_refs.agent_query_session_id` ist **immer null** im gespeicherten und im Response-Payload. Die Store-ID liegt ausschließlich in `artifact_ids.agent_query_session` im API-Response-Toplevel.
+   - Store-IDs für zugehörige Artefakte (`query_trace_id`, `context_bundle_id`) werden nach dem Speichern in `artifact_refs` eingetragen.
+   - Für `/api/federation/query` bleibt `artifact_refs.query_trace_id` bewusst null (kein standalone federation query_trace).
+   - `claim_boundaries.proves` und `claim_boundaries.does_not_prove` sind im Schema required und explizit gesetzt.
+4. **Phase-5-Artefakte und Implementierungsstand:**
+   Für `cross_repo_links` und `federation_conflicts` existieren eigene Contracts (`cross-repo-links.v1.schema.json`, `federation-conflicts.v1.schema.json`). Die offene Lücke betrifft nicht das Vorhandensein der Contracts, sondern die durchgängige Producer-/Runtime-/Persistenz-Umsetzung. `federation_conflicts` ist heuristisch/minimal im föderierten Query-/Trace-Pfad emittiert (`federation_query.py`) und per CLI-Trace persistierbar (`cmd_federation.py`); offen bleibt eine belastbare Identity- und Konfliktlogik. `cross_repo_links` ist als Contract vorbereitet, ohne Runtime-Producer. `federation_index.json` ist implementiert.
+5. **Begriffs-Dissonanzen (Repo-Kanonik vs. Dateinamen):**
    Einige Rollenbegriffe weichen historisch gewachsen von den Dateinamen ab. Um Semantic Drift zu vermeiden, dokumentiert dieses Inventar streng die in `merger/lenskit/core/constants.py` und `bundle-manifest.v1.schema.json` hartcodierten `ArtifactRole` Enums.
    - `index.sqlite` wird systemintern als `sqlite_index` geführt (statt `chunk_index_sqlite`).
    - `architecture_graph.json` und `architecture_summary` sind getrennt zu behandeln: `architecture_graph.json` bezeichnet Graph-/Importdaten, `architecture_summary` die lesbare `_architecture.md`-Zusammenfassung.
    - `pr-schau-delta.json` wird als `delta_json` deklariert.
-5. **Authority/Canonicality-Felder (Phase 1 + 3.5):**
+6. **Authority/Canonicality-Felder (Phase 1 + 3.5):**
    Die Felder `authority`, `canonicality`, `regenerable` und `staleness_sensitive` sind in `bundle-manifest.v1.schema.json` optional. `authority` und `canonicality` sind pro Rolle wertbeschränkt (z.B. darf `sqlite_index` keine `canonical_content`-Autorität tragen, `architecture_summary` keinen `content_source`-Status). `regenerable` und `staleness_sensitive` werden vom Producer emittiert und bleiben typgeprüft. `staleness_sensitive` beschreibt Bundle-interne Drift, nicht Aktualität gegenüber dem Live-Repository.
 
    **Vom Producer (`merger/lenskit/core/merge.py`, `AUTHORITY_REGISTRY`) aktiv emittiert (acht Rollen):**
@@ -60,4 +68,4 @@ Dateiendung ist Kleidung; Autorität ist Identität.
    **Außerhalb des Bundle-Manifest-Pfads (keine Schema-Constraints):**
    `query_context_bundle.json`, `query_trace.json` — Runtime-Payloads. `entrypoints.json`, `architecture_graph.json` — Zwischenartefakte für `build_derived_artifacts`. `source_file` — Range-Resolver-Konzept (`core.range_resolver`), nicht im Manifest.
 
-   Folgepunkte (außerhalb dieser PR-Stufe): Annotation für Runtime-Artefakte (Phase 4) und föderierte Artefakte (Phase 5).
+   Folgepunkte: Vollständige Authority/Canonicality-Annotation für `query_trace` und `query_context_bundle` (Phase 4); föderierte Artefakte (`cross_repo_links.json` Contract vorhanden, Runtime offen; `federation_conflicts.json` Contract vorhanden, heuristisch/minimal emittiert, Phase 5); `agent_query_session` ist als Phase-6-Runtime-Artefakt in diesem Inventar eingetragen (siehe Anmerkung 3).
