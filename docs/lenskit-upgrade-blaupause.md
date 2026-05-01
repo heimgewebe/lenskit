@@ -1676,8 +1676,8 @@ Ziel:
   CLI: nutzt physisches Artefakt `agent_query_session.json` (v1-Contract). Es bündelt Request-, Bundle-, Trace- und Diagnose-Bezüge.
   API (Provenienz gehärtet): liefert v2-Session als Inline-Payload **und** speichert sie als Runtime-Artefakt.
   Gespeicherter Stand (belegt durch `test_api_query_agent_session_artifact_refs_crosscheck` und `test_api_federation_query_agent_session_artifact_refs_crosscheck`):
-  - `/api/query` (trace=true): speichert `query_trace`, `context_bundle`, `agent_query_session`; gibt Store-IDs in `artifact_ids` zurück.
-  - `/api/federation/query` (trace=true): speichert `context_bundle` und `agent_query_session` (kein standalone `query_trace`); `artifact_refs.query_trace_id` bleibt bewusst null.
+  - `/api/query` (trace=true): speichert `query_trace`; `context_bundle` und `agent_query_session` werden gespeichert, wenn ein Context Bundle im Ergebnis vorhanden ist, die Session gebaut wird und `QueryArtifactStore` konfiguriert ist. Store-IDs erscheinen in `artifact_ids`.
+  - `/api/federation/query` (trace=true): speichert `context_bundle` und `agent_query_session` nur, wenn ein Context Bundle vorhanden ist, die Session gebaut wird und `QueryArtifactStore` konfiguriert ist. Es gibt keinen standalone `query_trace`; `artifact_refs.query_trace_id` bleibt bewusst null.
   - `artifact_refs.agent_query_session_id` bleibt **immer null** im Payload (Zirkel-Self-ID); die Store-ID liegt ausschließlich in `artifact_ids.agent_query_session`.
   - `/api/artifact_lookup` löst gespeicherte `agent_query_session`-Artefakte per `artifact_ids.agent_query_session` auf.
   Offen (nicht strukturell belegt): physischer Trace-Layer für Orchestrierungs-/Feedback-Schleifen, MCP-Anbindung, UI-Nutzung.
