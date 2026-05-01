@@ -715,10 +715,10 @@ def api_query(request: QueryRequest):
     # Build agent_query_session when trace is active and a context_bundle wrapper is present.
     # This is done unconditionally here so the session exists in both the store-active and
     # store-disabled paths. Artifact IDs are backfilled into artifact_refs if storage runs.
-    _session: Optional[Dict[str, Any]] = None
+    _agent_session: Optional[Dict[str, Any]] = None
     if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
-        _session = build_agent_query_session_v2(request.q, projected.get("context_bundle"))
-        projected["agent_query_session"] = _session
+        _agent_session = build_agent_query_session_v2(request.q, projected.get("context_bundle"))
+        projected["agent_query_session"] = _agent_session
 
     # Store query runtime artifacts so they can be retrieved via artifact_lookup.
     # Triggered when trace=True or build_context_bundle=True to keep storage opt-in.
@@ -754,11 +754,11 @@ def api_query(request: QueryRequest):
 
         # Backfill artifact IDs into the session's artifact_refs now that we have them.
         # agent_query_session_id stays null (the session hasn't been stored yet).
-        if _session is not None:
-            _session["artifact_refs"]["query_trace_id"] = _artifact_ids.get("query_trace")
-            _session["artifact_refs"]["context_bundle_id"] = _artifact_ids.get("context_bundle")
+        if _agent_session is not None:
+            _agent_session["artifact_refs"]["query_trace_id"] = _artifact_ids.get("query_trace")
+            _agent_session["artifact_refs"]["context_bundle_id"] = _artifact_ids.get("context_bundle")
             _artifact_ids["agent_query_session"] = state.query_artifact_store.store(
-                "agent_query_session", _session, _provenance, run_id=_run_id
+                "agent_query_session", _agent_session, _provenance, run_id=_run_id
             )
 
         if _artifact_ids:

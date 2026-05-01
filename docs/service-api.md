@@ -207,7 +207,7 @@ The `agent_query_session` is always classified as `session_authority: "agent_con
 
 **Schema:** `merger/lenskit/contracts/agent-query-session.v2.schema.json`
 
-
+## Job Submission & Dispatch
 
 ### `include_paths_by_repo` Semantics
 When submitting a job with `include_paths_by_repo`, the keys in the dictionary MUST exactly match the repository folder name as it exists on the Hub disk.
