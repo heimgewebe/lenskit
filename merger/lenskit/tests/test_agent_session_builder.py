@@ -387,3 +387,127 @@ def test_build_agent_query_session_v1_backward_compatibility():
 
     # Validate against v1 schema
     jsonschema.validate(instance=session, schema=schema)
+
+
+# ---------------------------------------------------------------------------
+# Provenance field tests (session_authority, context_source, artifact_refs,
+# claim_boundaries)
+# ---------------------------------------------------------------------------
+
+def test_builder_emits_session_authority():
+    """build_agent_query_session_v2 always emits session_authority == 'agent_context_projection'."""
+    session = build_agent_query_session_v2("authority test")
+    assert session["session_authority"] == "agent_context_projection"
+
+
+def test_builder_emits_session_authority_with_all_inputs():
+    """session_authority is constant regardless of inputs."""
+    bundle = _make_context_bundle([_make_hit("repo-a")])
+    trace = _make_federation_trace({"repo-a": "ok"})
+    session = build_agent_query_session_v2("q", context_bundle=bundle, federation_trace=trace)
+    assert session["session_authority"] == "agent_context_projection"
+
+
+def test_builder_emits_claim_boundaries():
+    """build_agent_query_session_v2 always emits claim_boundaries with proves and does_not_prove."""
+    session = build_agent_query_session_v2("claim test")
+    cb = session["claim_boundaries"]
+    assert isinstance(cb, dict)
+    assert isinstance(cb["proves"], list) and len(cb["proves"]) >= 1
+    assert isinstance(cb["does_not_prove"], list) and len(cb["does_not_prove"]) >= 1
+
+
+def test_builder_claim_boundaries_content():
+    """claim_boundaries content expresses provenance limits."""
+    session = build_agent_query_session_v2("content test")
+    does_not_prove = " ".join(session["claim_boundaries"]["does_not_prove"])
+    assert "live repository state" in does_not_prove
+    assert "canonical repository content" in does_not_prove
+
+
+def test_builder_top_level_context_source_projected():
+    """context_source (top-level) is 'projected' when only context_bundle is provided."""
+    bundle = _make_context_bundle([_make_hit("repo-a")])
+    session = build_agent_query_session_v2("ctx test", context_bundle=bundle)
+    assert session["context_source"] == "projected"
+    # session_meta.context_source stays on its own enum ("projected" is shared)
+    assert session["session_meta"]["context_source"] == "projected"
+
+
+def test_builder_top_level_context_source_federated():
+    """context_source is 'federated' when only federation_trace is provided."""
+    trace = _make_federation_trace({"repo-a": "ok"})
+    session = build_agent_query_session_v2("fed test", federation_trace=trace)
+    assert session["context_source"] == "federated"
+
+
+def test_builder_top_level_context_source_mixed():
+    """context_source is 'mixed' when both context_bundle and federation_trace are provided."""
+    bundle = _make_context_bundle([_make_hit("repo-a")])
+    trace = _make_federation_trace({"repo-a": "ok"})
+    session = build_agent_query_session_v2("mixed test", context_bundle=bundle, federation_trace=trace)
+    assert session["context_source"] == "mixed"
+    # Internal session_meta still uses "both"
+    assert session["session_meta"]["context_source"] == "both"
+
+
+def test_builder_top_level_context_source_unknown():
+    """context_source is 'unknown' when no sources are provided."""
+    session = build_agent_query_session_v2("bare query")
+    assert session["context_source"] == "unknown"
+    assert session["session_meta"]["context_source"] == "none"
+
+
+def test_builder_artifact_refs_are_null_when_ids_unavailable():
+    """artifact_refs are all null when no IDs are supplied (default)."""
+    session = build_agent_query_session_v2("null ids test")
+    refs = session["artifact_refs"]
+    assert refs["query_trace_id"] is None
+    assert refs["context_bundle_id"] is None
+    assert refs["agent_query_session_id"] is None
+
+
+def test_builder_artifact_refs_set_when_ids_provided():
+    """artifact_refs carry the supplied IDs without modification."""
+    session = build_agent_query_session_v2(
+        "ids test",
+        query_trace_id="qart-abc",
+        context_bundle_id="qart-def",
+        agent_query_session_id="qart-ghi",
+    )
+    refs = session["artifact_refs"]
+    assert refs["query_trace_id"] == "qart-abc"
+    assert refs["context_bundle_id"] == "qart-def"
+    assert refs["agent_query_session_id"] == "qart-ghi"
+
+
+def test_builder_artifact_refs_partial_ids():
+    """artifact_refs can have a mix of set and null IDs."""
+    session = build_agent_query_session_v2("partial ids", query_trace_id="qart-trace-1")
+    refs = session["artifact_refs"]
+    assert refs["query_trace_id"] == "qart-trace-1"
+    assert refs["context_bundle_id"] is None
+    assert refs["agent_query_session_id"] is None
+
+
+def test_builder_output_with_provenance_validates_against_v2_schema():
+    """Full provenance output (with IDs) validates against agent-query-session.v2.schema.json."""
+    try:
+        _require_module()
+    except RuntimeError:
+        pytest.skip("jsonschema not available")
+
+    schema_path = (
+        Path(__file__).parent.parent / "contracts" / "agent-query-session.v2.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    bundle = _make_context_bundle([_make_hit("repo-x", "c1")])
+    session = build_agent_query_session_v2(
+        "schema provenance test",
+        context_bundle=bundle,
+        query_trace_id="qart-trace-111",
+        context_bundle_id="qart-bundle-222",
+    )
+    jsonschema.validate(instance=session, schema=schema)
+

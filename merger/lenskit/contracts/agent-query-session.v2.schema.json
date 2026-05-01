@@ -53,6 +53,60 @@
           "description": "Number of bundles that were effectively queried (not filtered or skipped), or null for non-federated sessions."
         }
       }
+    },
+    "session_authority": {
+      "type": "string",
+      "const": "agent_context_projection",
+      "description": "Classifies this session as an agent context projection — not canonical repository content."
+    },
+    "context_source": {
+      "type": "string",
+      "enum": ["projected", "federated", "mixed", "unknown"],
+      "description": "Top-level provenance classification of the context used to build this session."
+    },
+    "artifact_refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Runtime artifact IDs that were used to build this session. Null when the ID was not available at build time.",
+      "required": [
+        "query_trace_id",
+        "context_bundle_id",
+        "agent_query_session_id"
+      ],
+      "properties": {
+        "query_trace_id": {
+          "type": ["string", "null"],
+          "description": "Stable artifact store ID of the query_trace artifact for this session."
+        },
+        "context_bundle_id": {
+          "type": ["string", "null"],
+          "description": "Stable artifact store ID of the context_bundle artifact for this session."
+        },
+        "agent_query_session_id": {
+          "type": ["string", "null"],
+          "description": "Stable artifact store ID of this agent_query_session artifact when explicitly provided by a caller. Service responses keep this field null and expose the assigned store ID via artifact_ids.agent_query_session."
+        }
+      }
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Explicit provenance boundary claims for this session.",
+      "required": ["proves", "does_not_prove"],
+      "properties": {
+        "proves": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1,
+          "description": "What this session explicitly proves."
+        },
+        "does_not_prove": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1,
+          "description": "What this session explicitly does not prove."
+        }
+      }
     }
   }
 }

@@ -186,6 +186,38 @@ Typed read-only facade over stored `query_trace` artifacts. Returns the trace pa
 - Extra request fields are rejected with HTTP 422 (`additionalProperties: false` per contract).
 - Contract: `merger/lenskit/contracts/trace-lookup.v1.schema.json`
 
+## Agent Query Session
+
+When `/api/query` or `/api/federation/query` is called with `trace=true` and a `context_bundle` is present in the result, the response wrapper includes an `agent_query_session` field. This includes context bundles produced by an `output_profile` as well as cases where `build_context_bundle=true`.
+
+**Provenance classification:**  
+The `agent_query_session` is always classified as `session_authority: "agent_context_projection"`. This means:
+- It is a projection built from query results and runtime artifact references — **not** canonical repository content.
+- `artifact_refs.query_trace_id` carries the stable artifact store ID for the `query_trace` artifact (`null` for `/api/federation/query`, which does not produce a standalone query_trace).
+- `artifact_refs.context_bundle_id` carries the stable artifact store ID for the `context_bundle` artifact (`null` if storage was not triggered, e.g. when `query_artifact_store` is unavailable).
+- `artifact_refs.agent_query_session_id` is **always `null`** in the stored and response payload. The self-ID is circular: the session must be stored before its own ID is known, and no store-update mechanism exists. The assigned ID is instead surfaced via `artifact_ids.agent_query_session` at the top level of the response.
+- `claim_boundaries.does_not_prove` explicitly states that the session does not prove live repository state, semantic completeness, or any truth beyond what the referenced artifacts contain at query time.
+
+**Artifact storage per endpoint:**
+
+Storage entries below assume `query_artifact_store` is configured. If the store is unavailable, runtime artifacts are not persisted and the corresponding IDs remain absent or `null`.
+
+| Endpoint | `query_trace` stored | `context_bundle` stored | `agent_query_session` stored |
+|---|---|---|---|
+| `/api/query` | Yes (when `trace=true`) | Yes (when `trace=true` or `build_context_bundle=true`) | Yes (when session is built) |
+| `/api/federation/query` | No (no standalone federation query_trace artifact) | Yes (when `trace=true` or `build_context_bundle=true`) | Yes (when session is built) |
+
+**Context source mapping:**
+
+| `session_meta.context_source` | Top-level `context_source` |
+|---|---|
+| `projected` | `projected` |
+| `federated` | `federated` |
+| `both` | `mixed` |
+| `none` | `unknown` |
+
+**Schema:** `merger/lenskit/contracts/agent-query-session.v2.schema.json`
+
 ## Job Submission & Dispatch
 
 ### `include_paths_by_repo` Semantics

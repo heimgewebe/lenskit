@@ -6,6 +6,12 @@ from merger.lenskit.service import app as service_app
 import json
 from merger.lenskit.retrieval import index_db
 
+# jsonschema is an optional dependency; tests that need it skip gracefully.
+try:
+    import jsonschema as _jsonschema
+except ImportError:
+    _jsonschema = None
+
 @pytest.fixture
 def mini_index(tmp_path):
     dump_path = tmp_path / "dump.json"
@@ -602,6 +608,103 @@ def test_api_query_agent_session_trace_exists(mini_index):
     assert "session_meta" in session
     assert session["session_meta"]["context_source"] == "projected"
 
+
+def test_api_query_agent_session_artifact_refs_crosscheck(mini_index):
+    """artifact_refs in agent_query_session must match artifact_ids in the response.
+
+    Verifies:
+    - artifact_ids.query_trace, artifact_ids.context_bundle, artifact_ids.agent_query_session
+      are all present when trace=True and storage is active.
+    - agent_query_session.artifact_refs.query_trace_id == artifact_ids.query_trace
+    - agent_query_session.artifact_refs.context_bundle_id == artifact_ids.context_bundle
+    - agent_query_session.artifact_refs.agent_query_session_id is None (Path 2 honest null:
+      self-ID is circular; it is available via artifact_ids.agent_query_session instead).
+    """
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "stale_policy": "ignore",
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data, "expected context_bundle wrapper when trace=True + profile"
+    assert "agent_query_session" in data, "expected agent_query_session in response"
+
+    # All three artifact IDs must be present in the top-level artifact_ids map.
+    assert "artifact_ids" in data, "artifact_ids missing from response"
+    artifact_ids = data["artifact_ids"]
+    assert "query_trace" in artifact_ids, "artifact_ids.query_trace missing"
+    assert "context_bundle" in artifact_ids, "artifact_ids.context_bundle missing"
+    assert "agent_query_session" in artifact_ids, "artifact_ids.agent_query_session missing"
+
+    session = data["agent_query_session"]
+    refs = session["artifact_refs"]
+
+    # Cross-check: refs inside the session must match the top-level artifact_ids.
+    assert refs["query_trace_id"] == artifact_ids["query_trace"], (
+        f"query_trace_id mismatch: refs={refs['query_trace_id']!r} vs artifact_ids={artifact_ids['query_trace']!r}"
+    )
+    assert refs["context_bundle_id"] == artifact_ids["context_bundle"], (
+        f"context_bundle_id mismatch: refs={refs['context_bundle_id']!r} vs artifact_ids={artifact_ids['context_bundle']!r}"
+    )
+
+    # Path 2: agent_query_session_id is intentionally null in the payload.
+    # The self-ID is circular and is exposed via artifact_ids.agent_query_session instead.
+    assert refs["agent_query_session_id"] is None, (
+        "agent_query_session_id must be null in the payload (self-ID is carried via "
+        f"artifact_ids.agent_query_session={artifact_ids['agent_query_session']!r})"
+    )
+
+    # Stored-session lookup roundtrip: the returned agent_query_session ID must resolve
+    # to a valid artifact, and its artifact_refs must match what was in the inline response.
+    session_lookup_resp = client.post(
+        "/api/artifact_lookup",
+        json={
+            "artifact_type": "agent_query_session",
+            "id": artifact_ids["agent_query_session"],
+        },
+        headers={"Authorization": "Bearer test_token"},
+    )
+    assert session_lookup_resp.status_code == 200
+    lookup_data = session_lookup_resp.json()
+    assert lookup_data["status"] == "ok", f"agent_query_session lookup failed: {lookup_data}"
+
+    artifact = lookup_data["artifact"]
+    assert artifact["authority"] == "runtime_observation"
+    assert artifact["canonicality"] == "observation"
+    assert artifact["artifact_shape"] == "wrapper"
+
+    stored_session = artifact["data"]
+    stored_refs = stored_session["artifact_refs"]
+    assert stored_refs["query_trace_id"] == artifact_ids["query_trace"], (
+        f"stored query_trace_id mismatch: {stored_refs['query_trace_id']!r} vs {artifact_ids['query_trace']!r}"
+    )
+    assert stored_refs["context_bundle_id"] == artifact_ids["context_bundle"], (
+        f"stored context_bundle_id mismatch: {stored_refs['context_bundle_id']!r} vs {artifact_ids['context_bundle']!r}"
+    )
+    assert stored_refs["agent_query_session_id"] is None, (
+        "stored agent_query_session_id must be null (self-ID is circular)"
+    )
+
+    # Stored provenance must use index_id (the schema-defined field name).
+    assert artifact["provenance"]["index_id"] == art.id, (
+        f"provenance.index_id mismatch: {artifact['provenance'].get('index_id')!r} vs {art.id!r}"
+    )
+
+    # Contract validation: lookup response must conform to artifact-lookup.v1.schema.json.
+    if _jsonschema is not None:
+        _lookup_schema = json.loads(
+            (Path(__file__).parents[1] / "contracts" / "artifact-lookup.v1.schema.json").read_text()
+        )
+        _jsonschema.validate(instance=lookup_data, schema=_lookup_schema)
 
 
 def test_api_query_agent_session_no_trace(mini_index):
