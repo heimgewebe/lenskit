@@ -622,15 +622,30 @@ def api_federation_query(request: FederationQueryRequest):
     projected = project_output(result, request.output_profile)
 
     # Build agent_query_session when trace is active and a context_bundle is present.
-    # Artifact IDs are backfilled into artifact_refs if storage runs.
+    # Use _extract_projected_context_bundle — the same helper used by the storage block
+    # below — so session-creation and storage share identical context-bundle recognition.
+    # This handles both wrapper-form {"context_bundle": ...} and direct-bundle form
+    # {"hits": [...], ...} uniformly, closing the asymmetry where storage handled both
+    # forms but session-creation only handled wrapper-form.
+    #
+    # Today, trace=True always produces wrapper-form in the federation path because
+    # execute_federated_query always emits federation_trace when trace=True, and
+    # project_output() always wraps when federation_trace is present. The symmetry
+    # fix future-proofs against changes to either of those functions.
     _fed_session: Optional[Dict[str, Any]] = None
-    if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
+    _fed_cb_for_session = _extract_projected_context_bundle(projected) if isinstance(projected, dict) else None
+    if request.trace and _fed_cb_for_session is not None:
         _fed_session = build_agent_query_session_v2(
             request.q,
-            context_bundle=projected.get("context_bundle"),
+            context_bundle=_fed_cb_for_session,
             federation_trace=result.get("federation_trace"),
         )
-        projected["agent_query_session"] = _fed_session
+        # Inject into projected only when it is wrapper-form. When projected is
+        # direct-bundle form, agent_query_session must NOT be mutated directly into
+        # the bundle (additionalProperties: false); it is attached in the wrapping
+        # step inside the storage block, or via the no-store fallback below.
+        if isinstance(projected, dict) and "context_bundle" in projected:
+            projected["agent_query_session"] = _fed_session
 
     # Store query runtime artifacts so they can be retrieved via artifact_lookup.
     # Triggered when trace=True or build_context_bundle=True to keep storage opt-in.
@@ -670,9 +685,17 @@ def api_federation_query(request: FederationQueryRequest):
             # Same wrapping rule as /api/query: don't inject artifact_ids into a bare
             # context_bundle (additionalProperties: false on the bundle schema).
             if "hits" in projected and "context_bundle" not in projected:
-                projected = {"context_bundle": projected, "artifact_ids": _fed_artifact_ids}
+                # Direct-bundle form: wrap and include session if present (session was not
+                # injected above for direct-bundle form; include it in the wrapper now).
+                wrapper: Dict[str, Any] = {"context_bundle": projected, "artifact_ids": _fed_artifact_ids}
+                if _fed_session is not None:
+                    wrapper["agent_query_session"] = _fed_session
+                projected = wrapper
             else:
                 projected["artifact_ids"] = _fed_artifact_ids
+    elif _fed_session is not None and isinstance(projected, dict) and "hits" in projected and "context_bundle" not in projected:
+        # No-store path, direct-bundle form: wrap to carry session without artifact_ids.
+        projected = {"context_bundle": projected, "agent_query_session": _fed_session}
 
     return projected
 
