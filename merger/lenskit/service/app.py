@@ -714,8 +714,8 @@ def api_query(request: QueryRequest):
 
     # Store query runtime artifacts so they can be retrieved via artifact_lookup.
     # Triggered when trace=True or build_context_bundle=True to keep storage opt-in.
-    # query_trace and context_bundle are stored BEFORE the session is built so that
-    # their stable artifact IDs can be embedded in the session's artifact_refs.
+    # query_trace and context_bundle are stored first so that their stable artifact IDs
+    # can be embedded in the agent_query_session's artifact_refs.
     _should_store = request.trace or request.build_context_bundle
     _artifact_ids: dict = {}
     if _should_store and state.query_artifact_store is not None and isinstance(projected, dict):
@@ -746,25 +746,21 @@ def api_query(request: QueryRequest):
                 "context_bundle", _cb, _provenance, run_id=_run_id
             )
 
-    # The projected output can be the raw bundle or a wrapper object.
-    # If tracing is enabled and a wrapper (containing context_bundle) is returned,
-    # the final API response wrapper will additionally contain 'agent_query_session'.
-    # artifact_refs carry the IDs stored above; agent_query_session_id is always null
-    # here because the session has not been stored yet (set after storage below).
-    if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
-        session = build_agent_query_session_v2(
-            request.q,
-            projected.get("context_bundle"),
-            query_trace_id=_artifact_ids.get("query_trace"),
-            context_bundle_id=_artifact_ids.get("context_bundle"),
-        )
-        projected["agent_query_session"] = session
-
-    if _should_store and state.query_artifact_store is not None and isinstance(projected, dict):
-        # agent_query_session: built above when trace=True; store it now that it exists
-        if "agent_query_session" in projected:
+        # The projected output can be the raw bundle or a wrapper object.
+        # If tracing is enabled and a wrapper (containing context_bundle) is returned,
+        # the final API response wrapper will additionally contain 'agent_query_session'.
+        # artifact_refs carry the IDs stored above; agent_query_session_id is always null
+        # here because the session has not been stored yet (it is stored immediately after).
+        if request.trace and "context_bundle" in projected:
+            session = build_agent_query_session_v2(
+                request.q,
+                projected.get("context_bundle"),
+                query_trace_id=_artifact_ids.get("query_trace"),
+                context_bundle_id=_artifact_ids.get("context_bundle"),
+            )
+            projected["agent_query_session"] = session
             _artifact_ids["agent_query_session"] = state.query_artifact_store.store(
-                "agent_query_session", projected["agent_query_session"], _provenance, run_id=_run_id
+                "agent_query_session", session, _provenance, run_id=_run_id
             )
 
         if _artifact_ids:
@@ -779,6 +775,11 @@ def api_query(request: QueryRequest):
                 projected = {"context_bundle": projected, "artifact_ids": _artifact_ids}
             else:
                 projected["artifact_ids"] = _artifact_ids
+    elif request.trace and isinstance(projected, dict) and "context_bundle" in projected:
+        # trace=True but storage is disabled (no artifact store) — still build the session
+        # inline without artifact IDs.
+        session = build_agent_query_session_v2(request.q, projected.get("context_bundle"))
+        projected["agent_query_session"] = session
 
     return projected
 
