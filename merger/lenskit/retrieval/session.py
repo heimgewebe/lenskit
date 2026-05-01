@@ -55,8 +55,9 @@ def build_agent_query_session_v2(
             execute_federated_query with trace=True).
         query_trace_id: Optional stable artifact store ID of the query_trace artifact.
         context_bundle_id: Optional stable artifact store ID of the context_bundle artifact.
-        agent_query_session_id: Optional stable artifact store ID of this session artifact
-            (null when the session has not yet been stored).
+        agent_query_session_id: Optional stable artifact store ID of this session artifact.
+            Service responses normally keep this null because the assigned self-ID is exposed
+            via artifact_ids.agent_query_session in the lookup response.
 
     Returns:
         A dict conforming to agent-query-session.v2.schema.json.
