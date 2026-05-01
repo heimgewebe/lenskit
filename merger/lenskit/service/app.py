@@ -982,6 +982,27 @@ def get_artifact(id: str):
     return art
 
 
+
+# ---------------------------------------------------------------------------
+# Runtime artifact metadata helpers (shared by artifact_lookup / trace_lookup /
+# context_lookup).  Keeping the field tuple and copy helper in one place means
+# all three endpoints update automatically when the metadata schema changes.
+# ---------------------------------------------------------------------------
+
+_RUNTIME_META_FIELDS = (
+    "authority",
+    "canonicality",
+    "artifact_shape",
+    "retention_policy",
+    "claim_boundaries",
+)
+
+
+def _copy_runtime_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a dict containing only the runtime metadata fields present in *entry*."""
+    return {field: entry[field] for field in _RUNTIME_META_FIELDS if field in entry}
+
+
 @app.post("/api/artifact_lookup", dependencies=[Depends(verify_token)])
 def api_artifact_lookup(request: ArtifactLookupRequest):
     """Retrieve a previously stored query runtime artifact by stable ID.
@@ -1025,15 +1046,12 @@ def api_artifact_lookup(request: ArtifactLookupRequest):
             ],
         }
 
-    _runtime_meta_fields = ("authority", "canonicality", "artifact_shape", "retention_policy", "claim_boundaries")
     artifact_payload: Dict[str, Any] = {
         "provenance": entry["provenance"],
         "created_at": entry["created_at"],
         "data": entry["data"],
+        **_copy_runtime_metadata(entry),
     }
-    for _field in _runtime_meta_fields:
-        if _field in entry:
-            artifact_payload[_field] = entry[_field]
 
     return {
         "artifact_type": entry["artifact_type"],
@@ -1088,7 +1106,6 @@ def api_trace_lookup(request: TraceLookupRequest):
             ],
         }
 
-    _runtime_meta_fields = ("authority", "canonicality", "artifact_shape", "retention_policy", "claim_boundaries")
     resp: Dict[str, Any] = {
         "status": "ok",
         "id": entry["id"],
@@ -1096,10 +1113,8 @@ def api_trace_lookup(request: TraceLookupRequest):
         "provenance": entry["provenance"],
         "created_at": entry["created_at"],
         "warnings": [],
+        **_copy_runtime_metadata(entry),
     }
-    for _field in _runtime_meta_fields:
-        if _field in entry:
-            resp[_field] = entry[_field]
     return resp
 
 
@@ -1148,7 +1163,6 @@ def api_context_lookup(request: ContextLookupRequest):
             ],
         }
 
-    _runtime_meta_fields = ("authority", "canonicality", "artifact_shape", "retention_policy", "claim_boundaries")
     resp: Dict[str, Any] = {
         "status": "ok",
         "id": entry["id"],
@@ -1156,10 +1170,8 @@ def api_context_lookup(request: ContextLookupRequest):
         "provenance": entry["provenance"],
         "created_at": entry["created_at"],
         "warnings": [],
+        **_copy_runtime_metadata(entry),
     }
-    for _field in _runtime_meta_fields:
-        if _field in entry:
-            resp[_field] = entry[_field]
     return resp
 
 

@@ -287,6 +287,21 @@ class TestQueryArtifactStore:
         assert entry["authority"] == "runtime_observation"
         assert entry["artifact_shape"] == "raw"
 
+    def test_runtime_metadata_claim_boundaries_are_not_shared_between_entries(self, store):
+        """claim_boundaries lists must not be shared between independently stored artifacts."""
+        prov = {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"}
+        first_id = store.store("query_trace", {}, prov)
+        second_id = store.store("query_trace", {}, prov)
+        first = store.get(first_id)
+        # Mutate the returned entry's claim_boundaries in-place.
+        first["claim_boundaries"]["does_not_prove"].append("MUTATION_SENTINEL")
+        second = store.get(second_id)
+        assert "MUTATION_SENTINEL" not in second["claim_boundaries"]["does_not_prove"]
+        # A third entry stored after the mutation must also be clean.
+        third_id = store.store("query_trace", {}, prov)
+        third = store.get(third_id)
+        assert "MUTATION_SENTINEL" not in third["claim_boundaries"]["does_not_prove"]
+
 
 # ---------------------------------------------------------------------------
 # API endpoint tests
@@ -631,7 +646,7 @@ class TestApiArtifactLookup:
             },
             "warnings": [],
         }
-        with pytest.raises(Exception):  # jsonschema.ValidationError
+        with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(instance=bad_payload, schema=schema)
 
     def test_schema_rejects_unknown_artifact_shape(self):
@@ -652,7 +667,7 @@ class TestApiArtifactLookup:
             },
             "warnings": [],
         }
-        with pytest.raises(Exception):  # jsonschema.ValidationError
+        with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(instance=bad_payload, schema=schema)
 
     def test_store_path_uses_merges_dir_when_set(self, api_client_custom_merges):
