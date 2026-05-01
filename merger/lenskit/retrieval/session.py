@@ -27,6 +27,9 @@ def build_agent_query_session_v2(
     query: str,
     context_bundle: Optional[Dict[str, Any]] = None,
     federation_trace: Optional[Dict[str, Any]] = None,
+    query_trace_id: Optional[str] = None,
+    context_bundle_id: Optional[str] = None,
+    agent_query_session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Builds a minimal agent query session from a query result.
@@ -37,12 +40,23 @@ def build_agent_query_session_v2(
     1. context_bundle.hits[*].epistemics.bundle_origin (string) for projected results.
     2. federation_trace.bundle_status keys where status is "ok" or "stale".
 
+    Provenance fields are always emitted:
+    - session_authority is always "agent_context_projection".
+    - context_source (top-level) maps the internal session_meta value to the
+      canonical provenance enum: "both" → "mixed", "none" → "unknown".
+    - artifact_refs carries runtime artifact store IDs; null when unavailable.
+    - claim_boundaries explicitly states what this session proves and does not prove.
+
     Args:
         query: The original query text.
         context_bundle: Optional projected context bundle (from execute_query /
             execute_federated_query with build_context=True).
         federation_trace: Optional federation execution trace (from
             execute_federated_query with trace=True).
+        query_trace_id: Optional stable artifact store ID of the query_trace artifact.
+        context_bundle_id: Optional stable artifact store ID of the context_bundle artifact.
+        agent_query_session_id: Optional stable artifact store ID of this session artifact
+            (null when the session has not yet been stored).
 
     Returns:
         A dict conforming to agent-query-session.v2.schema.json.
@@ -99,11 +113,38 @@ def build_agent_query_session_v2(
         session_meta["federation_bundle_count"] = None
         session_meta["federation_effective_count"] = None
 
+    # Top-level context_source uses the canonical provenance enum for v2 consumers.
+    # Mapping: "both" → "mixed" (projected + federated), "none" → "unknown".
+    _context_source_map = {
+        "projected": "projected",
+        "federated": "federated",
+        "both": "mixed",
+        "none": "unknown",
+    }
+    top_level_context_source = _context_source_map.get(context_source, "unknown")
+
     return {
         "query": query,
         "resolved_bundles": resolved_bundles,
         "hits_count": hits_count,
         "session_meta": session_meta,
+        "session_authority": "agent_context_projection",
+        "context_source": top_level_context_source,
+        "artifact_refs": {
+            "query_trace_id": query_trace_id,
+            "context_bundle_id": context_bundle_id,
+            "agent_query_session_id": agent_query_session_id,
+        },
+        "claim_boundaries": {
+            "proves": [
+                "This session was built from these query results and bundle/context references."
+            ],
+            "does_not_prove": [
+                "This session does not prove live repository state.",
+                "This session does not prove semantic completeness.",
+                "This session is an agent context projection, not canonical repository content.",
+            ],
+        },
     }
 
 

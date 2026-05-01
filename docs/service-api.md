@@ -186,7 +186,28 @@ Typed read-only facade over stored `query_trace` artifacts. Returns the trace pa
 - Extra request fields are rejected with HTTP 422 (`additionalProperties: false` per contract).
 - Contract: `merger/lenskit/contracts/trace-lookup.v1.schema.json`
 
-## Job Submission & Dispatch
+## Agent Query Session
+
+When `/api/query` or `/api/federation/query` is called with `trace=true` and an `output_profile` that produces a `context_bundle`, the response wrapper includes an `agent_query_session` field.
+
+**Provenance classification:**  
+The `agent_query_session` is always classified as `session_authority: "agent_context_projection"`. This means:
+- It is a projection built from query results and runtime artifact references — **not** canonical repository content.
+- `artifact_refs` carries the stable artifact store IDs for the `query_trace` and `context_bundle` used to build this session (both may be `null` if storage was not triggered).
+- `claim_boundaries.does_not_prove` explicitly states that the session does not prove live repository state, semantic completeness, or any truth beyond what the referenced artifacts contain at query time.
+
+**Context source mapping:**
+
+| `session_meta.context_source` | Top-level `context_source` |
+|---|---|
+| `projected` | `projected` |
+| `federated` | `federated` |
+| `both` | `mixed` |
+| `none` | `unknown` |
+
+**Schema:** `merger/lenskit/contracts/agent-query-session.v2.schema.json`
+
+
 
 ### `include_paths_by_repo` Semantics
 When submitting a job with `include_paths_by_repo`, the keys in the dictionary MUST exactly match the repository folder name as it exists on the Hub disk.
