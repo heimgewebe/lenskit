@@ -235,6 +235,7 @@ def test_agent_session_v2_rejects_partial_artifact_refs():
         jsonschema.validate(instance=session, schema=_v2_schema())
 
 
+def test_agent_session_v2_context_source_enum_values():
     """All four allowed context_source values are accepted by the schema."""
     try:
         _require_module()
