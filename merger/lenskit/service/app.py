@@ -541,6 +541,27 @@ def _is_safe_filename(name: str) -> bool:
     p = Path(name)
     return p.name == name and not p.is_absolute()
 
+
+def _extract_projected_context_bundle(projected: Any) -> Optional[Dict[str, Any]]:
+    """Return the context_bundle payload from a projected result, handling both shapes.
+
+    project_output() returns one of two forms when an output_profile is used:
+    - Wrapper: {"context_bundle": {...}, ...}  — when trace/conflicts/warnings are present.
+    - Direct bundle: {"query": ..., "hits": [...], ...}  — when no wrapper is needed.
+
+    In both cases this helper returns the bundle dict so callers don't need to branch.
+    Returns None when projected is not a dict or does not contain a bundle.
+    """
+    if not isinstance(projected, dict):
+        return None
+    cb = projected.get("context_bundle")
+    if isinstance(cb, dict):
+        return cb
+    if "hits" in projected:
+        return projected
+    return None
+
+
 @app.post("/api/federation/query", dependencies=[Depends(verify_token)])
 def api_federation_query(request: FederationQueryRequest):
     from ..retrieval.federation_query import execute_federated_query
@@ -600,7 +621,7 @@ def api_federation_query(request: FederationQueryRequest):
 
     projected = project_output(result, request.output_profile)
 
-    # Build agent_query_session when trace is active and a context_bundle wrapper is present.
+    # Build agent_query_session when trace is active and a context_bundle is present.
     # Artifact IDs are backfilled into artifact_refs if storage runs.
     _fed_session: Optional[Dict[str, Any]] = None
     if request.trace and isinstance(projected, dict) and "context_bundle" in projected:
@@ -627,7 +648,9 @@ def api_federation_query(request: FederationQueryRequest):
         _fed_artifact_ids: dict = {}
 
         # context_bundle: store the projected form returned to the client.
-        _fed_cb = projected.get("context_bundle")
+        # Use the helper to handle both wrapper-form (projected["context_bundle"])
+        # and direct-bundle form (projected has "hits" at top level, no "context_bundle" key).
+        _fed_cb = _extract_projected_context_bundle(projected)
         if _fed_cb is not None:
             _fed_artifact_ids["context_bundle"] = state.query_artifact_store.store(
                 "context_bundle", _fed_cb, _fed_provenance, run_id=_fed_run_id
