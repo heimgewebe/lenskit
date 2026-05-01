@@ -200,6 +200,8 @@ The `agent_query_session` is always classified as `session_authority: "agent_con
 
 **Artifact storage per endpoint:**
 
+Storage entries below assume `query_artifact_store` is configured. If the store is unavailable, runtime artifacts are not persisted and the corresponding IDs remain absent or `null`.
+
 | Endpoint | `query_trace` stored | `context_bundle` stored | `agent_query_session` stored |
 |---|---|---|---|
 | `/api/query` | Yes (when `trace=true`) | Yes (when `trace=true` or `build_context_bundle=true`) | Yes (when session is built) |

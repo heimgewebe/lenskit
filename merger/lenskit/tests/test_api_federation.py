@@ -242,6 +242,14 @@ def test_api_federation_query_agent_session_artifact_refs_crosscheck(fed_setup):
         )
         _jsonschema.validate(instance=lookup_data, schema=_lookup_schema)
 
+    # Stored provenance must use index_id (not the raw field name federation_index).
+    assert artifact["provenance"]["index_id"] == "federation.json", (
+        f"provenance.index_id mismatch: {artifact['provenance'].get('index_id')!r}"
+    )
+    assert "federation_index" not in artifact["provenance"], (
+        "provenance must not contain federation_index (not allowed by ArtifactProvenance schema)"
+    )
+
 
 def test_api_federation_build_context_bundle_direct_form_stores_artifact(fed_setup):
     """build_context_bundle=True with trace=False triggers context_bundle storage even when
