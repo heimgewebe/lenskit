@@ -61,6 +61,8 @@ Typed read-only facade over stored `context_bundle` artifacts. Returns the conte
   "canonicality": "observation",
   "artifact_shape": "projected",
   "retention_policy": "unbounded_currently",
+  "lifecycle_status": "active",
+  "expires_at": null,
   "claim_boundaries": {
     "does_not_prove": [
       "Artifact ID stability is limited to this store location.",
@@ -157,6 +159,8 @@ Typed read-only facade over stored `query_trace` artifacts. Returns the trace pa
   "canonicality": "observation",
   "artifact_shape": "raw",
   "retention_policy": "unbounded_currently",
+  "lifecycle_status": "active",
+  "expires_at": null,
   "claim_boundaries": {
     "does_not_prove": [
       "Artifact ID stability is limited to this store location.",
@@ -217,6 +221,22 @@ Storage entries below assume `query_artifact_store` is configured. If the store 
 | `none` | `unknown` |
 
 **Schema:** `merger/lenskit/contracts/agent-query-session.v2.schema.json`
+
+**Runtime Artifact Lifecycle Metadata (v1):**
+
+All runtime artifacts stored in the `QueryArtifactStore` (`query_trace`, `context_bundle`, `agent_query_session`) carry explicit lifecycle metadata:
+
+| Field | Value |
+|---|---|
+| `retention_policy` | `"unbounded_currently"` |
+| `lifecycle_status` | `"active"` |
+| `expires_at` | `null` |
+
+- No GC (Garbage Collection) is applied.
+- No TTL (Time-to-Live) is set.
+- No automatic deletion occurs.
+- Legacy entries missing these fields are transparently backfilled on read.
+- These fields are groundwork for future Retention, MCP, and Agent-Orchestration logic.
 
 ## Job Submission & Dispatch
 
