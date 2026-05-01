@@ -10,8 +10,20 @@ Diese Matrix dokumentiert den tatsächlichen, aktuellen Implementierungsstand im
 | **`retrieval.query_core` (Ranking)** | `index.sqlite`, `graph_index.json`, User Query | `query-result.v1.schema.json` compliant Dict, `query_context_bundle.json` | Nein (Direkt DB) | Output Profiling (Context Bundle) | FTS5 Query Expansion Fallback (OR). Graph Fallback (Status Flag). | Explizit. Stiller Fallback bei lexikalischem Token-Mangel, aber markiert im Explain. |
 | **`retrieval.eval_core` (Eval)** | `index.sqlite`, `graph_index.json`, `eval_queries.md` | `retrieval_eval.json` (Metrik Report) | Nein | Output Validierung (`retrieval-eval.v1.schema.json`) | Graph Missing (Baseline wird evaluiert, Graph Skip). | Explizit. Deltas werden in Metriken gezeigt (`baseline_mrr` vs `graph_mrr`). |
 | **`core.range_resolver`** | `.index.sqlite` (oder File System), `range_ref` | Snippets (Resolved Code) | Indirekt (Nutzt `.index.sqlite`) | Prüft `range-ref.v1.schema.json` Attribute | Source-Backed-Fallback (`derived_range_ref`) wenn Bundle-Backed fehlschlägt. | Explizit (Provenance Type wechselt). |
-| **`service.app` (API Backend)** | `index.sqlite` (via Runner Jobs), UI Files | HTTP JSON Responses, static UI | Ja (für Job Management) | API Contracts (Pydantic Models) | Job Cancel/Fail Status. HTTP 404, 500. | Explizit. API gibt `JobResponse` mit Log-Referenz zurück. |
+| **`service.app` (API Backend)** | `index.sqlite` (via Runner Jobs), UI Files | HTTP JSON Responses, static UI; Runtime-Artefakte `query_trace`, `context_bundle`, `agent_query_session` im `QueryArtifactStore` | Ja (für Job Management) | API Contracts (Pydantic Models) | Job Cancel/Fail Status. HTTP 404, 500. | Explizit. API gibt `JobResponse` mit Log-Referenz zurück. |
 | **`cli.cmd_query` (CLI)** | `index.sqlite`, Query Args | stdout/JSON, optionale Projektionen (`query_trace.json`, `query_context_bundle.json`) | Nein | Wandelt Result in CLI Formate um. | Output Profile Fallbacks (z.B. Context Window ignorieren wenn Mode nicht `window`). | Explizit. |
+
+## API Endpoint Storage Matrix
+
+Welche Artefakte werden pro Endpunkt gespeichert und unter welcher Bedingung:
+
+| Endpunkt | `query_trace` gespeichert | `context_bundle` gespeichert | `agent_query_session` gespeichert | `artifact_refs.query_trace_id` |
+| :--- | :--- | :--- | :--- | :--- |
+| `/api/query` | Ja, bei `trace=true` | Ja, bei `trace=true` oder `build_context_bundle=true` | Ja, wenn `trace=true` und Context Bundle vorhanden (Session gebaut) | Entspricht `artifact_ids.query_trace` |
+| `/api/federation/query` | **Nein** (kein standalone Federation Query Trace) | Ja, bei `trace=true` oder `build_context_bundle=true` | Ja, wenn Session gebaut | **Immer null** (kein standalone trace) |
+| `/api/artifact_lookup` | — (Lookup-Endpunkt, kein Speichern) | — | Löst `agent_query_session` per `artifact_ids.agent_query_session` auf | — |
+
+Hinweis: `artifact_refs.agent_query_session_id` ist **immer null** in gespeichertem Payload und Response (Zirkel-Self-ID). Die Store-ID ist ausschließlich über `artifact_ids.agent_query_session` im API-Response-Toplevel zugänglich.
 
 ## Bemerkungen zur Runtime
 
@@ -24,4 +36,5 @@ Diese Matrix dokumentiert den tatsächlichen, aktuellen Implementierungsstand im
 
 ## Bekannte Lücken (Runtime Matrix)
 
--   **Phase 5 (Cross-Repo-Föderation):** Föderierte Queries existieren nicht in der Runtime. Eine Query-Föderation (`federation_index`, `federated_query`) über mehrere Bundles hinweg ist nicht implementiert. Die Runtime ist isoliert pro Repository/Bundle.
+-   **Phase 5 (Cross-Repo-Föderation):** `federation_index.json` und föderierte Queries (`/api/federation/query`) sind implementiert (minimale Multi-Bundle-Aggregation). Offen: `cross_repo_links.json`, `federation_conflicts.json`, vollständige föderierte Ranking-Semantik.
+-   **Agent Control Surface (Phase 6):** `agent_query_session` Provenienz-Härtung und `/api/artifact_lookup`-Roundtrip sind belegt. Offen: Agent-Orchestrierung, Feedback-Schleifen, MCP-Anbindung, Lifecycle/Retention.
