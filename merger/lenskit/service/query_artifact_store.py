@@ -9,8 +9,6 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-VALID_ARTIFACT_TYPES = frozenset({"query_trace", "context_bundle", "agent_query_session"})
-
 _STORE_FILENAME = "query_artifacts.json"
 
 # Per-type classification metadata injected into every stored entry.
@@ -59,6 +57,9 @@ _RUNTIME_ARTIFACT_METADATA: Dict[str, Dict[str, Any]] = {
         },
     },
 }
+
+# Derived from _RUNTIME_ARTIFACT_METADATA so it can never drift out of sync.
+VALID_ARTIFACT_TYPES = frozenset(_RUNTIME_ARTIFACT_METADATA.keys())
 
 
 def _with_runtime_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -165,13 +166,14 @@ class QueryArtifactStore:
             prov.setdefault("run_id", run_id)
         prov.setdefault("run_id", None)
 
+        runtime_meta = copy.deepcopy(_RUNTIME_ARTIFACT_METADATA[artifact_type])
         entry: Dict[str, Any] = {
             "id": artifact_id,
             "artifact_type": artifact_type,
             "data": data,
             "provenance": prov,
             "created_at": now,
-            **_RUNTIME_ARTIFACT_METADATA[artifact_type],
+            **runtime_meta,
         }
 
         with self._lock:
