@@ -56,6 +56,36 @@
       "type": "array",
       "items": {"type": "string"},
       "description": "Non-fatal diagnostic messages (e.g. type mismatch naming the actual artifact type, store not initialized)."
+    },
+    "authority": {
+      "type": "string",
+      "description": "Authority class of this runtime artifact. Always 'runtime_observation' for context_bundle artifacts."
+    },
+    "canonicality": {
+      "type": "string",
+      "description": "Canonicality class. Always 'observation' for context_bundle artifacts."
+    },
+    "artifact_shape": {
+      "type": "string",
+      "enum": ["raw", "projected", "wrapper"],
+      "description": "Shape of the stored bundle data. Always 'projected' for context_bundle: API-projected form after output-profile filtering, not raw execute_query form."
+    },
+    "retention_policy": {
+      "type": "string",
+      "description": "Retention policy for this artifact in the store. 'unbounded_currently' means no GC is applied."
+    },
+    "claim_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["does_not_prove"],
+      "properties": {
+        "does_not_prove": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Statements this artifact does not prove."
+        }
+      },
+      "description": "Epistemic boundaries of this runtime artifact."
     }
   }
 }

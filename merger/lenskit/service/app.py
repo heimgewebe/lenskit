@@ -1025,15 +1025,21 @@ def api_artifact_lookup(request: ArtifactLookupRequest):
             ],
         }
 
+    _runtime_meta_fields = ("authority", "canonicality", "artifact_shape", "retention_policy", "claim_boundaries")
+    artifact_payload: Dict[str, Any] = {
+        "provenance": entry["provenance"],
+        "created_at": entry["created_at"],
+        "data": entry["data"],
+    }
+    for _field in _runtime_meta_fields:
+        if _field in entry:
+            artifact_payload[_field] = entry[_field]
+
     return {
         "artifact_type": entry["artifact_type"],
         "id": entry["id"],
         "status": "ok",
-        "artifact": {
-            "provenance": entry["provenance"],
-            "created_at": entry["created_at"],
-            "data": entry["data"],
-        },
+        "artifact": artifact_payload,
         "warnings": [],
     }
 
@@ -1082,7 +1088,8 @@ def api_trace_lookup(request: TraceLookupRequest):
             ],
         }
 
-    return {
+    _runtime_meta_fields = ("authority", "canonicality", "artifact_shape", "retention_policy", "claim_boundaries")
+    resp: Dict[str, Any] = {
         "status": "ok",
         "id": entry["id"],
         "trace": entry["data"],
@@ -1090,6 +1097,10 @@ def api_trace_lookup(request: TraceLookupRequest):
         "created_at": entry["created_at"],
         "warnings": [],
     }
+    for _field in _runtime_meta_fields:
+        if _field in entry:
+            resp[_field] = entry[_field]
+    return resp
 
 
 @app.post("/api/context_lookup", dependencies=[Depends(verify_token)])
@@ -1137,7 +1148,8 @@ def api_context_lookup(request: ContextLookupRequest):
             ],
         }
 
-    return {
+    _runtime_meta_fields = ("authority", "canonicality", "artifact_shape", "retention_policy", "claim_boundaries")
+    resp: Dict[str, Any] = {
         "status": "ok",
         "id": entry["id"],
         "context_bundle": entry["data"],
@@ -1145,6 +1157,10 @@ def api_context_lookup(request: ContextLookupRequest):
         "created_at": entry["created_at"],
         "warnings": [],
     }
+    for _field in _runtime_meta_fields:
+        if _field in entry:
+            resp[_field] = entry[_field]
+    return resp
 
 
 def _serve_file(base_dir: Path, requested_path: Union[str, Path], filename: Optional[str] = None) -> FileResponse:

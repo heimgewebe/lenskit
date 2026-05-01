@@ -12,6 +12,53 @@ VALID_ARTIFACT_TYPES = frozenset({"query_trace", "context_bundle", "agent_query_
 
 _STORE_FILENAME = "query_artifacts.json"
 
+# Per-type classification metadata injected into every stored entry.
+# authority/canonicality use the vocabulary from bundle-manifest.v1.schema.json.
+# artifact_shape encodes the stored data form:
+#   "raw"       — unmodified internal execute_query() output (query_trace)
+#   "projected" — API-projected form after output-profile filtering (context_bundle)
+#   "wrapper"   — session wrapper built from the projected context bundle (agent_query_session)
+# retention_policy reflects the store's current behaviour (no GC; unbounded growth).
+_RUNTIME_ARTIFACT_METADATA: Dict[str, Dict[str, Any]] = {
+    "query_trace": {
+        "authority": "runtime_observation",
+        "canonicality": "observation",
+        "artifact_shape": "raw",
+        "retention_policy": "unbounded_currently",
+        "claim_boundaries": {
+            "does_not_prove": [
+                "Artifact ID stability is limited to this store location.",
+                "Runtime artifact does not prove live repository state.",
+            ]
+        },
+    },
+    "context_bundle": {
+        "authority": "runtime_observation",
+        "canonicality": "observation",
+        "artifact_shape": "projected",
+        "retention_policy": "unbounded_currently",
+        "claim_boundaries": {
+            "does_not_prove": [
+                "Artifact ID stability is limited to this store location.",
+                "Runtime artifact does not prove live repository state.",
+                "Context bundle is stored in projected API form, not raw execute_query form.",
+            ]
+        },
+    },
+    "agent_query_session": {
+        "authority": "runtime_observation",
+        "canonicality": "observation",
+        "artifact_shape": "wrapper",
+        "retention_policy": "unbounded_currently",
+        "claim_boundaries": {
+            "does_not_prove": [
+                "Artifact ID stability is limited to this store location.",
+                "Runtime artifact does not prove live repository state.",
+            ]
+        },
+    },
+}
+
 
 class QueryArtifactStore:
     """Persistent store for query runtime artifacts.
@@ -101,6 +148,7 @@ class QueryArtifactStore:
             "data": data,
             "provenance": prov,
             "created_at": now,
+            **_RUNTIME_ARTIFACT_METADATA[artifact_type],
         }
 
         with self._lock:

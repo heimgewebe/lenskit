@@ -172,6 +172,47 @@ class TestQueryArtifactStore:
         ids = {store.store("query_trace", {}, prov) for _ in range(5)}
         assert len(ids) == 5
 
+    def test_store_contains_runtime_metadata_query_trace(self, store):
+        prov = {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"}
+        aid = store.store("query_trace", {}, prov)
+        entry = store.get(aid)
+        assert entry["authority"] == "runtime_observation"
+        assert entry["canonicality"] == "observation"
+        assert entry["artifact_shape"] == "raw"
+        assert entry["retention_policy"] == "unbounded_currently"
+        assert "claim_boundaries" in entry
+        assert "does_not_prove" in entry["claim_boundaries"]
+        assert len(entry["claim_boundaries"]["does_not_prove"]) >= 1
+
+    def test_context_bundle_artifact_shape_is_projected(self, store):
+        prov = {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"}
+        aid = store.store("context_bundle", {"query": "q", "hits": []}, prov)
+        entry = store.get(aid)
+        assert entry["artifact_shape"] == "projected"
+        assert "Context bundle is stored in projected API form" in " ".join(
+            entry["claim_boundaries"]["does_not_prove"]
+        )
+
+    def test_agent_query_session_artifact_shape_is_wrapper(self, store):
+        prov = {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"}
+        aid = store.store("agent_query_session", {"query": "q"}, prov)
+        entry = store.get(aid)
+        assert entry["artifact_shape"] == "wrapper"
+        assert entry["authority"] == "runtime_observation"
+
+    def test_runtime_metadata_survives_persistence_reload(self, tmp_path):
+        storage_dir = tmp_path / ".rlens-service"
+        store1 = QueryArtifactStore(storage_dir)
+        prov = {"source_query": "persist", "timestamp": "2024-01-01T00:00:00+00:00"}
+        aid = store1.store("context_bundle", {}, prov)
+
+        store2 = QueryArtifactStore(storage_dir)
+        entry = store2.get(aid)
+        assert entry is not None
+        assert entry["authority"] == "runtime_observation"
+        assert entry["artifact_shape"] == "projected"
+        assert "claim_boundaries" in entry
+
 
 # ---------------------------------------------------------------------------
 # API endpoint tests
@@ -406,6 +447,65 @@ class TestApiArtifactLookup:
         assert "context_bundle" in data["artifact_ids"], (
             "context_bundle artifact ID must be stored"
         )
+
+    def test_lookup_response_includes_runtime_metadata(self, api_client):
+        resp = api_client.post(
+            "/api/query",
+            json={
+                "index_id": "test-art",
+                "q": "main",
+                "trace": True,
+                "stale_policy": "ignore",
+            },
+            headers=_AUTH,
+        )
+        assert resp.status_code == 200
+        artifact_ids = resp.json().get("artifact_ids", {})
+        assert "query_trace" in artifact_ids
+        trace_id = artifact_ids["query_trace"]
+
+        lookup_resp = api_client.post(
+            "/api/artifact_lookup",
+            json={"artifact_type": "query_trace", "id": trace_id},
+            headers=_AUTH,
+        )
+        assert lookup_resp.status_code == 200
+        data = lookup_resp.json()
+        assert data["status"] == "ok"
+        art = data["artifact"]
+        assert art["authority"] == "runtime_observation"
+        assert art["canonicality"] == "observation"
+        assert art["artifact_shape"] == "raw"
+        assert art["retention_policy"] == "unbounded_currently"
+        assert "claim_boundaries" in art
+        assert "does_not_prove" in art["claim_boundaries"]
+
+    def test_context_bundle_lookup_includes_projected_shape(self, api_client):
+        resp = api_client.post(
+            "/api/query",
+            json={
+                "index_id": "test-art",
+                "q": "main",
+                "build_context_bundle": True,
+                "stale_policy": "ignore",
+            },
+            headers=_AUTH,
+        )
+        assert resp.status_code == 200
+        artifact_ids = resp.json().get("artifact_ids", {})
+        assert "context_bundle" in artifact_ids
+        cb_id = artifact_ids["context_bundle"]
+
+        lookup_resp = api_client.post(
+            "/api/artifact_lookup",
+            json={"artifact_type": "context_bundle", "id": cb_id},
+            headers=_AUTH,
+        )
+        assert lookup_resp.status_code == 200
+        data = lookup_resp.json()
+        assert data["status"] == "ok"
+        assert data["artifact"]["artifact_shape"] == "projected"
+        assert data["artifact"]["authority"] == "runtime_observation"
 
     def test_store_path_uses_merges_dir_when_set(self, api_client_custom_merges):
         """QueryArtifactStore must use merges_dir/.rlens-service when merges_dir is set."""
