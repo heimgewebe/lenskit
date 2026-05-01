@@ -68,6 +68,11 @@
       "type": "object",
       "additionalProperties": false,
       "description": "Runtime artifact IDs that were used to build this session. Null when the ID was not available at build time.",
+      "required": [
+        "query_trace_id",
+        "context_bundle_id",
+        "agent_query_session_id"
+      ],
       "properties": {
         "query_trace_id": {
           "type": ["string", "null"],
@@ -79,7 +84,7 @@
         },
         "agent_query_session_id": {
           "type": ["string", "null"],
-          "description": "Stable artifact store ID of this agent_query_session artifact (null: set after storage)."
+          "description": "Stable artifact store ID of this agent_query_session artifact when explicitly provided by a caller. Service responses keep this field null and expose the assigned store ID via artifact_ids.agent_query_session."
         }
       }
     },

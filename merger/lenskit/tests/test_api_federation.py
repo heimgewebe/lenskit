@@ -198,6 +198,37 @@ def test_api_federation_query_agent_session_artifact_refs_crosscheck(fed_setup):
         f"artifact_ids.agent_query_session={artifact_ids['agent_query_session']!r})"
     )
 
+    # Stored-session lookup roundtrip: the returned agent_query_session ID must resolve
+    # to a valid artifact, and its artifact_refs must match what was in the inline response.
+    session_lookup_resp = client.post(
+        "/api/artifact_lookup",
+        json={
+            "artifact_type": "agent_query_session",
+            "id": artifact_ids["agent_query_session"],
+        },
+        headers={"Authorization": "Bearer test_token"},
+    )
+    assert session_lookup_resp.status_code == 200
+    lookup_data = session_lookup_resp.json()
+    assert lookup_data["status"] == "ok", f"agent_query_session lookup failed: {lookup_data}"
+
+    artifact = lookup_data["artifact"]
+    assert artifact["authority"] == "runtime_observation"
+    assert artifact["canonicality"] == "observation"
+    assert artifact["artifact_shape"] == "wrapper"
+
+    stored_session = artifact["data"]
+    stored_refs = stored_session["artifact_refs"]
+    assert stored_refs["query_trace_id"] is None, (
+        "stored query_trace_id must be null for federation (no standalone query_trace artifact)"
+    )
+    assert stored_refs["context_bundle_id"] == artifact_ids["context_bundle"], (
+        f"stored context_bundle_id mismatch: {stored_refs['context_bundle_id']!r} vs {artifact_ids['context_bundle']!r}"
+    )
+    assert stored_refs["agent_query_session_id"] is None, (
+        "stored agent_query_session_id must be null (self-ID is circular)"
+    )
+
 
 def test_api_federation_build_context_bundle_direct_form_stores_artifact(fed_setup):
     """build_context_bundle=True with trace=False triggers context_bundle storage even when

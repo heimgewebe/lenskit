@@ -219,7 +219,22 @@ def test_agent_session_v2_rejects_extra_artifact_ref_properties():
         jsonschema.validate(instance=session, schema=_v2_schema())
 
 
-def test_agent_session_v2_context_source_enum_values():
+def test_agent_session_v2_rejects_partial_artifact_refs():
+    """artifact_refs must contain all three known keys when present."""
+    try:
+        _require_module()
+    except RuntimeError:
+        pytest.skip("jsonschema not installed")
+
+    session = _minimal_v2_session(
+        artifact_refs={
+            "context_bundle_id": "qart-context-only"
+        }
+    )
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=session, schema=_v2_schema())
+
+
     """All four allowed context_source values are accepted by the schema."""
     try:
         _require_module()

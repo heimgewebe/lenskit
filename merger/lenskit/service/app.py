@@ -543,14 +543,14 @@ def _is_safe_filename(name: str) -> bool:
 
 
 def _extract_projected_context_bundle(projected: Any) -> Optional[Dict[str, Any]]:
-    """Return the context_bundle payload from a projected result, handling both shapes.
+    """Return the context-bundle payload from a result-like dict.
 
-    project_output() returns one of two forms when an output_profile is used:
-    - Wrapper: {"context_bundle": {...}, ...}  — when trace/conflicts/warnings are present.
-    - Direct bundle: {"query": ..., "hits": [...], ...}  — when no wrapper is needed.
+    Accepted input shapes:
+    - Wrapper: {"context_bundle": {...}, ...}
+    - Direct bundle: {"query": ..., "hits": [...], ...}
 
-    In both cases this helper returns the bundle dict so callers don't need to branch.
-    Returns None when projected is not a dict or does not contain a bundle.
+    Returns the bundle dict for both shapes so callers do not need to branch.
+    Returns None when projected is not a dict or does not contain a bundle-like payload.
     """
     if not isinstance(projected, dict):
         return None
