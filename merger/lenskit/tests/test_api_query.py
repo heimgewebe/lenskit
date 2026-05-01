@@ -603,6 +603,60 @@ def test_api_query_agent_session_trace_exists(mini_index):
     assert session["session_meta"]["context_source"] == "projected"
 
 
+def test_api_query_agent_session_artifact_refs_crosscheck(mini_index):
+    """artifact_refs in agent_query_session must match artifact_ids in the response.
+
+    Verifies:
+    - artifact_ids.query_trace, artifact_ids.context_bundle, artifact_ids.agent_query_session
+      are all present when trace=True and storage is active.
+    - agent_query_session.artifact_refs.query_trace_id == artifact_ids.query_trace
+    - agent_query_session.artifact_refs.context_bundle_id == artifact_ids.context_bundle
+    - agent_query_session.artifact_refs.agent_query_session_id is None (Path 2 honest null:
+      self-ID is circular; it is available via artifact_ids.agent_query_session instead).
+    """
+    art = setup_test_artifact(mini_index)
+
+    request_data = {
+        "index_id": art.id,
+        "q": "hello",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+        "stale_policy": "ignore",
+    }
+
+    response = client.post("/api/query", json=request_data, headers={"Authorization": "Bearer test_token"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data, "expected context_bundle wrapper when trace=True + profile"
+    assert "agent_query_session" in data, "expected agent_query_session in response"
+
+    # All three artifact IDs must be present in the top-level artifact_ids map.
+    assert "artifact_ids" in data, "artifact_ids missing from response"
+    artifact_ids = data["artifact_ids"]
+    assert "query_trace" in artifact_ids, "artifact_ids.query_trace missing"
+    assert "context_bundle" in artifact_ids, "artifact_ids.context_bundle missing"
+    assert "agent_query_session" in artifact_ids, "artifact_ids.agent_query_session missing"
+
+    session = data["agent_query_session"]
+    refs = session["artifact_refs"]
+
+    # Cross-check: refs inside the session must match the top-level artifact_ids.
+    assert refs["query_trace_id"] == artifact_ids["query_trace"], (
+        f"query_trace_id mismatch: refs={refs['query_trace_id']!r} vs artifact_ids={artifact_ids['query_trace']!r}"
+    )
+    assert refs["context_bundle_id"] == artifact_ids["context_bundle"], (
+        f"context_bundle_id mismatch: refs={refs['context_bundle_id']!r} vs artifact_ids={artifact_ids['context_bundle']!r}"
+    )
+
+    # Path 2: agent_query_session_id is intentionally null in the payload.
+    # The self-ID is circular and is exposed via artifact_ids.agent_query_session instead.
+    assert refs["agent_query_session_id"] is None, (
+        "agent_query_session_id must be null in the payload (self-ID is carried via "
+        f"artifact_ids.agent_query_session={artifact_ids['agent_query_session']!r})"
+    )
+
 
 def test_api_query_agent_session_no_trace(mini_index):
     art = setup_test_artifact(mini_index)

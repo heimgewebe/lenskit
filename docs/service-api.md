@@ -193,8 +193,17 @@ When `/api/query` or `/api/federation/query` is called with `trace=true` and an 
 **Provenance classification:**  
 The `agent_query_session` is always classified as `session_authority: "agent_context_projection"`. This means:
 - It is a projection built from query results and runtime artifact references — **not** canonical repository content.
-- `artifact_refs` carries the stable artifact store IDs for the `query_trace` and `context_bundle` used to build this session (both may be `null` if storage was not triggered).
+- `artifact_refs.query_trace_id` carries the stable artifact store ID for the `query_trace` artifact (`null` for `/api/federation/query`, which does not produce a standalone query_trace).
+- `artifact_refs.context_bundle_id` carries the stable artifact store ID for the `context_bundle` artifact (`null` if storage was not triggered, e.g. when `query_artifact_store` is unavailable).
+- `artifact_refs.agent_query_session_id` is **always `null`** in the stored and response payload. The self-ID is circular: the session must be stored before its own ID is known, and no store-update mechanism exists. The assigned ID is instead surfaced via `artifact_ids.agent_query_session` at the top level of the response.
 - `claim_boundaries.does_not_prove` explicitly states that the session does not prove live repository state, semantic completeness, or any truth beyond what the referenced artifacts contain at query time.
+
+**Artifact storage per endpoint:**
+
+| Endpoint | `query_trace` stored | `context_bundle` stored | `agent_query_session` stored |
+|---|---|---|---|
+| `/api/query` | Yes (when `trace=true`) | Yes (when `trace=true` or `build_context_bundle=true`) | Yes (when session is built) |
+| `/api/federation/query` | No (no standalone federation query_trace artifact) | Yes (when `trace=true` or `build_context_bundle=true`) | Yes (when session is built) |
 
 **Context source mapping:**
 

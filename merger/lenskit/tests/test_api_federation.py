@@ -135,3 +135,138 @@ def test_api_federation_query_schema_validation_error(fed_setup):
     }
     response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
     assert response.status_code == 400
+
+
+def test_api_federation_query_agent_session_artifact_refs_crosscheck(fed_setup):
+    """artifact_refs in agent_query_session must match artifact_ids in the federation response.
+
+    Verifies:
+    - artifact_ids.context_bundle and artifact_ids.agent_query_session are present.
+    - artifact_ids.query_trace is absent (federation has no standalone query_trace artifact).
+    - agent_query_session.artifact_refs.context_bundle_id == artifact_ids.context_bundle
+    - agent_query_session.artifact_refs.query_trace_id is None (no standalone trace)
+    - agent_query_session.artifact_refs.agent_query_session_id is None (Path 2: self-ID
+      is circular; the assigned ID is surfaced via artifact_ids.agent_query_session).
+    """
+    request_data = {
+        "federation_index": "federation.json",
+        "q": "hello r1",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+    }
+
+    response = client.post(
+        "/api/federation/query",
+        json=request_data,
+        headers={"Authorization": "Bearer test_token"},
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data, "expected context_bundle wrapper"
+    assert "agent_query_session" in data, "expected agent_query_session in response"
+
+    # artifact_ids must include context_bundle and agent_query_session.
+    assert "artifact_ids" in data, "artifact_ids missing from federation response"
+    artifact_ids = data["artifact_ids"]
+    assert "context_bundle" in artifact_ids, "artifact_ids.context_bundle missing"
+    assert "agent_query_session" in artifact_ids, "artifact_ids.agent_query_session missing"
+    # Federation does not produce a standalone query_trace artifact.
+    assert "query_trace" not in artifact_ids, (
+        "artifact_ids.query_trace must not be present in federation response"
+    )
+
+    session = data["agent_query_session"]
+    refs = session["artifact_refs"]
+
+    # Cross-check: context_bundle_id in refs must match artifact_ids.
+    assert refs["context_bundle_id"] == artifact_ids["context_bundle"], (
+        f"context_bundle_id mismatch: refs={refs['context_bundle_id']!r} vs "
+        f"artifact_ids={artifact_ids['context_bundle']!r}"
+    )
+
+    # No standalone query_trace for federation — query_trace_id must be null.
+    assert refs["query_trace_id"] is None, (
+        "query_trace_id must be null for federation (no standalone query_trace artifact)"
+    )
+
+    # Path 2: agent_query_session_id is intentionally null (self-ID circular).
+    # The assigned ID is available via artifact_ids.agent_query_session.
+    assert refs["agent_query_session_id"] is None, (
+        "agent_query_session_id must be null in the payload (self-ID is carried via "
+        f"artifact_ids.agent_query_session={artifact_ids['agent_query_session']!r})"
+    )
+
+
+def test_api_federation_build_context_bundle_direct_form_stores_artifact(fed_setup):
+    """build_context_bundle=True with trace=False triggers context_bundle storage even when
+    project_output() returns the bundle directly (no context_bundle wrapper key).
+
+    With trace=False and no conflicts/warnings, project_output() returns the bundle at the
+    top level (hits key, no context_bundle key). The previous code used
+    projected.get("context_bundle") which missed this form. The fix uses
+    _extract_projected_context_bundle() which handles both shapes.
+
+    After storage, the wrapping rule fires (direct bundle + artifact_ids → wrapped under
+    context_bundle key), so the response has the form {"context_bundle": {...}, "artifact_ids": {...}}.
+
+    Verifies:
+    - artifact_ids.context_bundle is present.
+    - artifact_ids.query_trace is absent (trace=False).
+    - agent_query_session is absent (trace=False, no session built).
+    - /api/artifact_lookup with the returned ID returns status=ok with runtime metadata.
+    """
+    request_data = {
+        "federation_index": "federation.json",
+        "q": "hello r1",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "build_context_bundle": True,
+        "trace": False,
+    }
+
+    response = client.post(
+        "/api/federation/query",
+        json=request_data,
+        headers={"Authorization": "Bearer test_token"},
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    # project_output() returns the bundle directly; after storage the wrapping rule fires,
+    # so the response carries the bundle under "context_bundle".
+    assert "context_bundle" in data, (
+        "context_bundle must be present in response (wrapping rule fires after storage)"
+    )
+    assert "artifact_ids" in data, (
+        "artifact_ids missing — context_bundle was not stored for direct-bundle form"
+    )
+    artifact_ids = data["artifact_ids"]
+    assert "context_bundle" in artifact_ids, (
+        "artifact_ids.context_bundle missing despite build_context_bundle=True"
+    )
+
+    # No trace, no session.
+    assert "query_trace" not in artifact_ids, "artifact_ids.query_trace must be absent (trace=False)"
+    assert "agent_query_session" not in artifact_ids, (
+        "artifact_ids.agent_query_session must be absent (no session when trace=False)"
+    )
+    assert "agent_query_session" not in data, "agent_query_session must not appear (trace=False)"
+
+    # Artifact lookup roundtrip: the returned ID must resolve to a valid context_bundle.
+    cb_id = artifact_ids["context_bundle"]
+    lookup_resp = client.post(
+        "/api/artifact_lookup",
+        json={"artifact_type": "context_bundle", "id": cb_id},
+        headers={"Authorization": "Bearer test_token"},
+    )
+    assert lookup_resp.status_code == 200
+    lookup_data = lookup_resp.json()
+    assert lookup_data["status"] == "ok", f"lookup failed: {lookup_data}"
+
+    artifact = lookup_data["artifact"]
+    # Stored artifact must carry the runtime classification metadata.
+    assert artifact.get("authority") == "runtime_observation"
+    assert artifact.get("canonicality") == "observation"
+    assert artifact.get("artifact_shape") == "projected"
