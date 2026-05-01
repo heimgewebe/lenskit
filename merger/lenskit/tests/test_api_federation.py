@@ -135,3 +135,65 @@ def test_api_federation_query_schema_validation_error(fed_setup):
     }
     response = client.post("/api/federation/query", json=request_data, headers={"Authorization": "Bearer test_token"})
     assert response.status_code == 400
+
+
+def test_api_federation_query_agent_session_artifact_refs_crosscheck(fed_setup):
+    """artifact_refs in agent_query_session must match artifact_ids in the federation response.
+
+    Verifies:
+    - artifact_ids.context_bundle and artifact_ids.agent_query_session are present.
+    - artifact_ids.query_trace is absent (federation has no standalone query_trace artifact).
+    - agent_query_session.artifact_refs.context_bundle_id == artifact_ids.context_bundle
+    - agent_query_session.artifact_refs.query_trace_id is None (no standalone trace)
+    - agent_query_session.artifact_refs.agent_query_session_id is None (Path 2: self-ID
+      is circular; the assigned ID is surfaced via artifact_ids.agent_query_session).
+    """
+    request_data = {
+        "federation_index": "federation.json",
+        "q": "hello r1",
+        "k": 1,
+        "output_profile": "agent_minimal",
+        "trace": True,
+    }
+
+    response = client.post(
+        "/api/federation/query",
+        json=request_data,
+        headers={"Authorization": "Bearer test_token"},
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "context_bundle" in data, "expected context_bundle wrapper"
+    assert "agent_query_session" in data, "expected agent_query_session in response"
+
+    # artifact_ids must include context_bundle and agent_query_session.
+    assert "artifact_ids" in data, "artifact_ids missing from federation response"
+    artifact_ids = data["artifact_ids"]
+    assert "context_bundle" in artifact_ids, "artifact_ids.context_bundle missing"
+    assert "agent_query_session" in artifact_ids, "artifact_ids.agent_query_session missing"
+    # Federation does not produce a standalone query_trace artifact.
+    assert "query_trace" not in artifact_ids, (
+        "artifact_ids.query_trace must not be present in federation response"
+    )
+
+    session = data["agent_query_session"]
+    refs = session["artifact_refs"]
+
+    # Cross-check: context_bundle_id in refs must match artifact_ids.
+    assert refs["context_bundle_id"] == artifact_ids["context_bundle"], (
+        f"context_bundle_id mismatch: refs={refs['context_bundle_id']!r} vs "
+        f"artifact_ids={artifact_ids['context_bundle']!r}"
+    )
+
+    # No standalone query_trace for federation — query_trace_id must be null.
+    assert refs["query_trace_id"] is None, (
+        "query_trace_id must be null for federation (no standalone query_trace artifact)"
+    )
+
+    # Path 2: agent_query_session_id is intentionally null (self-ID circular).
+    # The assigned ID is available via artifact_ids.agent_query_session.
+    assert refs["agent_query_session_id"] is None, (
+        "agent_query_session_id must be null in the payload (self-ID is carried via "
+        f"artifact_ids.agent_query_session={artifact_ids['agent_query_session']!r})"
+    )
