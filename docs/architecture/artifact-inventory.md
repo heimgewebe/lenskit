@@ -50,12 +50,12 @@ Dateiendung ist Kleidung; Autorität ist Identität.
    - `claim_boundaries.proves` und `claim_boundaries.does_not_prove` sind im Schema required und explizit gesetzt.
 4. **Fehlende Phase-5-Artefakte:**
    `cross_repo_links.json`, `federation_conflicts.json` existieren derzeit nicht als eigene Schema-Artefakte. `federation_index.json` ist implementiert.
-4. **Begriffs-Dissonanzen (Repo-Kanonik vs. Dateinamen):**
+5. **Begriffs-Dissonanzen (Repo-Kanonik vs. Dateinamen):**
    Einige Rollenbegriffe weichen historisch gewachsen von den Dateinamen ab. Um Semantic Drift zu vermeiden, dokumentiert dieses Inventar streng die in `merger/lenskit/core/constants.py` und `bundle-manifest.v1.schema.json` hartcodierten `ArtifactRole` Enums.
    - `index.sqlite` wird systemintern als `sqlite_index` geführt (statt `chunk_index_sqlite`).
    - `architecture_graph.json` und `architecture_summary` sind getrennt zu behandeln: `architecture_graph.json` bezeichnet Graph-/Importdaten, `architecture_summary` die lesbare `_architecture.md`-Zusammenfassung.
    - `pr-schau-delta.json` wird als `delta_json` deklariert.
-5. **Authority/Canonicality-Felder (Phase 1 + 3.5):**
+6. **Authority/Canonicality-Felder (Phase 1 + 3.5):**
    Die Felder `authority`, `canonicality`, `regenerable` und `staleness_sensitive` sind in `bundle-manifest.v1.schema.json` optional. `authority` und `canonicality` sind pro Rolle wertbeschränkt (z.B. darf `sqlite_index` keine `canonical_content`-Autorität tragen, `architecture_summary` keinen `content_source`-Status). `regenerable` und `staleness_sensitive` werden vom Producer emittiert und bleiben typgeprüft. `staleness_sensitive` beschreibt Bundle-interne Drift, nicht Aktualität gegenüber dem Live-Repository.
 
    **Vom Producer (`merger/lenskit/core/merge.py`, `AUTHORITY_REGISTRY`) aktiv emittiert (acht Rollen):**
