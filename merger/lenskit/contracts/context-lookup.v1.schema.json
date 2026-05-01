@@ -58,20 +58,19 @@
       "description": "Non-fatal diagnostic messages (e.g. type mismatch naming the actual artifact type, store not initialized)."
     },
     "authority": {
-      "type": "string",
+      "const": "runtime_observation",
       "description": "Authority class of this runtime artifact. Always 'runtime_observation' for context_bundle artifacts."
     },
     "canonicality": {
-      "type": "string",
+      "const": "observation",
       "description": "Canonicality class. Always 'observation' for context_bundle artifacts."
     },
     "artifact_shape": {
-      "type": "string",
-      "enum": ["raw", "projected", "wrapper"],
+      "const": "projected",
       "description": "Shape of the stored bundle data. Always 'projected' for context_bundle: API-projected form after output-profile filtering, not raw execute_query form."
     },
     "retention_policy": {
-      "type": "string",
+      "const": "unbounded_currently",
       "description": "Retention policy for this artifact in the store. 'unbounded_currently' means no GC is applied."
     },
     "claim_boundaries": {

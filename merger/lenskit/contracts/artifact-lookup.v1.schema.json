@@ -62,11 +62,11 @@
           "description": "The artifact payload. Structure depends on artifact_type."
         },
         "authority": {
-          "type": "string",
+          "const": "runtime_observation",
           "description": "Authority class of this runtime artifact. Always 'runtime_observation' for query runtime artifacts."
         },
         "canonicality": {
-          "type": "string",
+          "const": "observation",
           "description": "Canonicality class. Always 'observation' for query runtime artifacts."
         },
         "artifact_shape": {
@@ -75,7 +75,7 @@
           "description": "Shape of the stored artifact data: 'raw' = internal execute_query form (query_trace), 'projected' = API-projected form after output-profile filtering (context_bundle), 'wrapper' = session wrapper built from the projected form (agent_query_session)."
         },
         "retention_policy": {
-          "type": "string",
+          "const": "unbounded_currently",
           "description": "Retention policy for this artifact in the store. 'unbounded_currently' means no GC is applied."
         },
         "claim_boundaries": {

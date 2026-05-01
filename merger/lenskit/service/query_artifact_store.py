@@ -1,4 +1,5 @@
 import json
+import copy
 import threading
 import uuid
 import logging
@@ -58,6 +59,28 @@ _RUNTIME_ARTIFACT_METADATA: Dict[str, Dict[str, Any]] = {
         },
     },
 }
+
+
+def _with_runtime_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Return entry with runtime classification fields guaranteed.
+
+    New entries written by store() already contain all fields.  Legacy entries
+    loaded from disk may predate this PR and lack authority/canonicality/
+    artifact_shape/retention_policy/claim_boundaries.  This helper backfills
+    those fields from _RUNTIME_ARTIFACT_METADATA without mutating the cached
+    dict and without overwriting any field that was already present.
+
+    Unknown artifact_types (shouldn't happen, but safe to handle) are returned
+    as-is.  deepcopy on the meta template prevents claim_boundaries list
+    aliasing across callers.
+    """
+    artifact_type = entry.get("artifact_type")
+    meta = _RUNTIME_ARTIFACT_METADATA.get(artifact_type)
+    if not meta:
+        return dict(entry)
+    merged = copy.deepcopy(meta)
+    merged.update(entry)
+    return merged
 
 
 class QueryArtifactStore:
@@ -158,14 +181,22 @@ class QueryArtifactStore:
         return artifact_id
 
     def get(self, artifact_id: str) -> Optional[Dict[str, Any]]:
-        """Return the stored entry for artifact_id, or None if not found."""
+        """Return the stored entry for artifact_id, or None if not found.
+
+        Always returns a dict with runtime classification fields present,
+        backfilling from _RUNTIME_ARTIFACT_METADATA for legacy entries that
+        predate the metadata schema addition.
+        """
         with self._lock:
-            return self._cache.get(artifact_id)
+            raw = self._cache.get(artifact_id)
+            if raw is None:
+                return None
+            return _with_runtime_metadata(raw)
 
     def get_all(self) -> List[Dict[str, Any]]:
         with self._lock:
             return sorted(
-                self._cache.values(),
+                (_with_runtime_metadata(e) for e in self._cache.values()),
                 key=lambda e: e.get("created_at", ""),
                 reverse=True,
             )
