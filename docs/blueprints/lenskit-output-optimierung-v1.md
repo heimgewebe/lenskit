@@ -91,7 +91,7 @@
 - [ ] Algorithmus umsetzen:
   - [ ] `content = chunk.get("content")`
   - [ ] Fallback: `content = resolve_range_ref(content_range_ref, artifact_dir)`
-  - [ ] Hash prüfen: `sha256(canonical_md_bytes[start_byte:end_byte]) == ref.content_sha256`; erst danach wird der Byte-Slice für FTS dekodiert.
+  - [ ] Hash prüfen: `sha256(canonical_md_bytes[start_byte:end_byte]) == ref.content_sha256` mit Python-Slice-Semantik: `start_byte` inklusiv, `end_byte` exklusiv; Hash über Rohbytes vor Dekodierung; erst danach wird der Byte-Slice für FTS dekodiert.
   - [ ] In `chunks_fts(chunk_id, content, path_tokens)` schreiben
 
 ### Target-Proof
@@ -289,14 +289,18 @@
   - [ ] `avg(length(content)) == 0`
   - [ ] `max(length(content)) == 0`
 
-Reproduzierbares Befundskript:
+Reproduzierbares Befundskript (Pfade gelten für den Befundträger `lenskit-max-260502-1126_*`; für spätere Outputs `STEM` und Dateinamen entsprechend anpassen):
 
 ```bash
 python - <<'PY'
 import json, sqlite3, pathlib
 
-chunk = pathlib.Path("lenskit-max-260502-1126_merge.chunk_index.jsonl")
-db = pathlib.Path("lenskit-max-260502-1126_merge.chunk_index.index.sqlite")
+# Befundträger dieser Blaupause: lenskit-max-260502-1126_*
+# Für spätere Outputs STEM hier anpassen:
+STEM = "lenskit-max-260502-1126"
+
+chunk = pathlib.Path(f"{STEM}_merge.chunk_index.jsonl")
+db = pathlib.Path(f"{STEM}_merge.chunk_index.index.sqlite")
 
 n = has_content = has_ref = 0
 for line in chunk.read_text(encoding="utf-8").splitlines():
