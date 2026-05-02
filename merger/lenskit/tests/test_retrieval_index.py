@@ -131,3 +131,120 @@ def test_build_index_closes_connection_on_error(tmp_path):
             index_db.build_index(dump_path, chunk_path, db_path)
 
     mock_conn.close.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# FTS content hydration from content_range_ref (PR 1)
+# ---------------------------------------------------------------------------
+
+def _make_range_ref_env(tmp_path):
+    """
+    Build a minimal but valid environment for content_range_ref resolution:
+    - canonical_md file with known content
+    - dump_index.json with contract == "dump-index" pointing to it
+    Returns (dump_path, canonical_md_path, ref_dict, expected_text)
+    """
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    # Use a unique token so we can later verify the FTS hit
+    content = "# Section\n\nhydrated_unique_token_xq7z is the search term.\n"
+    canonical_bytes = content.encode("utf-8")
+    canonical_md.write_bytes(canonical_bytes)
+
+    start_byte = 0
+    end_byte = len(canonical_bytes)
+    sha = hashlib.sha256(canonical_bytes[start_byte:end_byte]).hexdigest()
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": canonical_md.name,
+        "start_byte": start_byte,
+        "end_byte": end_byte,
+        "start_line": 1,
+        "end_line": 3,
+        "content_sha256": sha,
+    }
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": canonical_md.name,
+            }
+        }
+    }))
+
+    return dump_path, canonical_md, ref, content
+
+
+def test_fts_content_hydrated_from_range_ref(tmp_path):
+    """Chunk without inline content but with content_range_ref must have FTS content populated."""
+    dump_path, canonical_md, ref, expected_text = _make_range_ref_env(tmp_path)
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    with chunk_path.open("w") as f:
+        f.write(json.dumps({
+            "chunk_id": "c_ref",
+            "repo_id": "testrepo",
+            "path": "docs/section.md",
+            "layer": "core",
+            "content_range_ref": ref,
+            # intentionally NO "content" key
+        }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        # FTS content must not be empty
+        row = conn.execute(
+            "SELECT content FROM chunks_fts WHERE chunk_id = 'c_ref'"
+        ).fetchone()
+        assert row is not None, "No FTS row found for chunk c_ref"
+        assert row[0] == expected_text, (
+            f"FTS content mismatch. Got: {row[0]!r}"
+        )
+
+        # A term that only appears in the resolved content must produce an FTS hit
+        hits = conn.execute(
+            "SELECT chunk_id FROM chunks_fts WHERE chunks_fts MATCH 'hydrated_unique_token_xq7z'"
+        ).fetchall()
+        assert any(h[0] == "c_ref" for h in hits), (
+            "FTS query for term in resolved range content returned no hits"
+        )
+
+        # Hydration stat is recorded in index_meta
+        meta = dict(conn.execute("SELECT key, value FROM index_meta").fetchall())
+        assert meta.get("ingest.fts_hydrated_from_range_ref") == "1"
+    finally:
+        conn.close()
+
+
+def test_fts_content_hydration_hash_mismatch_raises(tmp_path):
+    """A wrong content_sha256 in content_range_ref must cause a controlled failure."""
+    dump_path, canonical_md, ref, _ = _make_range_ref_env(tmp_path)
+
+    # Tamper the hash
+    bad_ref = dict(ref)
+    bad_ref["content_sha256"] = "a" * 64
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    with chunk_path.open("w") as f:
+        f.write(json.dumps({
+            "chunk_id": "c_bad_hash",
+            "repo_id": "testrepo",
+            "path": "docs/section.md",
+            "layer": "core",
+            "content_range_ref": bad_ref,
+        }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="FTS hydration failed"):
+        index_db.build_index(dump_path, chunk_path, db_path)
