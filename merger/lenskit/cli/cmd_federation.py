@@ -153,6 +153,13 @@ def handle_federation_command(args: argparse.Namespace) -> int:
                 with conflicts_out_path.open("w", encoding="utf-8") as f:
                     json.dump(conflicts, f, indent=2)
 
+            # Write cross-repo links if requested
+            cross_repo_links = res.get("cross_repo_links")
+            if args.trace and cross_repo_links:
+                links_out_path = Path("cross_repo_links.json")
+                with links_out_path.open("w", encoding="utf-8") as f:
+                    json.dump(cross_repo_links, f, indent=2)
+
             return 0
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)

@@ -5,6 +5,46 @@ from typing import Dict, Any, Optional
 from .query_core import execute_query
 from ..core.federation import validate_federation
 
+def _build_cross_repo_links(all_results: list) -> list:
+    """
+    Builds minimal, schema-valid cross_repo_links for heuristic co-occurrence between repos.
+
+    Strategy: When results from at least two distinct bundles/repos appear in the federated result
+    set, one "co_occurrence" link is built per unique sorted (source_repo, target_repo) pair.
+    confidence is always "inferred" — no identity claims are made.
+    Ranking and result ordering are not modified.
+    """
+    repo_chunks: Dict[str, list] = {}
+    for hit in all_results:
+        repo_id = hit.get("federation_bundle", "")
+        chunk_id = hit.get("chunk_id", "")
+        if repo_id and chunk_id:
+            if repo_id not in repo_chunks:
+                repo_chunks[repo_id] = []
+            repo_chunks[repo_id].append(chunk_id)
+
+    repos = sorted(repo_chunks.keys())
+    if len(repos) < 2:
+        return []
+
+    links = []
+    for i in range(len(repos)):
+        for j in range(i + 1, len(repos)):
+            repo_a = repos[i]
+            repo_b = repos[j]
+            # Bounded evidence: up to 5 chunk_ids from each repo to keep output compact
+            evidence: list = repo_chunks[repo_a][:5] + repo_chunks[repo_b][:5]
+            links.append({
+                "source_repo": repo_a,
+                "target_repo": repo_b,
+                "link_type": "co_occurrence",
+                "confidence": "inferred",
+                "evidence_refs": evidence,
+            })
+
+    return links
+
+
 def _find_bundle_index(bundle_path: Path) -> Optional[Path]:
     """
     Deterministically resolves the SQLite index for a given bundle path.
@@ -245,6 +285,10 @@ def execute_federated_query(
 
     if conflicts:
         out["federation_conflicts"] = conflicts
+
+    cross_repo_links = _build_cross_repo_links(all_results)
+    if cross_repo_links:
+        out["cross_repo_links"] = cross_repo_links
 
     if trace:
         out["federation_trace"] = {

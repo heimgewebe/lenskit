@@ -1548,7 +1548,7 @@ Ausgabe: `federation_trace.json`
 
 Wichtige Tests:
 - [x] 1. test_federation_index_builds_deterministically (kanonische Bundle-Sortierung und JSON-/Hash-Stabilität für identische Inhalte mit variierender Add-Reihenfolge abgesichert; kein vollumfänglicher E2E-Nachweis der gesamten Phase)
-- [ ] 2. test_cross_repo_links_are_provenance_backed
+- [~] 2. test_cross_repo_links_are_provenance_backed (Minimaltest vorhanden: `test_cross_repo_links_evidence_refs_are_chunk_ids`, `test_cross_repo_links_schema_valid_when_multi_bundle`; echte strukturelle Provenance-Tiefe offen)
 - [x] 3. test_federated_query_preserves_bundle_origin (als Minimaltest vorhanden)
 - [ ] 4. test_federated_ranking_is_stable (Tie-Breaker implementiert, aber noch kein echtes föderiertes Relevanzmodell)
 - [ ] 5. test_conflicts_are_reported_not_smoothed (derzeit nur einfache filename-Heuristik, keine Identity-Engine)
@@ -1557,7 +1557,7 @@ Wichtige Tests:
 
 ### 1.12 Deliverables Phase 5
 - [x] 1. federation_index.json (Struktur angelegt und validiert, Bundle-Reihenfolge wird nun kanonisch über repo_id stabilisiert)
-- [ ] 2. cross_repo_links.json (Contract vorbereitet, Producer/Runtime offen)
+- [~] 2. cross_repo_links.json (Contract vorhanden; minimaler heuristischer Runtime-Producer `_build_cross_repo_links` implementiert: emittiert `co_occurrence`-Links mit `confidence: "inferred"` pro Repo-Paar; CLI-Persistenz als `cross_repo_links.json` bei `--trace`; schema-validiert; **kein globaler Identity-Beweis, Ranking unverändert**; offen: semantisch belastbare Identity-Engine)
 - [ ] 3. federation_conflicts.json (teilweise: Runtime-Struktur vorhanden, minimale CLI-Persistenz im Trace-Pfad umgesetzt)
 - [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
 - [ ] 5. föderierte Query-Schnittstelle (als Minimal-Fan-out mit deterministischer Aggregation integriert, aber keine vollwertige Cross-Repo-Relevanz-Harmonisierung)
@@ -1571,6 +1571,7 @@ Wichtige Tests:
 * provenance bundle-scharf bleibt [x]
 * Konflikte explizit gemeldet werden [x] (als Minimalheuristik)
 * kein stilles Vermischen konkurrierender Wahrheiten passiert [x]
+* cross_repo_links schema-valide emittierbar [x] (als Minimalheuristik, noch keine belastbare Identity-Engine)
 -> Hinweis: Der aktuelle Stand bietet praktische Föderationsnutzbarkeit (Aggregation), schließt Phase 5 aber architektonisch noch nicht vollständig ab (fehlende kanonische Trace-Artefakte, echtes Identity-System, tiefes Ranking-Alignment).
 
 
