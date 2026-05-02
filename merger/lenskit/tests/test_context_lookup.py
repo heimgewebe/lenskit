@@ -334,7 +334,7 @@ class TestApiContextLookup:
             "retention_policy": "unbounded_currently",
             # deliberately omits lifecycle_status
             "expires_at": None,
-            "claim_boundaries": {"does_not_prove": []},
+            "claim_boundaries": {"does_not_prove": ["Artifact ID stability is limited to this store location."]},
         }
         with pytest.raises(jsonschema.ValidationError) as exc:
             jsonschema.validate(instance=bad_payload, schema=schema)
@@ -359,7 +359,7 @@ class TestApiContextLookup:
             "retention_policy": "unbounded_currently",
             "lifecycle_status": "active",
             # deliberately omits expires_at
-            "claim_boundaries": {"does_not_prove": []},
+            "claim_boundaries": {"does_not_prove": ["Artifact ID stability is limited to this store location."]},
         }
         with pytest.raises(jsonschema.ValidationError) as exc:
             jsonschema.validate(instance=bad_payload, schema=schema)
