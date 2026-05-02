@@ -90,7 +90,9 @@
   - [ ] `merger/lenskit/tests/test_dump_retrieval.py`
 - [ ] Algorithmus umsetzen:
   - [ ] `content = chunk.get("content")`
-  - [ ] Fallback: `content = resolve_range_ref(content_range_ref, artifact_dir)`
+  - [ ] Fallback ohne Inline-Content: passenden `manifest_path` bestimmen (`<stem>_merge.bundle.manifest.json` oder `<stem>_merge.dump_index.json`, je nach Artefaktstruktur).
+  - [ ] `resolved = resolve_range_ref(manifest_path, content_range_ref)` — Signatur: `resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any]`
+  - [ ] Extrahierten Text übernehmen: `content = resolved["text"]`
   - [ ] Hash prüfen: `sha256(canonical_md_bytes[start_byte:end_byte]) == ref.content_sha256` mit Python-Slice-Semantik: `start_byte` inklusiv, `end_byte` exklusiv; Hash über Rohbytes vor Dekodierung; erst danach wird der Byte-Slice für FTS dekodiert.
   - [ ] In `chunks_fts(chunk_id, content, path_tokens)` schreiben
 
@@ -247,10 +249,14 @@
 ### Ziel
 - [ ] Neuer CI-Job: `output-health-validate`.
 
-### Geplante CLI-Checks nach Implementierung:
-- [ ] `python -m merger.lenskit.cli.main validate-output-health <stem>` *(geplant)*
-- [ ] `python -m merger.lenskit.cli.main query --db <sqlite> "range_resolver" --expect-hit` *(geplant)*
-- [ ] `python -m merger.lenskit.cli.main artifact lookup --id <known-range>` *(geplant)*
+### Geplante CLI-/CI-Checks nach Implementierung:
+- [ ] `python -m merger.lenskit.cli.main validate-output-health <stem>` *(geplant; neuer Command)*
+- [ ] Aktueller Query-Vertrag: `python -m merger.lenskit.cli.main query --index <sqlite> --q "range_resolver" --emit json`
+- [ ] Trefferprüfung für CI zunächst über Wrapper/Python/JQ aus dem JSON-Output ableiten; ein mögliches `--expect-hit` wäre ein zukünftig einzuführendes Assert-Flag, nicht aktueller CLI-Vertrag.
+- [ ] Aktuelle Range-Auflösung: `python -m merger.lenskit.cli.main range get --manifest <bundle.manifest.json|dump_index.json> --ref <range_ref.json> --format json`
+- [ ] Aktueller Stored-Artifact-Lookup: `python -m merger.lenskit.cli.main artifact --id <artifact-id> --artifact-type <query_trace|context_bundle|agent_query_session>`
+
+Hinweis: `query --index/--q`, `range get --manifest/--ref` und `artifact --id/--artifact-type` spiegeln den aktuellen CLI-Vertrag. Neue Convenience-Flags wie `--expect-hit` oder neue Commands wie `validate-output-health` müssen separat implementiert und getestet werden, bevor sie in CI blockierend verwendet werden.
 
 ### Blockierend
 - [ ] hash mismatch
