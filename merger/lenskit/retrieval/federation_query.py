@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from .query_core import execute_query
 from ..core.federation import validate_federation
@@ -20,7 +20,7 @@ def _build_cross_repo_links(results: list) -> list:
 
     Ranking and result ordering are not modified.
     """
-    repo_chunks: Dict[str, list] = {}
+    repo_chunks: Dict[str, List[str]] = {}
     for hit in results:
         repo_id = hit.get("federation_bundle", "")
         chunk_id = hit.get("chunk_id", "")
@@ -39,7 +39,7 @@ def _build_cross_repo_links(results: list) -> list:
             repo_a = repos[i]
             repo_b = repos[j]
             # Bounded evidence: up to 5 chunk_ids from each repo to keep output compact
-            evidence: list = repo_chunks[repo_a][:5] + repo_chunks[repo_b][:5]
+            evidence: List[str] = repo_chunks[repo_a][:5] + repo_chunks[repo_b][:5]
             links.append({
                 "source_repo": repo_a,
                 "target_repo": repo_b,
