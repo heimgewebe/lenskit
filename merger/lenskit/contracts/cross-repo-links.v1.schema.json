@@ -2,32 +2,35 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://hauski.com/schemas/lenskit/cross-repo-links.v1.schema.json",
   "title": "Lenskit Cross-Repo Links",
-  "description": "Explicit linkages and relationships between different repository bundles.",
-  "type": "object",
-  "required": ["source_repo", "target_repo", "link_type", "evidence_refs", "confidence"],
-  "properties": {
-    "source_repo": {
-      "type": "string",
-      "description": "Repository ID where the reference originates."
-    },
-    "target_repo": {
-      "type": "string",
-      "description": "Repository ID being referenced."
-    },
-    "link_type": {
-      "type": "string",
-      "description": "The type of relationship (e.g., 'imports', 'calls', 'depends_on')."
-    },
-    "confidence": {
-      "type": "string",
-      "enum": ["explicit", "inferred"],
-      "description": "Confidence level of the linkage."
-    },
-    "evidence_refs": {
-      "type": "array",
-      "description": "List of references to evidence proving the link.",
-      "items": {
-        "type": "string"
+  "description": "List of heuristic linkages detected between different repository bundles during a federated query. Each link records only co-occurrence of results in the same query — it does NOT assert identity, dependency, or semantic equality between repositories.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["source_repo", "target_repo", "link_type", "evidence_refs", "confidence"],
+    "properties": {
+      "source_repo": {
+        "type": "string",
+        "description": "Repository ID where the reference originates."
+      },
+      "target_repo": {
+        "type": "string",
+        "description": "Repository ID being referenced."
+      },
+      "link_type": {
+        "type": "string",
+        "description": "The type of relationship detected. 'co_occurrence' means both repos returned results for the same query; it proves only shared query-result presence, not identity, dependency, or semantic similarity."
+      },
+      "confidence": {
+        "type": "string",
+        "enum": ["explicit", "inferred"],
+        "description": "Confidence level of the linkage. Must be 'inferred' for all heuristic links."
+      },
+      "evidence_refs": {
+        "type": "array",
+        "description": "List of chunk IDs from the final returned results that evidence the link. All refs are present in the results payload.",
+        "items": {
+          "type": "string"
+        }
       }
     }
   }

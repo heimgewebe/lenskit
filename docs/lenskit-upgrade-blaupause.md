@@ -1557,7 +1557,7 @@ Wichtige Tests:
 
 ### 1.12 Deliverables Phase 5
 - [x] 1. federation_index.json (Struktur angelegt und validiert, Bundle-Reihenfolge wird nun kanonisch über repo_id stabilisiert)
-- [~] 2. cross_repo_links.json (Contract vorhanden; minimaler heuristischer Runtime-Producer `_build_cross_repo_links` implementiert: emittiert `co_occurrence`-Links mit `confidence: "inferred"` pro Repo-Paar; CLI-Persistenz als `cross_repo_links.json` bei `--trace`; schema-validiert; **kein globaler Identity-Beweis, Ranking unverändert**; offen: semantisch belastbare Identity-Engine)
+- [~] 2. cross_repo_links.json (Contract vorhanden, Root-Type auf `array` korrigiert; minimaler heuristischer Runtime-Producer `_build_cross_repo_links` implementiert: emittiert `co_occurrence`-Links mit `confidence: "inferred"` pro Repo-Paar in den finalen `results`; ganzes Artefakt-Array schema-validiert; CLI-Persistenz als `cross_repo_links.json` bei `--trace`; **`co_occurrence` beweist ausschließlich gemeinsame Query-Präsenz — keine Identität, keine Abhängigkeit, keine semantische Gleichheit; Ranking unverändert**; offen: semantisch belastbare Identity-Engine)
 - [ ] 3. federation_conflicts.json (teilweise: Runtime-Struktur vorhanden, minimale CLI-Persistenz im Trace-Pfad umgesetzt)
 - [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
 - [ ] 5. föderierte Query-Schnittstelle (als Minimal-Fan-out mit deterministischer Aggregation integriert, aber keine vollwertige Cross-Repo-Relevanz-Harmonisierung)

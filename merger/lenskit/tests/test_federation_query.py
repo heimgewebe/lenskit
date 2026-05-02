@@ -499,8 +499,11 @@ def test_execute_federated_query_trace_behavior(federated_setup):
 # ── cross_repo_links tests ────────────────────────────────────────────────────
 
 def test_cross_repo_links_schema_valid_when_multi_bundle(federated_setup):
-    """Two repos → cross_repo_links emitted and each item is schema-valid."""
-    import jsonschema
+    """Two repos → cross_repo_links emitted and the whole array is schema-valid."""
+    try:
+        import jsonschema
+    except ImportError:
+        pytest.skip("jsonschema not installed")
     schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
     with schema_path.open("r", encoding="utf-8") as f:
         schema = json.load(f)
@@ -516,8 +519,8 @@ def test_cross_repo_links_schema_valid_when_multi_bundle(federated_setup):
     assert isinstance(links, list)
     assert len(links) >= 1
 
-    for link in links:
-        jsonschema.validate(instance=link, schema=schema)
+    # Validate the whole artifact (array) against the schema — not item by item
+    jsonschema.validate(instance=links, schema=schema)
 
 
 def test_cross_repo_links_confidence_is_inferred(federated_setup):
@@ -655,7 +658,12 @@ def test_build_cross_repo_links_directly():
 
 
 def test_cross_repo_links_result_count_unaffected(federated_setup):
-    """Presence of cross_repo_links must not affect result count or slice."""
+    """cross_repo_links are built from the final returned results (top-k), not the full candidate set.
+
+    With k=1 only one result (from one repo) is returned, so no cross-repo links are possible.
+    With k>=2 both repos appear in results, so links are present.
+    In both cases result count and total_candidates_found are unaffected.
+    """
     res_k1 = execute_federated_query(
         federation_index_path=federated_setup,
         query_text="hello",
@@ -663,5 +671,14 @@ def test_cross_repo_links_result_count_unaffected(federated_setup):
     )
     assert res_k1["count"] == 1
     assert res_k1["total_candidates_found"] == 2
-    # Links still present even with k=1 (links are built from all_results before k-slice)
-    assert "cross_repo_links" in res_k1
+    # k=1 → top-k has only one result from one repo → no cross-repo links
+    assert "cross_repo_links" not in res_k1
+
+    res_k2 = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=2
+    )
+    assert res_k2["count"] == 2
+    # k=2 → both repos in top-k → links present; result count still unaffected
+    assert "cross_repo_links" in res_k2

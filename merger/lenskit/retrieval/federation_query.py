@@ -5,17 +5,23 @@ from typing import Dict, Any, Optional
 from .query_core import execute_query
 from ..core.federation import validate_federation
 
-def _build_cross_repo_links(all_results: list) -> list:
+def _build_cross_repo_links(results: list) -> list:
     """
     Builds minimal, schema-valid cross_repo_links for heuristic co-occurrence between repos.
 
-    Strategy: When results from at least two distinct bundles/repos appear in the federated result
-    set, one "co_occurrence" link is built per unique sorted (source_repo, target_repo) pair.
-    confidence is always "inferred" — no identity claims are made.
+    Strategy: When results from at least two distinct bundles/repos appear in the final
+    returned results, one "co_occurrence" link is built per unique sorted
+    (source_repo, target_repo) pair. evidence_refs reference only chunk IDs that are
+    present in the supplied results list (payload-local: always verifiable by the client).
+
+    confidence is always "inferred" — no identity, dependency, or semantic equality
+    claims are made. co_occurrence means only: both repos returned results for the
+    same query.
+
     Ranking and result ordering are not modified.
     """
     repo_chunks: Dict[str, list] = {}
-    for hit in all_results:
+    for hit in results:
         repo_id = hit.get("federation_bundle", "")
         chunk_id = hit.get("chunk_id", "")
         if repo_id and chunk_id:
@@ -286,7 +292,7 @@ def execute_federated_query(
     if conflicts:
         out["federation_conflicts"] = conflicts
 
-    cross_repo_links = _build_cross_repo_links(all_results)
+    cross_repo_links = _build_cross_repo_links(top_k)
     if cross_repo_links:
         out["cross_repo_links"] = cross_repo_links
 

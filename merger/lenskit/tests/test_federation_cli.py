@@ -478,15 +478,14 @@ def test_federation_query_trace_writes_cross_repo_links_json(tmp_path: Path, mon
     assert link["link_type"] == "co_occurrence"
     assert isinstance(link["evidence_refs"], list)
 
-    # Schema validation
+    # Schema validation — validate the whole artifact (array) against the schema
     try:
         import jsonschema
         schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
         if schema_path.exists():
             with schema_path.open("r", encoding="utf-8") as sf:
                 schema = json.load(sf)
-            for item in links_data:
-                jsonschema.validate(instance=item, schema=schema)
+            jsonschema.validate(instance=links_data, schema=schema)
     except ImportError:
         pass
 
