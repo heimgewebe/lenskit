@@ -687,14 +687,14 @@ def test_cross_repo_links_result_count_unaffected(federated_setup):
 # ── cross_repo_links negative schema tests ────────────────────────────────────
 
 def _load_crl_schema():
-    """Load the cross-repo-links.v1.schema.json contract."""
+    """Load the cross-repo-links.v1.schema.json contract. Returns (schema, jsonschema_module) or (None, None)."""
     try:
-        import jsonschema  # noqa: F401
+        import jsonschema
     except ImportError:
         return None, None
     schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
     with schema_path.open("r", encoding="utf-8") as f:
-        return json.load(f), True
+        return json.load(f), jsonschema
 
 
 def _valid_link():
@@ -709,32 +709,26 @@ def _valid_link():
 
 def test_cross_repo_links_schema_rejects_root_object():
     """Schema root is array; a plain object at root must be rejected."""
-    try:
-        import jsonschema
-    except ImportError:
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
         pytest.skip("jsonschema not installed")
-    schema, _ = _load_crl_schema()
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=_valid_link(), schema=schema)
 
 
 def test_cross_repo_links_schema_accepts_root_array():
     """Schema root accepts an array of valid link objects."""
-    try:
-        import jsonschema
-    except ImportError:
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
         pytest.skip("jsonschema not installed")
-    schema, _ = _load_crl_schema()
     jsonschema.validate(instance=[_valid_link()], schema=schema)
 
 
 def test_cross_repo_links_schema_rejects_wrong_link_type():
     """Schema must reject link_type values other than 'co_occurrence'."""
-    try:
-        import jsonschema
-    except ImportError:
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
         pytest.skip("jsonschema not installed")
-    schema, _ = _load_crl_schema()
     bad = _valid_link()
     bad["link_type"] = "depends_on"
     with pytest.raises(jsonschema.ValidationError):
@@ -743,11 +737,9 @@ def test_cross_repo_links_schema_rejects_wrong_link_type():
 
 def test_cross_repo_links_schema_rejects_explicit_confidence():
     """Schema must reject confidence='explicit' — only 'inferred' is allowed for this heuristic."""
-    try:
-        import jsonschema
-    except ImportError:
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
         pytest.skip("jsonschema not installed")
-    schema, _ = _load_crl_schema()
     bad = _valid_link()
     bad["confidence"] = "explicit"
     with pytest.raises(jsonschema.ValidationError):
@@ -756,11 +748,9 @@ def test_cross_repo_links_schema_rejects_explicit_confidence():
 
 def test_cross_repo_links_schema_rejects_additional_fields():
     """Schema must reject unknown/extra fields in link items (additionalProperties: false)."""
-    try:
-        import jsonschema
-    except ImportError:
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
         pytest.skip("jsonschema not installed")
-    schema, _ = _load_crl_schema()
     bad = _valid_link()
     bad["unexpected_field"] = "some_value"
     with pytest.raises(jsonschema.ValidationError):
@@ -769,11 +759,9 @@ def test_cross_repo_links_schema_rejects_additional_fields():
 
 def test_cross_repo_links_schema_rejects_empty_evidence_refs():
     """Schema must reject evidence_refs=[] (minItems: 1)."""
-    try:
-        import jsonschema
-    except ImportError:
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
         pytest.skip("jsonschema not installed")
-    schema, _ = _load_crl_schema()
     bad = _valid_link()
     bad["evidence_refs"] = []
     with pytest.raises(jsonschema.ValidationError):

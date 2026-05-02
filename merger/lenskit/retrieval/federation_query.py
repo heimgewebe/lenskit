@@ -38,7 +38,7 @@ def _build_cross_repo_links(results: list) -> list:
         for j in range(i + 1, len(repos)):
             repo_a = repos[i]
             repo_b = repos[j]
-            # Bounded evidence: up to 5 chunk_ids from each repo to keep output compact
+            # Bounded evidence: up to 5 chunk_ids from each of the two repos (max 10 total)
             evidence: List[str] = repo_chunks[repo_a][:5] + repo_chunks[repo_b][:5]
             links.append({
                 "source_repo": repo_a,
