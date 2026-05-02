@@ -329,8 +329,9 @@ class TestApiTraceLookup:
             "expires_at": None,
             "claim_boundaries": {"does_not_prove": []},
         }
-        with pytest.raises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError) as exc:
             jsonschema.validate(instance=bad_payload, schema=schema)
+        assert "lifecycle_status" in str(exc.value)
 
     def test_schema_rejects_ok_trace_missing_expires_at(self):
         """ok trace response missing expires_at must fail schema validation."""
@@ -353,8 +354,9 @@ class TestApiTraceLookup:
             # deliberately omits expires_at
             "claim_boundaries": {"does_not_prove": []},
         }
-        with pytest.raises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError) as exc:
             jsonschema.validate(instance=bad_payload, schema=schema)
+        assert "expires_at" in str(exc.value)
 
     def test_schema_not_found_valid_without_lifecycle_fields(self):
         """not_found response without runtime metadata must remain schema-valid."""
