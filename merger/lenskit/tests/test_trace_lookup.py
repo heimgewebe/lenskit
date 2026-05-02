@@ -307,3 +307,68 @@ class TestApiTraceLookup:
 
         schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
         jsonschema.validate(instance=data, schema=schema)
+
+    def test_schema_rejects_ok_trace_missing_lifecycle_status(self):
+        """ok trace response missing lifecycle_status must fail schema validation."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        bad_payload = {
+            "status": "ok",
+            "id": "qart-test",
+            "trace": {"query_input": "q"},
+            "provenance": {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"},
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "warnings": [],
+            "authority": "runtime_observation",
+            "canonicality": "observation",
+            "artifact_shape": "raw",
+            "retention_policy": "unbounded_currently",
+            # deliberately omits lifecycle_status
+            "expires_at": None,
+            "claim_boundaries": {"does_not_prove": []},
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(instance=bad_payload, schema=schema)
+
+    def test_schema_rejects_ok_trace_missing_expires_at(self):
+        """ok trace response missing expires_at must fail schema validation."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        bad_payload = {
+            "status": "ok",
+            "id": "qart-test",
+            "trace": {"query_input": "q"},
+            "provenance": {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"},
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "warnings": [],
+            "authority": "runtime_observation",
+            "canonicality": "observation",
+            "artifact_shape": "raw",
+            "retention_policy": "unbounded_currently",
+            "lifecycle_status": "active",
+            # deliberately omits expires_at
+            "claim_boundaries": {"does_not_prove": []},
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(instance=bad_payload, schema=schema)
+
+    def test_schema_not_found_valid_without_lifecycle_fields(self):
+        """not_found response without runtime metadata must remain schema-valid."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        not_found_payload = {
+            "status": "not_found",
+            "id": "qart-nonexistent",
+            "trace": None,
+            "provenance": None,
+            "created_at": None,
+            "warnings": ["Artifact not found."],
+        }
+        # Must not raise — not_found does not require lifecycle fields
+        jsonschema.validate(instance=not_found_payload, schema=schema)

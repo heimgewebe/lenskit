@@ -20,6 +20,13 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["status", "id", "trace", "provenance", "created_at", "warnings"],
+  "if": {
+    "properties": {"status": {"const": "ok"}},
+    "required": ["status"]
+  },
+  "then": {
+    "required": ["authority", "canonicality", "artifact_shape", "retention_policy", "lifecycle_status", "expires_at", "claim_boundaries"]
+  },
   "properties": {
     "status": {
       "type": "string",

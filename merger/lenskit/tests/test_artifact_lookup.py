@@ -685,6 +685,76 @@ class TestApiArtifactLookup:
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(instance=bad_payload, schema=schema)
 
+    def test_schema_rejects_ok_artifact_missing_lifecycle_status(self):
+        """ok artifact missing lifecycle_status must fail schema validation."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        bad_payload = {
+            "artifact_type": "query_trace",
+            "id": "qart-test",
+            "status": "ok",
+            "artifact": {
+                "provenance": {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"},
+                "created_at": "2024-01-01T00:00:00+00:00",
+                "data": {},
+                "authority": "runtime_observation",
+                "canonicality": "observation",
+                "artifact_shape": "raw",
+                "retention_policy": "unbounded_currently",
+                # deliberately omits lifecycle_status
+                "expires_at": None,
+                "claim_boundaries": {"does_not_prove": []},
+            },
+            "warnings": [],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(instance=bad_payload, schema=schema)
+
+    def test_schema_rejects_ok_artifact_missing_expires_at(self):
+        """ok artifact missing expires_at must fail schema validation."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        bad_payload = {
+            "artifact_type": "query_trace",
+            "id": "qart-test",
+            "status": "ok",
+            "artifact": {
+                "provenance": {"source_query": "q", "timestamp": "2024-01-01T00:00:00+00:00"},
+                "created_at": "2024-01-01T00:00:00+00:00",
+                "data": {},
+                "authority": "runtime_observation",
+                "canonicality": "observation",
+                "artifact_shape": "raw",
+                "retention_policy": "unbounded_currently",
+                "lifecycle_status": "active",
+                # deliberately omits expires_at
+                "claim_boundaries": {"does_not_prove": []},
+            },
+            "warnings": [],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(instance=bad_payload, schema=schema)
+
+    def test_schema_not_found_valid_without_lifecycle_fields(self):
+        """not_found response without runtime metadata must remain schema-valid."""
+        if jsonschema is None:
+            pytest.skip("jsonschema not available")
+
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        not_found_payload = {
+            "artifact_type": "query_trace",
+            "id": "qart-nonexistent",
+            "status": "not_found",
+            "artifact": None,
+            "warnings": ["Artifact not found."],
+        }
+        # Must not raise
+        jsonschema.validate(instance=not_found_payload, schema=schema)
+
     def test_store_path_uses_merges_dir_when_set(self, api_client_custom_merges):
         """QueryArtifactStore must use merges_dir/.rlens-service when merges_dir is set."""
         client, custom_merges = api_client_custom_merges

@@ -47,7 +47,7 @@
     "ArtifactPayload": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provenance", "created_at", "data"],
+      "required": ["provenance", "created_at", "data", "authority", "canonicality", "artifact_shape", "retention_policy", "lifecycle_status", "expires_at", "claim_boundaries"],
       "properties": {
         "provenance": {
           "$ref": "#/definitions/ArtifactProvenance"
