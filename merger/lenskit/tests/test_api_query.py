@@ -681,6 +681,9 @@ def test_api_query_agent_session_artifact_refs_crosscheck(mini_index):
     assert artifact["authority"] == "runtime_observation"
     assert artifact["canonicality"] == "observation"
     assert artifact["artifact_shape"] == "wrapper"
+    assert artifact["retention_policy"] == "unbounded_currently"
+    assert artifact["lifecycle_status"] == "active"
+    assert artifact["expires_at"] is None
 
     stored_session = artifact["data"]
     stored_refs = stored_session["artifact_refs"]

@@ -69,3 +69,12 @@ Dateiendung ist Kleidung; Autorität ist Identität.
    `query_context_bundle.json`, `query_trace.json` — Runtime-Payloads. `entrypoints.json`, `architecture_graph.json` — Zwischenartefakte für `build_derived_artifacts`. `source_file` — Range-Resolver-Konzept (`core.range_resolver`), nicht im Manifest.
 
    Folgepunkte: Vollständige Authority/Canonicality-Annotation für `query_trace` und `query_context_bundle` (Phase 4); föderierte Artefakte (`cross_repo_links.json` Contract vorhanden, Runtime offen; `federation_conflicts.json` Contract vorhanden, heuristisch/minimal emittiert, Phase 5); `agent_query_session` ist als Phase-6-Runtime-Artefakt in diesem Inventar eingetragen (siehe Anmerkung 3).
+
+7. **Runtime-Artefakt-Lifecycle (Phase 6 Vorbereitung — Lifecycle Metadata v1):**
+   Runtime-Artefakte tragen seit Lifecycle Metadata v1 explizite Lebensdauer-Felder:
+   - `lifecycle_status`: aktuell `"active"` für alle Runtime-Artefakte.
+   - `expires_at`: aktuell `null` — kein TTL gesetzt.
+   - `retention_policy`: weiterhin `"unbounded_currently"`.
+
+   Legacy-Einträge (ohne `lifecycle_status`/`expires_at`) werden beim Lookup via `_with_runtime_metadata()` transparent backgefüllt.
+   **Noch kein GC, kein TTL, kein automatisches Löschen.** Lifecycle-Felder sind Vorarbeit für spätere Retention-, MCP- und Agent-Orchestrierungslogik.

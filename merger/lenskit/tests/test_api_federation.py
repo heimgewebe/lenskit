@@ -222,6 +222,9 @@ def test_api_federation_query_agent_session_artifact_refs_crosscheck(fed_setup):
     assert artifact["authority"] == "runtime_observation"
     assert artifact["canonicality"] == "observation"
     assert artifact["artifact_shape"] == "wrapper"
+    assert artifact["retention_policy"] == "unbounded_currently"
+    assert artifact["lifecycle_status"] == "active"
+    assert artifact["expires_at"] is None
 
     stored_session = artifact["data"]
     stored_refs = stored_session["artifact_refs"]
@@ -322,3 +325,6 @@ def test_api_federation_build_context_bundle_direct_form_stores_artifact(fed_set
     assert artifact.get("authority") == "runtime_observation"
     assert artifact.get("canonicality") == "observation"
     assert artifact.get("artifact_shape") == "projected"
+    assert artifact.get("retention_policy") == "unbounded_currently"
+    assert artifact.get("lifecycle_status") == "active"
+    assert artifact.get("expires_at") is None

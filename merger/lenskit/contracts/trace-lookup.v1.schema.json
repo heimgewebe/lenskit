@@ -20,6 +20,13 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["status", "id", "trace", "provenance", "created_at", "warnings"],
+  "if": {
+    "properties": {"status": {"const": "ok"}},
+    "required": ["status"]
+  },
+  "then": {
+    "required": ["authority", "canonicality", "artifact_shape", "retention_policy", "lifecycle_status", "expires_at", "claim_boundaries"]
+  },
   "properties": {
     "status": {
       "type": "string",
@@ -72,6 +79,15 @@
     "retention_policy": {
       "const": "unbounded_currently",
       "description": "Retention policy for this artifact in the store. 'unbounded_currently' means no GC is applied."
+    },
+    "lifecycle_status": {
+      "type": "string",
+      "const": "active",
+      "description": "Lifecycle status of this runtime artifact. 'active' means the artifact is present and not expired. No GC or TTL is applied currently."
+    },
+    "expires_at": {
+      "type": ["string", "null"],
+      "description": "Expiry timestamp (ISO 8601) if a TTL is set; null while retention_policy is 'unbounded_currently'."
     },
     "claim_boundaries": {
       "type": "object",

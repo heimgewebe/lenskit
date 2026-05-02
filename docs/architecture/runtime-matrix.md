@@ -37,4 +37,17 @@ Hinweis: `artifact_refs.agent_query_session_id` ist **immer null** in gespeicher
 ## Bekannte Lücken (Runtime Matrix)
 
 -   **Phase 5 (Cross-Repo-Föderation):** `federation_index.json` und föderierte Queries (`/api/federation/query`) sind implementiert (minimale Multi-Bundle-Aggregation). `federation_conflicts.json` ist heuristisch/minimal implementiert: Runtime-Emission in `federation_query.py`, CLI-Persistenz in `cmd_federation.py`, schema-validiert per `test_federation_cli.py`; offen bleibt eine belastbare Identity-Engine jenseits einfacher Heuristiken. `cross_repo_links.json` hat einen vorhandenen Contract (`cross-repo-links.v1.schema.json`), ist aber ohne Runtime-Producer. Offen: durchgängige `cross_repo_links`-Emission/-Persistenz, vollständige föderierte Ranking-Semantik.
--   **Agent Control Surface (Phase 6):** `agent_query_session` Provenienz-Härtung und `/api/artifact_lookup`-Roundtrip sind belegt. Offen: Agent-Orchestrierung, Feedback-Schleifen, MCP-Anbindung, Lifecycle/Retention.
+-   **Agent Control Surface (Phase 6):** `agent_query_session` Provenienz-Härtung und `/api/artifact_lookup`-Roundtrip sind belegt. Offen: Agent-Orchestrierung, Feedback-Schleifen, MCP-Anbindung.
+
+### Runtime-Artefakt-Lebensdauer (Lifecycle Metadata v1)
+
+Runtime-Artefakte (`query_trace`, `context_bundle`, `agent_query_session`) tragen aktuell folgende Lifecycle-Felder:
+
+| Feld | Wert |
+| :--- | :--- |
+| `retention_policy` | `"unbounded_currently"` |
+| `lifecycle_status` | `"active"` |
+| `expires_at` | `null` |
+
+**Noch kein GC. Noch keine TTL. Noch keine automatische Löschung.**
+Lifecycle-Felder sind Vorarbeit für spätere Retention-, MCP- und Agent-Orchestrierungslogik.

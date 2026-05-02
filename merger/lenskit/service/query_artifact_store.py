@@ -24,6 +24,8 @@ _RUNTIME_ARTIFACT_METADATA: Dict[str, Dict[str, Any]] = {
         "canonicality": "observation",
         "artifact_shape": "raw",
         "retention_policy": "unbounded_currently",
+        "lifecycle_status": "active",
+        "expires_at": None,
         "claim_boundaries": {
             "does_not_prove": [
                 "Artifact ID stability is limited to this store location.",
@@ -36,6 +38,8 @@ _RUNTIME_ARTIFACT_METADATA: Dict[str, Dict[str, Any]] = {
         "canonicality": "observation",
         "artifact_shape": "projected",
         "retention_policy": "unbounded_currently",
+        "lifecycle_status": "active",
+        "expires_at": None,
         "claim_boundaries": {
             "does_not_prove": [
                 "Artifact ID stability is limited to this store location.",
@@ -49,6 +53,8 @@ _RUNTIME_ARTIFACT_METADATA: Dict[str, Dict[str, Any]] = {
         "canonicality": "observation",
         "artifact_shape": "wrapper",
         "retention_policy": "unbounded_currently",
+        "lifecycle_status": "active",
+        "expires_at": None,
         "claim_boundaries": {
             "does_not_prove": [
                 "Artifact ID stability is limited to this store location.",
@@ -67,9 +73,10 @@ def _with_runtime_metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
 
     New entries written by store() already contain all fields.  Legacy entries
     loaded from disk may predate this PR and lack authority/canonicality/
-    artifact_shape/retention_policy/claim_boundaries.  This helper backfills
-    those fields from _RUNTIME_ARTIFACT_METADATA without mutating the cached
-    dict and without overwriting any field that was already present.
+    artifact_shape/retention_policy/lifecycle_status/expires_at/claim_boundaries.
+    This helper backfills those fields from _RUNTIME_ARTIFACT_METADATA without
+    mutating the cached dict and without overwriting any field that was already
+    present.
 
     Unknown artifact_types (shouldn't happen, but safe to handle) are returned
     as a deep copy.  Callers receive an independent copy of all nested

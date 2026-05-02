@@ -1861,6 +1861,8 @@ Schutzmaßnahmen:
 - [ ] M4: Bundles föderierbar
 - [ ] M5: Föderierte Queries stabil
 - [ ] M6: Agent Control Surface nutzbar
+  - [x] `agent_query_session` Provenienz-Härtung + `/api/artifact_lookup`-Roundtrip
+  - [x] Runtime-Artefakt-Lifecycle Metadata v1: `lifecycle_status: "active"`, `expires_at: null` — Vorarbeit für Retention/MCP/Agent-Orchestrierung. Noch kein GC, kein TTL, keine automatische Löschung.
 - [ ] M7: UI/Service konsolidiert
 - [ ] M8: Semantischer Layer produktionsreif
 
