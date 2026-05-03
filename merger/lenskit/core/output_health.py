@@ -358,16 +358,12 @@ def compute_output_health(
         "required": False,
         "reason": "stable sample query is introduced in a later work package",
     }
-    if checks["sample_query_content_hit"]["status"] == "skipped":
-        warnings.append("sample_query_content_hit not available in current implementation; will be added later")
 
     checks["agent_pack_present"] = {
         "status": "skipped",
         "required": False,
         "reason": "agent_reading_pack is introduced in a later work package",
     }
-    if checks["agent_pack_present"]["status"] == "skipped":
-        warnings.append("agent_pack_present not available in current implementation; will be added later")
 
     checks["redaction_status_explicit"] = True
     checks["redact_secrets_enabled"] = bool(redact_secrets)

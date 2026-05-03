@@ -125,7 +125,7 @@ def _base_kwargs(
     )
 
 
-def test_verdict_warn_when_blocking_checks_pass_but_optional_features_missing(tmp_path):
+def test_verdict_pass_when_blocking_checks_pass_and_optional_features_are_skipped(tmp_path):
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
     chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md", "content_range_ref": rr}]
@@ -146,12 +146,16 @@ def test_verdict_warn_when_blocking_checks_pass_but_optional_features_missing(tm
         expected_chunk_index_sha256=chunk_sha,
     )
 
-    # verdict is "warn" because optional features are intentionally non-blocking
-    assert result["verdict"] == "warn"
+    assert result["verdict"] == "pass"
+    assert result["warnings"] == []
     assert result["checks"]["manifest_present"] is True
     assert result["checks"]["range_ref_resolution_ok"] is True
     assert result["checks"]["sqlite_row_count_matches_chunk_count"] is True
     assert result["checks"]["sqlite_fts_row_count_matches_chunk_count"] is True
+    assert result["checks"]["sample_query_content_hit"]["status"] == "skipped"
+    assert result["checks"]["sample_query_content_hit"]["required"] is False
+    assert result["checks"]["agent_pack_present"]["status"] == "skipped"
+    assert result["checks"]["agent_pack_present"]["required"] is False
     assert result["checks"]["redact_secrets_enabled"] is False
     assert result["checks"]["chunk_invalid_json_line_count"] == 0
     assert result["checks"]["chunk_missing_id_line_count"] == 0
