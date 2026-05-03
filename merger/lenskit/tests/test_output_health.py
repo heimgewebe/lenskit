@@ -118,7 +118,7 @@ def _base_kwargs(
     )
 
 
-def test_verdict_pass_all_present(tmp_path):
+def test_verdict_warn_when_blocking_checks_pass_but_optional_features_missing(tmp_path):
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
     chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md", "content_range_ref": rr}]

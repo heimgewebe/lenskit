@@ -43,10 +43,18 @@
         "canonical_md_hash_ok",
         "chunk_index_hash_ok",
         "chunk_count",
+        "chunk_invalid_json_line_count",
+        "chunk_missing_id_line_count",
+        "chunk_empty_line_count",
         "sqlite_present",
         "sqlite_checks_required",
+        "sqlite_fts_row_count",
+        "sqlite_fts_row_count_matches_chunk_count",
+        "fts_content_non_empty",
+        "fts_empty_row_count",
         "range_ref_resolution_ok",
-        "redaction_status_explicit"
+        "redaction_status_explicit",
+        "redact_secrets_enabled"
       ],
       "properties": {
         "manifest_present": {

@@ -114,6 +114,10 @@ def test_generate_bundle_manifest_integration(tmp_path):
     assert chunk_entry and "contract" not in chunk_entry
     assert chunk_entry["interpretation"]["mode"] == "role_only"
 
+    output_health_entry = roles_map.get(ArtifactRole.OUTPUT_HEALTH.value)
+    assert output_health_entry and "contract" not in output_health_entry
+    assert output_health_entry["interpretation"]["mode"] == "role_only"
+
     # Since it's 'dual' output mode, sqlite_index should exist if fts5_bm25 is true
     if data["capabilities"].get("fts5_bm25"):
         assert ArtifactRole.SQLITE_INDEX.value in roles_map
