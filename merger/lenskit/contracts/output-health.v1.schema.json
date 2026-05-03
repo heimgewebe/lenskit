@@ -55,6 +55,8 @@
         "fts_content_non_empty",
         "fts_empty_row_count",
         "range_ref_resolution_ok",
+        "sample_query_content_hit",
+        "agent_pack_present",
         "redaction_status_explicit",
         "redact_secrets_enabled"
       ],
@@ -78,7 +80,7 @@
         },
         "sqlite_checks_required": {
           "type": "boolean",
-          "description": "True iff sqlite_index artifact is in the bundle manifest."
+          "description": "True iff a sqlite_index path was provided and SQLite checks are expected. In PR2 this is derived before final bundle-manifest self-registration."
         },
         "sqlite_row_count": {
           "type": ["integer", "null"],

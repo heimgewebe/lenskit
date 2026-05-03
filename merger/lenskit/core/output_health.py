@@ -104,8 +104,8 @@ def _check_file_hash(path: Optional[Path], expected_sha256: Optional[str]) -> Tu
     if actual is None:
         return False, None
     if not expected_sha256:
-        # No expected hash to compare against; treat as OK
-        return True, actual
+        # No expected hash means we cannot prove hash consistency.
+        return False, actual
     return actual == expected_sha256, actual
 
 
