@@ -77,7 +77,7 @@ def _chunk_index_stats(chunk_index_path: Optional[Path]) -> Tuple[int, int, int,
                     has_valid_id = False
                     for key in ("chunk_id", "id"):
                         cid = obj.get(key)
-                        if cid is not None and str(cid).strip():
+                        if isinstance(cid, str) and cid.strip():
                             has_valid_id = True
                             break
 

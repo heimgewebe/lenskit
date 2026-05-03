@@ -643,3 +643,57 @@ def test_chunk_index_none_id_is_error(tmp_path):
 
     assert result["verdict"] == "fail"
     assert result["checks"]["chunk_missing_id_line_count"] == 1
+
+
+def test_chunk_index_false_chunk_id_is_error(tmp_path):
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    chunk_index_path = tmp_path / "test.chunk_index.jsonl"
+    chunk_index_path.write_text(
+        json.dumps({"chunk_id": False, "content": "hello", "path": "test/a.md"}) + "\n",
+        encoding="utf-8",
+    )
+    chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-false-chunk-id",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_index_sha,
+    )
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_missing_id_line_count"] == 1
+
+
+def test_chunk_index_list_chunk_id_is_error(tmp_path):
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    chunk_index_path = tmp_path / "test.chunk_index.jsonl"
+    chunk_index_path.write_text(
+        json.dumps({"chunk_id": [], "content": "hello", "path": "test/a.md"}) + "\n",
+        encoding="utf-8",
+    )
+    chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-list-chunk-id",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_index_sha,
+    )
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_missing_id_line_count"] == 1
