@@ -405,6 +405,7 @@ class MergeArtifacts:
     retrieval_eval: Optional[Path] = None
     derived_manifest: Optional[Path] = None
     bundle_manifest: Optional[Path] = None
+    output_health: Optional[Path] = None
     other: List[Path] = None
 
     def __post_init__(self):
@@ -434,6 +435,8 @@ class MergeArtifacts:
             paths.append(self.sqlite_index)
         if self.retrieval_eval:
             paths.append(self.retrieval_eval)
+        if self.output_health:
+            paths.append(self.output_health)
         if self.bundle_manifest:
             paths.append(self.bundle_manifest)
 
@@ -5809,6 +5812,12 @@ def write_reports_v2(
             "regenerable": True,
             "staleness_sensitive": True,
         },
+        ArtifactRole.OUTPUT_HEALTH: {
+            "authority": "diagnostic_signal",
+            "canonicality": "diagnostic",
+            "regenerable": True,
+            "staleness_sensitive": True,
+        },
         ArtifactRole.GRAPH_INDEX_JSON: {
             "authority": "retrieval_index",
             "canonicality": "derived",
@@ -5860,6 +5869,48 @@ def write_reports_v2(
     if derived_manifests:
         _add_artifact(derived_manifests[-1], ArtifactRole.DERIVED_MANIFEST_JSON, "application/json")
 
+    # Write output health report BEFORE the bundle manifest is finalized.
+    # In this implementation, health checks are anchored to already-materialized primary artifacts
+    # (especially dump_index), not to the final bundle manifest entry itself.
+    output_health_path = bundle_manifest_path.with_name(
+        bundle_manifest_path.name.replace(".bundle.manifest.json", ".output_health.json")
+    )
+    _output_health_stem = bundle_manifest_path.name.replace(".bundle.manifest.json", "")
+    from .output_health import write_output_health
+    # Collect expected SHAs from already-computed artifacts_list entries
+    _exp_md_sha = next(
+        (e["sha256"] for e in artifacts_list if e["role"] == ArtifactRole.CANONICAL_MD.value), None
+    )
+    _exp_chunk_sha = next(
+        (e["sha256"] for e in artifacts_list if e["role"] == ArtifactRole.CHUNK_INDEX_JSONL.value), None
+    )
+    _exp_eval_sha = next(
+        (e["sha256"] for e in artifacts_list if e["role"] == ArtifactRole.RETRIEVAL_EVAL_JSON.value), None
+    )
+    write_output_health(
+        output_health_path,
+        run_id=run_id,
+        stem=_output_health_stem,
+        primary_manifest_path=final_dump_index,
+        canonical_md_path=final_canonical_md,
+        chunk_index_path=final_chunk_index,
+        dump_index_path=final_dump_index,
+        sqlite_index_path=sqlite_indices[-1] if sqlite_indices else None,
+        redact_secrets=redact_secrets,
+        canonical_md_required=(output_mode in ("archive", "dual") or _exp_md_sha is not None),
+        chunk_index_required=(output_mode in ("retrieval", "dual") or _exp_chunk_sha is not None),
+        # SQLite checks are required only when a sqlite artifact was materialized.
+        # This health report does not claim sqlite generation was expected if
+        # retrieval index creation was skipped by environment/runtime constraints.
+        sqlite_index_required=bool(sqlite_indices),
+        expected_canonical_md_sha256=_exp_md_sha,
+        expected_chunk_index_sha256=_exp_chunk_sha,
+        retrieval_eval_path=retrieval_evals[-1] if retrieval_evals else None,
+        retrieval_eval_sha256=_exp_eval_sha,
+    )
+    out_paths.append(output_health_path)
+    _add_artifact(output_health_path, ArtifactRole.OUTPUT_HEALTH, "application/json")
+
     links = {}
     if canonical_dump_index_sha256:
         links["canonical_dump_index_sha256"] = canonical_dump_index_sha256
@@ -5903,6 +5954,7 @@ def write_reports_v2(
             retrieval_eval=retrieval_evals[-1] if retrieval_evals else None,
             derived_manifest=derived_manifests[-1] if derived_manifests else None,
             bundle_manifest=bundle_manifest_path,
+            output_health=output_health_path,
             other=other_paths
         )
     else:
@@ -5917,5 +5969,6 @@ def write_reports_v2(
             retrieval_eval=retrieval_evals[-1] if retrieval_evals else None,
             derived_manifest=derived_manifests[-1] if derived_manifests else None,
             bundle_manifest=bundle_manifest_path,
+            output_health=output_health_path,
             other=other_paths
         )
