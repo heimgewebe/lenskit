@@ -58,17 +58,21 @@ def _check_file_hash(path: Optional[Path], expected_sha256: Optional[str]) -> Tu
 
 def _sqlite_checks(
     sqlite_path: Path,
-) -> Dict[str, Any]:
+    chunk_count: int,
+) -> Tuple[Dict[str, Any], List[str]]:
     """
     Run all required SQLite checks and return a partial check dict.
     Returns dict with keys:
         sqlite_row_count, sqlite_row_count_matches_chunk_count,
+        sqlite_fts_row_count, sqlite_fts_row_count_matches_chunk_count,
         fts_content_non_empty, fts_empty_row_count
     plus optional errors list.
     """
     result: Dict[str, Any] = {
         "sqlite_row_count": None,
         "sqlite_row_count_matches_chunk_count": None,
+        "sqlite_fts_row_count": None,
+        "sqlite_fts_row_count_matches_chunk_count": None,
         "fts_content_non_empty": None,
         "fts_empty_row_count": None,
     }
@@ -81,6 +85,8 @@ def _sqlite_checks(
             result["sqlite_row_count"] = row_count
 
             fts_count = c.execute("SELECT count(*) FROM chunks_fts").fetchone()[0]
+            result["sqlite_fts_row_count"] = fts_count
+            result["sqlite_fts_row_count_matches_chunk_count"] = fts_count == chunk_count
 
             fts_stats = c.execute(
                 "SELECT avg(length(content)), max(length(content)) FROM chunks_fts"
@@ -133,8 +139,8 @@ def _range_ref_check(
                     if isinstance(raw_ref, str):
                         try:
                             raw_ref = json.loads(raw_ref)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            return False, [f"invalid content_range_ref JSON string: {e}"]
                     if isinstance(raw_ref, dict):
                         sample_ref = raw_ref
                         break
@@ -142,7 +148,9 @@ def _range_ref_check(
         return None, [f"Could not read chunk_index: {e}"]
 
     if sample_ref is None:
-        return None, []
+        # No range_ref present in any chunk; this is normal for inline-only bundles
+        # but should be flagged as a non-blocking issue
+        return None, ["no content_range_ref found; range_ref check skipped"]
 
     try:
         from .range_resolver import resolve_range_ref
@@ -156,7 +164,7 @@ def compute_output_health(
     *,
     run_id: str,
     stem: str,
-    bundle_manifest_path: Optional[Path],
+    primary_manifest_path: Optional[Path],
     canonical_md_path: Optional[Path],
     chunk_index_path: Optional[Path],
     dump_index_path: Optional[Path],
@@ -172,16 +180,24 @@ def compute_output_health(
     """
     Compute the output health report.  Does NOT write to disk.
     Returns a dict conforming to output-health.v1.schema.json.
+    
+    Note: primary_manifest_path is the dump_index or primary artifact manifest,
+    NOT the final bundle manifest (which is written after health is computed).
+    This avoids self-referential circularity: output_health.json does not verify
+    its own SHA256 or its own entry in the final bundle manifest.
     """
     warnings: List[str] = []
     errors: List[str] = []
     checks: Dict[str, Any] = {}
 
     # ── manifest_present ────────────────────────────────────────────────────
-    manifest_present = bool(bundle_manifest_path and bundle_manifest_path.exists())
+    # In PR2, this checks the primary manifest (dump_index), not the final
+    # bundle manifest (which is written after health is computed).
+    # This avoids: output_health.json checking its own entry.
+    manifest_present = bool(primary_manifest_path and primary_manifest_path.exists())
     checks["manifest_present"] = manifest_present
     if not manifest_present:
-        errors.append("bundle manifest file is missing")
+        errors.append("primary artifact manifest is missing")
 
     # ── canonical_md_hash_ok ────────────────────────────────────────────────
     canonical_ok, _ = _check_file_hash(canonical_md_path, expected_canonical_md_sha256)
@@ -223,7 +239,7 @@ def compute_output_health(
     checks["sqlite_checks_required"] = sqlite_present
 
     if sqlite_present:
-        sq, sq_errors = _sqlite_checks(sqlite_index_path)
+        sq, sq_errors = _sqlite_checks(sqlite_index_path, chunk_count)
         checks.update(sq)
         if sq_errors:
             errors.extend(sq_errors)
@@ -237,6 +253,16 @@ def compute_output_health(
                     errors.append(
                         f"SQLite row count ({sqlite_row_count}) != chunk count ({chunk_count})"
                     )
+
+            # FTS row count BLOCKING check
+            sqlite_fts_row_count = sq.get("sqlite_fts_row_count")
+            if sqlite_fts_row_count is not None:
+                fts_row_match = sqlite_fts_row_count == chunk_count
+                if not fts_row_match:
+                    errors.append(
+                        f"SQLite FTS row count ({sqlite_fts_row_count}) != chunk count ({chunk_count})"
+                    )
+
             # FTS content check
             fts_ok = sq.get("fts_content_non_empty")
             if fts_ok is False:
@@ -246,6 +272,8 @@ def compute_output_health(
     else:
         checks["sqlite_row_count"] = None
         checks["sqlite_row_count_matches_chunk_count"] = None
+        checks["sqlite_fts_row_count"] = None
+        checks["sqlite_fts_row_count_matches_chunk_count"] = None
         checks["fts_content_non_empty"] = None
         checks["fts_empty_row_count"] = None
         warnings.append(
@@ -262,16 +290,20 @@ def compute_output_health(
 
     # ── non-blocking optional checks ────────────────────────────────────────
     checks["sample_query_content_hit"] = {
-        "status": "warning",
+        "status": "skipped",
         "required": False,
         "reason": "stable sample query is introduced in a later work package",
     }
+    if checks["sample_query_content_hit"]["status"] == "skipped":
+        warnings.append("sample_query_content_hit not available in PR2; will be added later")
 
     checks["agent_pack_present"] = {
-        "status": "warning",
+        "status": "skipped",
         "required": False,
         "reason": "agent_reading_pack is introduced in a later work package",
     }
+    if checks["agent_pack_present"]["status"] == "skipped":
+        warnings.append("agent_pack_present not available in PR2; will be added later")
 
     checks["redaction_status_explicit"] = True
 
@@ -321,6 +353,8 @@ def write_output_health(
     Compute and write ``<output_path>.output_health.json``.
     ``output_path`` should be the bundle stem path (without extension);
     the actual file is written alongside the other bundle artifacts.
+    
+    Note: Pass primary_manifest_path (dump_index), NOT the final bundle manifest.
 
     Returns the path to the written file.
     """

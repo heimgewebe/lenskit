@@ -5869,8 +5869,9 @@ def write_reports_v2(
     if derived_manifests:
         _add_artifact(derived_manifests[-1], ArtifactRole.DERIVED_MANIFEST_JSON, "application/json")
 
-    # Write output health report BEFORE the bundle manifest is finalized
-    # (health report checks primary artifacts; it is NOT self-verifying).
+    # Write output health report BEFORE the bundle manifest is finalized.
+    # In PR2, health checks are anchored to already-materialized primary artifacts
+    # (especially dump_index), not to the final bundle manifest entry of itself.
     output_health_path = bundle_manifest_path.with_name(
         bundle_manifest_path.name.replace(".bundle.manifest.json", ".output_health.json")
     )
@@ -5890,7 +5891,7 @@ def write_reports_v2(
         output_health_path,
         run_id=run_id,
         stem=_output_health_stem,
-        bundle_manifest_path=bundle_manifest_path if bundle_manifest_path.exists() else None,
+        primary_manifest_path=final_dump_index,
         canonical_md_path=final_canonical_md,
         chunk_index_path=final_chunk_index,
         dump_index_path=final_dump_index,

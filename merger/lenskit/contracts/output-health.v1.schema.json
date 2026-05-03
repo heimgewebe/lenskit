@@ -50,7 +50,8 @@
       ],
       "properties": {
         "manifest_present": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "True if the primary artifact manifest (dump_index) is present. In PR2 this is intentionally decoupled from the final bundle manifest entry to avoid self-referential circularity."
         },
         "canonical_md_hash_ok": {
           "type": "boolean"
@@ -74,6 +75,13 @@
           "minimum": 0
         },
         "sqlite_row_count_matches_chunk_count": {
+          "type": ["boolean", "null"]
+        },
+        "sqlite_fts_row_count": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "sqlite_fts_row_count_matches_chunk_count": {
           "type": ["boolean", "null"]
         },
         "fts_content_non_empty": {
