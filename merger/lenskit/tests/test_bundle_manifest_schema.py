@@ -5,6 +5,11 @@ from pathlib import Path
 import jsonschema
 from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256, TEST_ARTIFACT_SHA256
 
+
+def _assert_manifest_has_output_health_gate_artifact(manifest: dict):
+    roles = {artifact["role"] for artifact in manifest["artifacts"]}
+    assert "output_health" in roles, "bundle manifest semantic gate requires an output_health artifact"
+
 @pytest.fixture
 def schema():
     schema_path = Path(__file__).parent.parent / "contracts" / "bundle-manifest.v1.schema.json"
@@ -53,6 +58,76 @@ def test_valid_bundle_manifest(schema):
         }
     }
     jsonschema.validate(instance=valid_data, schema=schema)
+
+
+def test_manifest_health_gate_accepts_output_health(schema):
+    valid_data = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-1234",
+        "created_at": "2023-10-12T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [
+            {
+                "role": "canonical_md",
+                "path": "output.md",
+                "content_type": "text/markdown",
+                "bytes": 1024,
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "role_only"}
+            },
+            {
+                "role": "output_health",
+                "path": "output.output_health.json",
+                "content_type": "application/json",
+                "bytes": 512,
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "role_only"}
+            }
+        ],
+        "links": {},
+        "capabilities": {}
+    }
+
+    jsonschema.validate(instance=valid_data, schema=schema)
+    _assert_manifest_has_output_health_gate_artifact(valid_data)
+
+
+def test_missing_output_health_passes_schema_but_fails_self_consumption_gate(schema):
+    manifest_without_output_health = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-run-1234",
+        "created_at": "2023-10-12T10:00:00Z",
+        "generator": {
+            "name": "lenskit-test",
+            "version": "v1.2.3",
+            "config_sha256": TEST_CONFIG_SHA256
+        },
+        "artifacts": [
+            {
+                "role": "canonical_md",
+                "path": "output.md",
+                "content_type": "text/markdown",
+                "bytes": 1024,
+                "sha256": TEST_ARTIFACT_SHA256,
+                "interpretation": {"mode": "role_only"}
+            }
+        ],
+        "links": {},
+        "capabilities": {}
+    }
+
+    # The JSON schema enforces structural validity and remains backward-compatible
+    # with historical or minimal manifests. Requiring output_health is a separate
+    # self-consumption semantic gate, not a v1 schema constraint.
+    jsonschema.validate(instance=manifest_without_output_health, schema=schema)
+    with pytest.raises(AssertionError, match="output_health"):
+        _assert_manifest_has_output_health_gate_artifact(manifest_without_output_health)
 
 
 def test_invalid_bundle_manifest_role_only_with_contract(schema):

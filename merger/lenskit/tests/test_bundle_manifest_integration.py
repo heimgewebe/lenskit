@@ -11,6 +11,14 @@ from merger.lenskit.core.merge import FileInfo, write_reports_v2
 from merger.lenskit.tests._test_constants import make_generator_info
 
 
+_BUNDLE_MANIFEST_SCHEMA_PATH = (
+    Path(__file__).parent.parent / "contracts" / "bundle-manifest.v1.schema.json"
+)
+_OUTPUT_HEALTH_SCHEMA_PATH = (
+    Path(__file__).parent.parent / "contracts" / "output-health.v1.schema.json"
+)
+
+
 def _sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -123,50 +131,52 @@ def test_generate_bundle_manifest_integration(tmp_path):
         assert ArtifactRole.SQLITE_INDEX.value in roles_map
 
 
+def test_full_bundle_manifest_contains_output_health(tmp_path):
+    artifacts, _, _ = _make_minimal_bundle(tmp_path, output_mode="dual")
+
+    assert artifacts.bundle_manifest is not None
+    manifest = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
+    roles = {artifact["role"] for artifact in manifest["artifacts"]}
+
+    assert ArtifactRole.OUTPUT_HEALTH.value in roles
+
+
+def test_output_health_file_exists_and_schema_valid(tmp_path):
+    artifacts, manifest, _ = _make_minimal_bundle(tmp_path, output_mode="dual")
+
+    assert artifacts.output_health is not None
+    assert artifacts.output_health.exists()
+
+    health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
+    output_health_schema = json.loads(_OUTPUT_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=health, schema=output_health_schema)
+
+    manifest_schema = json.loads(_BUNDLE_MANIFEST_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=manifest, schema=manifest_schema)
+
+    output_health_entry = _artifact_by_role(manifest, ArtifactRole.OUTPUT_HEALTH.value)
+    assert output_health_entry is not None
+    assert Path(output_health_entry["path"]).name == artifacts.output_health.name
+
+
+def test_output_health_verdict_pass_for_healthy_dual_bundle(tmp_path):
+    artifacts, _, _ = _make_minimal_bundle(tmp_path, output_mode="dual")
+
+    assert artifacts.output_health is not None
+    health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
+
+    assert health["errors"] == []
+    assert health["warnings"] == []
+    assert health["verdict"] == "pass"
+    assert health["checks"]["canonical_md_required"] is True
+    assert health["checks"]["chunk_index_required"] is True
+    assert health["checks"]["canonical_md_hash_ok"] is True
+    assert health["checks"]["chunk_index_hash_ok"] is True
+    assert health["checks"]["range_ref_resolution_ok"] is True
+
+
 def test_output_health_archive_mode_does_not_require_chunk_index(tmp_path):
-    src_dir = tmp_path / "src"
-    src_dir.mkdir()
-    f1 = src_dir / "file1.txt"
-    f1.write_text("Hello World", encoding="utf-8")
-
-    out_dir = tmp_path / "out"
-    out_dir.mkdir()
-    hub_dir = tmp_path / "hub"
-    hub_dir.mkdir()
-
-    fi1 = FileInfo(
-        root_label="test-repo",
-        abs_path=f1,
-        rel_path=Path("file1.txt"),
-        size=11,
-        is_text=True,
-        md5="test",
-        category="docs",
-        tags=[],
-        ext=".txt",
-        skipped=False,
-    )
-    repo_summary = {
-        "name": "test-repo",
-        "path": str(src_dir),
-        "root": src_dir,
-        "files": [fi1],
-        "source_files": [fi1],
-    }
-
-    artifacts = write_reports_v2(
-        merges_dir=out_dir,
-        hub=hub_dir,
-        repo_summaries=[repo_summary],
-        detail="test",
-        mode="gesamt",
-        max_bytes=1000,
-        plan_only=False,
-        code_only=False,
-        extras=MockExtras(),
-        output_mode="archive",
-        generator_info=make_generator_info(),
-    )
+    artifacts, _, _ = _make_minimal_bundle(tmp_path, output_mode="archive")
 
     assert artifacts.output_health is not None
     health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
@@ -177,49 +187,7 @@ def test_output_health_archive_mode_does_not_require_chunk_index(tmp_path):
 
 
 def test_output_health_retrieval_mode_does_not_require_canonical_md(tmp_path):
-    src_dir = tmp_path / "src"
-    src_dir.mkdir()
-    f1 = src_dir / "file1.txt"
-    f1.write_text("Hello World", encoding="utf-8")
-
-    out_dir = tmp_path / "out"
-    out_dir.mkdir()
-    hub_dir = tmp_path / "hub"
-    hub_dir.mkdir()
-
-    fi1 = FileInfo(
-        root_label="test-repo",
-        abs_path=f1,
-        rel_path=Path("file1.txt"),
-        size=11,
-        is_text=True,
-        md5="test",
-        category="docs",
-        tags=[],
-        ext=".txt",
-        skipped=False,
-    )
-    repo_summary = {
-        "name": "test-repo",
-        "path": str(src_dir),
-        "root": src_dir,
-        "files": [fi1],
-        "source_files": [fi1],
-    }
-
-    artifacts = write_reports_v2(
-        merges_dir=out_dir,
-        hub=hub_dir,
-        repo_summaries=[repo_summary],
-        detail="test",
-        mode="gesamt",
-        max_bytes=1000,
-        plan_only=False,
-        code_only=False,
-        extras=MockExtras(),
-        output_mode="retrieval",
-        generator_info=make_generator_info(),
-    )
+    artifacts, _, _ = _make_minimal_bundle(tmp_path, output_mode="retrieval")
 
     assert artifacts.output_health is not None
     health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
@@ -496,7 +464,7 @@ def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
     assert re.fullmatch(r"[a-f0-9]{64}", data["generator"]["config_sha256"])
 
 
-def _make_minimal_bundle(tmp_path):
+def _make_minimal_bundle(tmp_path, *, output_mode: str = "dual"):
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     f1 = src_dir / "file1.txt"
@@ -538,7 +506,7 @@ def _make_minimal_bundle(tmp_path):
         plan_only=False,
         code_only=False,
         extras=MockExtras(),
-        output_mode="dual",
+        output_mode=output_mode,
         generator_info=make_generator_info(),
     )
     data = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
