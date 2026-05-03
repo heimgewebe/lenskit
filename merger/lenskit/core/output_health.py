@@ -73,12 +73,15 @@ def _chunk_index_stats(chunk_index_path: Optional[Path]) -> Tuple[int, int, int,
                         invalid_json_count += 1
                         continue
                     
-                    cid = obj.get("chunk_id")
-                    if cid is None:
-                        cid = obj.get("id")
+                    # A chunk is valid when either chunk_id or id is present and non-empty.
+                    has_valid_id = False
+                    for key in ("chunk_id", "id"):
+                        cid = obj.get(key)
+                        if cid is not None and str(cid).strip():
+                            has_valid_id = True
+                            break
 
-                    # Treat null/empty/whitespace identifiers as missing.
-                    if cid is None or not str(cid).strip():
+                    if not has_valid_id:
                         missing_id_count += 1
                         continue
                     
