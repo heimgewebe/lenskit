@@ -79,7 +79,8 @@
               "derived_manifest_json",
               "delta_json",
               "graph_index_json",
-              "architecture_summary"
+              "architecture_summary",
+              "output_health"
             ],
             "description": "Machine-readable enum role for this artifact."
           },

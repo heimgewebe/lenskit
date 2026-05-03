@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/output-health.v1.schema.json",
+  "title": "Output Health (output-health v1.0)",
+  "description": "Machine-readable diagnostic health report for a Lenskit output bundle. Checks functional usability of the artifact chain without self-referential circularity.",
+  "type": "object",
+  "required": [
+    "kind",
+    "version",
+    "run_id",
+    "created_at",
+    "stem",
+    "checks",
+    "warnings",
+    "errors",
+    "verdict"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "lenskit.output_health"
+    },
+    "version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO 8601 UTC timestamp."
+    },
+    "stem": {
+      "type": "string",
+      "description": "Base stem of the output bundle (used to derive artifact file names)."
+    },
+    "checks": {
+      "type": "object",
+      "required": [
+        "manifest_present",
+        "canonical_md_hash_ok",
+        "chunk_index_hash_ok",
+        "chunk_count",
+        "sqlite_present",
+        "sqlite_checks_required",
+        "range_ref_resolution_ok",
+        "redaction_status_explicit"
+      ],
+      "properties": {
+        "manifest_present": {
+          "type": "boolean"
+        },
+        "canonical_md_hash_ok": {
+          "type": "boolean"
+        },
+        "chunk_index_hash_ok": {
+          "type": "boolean"
+        },
+        "chunk_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sqlite_present": {
+          "type": "boolean"
+        },
+        "sqlite_checks_required": {
+          "type": "boolean",
+          "description": "True iff sqlite_index artifact is in the bundle manifest."
+        },
+        "sqlite_row_count": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "sqlite_row_count_matches_chunk_count": {
+          "type": ["boolean", "null"]
+        },
+        "fts_content_non_empty": {
+          "type": ["boolean", "null"]
+        },
+        "fts_empty_row_count": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "range_ref_resolution_ok": {
+          "type": ["boolean", "null"]
+        },
+        "sample_query_content_hit": {
+          "type": "object",
+          "required": ["status", "required"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "warning", "fail", "skipped"]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "agent_pack_present": {
+          "type": "object",
+          "required": ["status", "required"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "warning", "fail", "skipped"]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "redaction_status_explicit": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "diagnostic_artifacts": {
+      "type": "object",
+      "description": "Optional: diagnostic artifacts from the bundle, e.g. retrieval_eval_json."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "warn", "fail"]
+    }
+  },
+  "additionalProperties": false
+}
