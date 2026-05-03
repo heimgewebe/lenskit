@@ -128,6 +128,25 @@
         },
         "redaction_status_explicit": {
           "type": "boolean"
+        },
+        "redact_secrets_enabled": {
+          "type": "boolean",
+          "description": "Whether secrets redaction was enabled during health report generation."
+        },
+        "chunk_invalid_json_line_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of lines in chunk_index.jsonl that are non-empty but not valid JSON."
+        },
+        "chunk_missing_id_line_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of JSON lines in chunk_index.jsonl that lack a valid chunk identifier (id or chunk_id field)."
+        },
+        "chunk_empty_line_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of empty lines in chunk_index.jsonl."
         }
       },
       "additionalProperties": true

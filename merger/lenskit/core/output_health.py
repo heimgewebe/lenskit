@@ -15,13 +15,20 @@ Design contract:
 
 from __future__ import annotations
 
-import datetime
 import hashlib
 import json
 import logging
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    from .clock import now_utc
+except ImportError:
+    # Fallback if clock module not available
+    import datetime
+    def now_utc():
+        return datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +45,52 @@ def _sha256_file(path: Path) -> Optional[str]:
         return h.hexdigest()
     except OSError:
         return None
+
+
+def _chunk_index_stats(chunk_index_path: Optional[Path]) -> Tuple[int, int, int, int]:
+    """
+    Validate chunk_index.jsonl and return (chunk_count, invalid_json_count, missing_id_count, empty_line_count).
+    
+    A valid chunk line must be:
+    - non-empty
+    - valid JSON
+    - contains at least one of: 'id' or 'chunk_id' field
+    """
+    if not chunk_index_path or not chunk_index_path.exists():
+        return 0, 0, 0, 0
+    
+    chunk_count = 0
+    invalid_json_count = 0
+    missing_id_count = 0
+    empty_line_count = 0
+    
+    try:
+        with chunk_index_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line_stripped = line.rstrip("\n\r")
+                if not line_stripped:
+                    empty_line_count += 1
+                    continue
+                
+                try:
+                    obj = json.loads(line_stripped)
+                    if not isinstance(obj, dict):
+                        invalid_json_count += 1
+                        continue
+                    
+                    # Check for valid ID field (accept both 'id' and 'chunk_id')
+                    has_id = ("id" in obj or "chunk_id" in obj)
+                    if not has_id:
+                        missing_id_count += 1
+                        continue
+                    
+                    chunk_count += 1
+                except json.JSONDecodeError:
+                    invalid_json_count += 1
+    except OSError:
+        pass
+    
+    return chunk_count, invalid_json_count, missing_id_count, empty_line_count
 
 
 def _check_file_hash(path: Optional[Path], expected_sha256: Optional[str]) -> Tuple[bool, Optional[str]]:
@@ -216,22 +269,21 @@ def compute_output_health(
         )
 
     # ── chunk_count ─────────────────────────────────────────────────────────
-    chunk_count = 0
-    if chunk_index_path and chunk_index_path.exists():
-        try:
-            with chunk_index_path.open("r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        try:
-                            json.loads(line)
-                            chunk_count += 1
-                        except json.JSONDecodeError:
-                            pass
-        except OSError:
-            pass
+    chunk_count, chunk_invalid_json_count, chunk_missing_id_count, chunk_empty_line_count = _chunk_index_stats(
+        chunk_index_path
+    )
     checks["chunk_count"] = chunk_count
-    if chunk_count == 0:
-        errors.append("chunk_count is 0; index is empty")
+    checks["chunk_invalid_json_line_count"] = chunk_invalid_json_count
+    checks["chunk_missing_id_line_count"] = chunk_missing_id_count
+    checks["chunk_empty_line_count"] = chunk_empty_line_count
+    
+    # Chunk validation errors are blocking
+    if chunk_invalid_json_count > 0:
+        errors.append(f"chunk_index.jsonl has {chunk_invalid_json_count} invalid JSON line(s)")
+    if chunk_missing_id_count > 0:
+        errors.append(f"chunk_index.jsonl has {chunk_missing_id_count} line(s) missing valid id/chunk_id")
+    if chunk_count == 0 and chunk_index_path and chunk_index_path.exists():
+        errors.append("chunk_index.jsonl has no valid chunk entries")
 
     # ── sqlite ──────────────────────────────────────────────────────────────
     sqlite_present = bool(sqlite_index_path and sqlite_index_path.exists())
@@ -306,6 +358,7 @@ def compute_output_health(
         warnings.append("agent_pack_present not available in PR2; will be added later")
 
     checks["redaction_status_explicit"] = True
+    checks["redact_secrets_enabled"] = bool(redact_secrets)
 
     # ── diagnostic_artifacts ────────────────────────────────────────────────
     diagnostic_artifacts: Dict[str, Any] = {}
@@ -329,13 +382,19 @@ def compute_output_health(
     else:
         verdict = "pass"
 
+    # Format created_at timestamp
+    ts = now_utc()
+    if isinstance(ts, str):
+        created_at = ts if ts.endswith("Z") else ts + "Z"
+    else:
+        # Fallback if now_utc returns a datetime object
+        created_at = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     return {
         "kind": "lenskit.output_health",
         "version": "1.0",
         "run_id": run_id,
-        "created_at": datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        ),
+        "created_at": created_at,
         "stem": stem,
         "checks": checks,
         "diagnostic_artifacts": diagnostic_artifacts,
@@ -350,11 +409,12 @@ def write_output_health(
     **kwargs: Any,
 ) -> Path:
     """
-    Compute and write ``<output_path>.output_health.json``.
-    ``output_path`` should be the bundle stem path (without extension);
-    the actual file is written alongside the other bundle artifacts.
+    Compute and write the output health report to output_path.
+    output_path must be the full destination file path, for example *.output_health.json;
+    it is written exactly as provided.
     
     Note: Pass primary_manifest_path (dump_index), NOT the final bundle manifest.
+    This prevents self-referential circularity during health computation.
 
     Returns the path to the written file.
     """
