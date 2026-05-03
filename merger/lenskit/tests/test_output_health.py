@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 
 import jsonschema
+import pytest
 
 from merger.lenskit.core.output_health import compute_output_health, write_output_health
 
@@ -60,7 +61,13 @@ def _make_sqlite(tmp_path: Path, chunks_rows: list[dict], fts_rows: list[dict] |
     conn = sqlite3.connect(str(db_path))
     c = conn.cursor()
     c.execute("CREATE TABLE chunks (id TEXT PRIMARY KEY, content TEXT, path TEXT)")
-    c.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(chunk_id, content, path_tokens)")
+    try:
+        c.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(chunk_id, content, path_tokens)")
+    except sqlite3.OperationalError as e:
+        conn.close()
+        if "no such module: fts5" in str(e).lower():
+            pytest.skip("SQLite FTS5 not available")
+        raise
 
     for row in chunks_rows:
         c.execute("INSERT INTO chunks VALUES (?, ?, ?)", (row["id"], row["content"], row["path"]))
@@ -139,8 +146,7 @@ def test_verdict_warn_when_blocking_checks_pass_but_optional_features_missing(tm
         expected_chunk_index_sha256=chunk_sha,
     )
 
-    # verdict is "warn" because optional features are missing (sample_query_content_hit, agent_pack_present)
-    # That's expected in PR2 until those features are added
+    # verdict is "warn" because optional features are intentionally non-blocking
     assert result["verdict"] == "warn"
     assert result["checks"]["manifest_present"] is True
     assert result["checks"]["range_ref_resolution_ok"] is True
@@ -173,6 +179,24 @@ def test_output_health_does_not_require_final_bundle_manifest_entry(tmp_path):
     assert result["checks"]["manifest_present"] is True
     assert not any("primary artifact manifest is missing" in e for e in result["errors"])
     assert result["verdict"] != "fail"
+
+
+def test_verdict_fail_when_expected_canonical_hash_missing(tmp_path):
+    kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
+    kwargs["expected_canonical_md_sha256"] = None
+    result = compute_output_health(**kwargs)
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["canonical_md_hash_ok"] is False
+
+
+def test_verdict_fail_when_expected_chunk_index_hash_missing(tmp_path):
+    kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
+    kwargs["expected_chunk_index_sha256"] = None
+    result = compute_output_health(**kwargs)
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_index_hash_ok"] is False
 
 
 def test_verdict_fail_canonical_md_missing(tmp_path):
@@ -479,7 +503,36 @@ def test_chunk_index_invalid_json_line_is_error(tmp_path):
 
     assert result["verdict"] == "fail"
     assert result["checks"]["chunk_invalid_json_line_count"] == 1
-    assert any("invalid JSON" in e for e in result["errors"])
+    assert any("invalid or non-object" in e for e in result["errors"])
+
+
+def test_chunk_index_non_object_json_line_is_error(tmp_path):
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    chunk_index_path = tmp_path / "test.chunk_index.jsonl"
+    # One valid object line and one valid non-object JSON line
+    chunk_index_path.write_text(
+        json.dumps({"id": "c1", "content": "hello", "path": "a.md"}) + "\n" + "[]\n",
+        encoding="utf-8",
+    )
+    chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-non-object-json",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_index_sha,
+    )
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_invalid_json_line_count"] == 1
+    assert any("non-object" in e for e in result["errors"])
 
 
 def test_chunk_index_missing_id_is_error(tmp_path):
@@ -509,3 +562,57 @@ def test_chunk_index_missing_id_is_error(tmp_path):
     assert result["verdict"] == "fail"
     assert result["checks"]["chunk_missing_id_line_count"] == 1
     assert any("missing valid id" in e for e in result["errors"])
+
+
+def test_chunk_index_empty_chunk_id_is_error(tmp_path):
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    chunk_index_path = tmp_path / "test.chunk_index.jsonl"
+    chunk_index_path.write_text(
+        json.dumps({"chunk_id": "", "content": "hello", "path": "test/a.md"}) + "\n",
+        encoding="utf-8",
+    )
+    chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-empty-chunk-id",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_index_sha,
+    )
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_missing_id_line_count"] == 1
+
+
+def test_chunk_index_none_id_is_error(tmp_path):
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    chunk_index_path = tmp_path / "test.chunk_index.jsonl"
+    chunk_index_path.write_text(
+        json.dumps({"id": None, "content": "hello", "path": "test/a.md"}) + "\n",
+        encoding="utf-8",
+    )
+    chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-none-id",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_index_sha,
+    )
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_missing_id_line_count"] == 1

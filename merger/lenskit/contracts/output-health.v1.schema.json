@@ -61,7 +61,7 @@
       "properties": {
         "manifest_present": {
           "type": "boolean",
-          "description": "True if the primary artifact manifest (dump_index) is present. In PR2 this is intentionally decoupled from the final bundle manifest entry to avoid self-referential circularity."
+          "description": "True if the primary artifact manifest (dump_index) is present. In this implementation this is intentionally decoupled from the final bundle manifest entry to avoid self-referential validation."
         },
         "canonical_md_hash_ok": {
           "type": "boolean"
@@ -78,7 +78,7 @@
         },
         "sqlite_checks_required": {
           "type": "boolean",
-          "description": "True iff sqlite_index artifact is in the bundle manifest."
+          "description": "True iff a sqlite_index path was provided and SQLite checks are expected. In this implementation this is derived before final bundle-manifest self-registration."
         },
         "sqlite_row_count": {
           "type": ["integer", "null"],
@@ -146,7 +146,7 @@
         "chunk_invalid_json_line_count": {
           "type": "integer",
           "minimum": 0,
-          "description": "Number of lines in chunk_index.jsonl that are non-empty but not valid JSON."
+          "description": "Number of lines in chunk_index.jsonl that are invalid JSON or valid non-object JSON values."
         },
         "chunk_missing_id_line_count": {
           "type": "integer",

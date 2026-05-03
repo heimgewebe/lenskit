@@ -9,8 +9,8 @@ Design contract:
 - NO self-hash circularity: output_health.json does NOT verify its own SHA256.
 - The bundle manifest is updated by the caller AFTER this module writes the file.
 - Blocking checks failing → verdict "fail".
-- Only non-blocking gaps → verdict "warn".
-- All blocking checks pass → verdict "pass".
+- Non-blocking warnings only → verdict "warn".
+- No errors and no warnings → verdict "pass".
 """
 
 from __future__ import annotations
@@ -22,13 +22,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-try:
-    from .clock import now_utc
-except ImportError:
-    # Fallback if clock module not available
-    import datetime
-    def now_utc():
-        return datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+from .clock import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +48,8 @@ def _chunk_index_stats(chunk_index_path: Optional[Path]) -> Tuple[int, int, int,
     A valid chunk line must be:
     - non-empty
     - valid JSON
-    - contains at least one of: 'id' or 'chunk_id' field
+    - object-form JSON
+    - contains a non-empty chunk identifier in 'chunk_id' or 'id'
     """
     if not chunk_index_path or not chunk_index_path.exists():
         return 0, 0, 0, 0
@@ -78,9 +73,12 @@ def _chunk_index_stats(chunk_index_path: Optional[Path]) -> Tuple[int, int, int,
                         invalid_json_count += 1
                         continue
                     
-                    # Check for valid ID field (accept both 'id' and 'chunk_id')
-                    has_id = ("id" in obj or "chunk_id" in obj)
-                    if not has_id:
+                    cid = obj.get("chunk_id")
+                    if cid is None:
+                        cid = obj.get("id")
+
+                    # Treat null/empty/whitespace identifiers as missing.
+                    if cid is None or not str(cid).strip():
                         missing_id_count += 1
                         continue
                     
@@ -104,8 +102,8 @@ def _check_file_hash(path: Optional[Path], expected_sha256: Optional[str]) -> Tu
     if actual is None:
         return False, None
     if not expected_sha256:
-        # No expected hash to compare against; treat as OK
-        return True, actual
+        # Without an expected hash, integrity cannot be proven.
+        return False, actual
     return actual == expected_sha256, actual
 
 
@@ -187,6 +185,8 @@ def _range_ref_check(
                     chunk = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                if not isinstance(chunk, dict):
+                    continue
                 raw_ref = chunk.get("content_range_ref")
                 if raw_ref is not None:
                     if isinstance(raw_ref, str):
@@ -247,7 +247,7 @@ def compute_output_health(
     checks: Dict[str, Any] = {}
 
     # ── manifest_present ────────────────────────────────────────────────────
-    # In PR2, this checks the primary manifest (dump_index), not the final
+    # In this implementation, this checks the primary manifest (dump_index), not the final
     # bundle manifest (which is written after health is computed).
     # This avoids: output_health.json checking its own entry.
     manifest_present = bool(primary_manifest_path and primary_manifest_path.exists())
@@ -282,7 +282,9 @@ def compute_output_health(
     
     # Chunk validation errors are blocking
     if chunk_invalid_json_count > 0:
-        errors.append(f"chunk_index.jsonl has {chunk_invalid_json_count} invalid JSON line(s)")
+        errors.append(
+            f"chunk_index.jsonl has {chunk_invalid_json_count} invalid or non-object JSON line(s)"
+        )
     if chunk_missing_id_count > 0:
         errors.append(f"chunk_index.jsonl has {chunk_missing_id_count} line(s) missing valid id/chunk_id")
     if chunk_count == 0 and chunk_index_path and chunk_index_path.exists():
@@ -354,7 +356,7 @@ def compute_output_health(
         "reason": "stable sample query is introduced in a later work package",
     }
     if checks["sample_query_content_hit"]["status"] == "skipped":
-        warnings.append("sample_query_content_hit not available in PR2; will be added later")
+        warnings.append("sample_query_content_hit not available in current implementation; will be added later")
 
     checks["agent_pack_present"] = {
         "status": "skipped",
@@ -362,7 +364,7 @@ def compute_output_health(
         "reason": "agent_reading_pack is introduced in a later work package",
     }
     if checks["agent_pack_present"]["status"] == "skipped":
-        warnings.append("agent_pack_present not available in PR2; will be added later")
+        warnings.append("agent_pack_present not available in current implementation; will be added later")
 
     checks["redaction_status_explicit"] = True
     checks["redact_secrets_enabled"] = bool(redact_secrets)
