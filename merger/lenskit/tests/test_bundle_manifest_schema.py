@@ -6,7 +6,7 @@ import jsonschema
 from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256, TEST_ARTIFACT_SHA256
 
 
-def _assert_manifest_has_output_health_gate_artifact(manifest: dict):
+def _assert_manifest_has_output_health_presence_gate(manifest: dict):
     roles = {artifact["role"] for artifact in manifest["artifacts"]}
     assert "output_health" in roles, "bundle manifest semantic gate requires an output_health artifact"
 
@@ -94,10 +94,10 @@ def test_manifest_health_gate_accepts_output_health(schema):
     }
 
     jsonschema.validate(instance=valid_data, schema=schema)
-    _assert_manifest_has_output_health_gate_artifact(valid_data)
+    _assert_manifest_has_output_health_presence_gate(valid_data)
 
 
-def test_missing_output_health_passes_schema_but_fails_self_consumption_gate(schema):
+def test_missing_output_health_passes_schema_but_fails_presence_gate(schema):
     manifest_without_output_health = {
         "kind": "repolens.bundle.manifest",
         "version": "1.0",
@@ -124,10 +124,10 @@ def test_missing_output_health_passes_schema_but_fails_self_consumption_gate(sch
 
     # The JSON schema enforces structural validity and remains backward-compatible
     # with historical or minimal manifests. Requiring output_health is a separate
-    # self-consumption semantic gate, not a v1 schema constraint.
+    # output_health presence gate, not a v1 schema constraint.
     jsonschema.validate(instance=manifest_without_output_health, schema=schema)
     with pytest.raises(AssertionError, match="output_health"):
-        _assert_manifest_has_output_health_gate_artifact(manifest_without_output_health)
+        _assert_manifest_has_output_health_presence_gate(manifest_without_output_health)
 
 
 def test_invalid_bundle_manifest_role_only_with_contract(schema):
