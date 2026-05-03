@@ -97,7 +97,7 @@ def test_manifest_health_gate_accepts_output_health(schema):
     _assert_manifest_self_consumes_output_health(valid_data)
 
 
-def test_missing_output_health_fails_self_consumption_gate(schema):
+def test_missing_output_health_passes_schema_but_fails_self_consumption_gate(schema):
     manifest_without_output_health = {
         "kind": "repolens.bundle.manifest",
         "version": "1.0",
@@ -122,6 +122,9 @@ def test_missing_output_health_fails_self_consumption_gate(schema):
         "capabilities": {}
     }
 
+    # The JSON schema enforces structural validity and remains backward-compatible
+    # with historical or minimal manifests. Requiring output_health is a separate
+    # self-consumption semantic gate, not a v1 schema constraint.
     jsonschema.validate(instance=manifest_without_output_health, schema=schema)
     with pytest.raises(AssertionError, match="output_health"):
         _assert_manifest_self_consumes_output_health(manifest_without_output_health)
