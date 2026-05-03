@@ -108,6 +108,9 @@
 ### Risiko
 - [ ] Speicher-/Leak-Risiko durch echten SQLite-Content mit Redaction-Profil absichern.
 
+### Follow-up (nicht Teil von PR 1)
+- [ ] **Resolver-Caching:** `resolve_range_ref()` lädt Manifest und JSON-Schema derzeit pro Chunk neu. Bei großen Indexläufen (>10k Chunks) empfiehlt sich ein Manifest- und Schema-Cache in `build_index()`. Implementierung folgt als separater PR (PR 4 o. ä.) ohne API-Änderung an `resolve_range_ref()` selbst.
+
 ---
 
 ## Arbeitspaket B — Range-Ref v2 (Optimierungsgrad 0.79)

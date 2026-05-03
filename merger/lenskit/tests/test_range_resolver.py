@@ -234,3 +234,86 @@ def test_source_file_path_traversal_prevention(tmp_path):
 
     with pytest.raises(ValueError, match="file_path must be a relative path"):
         resolve_range_ref(manifest_path, ref_malicious_absolute)
+
+
+# ---------------------------------------------------------------------------
+# Path traversal protection for non-source_file artifacts (bundle/dump-index)
+# ---------------------------------------------------------------------------
+
+def _make_dump_index_env(tmp_path, artifact_path_in_manifest: str):
+    """
+    Build a dump-index manifest that lists canonical_md with the given path.
+    Returns (manifest_path, ref_dict).
+    """
+    import hashlib
+    dummy_sha = "a" * 64  # Will not pass hash check, but path guard fires first.
+    manifest_path = tmp_path / "dump.json"
+    manifest_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": artifact_path_in_manifest,
+            }
+        }
+    }), encoding="utf-8")
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": artifact_path_in_manifest,
+        "start_byte": 0,
+        "end_byte": 4,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": dummy_sha,
+    }
+    return manifest_path, ref
+
+
+def test_non_source_file_absolute_path_rejected(tmp_path):
+    """Artifact path '/etc/passwd' in a dump-index manifest must be rejected."""
+    manifest_path, ref = _make_dump_index_env(tmp_path, "/etc/passwd")
+    with pytest.raises(ValueError, match="Artifact path must be a relative path"):
+        resolve_range_ref(manifest_path, ref)
+
+
+def test_non_source_file_dotdot_path_rejected(tmp_path):
+    """Artifact path '../secret.txt' in a dump-index manifest must be rejected."""
+    manifest_path, ref = _make_dump_index_env(tmp_path, "../secret.txt")
+    with pytest.raises(ValueError, match="attempts to escape the manifest directory"):
+        resolve_range_ref(manifest_path, ref)
+
+
+def test_non_source_file_safe_relative_path_accepted(tmp_path):
+    """A safe relative path in a dump-index manifest must not be rejected by path guards."""
+    import hashlib
+    content = b"hello world\n"
+    artifact = tmp_path / "canonical.md"
+    artifact.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+    manifest_path = tmp_path / "dump.json"
+    manifest_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        }
+    }), encoding="utf-8")
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+    result = resolve_range_ref(manifest_path, ref)
+    assert result["text"] == "hello world\n"

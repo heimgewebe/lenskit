@@ -141,3 +141,79 @@ except RuntimeError as e:
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=get_test_env(), cwd=repo_root)
     assert result.returncode == 0
     assert "Success" in result.stdout
+
+
+def test_build_index_jsonschema_degradation(tmp_path):
+    """
+    build_index() must raise RuntimeError (not silently produce empty FTS)
+    when jsonschema is unavailable and a chunk requires content_range_ref hydration.
+    """
+    import hashlib
+    import json as _json
+
+    # Prepare a minimal valid artifact environment
+    canonical_md = tmp_path / "canonical.md"
+    content = b"hydrateduniquetokenxq7z is the search term.\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(_json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        }
+    }), encoding="utf-8")
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(_json.dumps({
+        "chunk_id": "c_schema_degraded",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "content_range_ref": ref,
+    }) + "\n", encoding="utf-8")
+
+    db_path = tmp_path / "index.sqlite"
+
+    code = f"""
+import sys
+sys.modules['jsonschema'] = None
+import merger.lenskit.retrieval.index_db as idx
+from pathlib import Path
+
+try:
+    idx.build_index(Path("{dump_path}"), Path("{chunk_path}"), Path("{db_path}"))
+    sys.exit(1)
+except RuntimeError as e:
+    msg = str(e)
+    if "FTS hydration failed" in msg and "Schema validation requested" in msg:
+        print("Success")
+    else:
+        print(f"Wrong error: {{msg}}")
+        sys.exit(1)
+"""
+    repo_root = get_repo_root()
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True, text=True,
+        env=get_test_env(), cwd=repo_root,
+    )
+    assert result.returncode == 0, f"stderr: {result.stderr}\nstdout: {result.stdout}"
+    assert "Success" in result.stdout
