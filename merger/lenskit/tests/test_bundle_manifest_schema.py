@@ -6,9 +6,9 @@ import jsonschema
 from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256, TEST_ARTIFACT_SHA256
 
 
-def _assert_manifest_has_output_health(manifest: dict):
+def _assert_manifest_self_consumes_output_health(manifest: dict):
     roles = {artifact["role"] for artifact in manifest["artifacts"]}
-    assert "output_health" in roles, "bundle manifest must include an output_health artifact"
+    assert "output_health" in roles, "bundle manifest must self-consume an output_health artifact"
 
 @pytest.fixture
 def schema():
@@ -94,10 +94,10 @@ def test_manifest_health_gate_accepts_output_health(schema):
     }
 
     jsonschema.validate(instance=valid_data, schema=schema)
-    _assert_manifest_has_output_health(valid_data)
+    _assert_manifest_self_consumes_output_health(valid_data)
 
 
-def test_missing_output_health_fails_manifest_health_validation(schema):
+def test_missing_output_health_fails_self_consumption_gate(schema):
     manifest_without_output_health = {
         "kind": "repolens.bundle.manifest",
         "version": "1.0",
@@ -124,7 +124,7 @@ def test_missing_output_health_fails_manifest_health_validation(schema):
 
     jsonschema.validate(instance=manifest_without_output_health, schema=schema)
     with pytest.raises(AssertionError, match="output_health"):
-        _assert_manifest_has_output_health(manifest_without_output_health)
+        _assert_manifest_self_consumes_output_health(manifest_without_output_health)
 
 
 def test_invalid_bundle_manifest_role_only_with_contract(schema):
