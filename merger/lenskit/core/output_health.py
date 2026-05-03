@@ -289,9 +289,10 @@ def compute_output_health(
         errors.append("chunk_index.jsonl has no valid chunk entries")
 
     # ── sqlite ──────────────────────────────────────────────────────────────
+    sqlite_checks_required = sqlite_index_path is not None
     sqlite_present = bool(sqlite_index_path and sqlite_index_path.exists())
     checks["sqlite_present"] = sqlite_present
-    checks["sqlite_checks_required"] = sqlite_present
+    checks["sqlite_checks_required"] = sqlite_checks_required
 
     if sqlite_present:
         sq, sq_errors = _sqlite_checks(sqlite_index_path, chunk_count)
@@ -331,9 +332,12 @@ def compute_output_health(
         checks["sqlite_fts_row_count_matches_chunk_count"] = None
         checks["fts_content_non_empty"] = None
         checks["fts_empty_row_count"] = None
-        warnings.append(
-            "sqlite_index not present in bundle; SQLite checks skipped"
-        )
+        if sqlite_checks_required:
+            errors.append("sqlite_index expected but file is missing")
+        else:
+            warnings.append(
+                "sqlite_index not present in bundle; SQLite checks skipped"
+            )
 
     # ── range_ref_resolution_ok ─────────────────────────────────────────────
     rr_ok, rr_msgs = _range_ref_check(dump_index_path, chunk_index_path)
