@@ -318,6 +318,34 @@ def test_verdict_fail_sqlite_expected_but_missing(tmp_path):
     assert any("sqlite" in e.lower() and "missing" in e.lower() for e in result["errors"])
 
 
+def test_sqlite_not_required_and_missing_does_not_warn_or_fail(tmp_path):
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
+    chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md", "content_range_ref": rr}]
+    chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-missing-sqlite-not-required",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        sqlite_index_required=False,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_sha,
+    )
+
+    assert result["checks"]["sqlite_checks_required"] is False
+    assert result["checks"]["sqlite_present"] is False
+    assert not any("sqlite" in w.lower() for w in result["warnings"])
+    assert result["errors"] == []
+    assert result["verdict"] == "pass"
+
+
 def test_verdict_fail_sqlite_fts_row_count_mismatch(tmp_path):
     chunks = [
         {"id": "c1", "content": "aaa", "path": "a.md"},

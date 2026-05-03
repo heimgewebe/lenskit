@@ -257,6 +257,8 @@ def compute_output_health(
     checks: Dict[str, Any] = {}
 
     if sqlite_index_required is None:
+        # Backward-compatible fallback: if callers do not provide an explicit
+        # expectation, require SQLite checks only when a SQLite path is present.
         sqlite_index_required = sqlite_index_path is not None
 
     # ── manifest_present ────────────────────────────────────────────────────
@@ -365,10 +367,6 @@ def compute_output_health(
         checks["fts_empty_row_count"] = None
         if sqlite_checks_required:
             errors.append("sqlite_index expected but file is missing")
-        else:
-            warnings.append(
-                "sqlite_index not present in bundle; SQLite checks skipped"
-            )
 
     # ── range_ref_resolution_ok ─────────────────────────────────────────────
     if chunk_index_required:

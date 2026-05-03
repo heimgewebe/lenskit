@@ -172,7 +172,8 @@ def test_output_health_archive_mode_does_not_require_chunk_index(tmp_path):
     health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
     assert health["checks"]["chunk_index_required"] is False
     assert health["checks"]["chunk_index_hash_ok"] is None
-    assert health["verdict"] != "fail"
+    assert health["errors"] == []
+    assert health["verdict"] == "pass"
 
 
 def test_output_health_retrieval_mode_does_not_require_canonical_md(tmp_path):

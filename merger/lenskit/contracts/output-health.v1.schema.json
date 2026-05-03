@@ -90,7 +90,7 @@
         },
         "sqlite_checks_required": {
           "type": "boolean",
-          "description": "True iff a sqlite_index path was provided and SQLite checks are expected. In this implementation this is derived before final bundle-manifest self-registration."
+          "description": "True iff SQLite checks are required for this run. In the current implementation this is true when a sqlite artifact was materialized; this does not by itself prove sqlite generation was expected in every runtime environment."
         },
         "sqlite_row_count": {
           "type": ["integer", "null"],

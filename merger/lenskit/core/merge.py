@@ -5899,6 +5899,9 @@ def write_reports_v2(
         redact_secrets=redact_secrets,
         canonical_md_required=(output_mode in ("archive", "dual") or _exp_md_sha is not None),
         chunk_index_required=(output_mode in ("retrieval", "dual") or _exp_chunk_sha is not None),
+        # SQLite checks are required only when a sqlite artifact was materialized.
+        # This health report does not claim sqlite generation was expected if
+        # retrieval index creation was skipped by environment/runtime constraints.
         sqlite_index_required=bool(sqlite_indices),
         expected_canonical_md_sha256=_exp_md_sha,
         expected_chunk_index_sha256=_exp_chunk_sha,
