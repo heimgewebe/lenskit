@@ -88,26 +88,30 @@ def _chunk_index_stats(chunk_index_path: Optional[Path]) -> Tuple[int, int, int,
                     chunk_count += 1
                 except json.JSONDecodeError:
                     invalid_json_count += 1
+    except UnicodeError:
+        # Treat decode failures as invalid line input to avoid hard crashes on corrupt JSONL.
+        invalid_json_count += 1
     except OSError:
         pass
     
     return chunk_count, invalid_json_count, missing_id_count, empty_line_count
 
 
-def _check_file_hash(path: Optional[Path], expected_sha256: Optional[str]) -> Tuple[bool, Optional[str]]:
+def _check_file_hash(path: Optional[Path], expected_sha256: Optional[str]) -> Tuple[str, Optional[str]]:
     """
-    Returns (ok, actual_sha256).
-    ok=False if path missing, hash computation fails, or hash mismatches.
+    Returns (status, actual_sha256).
+    status is one of: ok, missing_file, missing_expected_hash, hash_mismatch, read_error.
     """
     if not path or not path.exists():
-        return False, None
+        return "missing_file", None
     actual = _sha256_file(path)
     if actual is None:
-        return False, None
+        return "read_error", None
     if not expected_sha256:
-        # Without an expected hash, integrity cannot be proven.
-        return False, actual
-    return actual == expected_sha256, actual
+        return "missing_expected_hash", actual
+    if actual != expected_sha256:
+        return "hash_mismatch", actual
+    return "ok", actual
 
 
 def _sqlite_checks(
@@ -203,7 +207,7 @@ def _range_ref_check(
                         ]
                     sample_ref = raw_ref
                     break
-    except OSError as e:
+    except (OSError, UnicodeError) as e:
         return None, [f"Could not read chunk_index: {e}"]
 
     if sample_ref is None:
@@ -229,6 +233,9 @@ def compute_output_health(
     dump_index_path: Optional[Path],
     sqlite_index_path: Optional[Path],
     redact_secrets: bool,
+    canonical_md_required: bool = True,
+    chunk_index_required: bool = True,
+    sqlite_index_required: Optional[bool] = None,
     # Expected hashes from dump_index / bundle manifest for cross-checking
     expected_canonical_md_sha256: Optional[str] = None,
     expected_chunk_index_sha256: Optional[str] = None,
@@ -249,6 +256,9 @@ def compute_output_health(
     errors: List[str] = []
     checks: Dict[str, Any] = {}
 
+    if sqlite_index_required is None:
+        sqlite_index_required = sqlite_index_path is not None
+
     # ── manifest_present ────────────────────────────────────────────────────
     # In this implementation, this checks the primary manifest (dump_index), not the final
     # bundle manifest (which is written after health is computed).
@@ -259,20 +269,36 @@ def compute_output_health(
         errors.append("primary artifact manifest is missing")
 
     # ── canonical_md_hash_ok ────────────────────────────────────────────────
-    canonical_ok, _ = _check_file_hash(canonical_md_path, expected_canonical_md_sha256)
-    checks["canonical_md_hash_ok"] = canonical_ok
-    if not canonical_ok:
-        errors.append(
-            "canonical_md hash check failed (file missing or hash mismatch)"
-        )
+    checks["canonical_md_required"] = bool(canonical_md_required)
+    if canonical_md_required:
+        canonical_status, _ = _check_file_hash(canonical_md_path, expected_canonical_md_sha256)
+        checks["canonical_md_hash_ok"] = canonical_status == "ok"
+        if canonical_status == "missing_file":
+            errors.append("canonical_md hash check failed: file missing")
+        elif canonical_status == "missing_expected_hash":
+            errors.append("canonical_md hash check failed: expected sha256 missing")
+        elif canonical_status == "hash_mismatch":
+            errors.append("canonical_md hash check failed: hash mismatch")
+        elif canonical_status == "read_error":
+            errors.append("canonical_md hash check failed: could not read file")
+    else:
+        checks["canonical_md_hash_ok"] = None
 
     # ── chunk_index_hash_ok ─────────────────────────────────────────────────
-    chunk_ok, _ = _check_file_hash(chunk_index_path, expected_chunk_index_sha256)
-    checks["chunk_index_hash_ok"] = chunk_ok
-    if not chunk_ok:
-        errors.append(
-            "chunk_index hash check failed (file missing or hash mismatch)"
-        )
+    checks["chunk_index_required"] = bool(chunk_index_required)
+    if chunk_index_required:
+        chunk_status, _ = _check_file_hash(chunk_index_path, expected_chunk_index_sha256)
+        checks["chunk_index_hash_ok"] = chunk_status == "ok"
+        if chunk_status == "missing_file":
+            errors.append("chunk_index hash check failed: file missing")
+        elif chunk_status == "missing_expected_hash":
+            errors.append("chunk_index hash check failed: expected sha256 missing")
+        elif chunk_status == "hash_mismatch":
+            errors.append("chunk_index hash check failed: hash mismatch")
+        elif chunk_status == "read_error":
+            errors.append("chunk_index hash check failed: could not read file")
+    else:
+        checks["chunk_index_hash_ok"] = None
 
     # ── chunk_count ─────────────────────────────────────────────────────────
     chunk_count, chunk_invalid_json_count, chunk_missing_id_count, chunk_empty_line_count = _chunk_index_stats(
@@ -284,17 +310,17 @@ def compute_output_health(
     checks["chunk_empty_line_count"] = chunk_empty_line_count
     
     # Chunk validation errors are blocking
-    if chunk_invalid_json_count > 0:
+    if chunk_index_required and chunk_invalid_json_count > 0:
         errors.append(
             f"chunk_index.jsonl has {chunk_invalid_json_count} invalid or non-object JSON line(s)"
         )
-    if chunk_missing_id_count > 0:
+    if chunk_index_required and chunk_missing_id_count > 0:
         errors.append(f"chunk_index.jsonl has {chunk_missing_id_count} line(s) missing valid id/chunk_id")
-    if chunk_count == 0 and chunk_index_path and chunk_index_path.exists():
+    if chunk_index_required and chunk_count == 0 and chunk_index_path and chunk_index_path.exists():
         errors.append("chunk_index.jsonl has no valid chunk entries")
 
     # ── sqlite ──────────────────────────────────────────────────────────────
-    sqlite_checks_required = sqlite_index_path is not None
+    sqlite_checks_required = bool(sqlite_index_required)
     sqlite_present = bool(sqlite_index_path and sqlite_index_path.exists())
     checks["sqlite_present"] = sqlite_present
     checks["sqlite_checks_required"] = sqlite_checks_required
@@ -345,12 +371,15 @@ def compute_output_health(
             )
 
     # ── range_ref_resolution_ok ─────────────────────────────────────────────
-    rr_ok, rr_msgs = _range_ref_check(dump_index_path, chunk_index_path)
-    checks["range_ref_resolution_ok"] = rr_ok
-    if rr_ok is False:
-        errors.extend(rr_msgs)
-    elif rr_ok is None:
-        warnings.extend(rr_msgs)
+    if chunk_index_required:
+        rr_ok, rr_msgs = _range_ref_check(dump_index_path, chunk_index_path)
+        checks["range_ref_resolution_ok"] = rr_ok
+        if rr_ok is False:
+            errors.extend(rr_msgs)
+        elif rr_ok is None:
+            warnings.extend(rr_msgs)
+    else:
+        checks["range_ref_resolution_ok"] = None
 
     # ── non-blocking optional checks ────────────────────────────────────────
     checks["sample_query_content_hit"] = {

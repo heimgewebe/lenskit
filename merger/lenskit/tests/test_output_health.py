@@ -192,6 +192,7 @@ def test_verdict_fail_when_expected_canonical_hash_missing(tmp_path):
 
     assert result["verdict"] == "fail"
     assert result["checks"]["canonical_md_hash_ok"] is False
+    assert any("expected sha256 missing" in e for e in result["errors"])
 
 
 def test_verdict_fail_when_expected_chunk_index_hash_missing(tmp_path):
@@ -201,6 +202,7 @@ def test_verdict_fail_when_expected_chunk_index_hash_missing(tmp_path):
 
     assert result["verdict"] == "fail"
     assert result["checks"]["chunk_index_hash_ok"] is False
+    assert any("expected sha256 missing" in e for e in result["errors"])
 
 
 def test_verdict_fail_canonical_md_missing(tmp_path):
@@ -210,6 +212,46 @@ def test_verdict_fail_canonical_md_missing(tmp_path):
 
     assert result["verdict"] == "fail"
     assert result["checks"]["canonical_md_hash_ok"] is False
+    assert any("file missing" in e.lower() for e in result["errors"])
+
+
+def test_archive_mode_can_skip_chunk_index_hash_check(tmp_path):
+    kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
+    kwargs["chunk_index_required"] = False
+    kwargs["chunk_index_path"] = tmp_path / "missing.chunk_index.jsonl"
+    kwargs["expected_chunk_index_sha256"] = None
+
+    result = compute_output_health(**kwargs)
+
+    assert result["checks"]["chunk_index_required"] is False
+    assert result["checks"]["chunk_index_hash_ok"] is None
+    assert not any("chunk_index hash check failed" in e for e in result["errors"])
+    assert result["verdict"] != "fail"
+
+
+def test_retrieval_mode_can_skip_canonical_md_hash_check(tmp_path):
+    kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
+    kwargs["canonical_md_required"] = False
+    kwargs["canonical_md_path"] = tmp_path / "missing.md"
+    kwargs["expected_canonical_md_sha256"] = None
+
+    result = compute_output_health(**kwargs)
+
+    assert result["checks"]["canonical_md_required"] is False
+    assert result["checks"]["canonical_md_hash_ok"] is None
+    assert not any("canonical_md hash check failed" in e for e in result["errors"])
+    assert result["verdict"] != "fail"
+
+
+def test_verdict_fail_chunk_index_missing_file_when_required(tmp_path):
+    kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
+    kwargs["chunk_index_path"] = tmp_path / "missing.chunk_index.jsonl"
+
+    result = compute_output_health(**kwargs)
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_index_hash_ok"] is False
+    assert any("chunk_index hash check failed: file missing" in e for e in result["errors"])
 
 
 def test_verdict_fail_empty_chunk_index(tmp_path):
@@ -701,3 +743,28 @@ def test_chunk_index_list_chunk_id_is_error(tmp_path):
 
     assert result["verdict"] == "fail"
     assert result["checks"]["chunk_missing_id_line_count"] == 1
+
+
+def test_chunk_index_invalid_utf8_is_structured_fail_not_crash(tmp_path):
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    chunk_index_path = tmp_path / "test.chunk_index.jsonl"
+    chunk_index_path.write_bytes(b"\xff\xfe\xfd\n")
+    chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-invalid-utf8",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_index_sha,
+    )
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["chunk_invalid_json_line_count"] >= 1
+    assert any("invalid or non-object" in e for e in result["errors"])

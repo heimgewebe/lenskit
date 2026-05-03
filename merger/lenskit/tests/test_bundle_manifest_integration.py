@@ -122,6 +122,110 @@ def test_generate_bundle_manifest_integration(tmp_path):
     if data["capabilities"].get("fts5_bm25"):
         assert ArtifactRole.SQLITE_INDEX.value in roles_map
 
+
+def test_output_health_archive_mode_does_not_require_chunk_index(tmp_path):
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    f1 = src_dir / "file1.txt"
+    f1.write_text("Hello World", encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    hub_dir = tmp_path / "hub"
+    hub_dir.mkdir()
+
+    fi1 = FileInfo(
+        root_label="test-repo",
+        abs_path=f1,
+        rel_path=Path("file1.txt"),
+        size=11,
+        is_text=True,
+        md5="test",
+        category="docs",
+        tags=[],
+        ext=".txt",
+        skipped=False,
+    )
+    repo_summary = {
+        "name": "test-repo",
+        "path": str(src_dir),
+        "root": src_dir,
+        "files": [fi1],
+        "source_files": [fi1],
+    }
+
+    artifacts = write_reports_v2(
+        merges_dir=out_dir,
+        hub=hub_dir,
+        repo_summaries=[repo_summary],
+        detail="test",
+        mode="gesamt",
+        max_bytes=1000,
+        plan_only=False,
+        code_only=False,
+        extras=MockExtras(),
+        output_mode="archive",
+        generator_info=make_generator_info(),
+    )
+
+    assert artifacts.output_health is not None
+    health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
+    assert health["checks"]["chunk_index_required"] is False
+    assert health["checks"]["chunk_index_hash_ok"] is None
+    assert health["verdict"] != "fail"
+
+
+def test_output_health_retrieval_mode_does_not_require_canonical_md(tmp_path):
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    f1 = src_dir / "file1.txt"
+    f1.write_text("Hello World", encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    hub_dir = tmp_path / "hub"
+    hub_dir.mkdir()
+
+    fi1 = FileInfo(
+        root_label="test-repo",
+        abs_path=f1,
+        rel_path=Path("file1.txt"),
+        size=11,
+        is_text=True,
+        md5="test",
+        category="docs",
+        tags=[],
+        ext=".txt",
+        skipped=False,
+    )
+    repo_summary = {
+        "name": "test-repo",
+        "path": str(src_dir),
+        "root": src_dir,
+        "files": [fi1],
+        "source_files": [fi1],
+    }
+
+    artifacts = write_reports_v2(
+        merges_dir=out_dir,
+        hub=hub_dir,
+        repo_summaries=[repo_summary],
+        detail="test",
+        mode="gesamt",
+        max_bytes=1000,
+        plan_only=False,
+        code_only=False,
+        extras=MockExtras(),
+        output_mode="retrieval",
+        generator_info=make_generator_info(),
+    )
+
+    assert artifacts.output_health is not None
+    health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
+    assert health["checks"]["canonical_md_required"] is False
+    assert health["checks"]["canonical_md_hash_ok"] is None
+    assert not any("canonical_md hash check failed" in e for e in health["errors"])
+
 def test_invalid_config_sha256_raises_error(tmp_path):
     src_dir = tmp_path / "src"
     src_dir.mkdir()

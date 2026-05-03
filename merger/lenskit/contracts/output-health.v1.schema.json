@@ -40,7 +40,9 @@
       "type": "object",
       "required": [
         "manifest_present",
+        "canonical_md_required",
         "canonical_md_hash_ok",
+        "chunk_index_required",
         "chunk_index_hash_ok",
         "chunk_count",
         "chunk_invalid_json_line_count",
@@ -63,11 +65,21 @@
           "type": "boolean",
           "description": "True if the primary artifact manifest (dump_index) is present. In this implementation this is intentionally decoupled from the final bundle manifest entry to avoid self-referential validation."
         },
+        "canonical_md_required": {
+          "type": "boolean",
+          "description": "True when canonical_md is expected for this output mode or caller expectation."
+        },
         "canonical_md_hash_ok": {
-          "type": "boolean"
+          "type": ["boolean", "null"],
+          "description": "Null means not checked because canonical_md is not required in this output mode."
+        },
+        "chunk_index_required": {
+          "type": "boolean",
+          "description": "True when chunk_index_jsonl is expected for this output mode or caller expectation."
         },
         "chunk_index_hash_ok": {
-          "type": "boolean"
+          "type": ["boolean", "null"],
+          "description": "Null means not checked because chunk_index_jsonl is not required in this output mode."
         },
         "chunk_count": {
           "type": "integer",

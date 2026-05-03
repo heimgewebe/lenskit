@@ -5871,7 +5871,7 @@ def write_reports_v2(
 
     # Write output health report BEFORE the bundle manifest is finalized.
     # In this implementation, health checks are anchored to already-materialized primary artifacts
-    # (especially dump_index), not to the final bundle manifest entry of itself.
+    # (especially dump_index), not to the final bundle manifest entry itself.
     output_health_path = bundle_manifest_path.with_name(
         bundle_manifest_path.name.replace(".bundle.manifest.json", ".output_health.json")
     )
@@ -5897,6 +5897,9 @@ def write_reports_v2(
         dump_index_path=final_dump_index,
         sqlite_index_path=sqlite_indices[-1] if sqlite_indices else None,
         redact_secrets=redact_secrets,
+        canonical_md_required=(output_mode in ("archive", "dual") or _exp_md_sha is not None),
+        chunk_index_required=(output_mode in ("retrieval", "dual") or _exp_chunk_sha is not None),
+        sqlite_index_required=bool(sqlite_indices),
         expected_canonical_md_sha256=_exp_md_sha,
         expected_chunk_index_sha256=_exp_chunk_sha,
         retrieval_eval_path=retrieval_evals[-1] if retrieval_evals else None,
