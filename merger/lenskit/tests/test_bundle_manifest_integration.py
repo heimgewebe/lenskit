@@ -11,8 +11,12 @@ from merger.lenskit.core.merge import FileInfo, write_reports_v2
 from merger.lenskit.tests._test_constants import make_generator_info
 
 
-_BUNDLE_MANIFEST_SCHEMA_PATH = Path(__file__).parent.parent / "contracts" / "bundle-manifest.v1.schema.json"
-_OUTPUT_HEALTH_SCHEMA_PATH = Path(__file__).parent.parent / "contracts" / "output-health.v1.schema.json"
+_BUNDLE_MANIFEST_SCHEMA_PATH = (
+    Path(__file__).parent.parent / "contracts" / "bundle-manifest.v1.schema.json"
+)
+_OUTPUT_HEALTH_SCHEMA_PATH = (
+    Path(__file__).parent.parent / "contracts" / "output-health.v1.schema.json"
+)
 
 
 def _sha256_file(path: Path) -> str:
