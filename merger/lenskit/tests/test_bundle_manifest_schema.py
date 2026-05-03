@@ -8,7 +8,7 @@ from merger.lenskit.tests._test_constants import TEST_CONFIG_SHA256, TEST_ARTIFA
 
 def _assert_manifest_has_output_health_gate_artifact(manifest: dict):
     roles = {artifact["role"] for artifact in manifest["artifacts"]}
-    assert "output_health" in roles, "bundle manifest must self-consume an output_health artifact"
+    assert "output_health" in roles, "bundle manifest semantic gate requires an output_health artifact"
 
 @pytest.fixture
 def schema():
