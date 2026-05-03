@@ -152,28 +152,31 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
                         if isinstance(raw_ref, str):
                             try:
                                 raw_ref = json.loads(raw_ref)
-                            except json.JSONDecodeError:
-                                raw_ref = None
-                        if isinstance(raw_ref, dict):
-                            try:
-                                resolved = resolve_range_ref(dump_path, raw_ref)
-                                content_text = resolved["text"]
-                                stats["fts_hydrated_from_range_ref"] += 1
-                            except ValueError as e:
-                                # Hash mismatch or schema violation — controlled fail, no unverified text in FTS
+                            except json.JSONDecodeError as e:
                                 raise RuntimeError(
-                                    f"FTS hydration failed for chunk '{cid}': {e}"
+                                    f"FTS hydration failed for chunk '{cid}': invalid content_range_ref JSON"
                                 ) from e
-                            except FileNotFoundError as e:
-                                logger.warning(
-                                    "FTS hydration skipped for chunk '%s': %s",
-                                    cid, e,
-                                )
-                            except Exception as e:
-                                logger.warning(
-                                    "FTS hydration skipped for chunk '%s' (unexpected error): %s",
-                                    cid, e,
-                                )
+                        if not isinstance(raw_ref, dict):
+                            raise RuntimeError(
+                                f"FTS hydration failed for chunk '{cid}': content_range_ref must be an object"
+                            )
+                        try:
+                            resolved = resolve_range_ref(dump_path, raw_ref)
+                            content_text = resolved["text"]
+                            stats["fts_hydrated_from_range_ref"] += 1
+                        except ValueError as e:
+                            # Hash mismatch or schema violation — controlled fail, no unverified text in FTS
+                            raise RuntimeError(
+                                f"FTS hydration failed for chunk '{cid}': {e}"
+                            ) from e
+                        except FileNotFoundError as e:
+                            raise RuntimeError(
+                                f"FTS hydration failed for chunk '{cid}': {e}"
+                            ) from e
+                        except Exception as e:
+                            raise RuntimeError(
+                                f"FTS hydration failed for chunk '{cid}' (unexpected error): {e}"
+                            ) from e
                     else:
                         logger.debug(
                             "Chunk '%s' has no inline content and no content_range_ref; FTS content will be empty.",

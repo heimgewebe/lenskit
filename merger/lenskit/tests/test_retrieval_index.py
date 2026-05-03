@@ -148,7 +148,7 @@ def _make_range_ref_env(tmp_path):
 
     canonical_md = tmp_path / "canonical.md"
     # Use a unique token so we can later verify the FTS hit
-    content = "# Section\n\nhydrated_unique_token_xq7z is the search term.\n"
+    content = "# Section\n\nhydrateduniquetokenxq7z is the search term.\n"
     canonical_bytes = content.encode("utf-8")
     canonical_md.write_bytes(canonical_bytes)
 
@@ -214,7 +214,7 @@ def test_fts_content_hydrated_from_range_ref(tmp_path):
 
         # A term that only appears in the resolved content must produce an FTS hit
         hits = conn.execute(
-            "SELECT chunk_id FROM chunks_fts WHERE chunks_fts MATCH 'hydrated_unique_token_xq7z'"
+            "SELECT chunk_id FROM chunks_fts WHERE chunks_fts MATCH 'hydrateduniquetokenxq7z'"
         ).fetchall()
         assert any(h[0] == "c_ref" for h in hits), (
             "FTS query for term in resolved range content returned no hits"
@@ -243,6 +243,56 @@ def test_fts_content_hydration_hash_mismatch_raises(tmp_path):
             "path": "docs/section.md",
             "layer": "core",
             "content_range_ref": bad_ref,
+        }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="FTS hydration failed"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+
+
+def test_fts_content_hydration_invalid_json_ref_raises(tmp_path):
+    """A malformed JSON string in content_range_ref must fail index build."""
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        }
+    }))
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    with chunk_path.open("w") as f:
+        f.write(json.dumps({
+            "chunk_id": "c_bad_json_ref",
+            "repo_id": "testrepo",
+            "path": "docs/section.md",
+            "layer": "core",
+            "content_range_ref": "{not-valid-json",
+        }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="invalid content_range_ref JSON"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+
+
+def test_fts_content_hydration_missing_artifact_raises(tmp_path):
+    """A content_range_ref pointing to a missing artifact file must fail index build."""
+    dump_path, canonical_md, ref, _ = _make_range_ref_env(tmp_path)
+    canonical_md.unlink()
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    with chunk_path.open("w") as f:
+        f.write(json.dumps({
+            "chunk_id": "c_missing_artifact",
+            "repo_id": "testrepo",
+            "path": "docs/section.md",
+            "layer": "core",
+            "content_range_ref": ref,
         }) + "\n")
 
     db_path = tmp_path / "index.sqlite"
