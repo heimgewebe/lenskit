@@ -155,7 +155,21 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
         if ref_file_path and ref_file_path != target_path_str:
             raise ValueError(f"file_path mismatch: ref={ref_file_path} manifest={target_path_str}")
 
-        target_path = manifest_path.parent / target_path_str
+        # Path Traversal Protection for non-source_file artifacts
+        if Path(target_path_str).is_absolute():
+            raise ValueError(
+                f"Artifact path must be a relative path, got: {target_path_str!r}"
+            )
+
+        base_dir = manifest_path.parent.resolve()
+        target_path = (base_dir / target_path_str).resolve()
+
+        try:
+            target_path.relative_to(base_dir)
+        except ValueError:
+            raise ValueError(
+                f"Artifact path '{target_path_str}' attempts to escape the manifest directory"
+            )
 
     if not target_path.exists():
         raise FileNotFoundError(f"Resolved artifact file not found: {target_path}")
