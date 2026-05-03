@@ -352,6 +352,39 @@ def test_verdict_fail_invalid_content_range_ref_json_string(tmp_path):
     assert any("invalid content_range_ref json" in e.lower() for e in result["errors"])
 
 
+def test_verdict_fail_content_range_ref_wrong_type(tmp_path):
+    chunks = [
+        {
+            "id": "c1",
+            "content": "x",
+            "path": "a.md",
+            "content_range_ref": ["not", "an", "object"],
+        }
+    ]
+    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
+    chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
+    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+
+    result = compute_output_health(
+        run_id="run-wrong-ref-type",
+        stem="test",
+        primary_manifest_path=dump_index_path,
+        canonical_md_path=canonical_md_path,
+        chunk_index_path=chunk_index_path,
+        dump_index_path=dump_index_path,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        expected_canonical_md_sha256=canonical_md_sha,
+        expected_chunk_index_sha256=chunk_sha,
+    )
+
+    assert result["verdict"] == "fail"
+    assert result["checks"]["range_ref_resolution_ok"] is False
+    assert any(
+        "content_range_ref" in e and "object" in e for e in result["errors"]
+    )
+
+
 def test_no_content_range_ref_is_warn_not_pass(tmp_path):
     kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
     result = compute_output_health(**kwargs)
@@ -450,8 +483,3 @@ def test_chunk_index_missing_id_is_error(tmp_path):
     assert result["verdict"] == "fail"
     assert result["checks"]["chunk_missing_id_line_count"] == 1
     assert any("missing valid id" in e for e in result["errors"])
-
-
-def _sha256_bytes(data: bytes) -> str:
-    import hashlib
-    return hashlib.sha256(data).hexdigest()

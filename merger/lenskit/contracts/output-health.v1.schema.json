@@ -48,6 +48,8 @@
         "chunk_empty_line_count",
         "sqlite_present",
         "sqlite_checks_required",
+        "sqlite_row_count",
+        "sqlite_row_count_matches_chunk_count",
         "sqlite_fts_row_count",
         "sqlite_fts_row_count_matches_chunk_count",
         "fts_content_non_empty",

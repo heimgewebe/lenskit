@@ -194,9 +194,12 @@ def _range_ref_check(
                             raw_ref = json.loads(raw_ref)
                         except json.JSONDecodeError as e:
                             return False, [f"invalid content_range_ref JSON string: {e}"]
-                    if isinstance(raw_ref, dict):
-                        sample_ref = raw_ref
-                        break
+                    if not isinstance(raw_ref, dict):
+                        return False, [
+                            f"content_range_ref must be an object, got {type(raw_ref).__name__}"
+                        ]
+                    sample_ref = raw_ref
+                    break
     except OSError as e:
         return None, [f"Could not read chunk_index: {e}"]
 
