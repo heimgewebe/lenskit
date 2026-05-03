@@ -17,3 +17,4 @@ class ArtifactRole(str, Enum):
     GRAPH_INDEX_JSON = "graph_index_json"
     ARCHITECTURE_SUMMARY = "architecture_summary"
     SOURCE_FILE = "source_file"
+    OUTPUT_HEALTH = "output_health"
