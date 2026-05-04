@@ -157,6 +157,10 @@ def test_output_health_file_exists_and_schema_valid(tmp_path):
     output_health_entry = _artifact_by_role(manifest, ArtifactRole.OUTPUT_HEALTH.value)
     assert output_health_entry is not None
     assert Path(output_health_entry["path"]).name == artifacts.output_health.name
+    assert output_health_entry["sha256"] == _sha256_file(artifacts.output_health)
+    assert output_health_entry["bytes"] == artifacts.output_health.stat().st_size
+    assert output_health_entry["authority"] == "diagnostic_signal"
+    assert output_health_entry["canonicality"] == "diagnostic"
 
 
 def test_output_health_verdict_pass_for_healthy_dual_bundle(tmp_path):
@@ -405,6 +409,12 @@ def test_producer_emits_authority_metadata_per_role(tmp_path):
         assert sqlite_idx["canonicality"] == "cache"
         assert sqlite_idx["regenerable"] is True
         assert sqlite_idx["staleness_sensitive"] is True
+
+    # output_health is a diagnostic signal, not a content or index artifact.
+    output_health = roles_map.get(ArtifactRole.OUTPUT_HEALTH.value)
+    assert output_health is not None, "output_health must be present in the manifest"
+    assert output_health["authority"] == "diagnostic_signal"
+    assert output_health["canonicality"] == "diagnostic"
 
 
 def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
