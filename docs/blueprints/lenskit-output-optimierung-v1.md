@@ -306,7 +306,7 @@ Hinweis: `query --index/--q`, `range get --manifest/--ref` und `artifact --id/--
 ## Diagnose-Gate vor Umsetzung
 
 - [x] Gate durchgeführt (2026-05-03).
-- [x] Ergebnis: kein Code-Patch in `index_db.py` nötig; Fokus verschiebt auf Folgepaket Range-Ref v2.
+- [x] Ergebnis: Kein zusätzlicher Code-Patch in `index_db.py` nötig; die Hydration ist bereits umgesetzt und durch Target-Proof bestätigt. Fokus verschiebt auf Folgepaket Range-Ref v2.
 - [x] Belegkriterien im aktuellen Lauf:
   - [x] `chunks > 0`
   - [x] `with_content == 0`

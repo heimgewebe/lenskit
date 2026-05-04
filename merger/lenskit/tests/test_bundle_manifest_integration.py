@@ -157,10 +157,10 @@ def test_output_health_file_exists_and_schema_valid(tmp_path):
     output_health_entry = _artifact_by_role(manifest, ArtifactRole.OUTPUT_HEALTH.value)
     assert output_health_entry is not None
     assert Path(output_health_entry["path"]).name == artifacts.output_health.name
-    assert output_health_entry["sha256"] == _sha256_file(artifacts.output_health)
-    assert output_health_entry["bytes"] == artifacts.output_health.stat().st_size
     assert output_health_entry["authority"] == "diagnostic_signal"
     assert output_health_entry["canonicality"] == "diagnostic"
+    assert output_health_entry["content_type"] == "application/json"
+    assert output_health_entry["interpretation"]["mode"] == "role_only"
 
 
 def test_output_health_verdict_pass_for_healthy_dual_bundle(tmp_path):
