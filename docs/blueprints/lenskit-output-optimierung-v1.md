@@ -11,7 +11,7 @@
 
 ### Antithese
 - [x] Output ist vollständig, aber für Agenten noch nicht zuverlässig genug suchbar, zitierbar und health-geprüft.
-- [x] Lokalbefund:
+- [x] Historischer Lokalbefund (Snapshot `lenskit-max-260502-1126_*`):
   - [x] `chunk_index.jsonl`: 539 Chunks.
   - [x] `content_range_ref` bei 539/539.
   - [x] `content` bei 0/539.
@@ -64,7 +64,7 @@
 
 ## 2) Leitentscheidung (Priorität)
 
-- [ ] **P1:** SQLite-FTS mit echtem Inhalt füllen.
+- [x] **P1:** SQLite-FTS mit echtem Inhalt füllen (Status: abgeschlossen und durch Target-Proof bestätigt, 2026-05-03).
 - [ ] **P2:** Range-Refs semantisch entwirren.
 - [ ] **P3:** Output-Health erzwingen.
 - [ ] **P4:** Agent Reading Pack erzeugen.
@@ -80,30 +80,45 @@
 - [x] SQLite-Builder darf nicht blind `chunk["content"]` erwarten.
 
 ### Ziel
-- [ ] `sqlite_index` liefert echte Volltextsuche, auch ohne Inline-Content im Chunk-Index.
+- [x] `sqlite_index` liefert echte Volltextsuche, auch ohne Inline-Content im Chunk-Index.
 
 ### Umsetzung
-- [ ] Dateien bearbeiten:
-  - [ ] `merger/lenskit/retrieval/index_db.py`
-  - [ ] `merger/lenskit/core/range_resolver.py`
-  - [ ] `merger/lenskit/tests/test_retrieval_index.py`
-  - [ ] `merger/lenskit/tests/test_dump_retrieval.py`
-- [ ] Algorithmus umsetzen:
-  - [ ] `content = chunk.get("content")`
-  - [ ] Fallback ohne Inline-Content: passenden `manifest_path` bestimmen (`<stem>_merge.bundle.manifest.json` oder `<stem>_merge.dump_index.json`, je nach Artefaktstruktur).
-  - [ ] `resolved = resolve_range_ref(manifest_path, content_range_ref)` — Signatur: `resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any]`
-  - [ ] Extrahierten Text übernehmen: `content = resolved["text"]`
-  - [ ] Hash prüfen: `sha256(canonical_md_bytes[start_byte:end_byte]) == ref.content_sha256` mit Python-Slice-Semantik: `start_byte` inklusiv, `end_byte` exklusiv; Hash über Rohbytes vor Dekodierung; erst danach wird der Byte-Slice für FTS dekodiert.
-  - [ ] In `chunks_fts(chunk_id, content, path_tokens)` schreiben
+- [x] Dateien sind umgesetzt und mit Tests abgesichert:
+  - [x] `merger/lenskit/retrieval/index_db.py`
+  - [x] `merger/lenskit/core/range_resolver.py`
+  - [x] `merger/lenskit/tests/test_retrieval_index.py`
+  - [x] `merger/lenskit/tests/test_dump_retrieval.py`
+- [x] Algorithmus ist vorhanden:
+  - [x] `content = chunk.get("content")`
+  - [x] Fallback ohne Inline-Content nutzt `content_range_ref` + Resolver.
+  - [x] `resolved = resolve_range_ref(manifest_path, content_range_ref)`
+  - [x] Extrahierter Text wird als FTS-Content übernommen.
+  - [x] Hash wird über Byte-Slice geprüft (`content_sha256`).
+  - [x] Persistenz in `chunks_fts(chunk_id, content, path_tokens)`.
 
 ### Target-Proof
-- [ ] Vorher/Nachher-Check:
-  - [ ] `count(*)` bleibt gleich (z. B. 539).
-  - [ ] `avg(length(content))` wird `> 0`.
-  - [ ] `max(length(content))` wird `> 0`.
+- [x] Vorher/Nachher-Check erfüllt (Target-Proof am 2026-05-03):
+  - [x] `count(*) > 0` und konsistent (`chunks_fts.count = 1`, `chunk_stats.chunks = 1`).
+  - [x] `avg(length(content)) > 0` (`134.0`).
+  - [x] `max(length(content)) > 0` (`134`).
 
 ### Stop-Kriterium
-- [ ] Query auf reinen Dateiinhalt liefert Treffer.
+- [x] Query auf reinen Dateiinhalt liefert Treffer (`canonicalonlytokenproofx9q2` -> 1 Hit in `chunks_fts`).
+
+### Target-Proof-Evidenz (2026-05-03)
+
+- Ausgeführte Tests:
+  - `python3 -m pytest merger/lenskit/tests/test_retrieval_index.py -q` -> `9 passed`
+  - `python3 -m pytest merger/lenskit/tests/test_dump_retrieval.py -q` -> `2 passed`
+  - `python3 -m pytest merger/lenskit/tests/test_output_health.py -q` -> `31 passed`
+  - `python3 -m pytest merger/lenskit/tests/test_bundle_manifest_integration.py -q` -> `13 passed`
+- Frischer Dual-Bundle-Laufzeitbeweis:
+  - `chunk_stats`: `chunks=1`, `with_content=0`, `with_content_range_ref=1`
+  - SQLite FTS: `count=1`, `avg(length(content))=134.0`, `max(length(content))=134`
+  - FTS-Hit: Token `canonicalonlytokenproofx9q2` liefert `token_hit_count=1`
+  - Hydration-Metadatum: `index_meta['ingest.fts_hydrated_from_range_ref'] = '1'`
+- Hash-Mismatch-Härtung:
+  - Abgedeckt durch `test_fts_content_hydration_hash_mismatch_raises` in `test_retrieval_index.py`.
 
 ### Risiko
 - [ ] Speicher-/Leak-Risiko durch echten SQLite-Content mit Redaction-Profil absichern.
@@ -290,13 +305,14 @@ Hinweis: `query --index/--q`, `range get --manifest/--ref` und `artifact --id/--
 
 ## Diagnose-Gate vor Umsetzung
 
-- [ ] Vor PR 1 zuerst Befundskript ausführen.
-- [ ] Nur patchen, wenn bestätigt:
-  - [ ] `chunks > 0`
-  - [ ] `with_content == 0`
-  - [ ] `with_content_range_ref == chunks`
-  - [ ] `avg(length(content)) == 0`
-  - [ ] `max(length(content)) == 0`
+- [x] Gate durchgeführt (2026-05-03).
+- [x] Ergebnis: Kein zusätzlicher Code-Patch in `index_db.py` nötig; die Hydration ist bereits umgesetzt und durch Target-Proof bestätigt. Fokus verschiebt auf Folgepaket Range-Ref v2.
+- [x] Belegkriterien im aktuellen Lauf:
+  - [x] `chunks > 0`
+  - [x] `with_content == 0`
+  - [x] `with_content_range_ref == chunks`
+  - [x] `avg(length(content)) > 0`
+  - [x] `max(length(content)) > 0`
 
 Reproduzierbares Befundskript (Pfade gelten für den Befundträger `lenskit-max-260502-1126_*`; für spätere Outputs `STEM` und Dateinamen entsprechend anpassen):
 
@@ -402,6 +418,6 @@ Patch für PR 1 ist nur zulässig, wenn bestätigt:
 
 ## Essenz (1-Minute-Plan)
 
-- [ ] Hebel: SQLite-FTS aus `content_range_ref` hydratisieren.
-- [ ] Entscheidung: Erst Output-Beweisfähigkeit, dann neue Features.
-- [ ] Nächste Aktion: PR 1 implementieren + Hash-Prüfung (Byte-Slice-basiert) + Tests + CI-Gate gegen leere FTS-Outputs.
+- [x] Hebel: SQLite-FTS aus `content_range_ref` hydratisieren.
+- [x] Entscheidung: Erst Output-Beweisfähigkeit, dann neue Features.
+- [ ] Nächste Aktion: PR 2 vorbereiten: Range-Ref v2 (semantic boundary split, docs-first).

@@ -11,11 +11,12 @@ from merger.lenskit.core.merge import FileInfo, write_reports_v2
 from merger.lenskit.tests._test_constants import make_generator_info
 
 
+_CONTRACTS_DIR = Path(__file__).parent.parent / "contracts"
 _BUNDLE_MANIFEST_SCHEMA_PATH = (
-    Path(__file__).parent.parent / "contracts" / "bundle-manifest.v1.schema.json"
+    _CONTRACTS_DIR / "bundle-manifest.v1.schema.json"
 )
 _OUTPUT_HEALTH_SCHEMA_PATH = (
-    Path(__file__).parent.parent / "contracts" / "output-health.v1.schema.json"
+    _CONTRACTS_DIR / "output-health.v1.schema.json"
 )
 
 
@@ -99,8 +100,7 @@ def test_generate_bundle_manifest_integration(tmp_path):
     data = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
 
     # Load schema
-    schema_path = Path(__file__).parent.parent / "contracts" / "bundle-manifest.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = json.loads(_BUNDLE_MANIFEST_SCHEMA_PATH.read_text(encoding="utf-8"))
 
     # Validate schema
     jsonschema.validate(instance=data, schema=schema)
@@ -157,6 +157,10 @@ def test_output_health_file_exists_and_schema_valid(tmp_path):
     output_health_entry = _artifact_by_role(manifest, ArtifactRole.OUTPUT_HEALTH.value)
     assert output_health_entry is not None
     assert Path(output_health_entry["path"]).name == artifacts.output_health.name
+    assert output_health_entry["authority"] == "diagnostic_signal"
+    assert output_health_entry["canonicality"] == "diagnostic"
+    assert output_health_entry["content_type"] == "application/json"
+    assert output_health_entry["interpretation"]["mode"] == "role_only"
 
 
 def test_output_health_verdict_pass_for_healthy_dual_bundle(tmp_path):
@@ -354,8 +358,7 @@ def test_producer_emits_authority_metadata_per_role(tmp_path):
     data = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
 
     # Schema guard: emitted manifest still validates with the new fields present.
-    schema_path = Path(__file__).parent.parent / "contracts" / "bundle-manifest.v1.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema = json.loads(_BUNDLE_MANIFEST_SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.validate(instance=data, schema=schema)
 
     roles_map = {item["role"]: item for item in data["artifacts"]}
@@ -406,6 +409,12 @@ def test_producer_emits_authority_metadata_per_role(tmp_path):
         assert sqlite_idx["canonicality"] == "cache"
         assert sqlite_idx["regenerable"] is True
         assert sqlite_idx["staleness_sensitive"] is True
+
+    # output_health is a diagnostic signal, not a content or index artifact.
+    output_health = roles_map.get(ArtifactRole.OUTPUT_HEALTH.value)
+    assert output_health is not None, "output_health must be present in the manifest"
+    assert output_health["authority"] == "diagnostic_signal"
+    assert output_health["canonicality"] == "diagnostic"
 
 
 def test_generator_info_none_is_supported_and_hash_is_computed(tmp_path):
