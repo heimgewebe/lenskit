@@ -12,6 +12,19 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, ExtrasConfig, scan_repo
 
+# Bundle-level diagnostic/index artifacts produced alongside per-repo sidecars.
+# Extend this tuple whenever a new bundle-scoped artifact suffix is introduced.
+_BUNDLE_LEVEL_JSON_SUFFIXES = (
+    ".dump_index.json",
+    ".derived_index.json",
+    ".retrieval_eval.json",
+    ".bundle.manifest.json",
+    ".output_health.json",
+)
+
+def _is_bundle_level_json_artifact(path: Path) -> bool:
+    return path.name.endswith(_BUNDLE_LEVEL_JSON_SUFFIXES)
+
 class TestPerRepoCohesion(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
@@ -56,13 +69,9 @@ class TestPerRepoCohesion(unittest.TestCase):
             extras=extras
         )
 
-        # Identify generated sidecars (filter out dump_index, derived_index, retrieval_eval)
+        # This test counts per-repo JSON sidecars only; bundle-level diagnostic/index artifacts are excluded.
         json_files = [p for p in self.merges_dir.glob("*.json")
-                      if not p.name.endswith(".dump_index.json")
-                      and not p.name.endswith(".derived_index.json")
-                      and not p.name.endswith(".retrieval_eval.json")
-                      and not p.name.endswith(".bundle.manifest.json")
-                      and not p.name.endswith(".output_health.json")]
+                      if not _is_bundle_level_json_artifact(p)]
         # We expect 2 sidecars (one per repo).
 
         self.assertEqual(len(json_files), 2, f"Should have 2 JSON sidecars, found: {[p.name for p in json_files]}")

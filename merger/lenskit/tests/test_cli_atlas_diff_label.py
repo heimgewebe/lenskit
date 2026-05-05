@@ -216,7 +216,9 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
         reg.update_snapshot_artifacts("snap2", {"inventory": inv2_rel})
 
     env = os.environ.copy()
-    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
+    # test file lives at <repo>/merger/lenskit/tests/...
+    # subprocess PYTHONPATH must include <repo>, not <repo>/merger/lenskit.
+    repo_root = Path(__file__).resolve().parents[3]
     env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
 
     # 1. Success case
