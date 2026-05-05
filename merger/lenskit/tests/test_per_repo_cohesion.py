@@ -42,9 +42,11 @@ class TestBundleLevelJsonFilter(unittest.TestCase):
         self.assertFalse(_is_bundle_level_json_artifact(Path("repoA-max-260505-0811_merge.json")))
 
     def test_graph_index_is_excluded(self):
+        # Explicit regression guard: .graph_index.json was added after feedback.
         self.assertTrue(_is_bundle_level_json_artifact(Path("run-x.graph_index.json")))
 
     def test_output_health_is_excluded(self):
+        # Explicit regression guard: .output_health.json was initially omitted.
         self.assertTrue(_is_bundle_level_json_artifact(Path("multi-max-260505-0811_merge.output_health.json")))
 
 
