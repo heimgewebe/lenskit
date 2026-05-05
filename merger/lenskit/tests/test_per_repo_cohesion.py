@@ -20,10 +20,33 @@ _BUNDLE_LEVEL_JSON_SUFFIXES = (
     ".retrieval_eval.json",
     ".bundle.manifest.json",
     ".output_health.json",
+    ".graph_index.json",
 )
+
 
 def _is_bundle_level_json_artifact(path: Path) -> bool:
     return path.name.endswith(_BUNDLE_LEVEL_JSON_SUFFIXES)
+
+
+class TestBundleLevelJsonFilter(unittest.TestCase):
+    """Regression guard: ensures _is_bundle_level_json_artifact stays correct."""
+
+    def test_known_bundle_suffixes_are_excluded(self):
+        for suffix in _BUNDLE_LEVEL_JSON_SUFFIXES:
+            self.assertTrue(
+                _is_bundle_level_json_artifact(Path(f"artifact{suffix}")),
+                f"Expected {suffix!r} to be classified as bundle-level",
+            )
+
+    def test_per_repo_sidecar_is_not_excluded(self):
+        self.assertFalse(_is_bundle_level_json_artifact(Path("repoA-max-260505-0811_merge.json")))
+
+    def test_graph_index_is_excluded(self):
+        self.assertTrue(_is_bundle_level_json_artifact(Path("run-x.graph_index.json")))
+
+    def test_output_health_is_excluded(self):
+        self.assertTrue(_is_bundle_level_json_artifact(Path("multi-max-260505-0811_merge.output_health.json")))
+
 
 class TestPerRepoCohesion(unittest.TestCase):
     def setUp(self):
