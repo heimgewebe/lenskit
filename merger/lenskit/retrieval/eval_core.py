@@ -247,11 +247,11 @@ def do_eval(
                 if compare_mode:
                     b_disp_match = (b_match[:15] + "..") if len(b_match) > 15 else b_match
                     s_disp_match = (s_match[:15] + "..") if len(s_match) > 15 else s_match
-                    b_str = f"{b_rr:.2f} / {b_disp_match}" if b_rel else f"0.00 / ❌"
+                    b_str = f"{b_rr:.2f} / {b_disp_match}" if b_rel else "0.00 / ❌"
                     if sem_error_str:
-                        s_str = f"ERR / ❌"
+                        s_str = "ERR / ❌"
                     else:
-                        s_str = f"{s_rr:.2f} / {s_disp_match}" if s_rel else f"0.00 / ❌"
+                        s_str = f"{s_rr:.2f} / {s_disp_match}" if s_rel else "0.00 / ❌"
                     print(f"{disp_q:<35} | {b_str:<25} | {s_str:<25}")
                 else:
                     rel_mark = "✅" if b_rel else "❌"

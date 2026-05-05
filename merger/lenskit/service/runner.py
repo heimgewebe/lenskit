@@ -205,7 +205,7 @@ class JobRunner:
                             norm_key = _diagnostic_norm_repo_key(src.name)
                             available_norm = [_diagnostic_norm_repo_key(k) for k in req.include_paths_by_repo.keys()]
                             if norm_key in available_norm:
-                                log(f"INFO key would match after normalization (diagnostic only)")
+                                log("INFO key would match after normalization (diagnostic only)")
 
                             err_msg = f"Strict Mode Violation: include_paths_by_repo is active but missing key for repo '{src.name}'. Available: {list(req.include_paths_by_repo.keys())}"
                             log(f"ERROR {err_msg}")

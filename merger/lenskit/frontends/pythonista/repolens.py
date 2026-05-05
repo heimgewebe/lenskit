@@ -2207,8 +2207,11 @@ class MergerUI(object):
                 # Ensure UI update on main thread
                 ui.delay(lambda: self._present_prescan_ui(data), 0)
             except Exception as e:
+                # Bind exception text before scheduling delayed UI callback;
+                # Python clears exception variables after except blocks.
+                _err_msg = str(e)
                 def err():
-                    if console: console.alert("Prescan Failed", str(e), "OK", hide_cancel_button=True)
+                    if console: console.alert("Prescan Failed", _err_msg, "OK", hide_cancel_button=True)
                     # Reset flag on failure
                     self._prescan_active = False
                 ui.delay(err, 0)

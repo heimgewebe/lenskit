@@ -12,6 +12,44 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 from merger.lenskit.tests._test_constants import make_generator_info
 from merger.lenskit.core.merge import write_reports_v2, ExtrasConfig, scan_repo
 
+# Bundle-level diagnostic/index artifacts produced alongside per-repo sidecars.
+# Extend this tuple whenever a new bundle-scoped artifact suffix is introduced.
+_BUNDLE_LEVEL_JSON_SUFFIXES = (
+    ".dump_index.json",
+    ".derived_index.json",
+    ".retrieval_eval.json",
+    ".bundle.manifest.json",
+    ".output_health.json",
+    ".graph_index.json",
+)
+
+
+def _is_bundle_level_json_artifact(path: Path) -> bool:
+    return path.name.endswith(_BUNDLE_LEVEL_JSON_SUFFIXES)
+
+
+class TestBundleLevelJsonFilter(unittest.TestCase):
+    """Regression guard: ensures _is_bundle_level_json_artifact stays correct."""
+
+    def test_known_bundle_suffixes_are_excluded(self):
+        for suffix in _BUNDLE_LEVEL_JSON_SUFFIXES:
+            self.assertTrue(
+                _is_bundle_level_json_artifact(Path(f"artifact{suffix}")),
+                f"Expected {suffix!r} to be classified as bundle-level",
+            )
+
+    def test_per_repo_sidecar_is_not_excluded(self):
+        self.assertFalse(_is_bundle_level_json_artifact(Path("repoA-max-260505-0811_merge.json")))
+
+    def test_graph_index_is_excluded(self):
+        # Explicit regression guard: .graph_index.json was added after feedback.
+        self.assertTrue(_is_bundle_level_json_artifact(Path("run-x.graph_index.json")))
+
+    def test_output_health_is_excluded(self):
+        # Explicit regression guard: .output_health.json was initially omitted.
+        self.assertTrue(_is_bundle_level_json_artifact(Path("multi-max-260505-0811_merge.output_health.json")))
+
+
 class TestPerRepoCohesion(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
@@ -56,12 +94,9 @@ class TestPerRepoCohesion(unittest.TestCase):
             extras=extras
         )
 
-        # Identify generated sidecars (filter out dump_index, derived_index, retrieval_eval)
+        # This test counts per-repo JSON sidecars only; bundle-level diagnostic/index artifacts are excluded.
         json_files = [p for p in self.merges_dir.glob("*.json")
-                      if not p.name.endswith(".dump_index.json")
-                      and not p.name.endswith(".derived_index.json")
-                      and not p.name.endswith(".retrieval_eval.json")
-                      and not p.name.endswith(".bundle.manifest.json")]
+                      if not _is_bundle_level_json_artifact(p)]
         # We expect 2 sidecars (one per repo).
 
         self.assertEqual(len(json_files), 2, f"Should have 2 JSON sidecars, found: {[p.name for p in json_files]}")

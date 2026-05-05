@@ -194,11 +194,11 @@ def run_atlas_diff(args: argparse.Namespace) -> int:
             if from_snap["machine_id"] == to_snap["machine_id"] and from_snap["root_id"] == to_snap["root_id"]:
                 delta = compute_snapshot_delta(registry, from_snap_id, to_snap_id)
                 print(f"Delta: {delta['delta_id']} ({delta['from_snapshot_id']} -> {delta['to_snapshot_id']})")
-                print(f"Mode: same-root-delta")
+                print("Mode: same-root-delta")
             else:
                 delta = compute_snapshot_comparison(registry, from_snap_id, to_snap_id)
                 print(f"Comparison: {delta['comparison_id']}")
-                print(f"Mode: cross-root-comparison")
+                print("Mode: cross-root-comparison")
                 from_desc = f"{delta['from_machine_id']}:{delta['from_root_value']} ({delta['from_snapshot_id']})"
                 to_desc = f"{delta['to_machine_id']}:{delta['to_root_value']} ({delta['to_snapshot_id']})"
                 print(f"From: {from_desc}")
