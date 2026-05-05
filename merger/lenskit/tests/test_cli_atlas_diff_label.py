@@ -216,7 +216,7 @@ def test_cli_atlas_diff_label_e2e(tmp_path, monkeypatch):
         reg.update_snapshot_artifacts("snap2", {"inventory": inv2_rel})
 
     env = os.environ.copy()
-    repo_root = Path(__file__).parent.parent.resolve()
+    repo_root = Path(__file__).parent.parent.parent.parent.resolve()
     env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
 
     # 1. Success case

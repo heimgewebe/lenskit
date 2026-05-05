@@ -61,7 +61,8 @@ class TestPerRepoCohesion(unittest.TestCase):
                       if not p.name.endswith(".dump_index.json")
                       and not p.name.endswith(".derived_index.json")
                       and not p.name.endswith(".retrieval_eval.json")
-                      and not p.name.endswith(".bundle.manifest.json")]
+                      and not p.name.endswith(".bundle.manifest.json")
+                      and not p.name.endswith(".output_health.json")]
         # We expect 2 sidecars (one per repo).
 
         self.assertEqual(len(json_files), 2, f"Should have 2 JSON sidecars, found: {[p.name for p in json_files]}")
