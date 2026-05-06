@@ -494,3 +494,276 @@ def test_execute_federated_query_trace_behavior(federated_setup):
         trace=True
     )
     assert "federation_trace" in res_with_trace
+
+
+# ── cross_repo_links tests ────────────────────────────────────────────────────
+
+def test_cross_repo_links_schema_valid_when_multi_bundle(federated_setup):
+    """Two repos → cross_repo_links emitted and the whole array is schema-valid."""
+    try:
+        import jsonschema
+    except ImportError:
+        pytest.skip("jsonschema not installed")
+    schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    assert "cross_repo_links" in res, "cross_repo_links must be present for multi-bundle results"
+    links = res["cross_repo_links"]
+    assert isinstance(links, list)
+    assert len(links) >= 1
+
+    # Validate the whole artifact (array) against the schema — not item by item
+    jsonschema.validate(instance=links, schema=schema)
+
+
+def test_cross_repo_links_confidence_is_inferred(federated_setup):
+    """All heuristic cross_repo_links must carry confidence='inferred'."""
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    assert "cross_repo_links" in res
+    for link in res["cross_repo_links"]:
+        assert link["confidence"] == "inferred", (
+            f"Expected 'inferred', got '{link['confidence']}'"
+        )
+
+
+def test_cross_repo_links_link_type_is_co_occurrence(federated_setup):
+    """Heuristic links use link_type='co_occurrence'."""
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    assert "cross_repo_links" in res
+    for link in res["cross_repo_links"]:
+        assert link["link_type"] == "co_occurrence"
+
+
+def test_cross_repo_links_empty_when_single_bundle(federated_setup):
+    """Single-bundle query → no cross_repo_links emitted."""
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        filters={"repo": "repo1"}
+    )
+
+    assert "cross_repo_links" not in res
+
+
+def test_cross_repo_links_evidence_refs_are_chunk_ids(federated_setup):
+    """evidence_refs must contain chunk IDs from participating repos."""
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    assert "cross_repo_links" in res
+    all_chunk_ids = {h["chunk_id"] for h in res["results"] if h.get("chunk_id")}
+    for link in res["cross_repo_links"]:
+        assert isinstance(link["evidence_refs"], list)
+        assert len(link["evidence_refs"]) > 0
+        for ref in link["evidence_refs"]:
+            assert ref in all_chunk_ids, f"evidence_ref '{ref}' not in result chunk_ids"
+
+
+def test_cross_repo_links_does_not_alter_ranking(federated_setup):
+    """cross_repo_links must not change result order or scores."""
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    # Ranking is score-desc, tie-broken by bundle/path/chunk_id — verify order unchanged
+    results = res["results"]
+    assert results[0]["federation_bundle"] == "repo1"
+    assert results[1]["federation_bundle"] == "repo2"
+    scores = [h.get("final_score", 0) for h in results]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_federation_conflicts_still_present_alongside_links(federated_setup):
+    """federation_conflicts must remain separate and intact when cross_repo_links is also present."""
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10
+    )
+
+    assert "federation_conflicts" in res, "federation_conflicts must still be emitted"
+    assert "cross_repo_links" in res, "cross_repo_links must also be emitted"
+
+    # Conflicts remain unresolved and properly structured
+    for c in res["federation_conflicts"]:
+        assert c["resolution"] == "unresolved"
+        assert "conflict_id" in c
+        assert "involved_results" in c
+
+
+def test_build_cross_repo_links_directly():
+    """Unit test for _build_cross_repo_links helper."""
+    from merger.lenskit.retrieval.federation_query import _build_cross_repo_links
+
+    # No results → empty
+    assert _build_cross_repo_links([]) == []
+
+    # Single repo → empty
+    hits_one_repo = [
+        {"federation_bundle": "repo1", "chunk_id": "c1"},
+        {"federation_bundle": "repo1", "chunk_id": "c2"},
+    ]
+    assert _build_cross_repo_links(hits_one_repo) == []
+
+    # Two repos → one link
+    hits_two_repos = [
+        {"federation_bundle": "repo1", "chunk_id": "c1"},
+        {"federation_bundle": "repo2", "chunk_id": "c2"},
+    ]
+    links = _build_cross_repo_links(hits_two_repos)
+    assert len(links) == 1
+    link = links[0]
+    assert link["source_repo"] == "repo1"
+    assert link["target_repo"] == "repo2"
+    assert link["link_type"] == "co_occurrence"
+    assert link["confidence"] == "inferred"
+    assert "c1" in link["evidence_refs"]
+    assert "c2" in link["evidence_refs"]
+
+    # Three repos → three pairs
+    hits_three_repos = [
+        {"federation_bundle": "repo1", "chunk_id": "c1"},
+        {"federation_bundle": "repo2", "chunk_id": "c2"},
+        {"federation_bundle": "repo3", "chunk_id": "c3"},
+    ]
+    links3 = _build_cross_repo_links(hits_three_repos)
+    assert len(links3) == 3
+    pairs = {(l["source_repo"], l["target_repo"]) for l in links3}
+    assert ("repo1", "repo2") in pairs
+    assert ("repo1", "repo3") in pairs
+    assert ("repo2", "repo3") in pairs
+
+
+def test_cross_repo_links_result_count_unaffected(federated_setup):
+    """cross_repo_links are built from the final returned results (top-k), not the full candidate set.
+
+    With k=1 only one result (from one repo) is returned, so no cross-repo links are possible.
+    With k>=2 both repos appear in results, so links are present.
+    In both cases result count and total_candidates_found are unaffected.
+    """
+    res_k1 = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=1
+    )
+    assert res_k1["count"] == 1
+    assert res_k1["total_candidates_found"] == 2
+    # k=1 → top-k has only one result from one repo → no cross-repo links
+    assert "cross_repo_links" not in res_k1
+
+    res_k2 = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=2
+    )
+    assert res_k2["count"] == 2
+    # k=2 → both repos in top-k → links present; result count still unaffected
+    assert "cross_repo_links" in res_k2
+
+
+# ── cross_repo_links negative schema tests ────────────────────────────────────
+
+def _load_crl_schema():
+    """Load the cross-repo-links.v1.schema.json contract. Returns (schema, jsonschema_module) or (None, None)."""
+    try:
+        import jsonschema
+    except ImportError:
+        return None, None
+    schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        return json.load(f), jsonschema
+
+
+def _valid_link():
+    return {
+        "source_repo": "repo1",
+        "target_repo": "repo2",
+        "link_type": "co_occurrence",
+        "confidence": "inferred",
+        "evidence_refs": ["chunk-1"],
+    }
+
+
+def test_cross_repo_links_schema_rejects_root_object():
+    """Schema root is array; a plain object at root must be rejected."""
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
+        pytest.skip("jsonschema not installed")
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_valid_link(), schema=schema)
+
+
+def test_cross_repo_links_schema_accepts_root_array():
+    """Schema root accepts an array of valid link objects."""
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
+        pytest.skip("jsonschema not installed")
+    jsonschema.validate(instance=[_valid_link()], schema=schema)
+
+
+def test_cross_repo_links_schema_rejects_wrong_link_type():
+    """Schema must reject link_type values other than 'co_occurrence'."""
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
+        pytest.skip("jsonschema not installed")
+    bad = _valid_link()
+    bad["link_type"] = "depends_on"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=[bad], schema=schema)
+
+
+def test_cross_repo_links_schema_rejects_explicit_confidence():
+    """Schema must reject confidence='explicit' — only 'inferred' is allowed for this heuristic."""
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
+        pytest.skip("jsonschema not installed")
+    bad = _valid_link()
+    bad["confidence"] = "explicit"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=[bad], schema=schema)
+
+
+def test_cross_repo_links_schema_rejects_additional_fields():
+    """Schema must reject unknown/extra fields in link items (additionalProperties: false)."""
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
+        pytest.skip("jsonschema not installed")
+    bad = _valid_link()
+    bad["unexpected_field"] = "some_value"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=[bad], schema=schema)
+
+
+def test_cross_repo_links_schema_rejects_empty_evidence_refs():
+    """Schema must reject evidence_refs=[] (minItems: 1)."""
+    schema, jsonschema = _load_crl_schema()
+    if schema is None:
+        pytest.skip("jsonschema not installed")
+    bad = _valid_link()
+    bad["evidence_refs"] = []
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=[bad], schema=schema)
+

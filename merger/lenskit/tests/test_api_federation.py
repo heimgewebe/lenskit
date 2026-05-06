@@ -318,6 +318,7 @@ def test_api_federation_build_context_bundle_direct_form_stores_artifact(fed_set
     )
     assert lookup_resp.status_code == 200
     lookup_data = lookup_resp.json()
+
     assert lookup_data["status"] == "ok", f"lookup failed: {lookup_data}"
 
     artifact = lookup_data["artifact"]
@@ -328,3 +329,138 @@ def test_api_federation_build_context_bundle_direct_form_stores_artifact(fed_set
     assert artifact.get("retention_policy") == "unbounded_currently"
     assert artifact.get("lifecycle_status") == "active"
     assert artifact.get("expires_at") is None
+
+
+@pytest.fixture
+def fed_setup_multi(tmp_path):
+    hub_path = tmp_path / "hub"
+    hub_path.mkdir()
+    merges_dir = tmp_path / "merges"
+    merges_dir.mkdir()
+
+    # Bundle 1
+    b1_dir = tmp_path / "repo1"
+    b1_dir.mkdir()
+    b1_dump = b1_dir / "dump.json"
+    b1_chunks = b1_dir / "chunks.jsonl"
+    b1_db = b1_dir / "chunk_index.index.sqlite"
+
+    chunk_data_1 = [
+        {
+            "chunk_id": "c1",
+            "repo_id": "repo1",
+            "path": "src/main.py",
+            "content": "def main(): print('hello shared')",
+            "start_line": 1,
+            "end_line": 1,
+            "layer": "core",
+            "artifact_type": "code",
+            "content_sha256": "h1",
+            "source_file": "src/main.py",
+            "start_byte": 0,
+            "end_byte": 100,
+        }
+    ]
+    with b1_chunks.open("w", encoding="utf-8") as f:
+        for c in chunk_data_1:
+            f.write(json.dumps(c) + "\n")
+    b1_dump.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(b1_dump, b1_chunks, b1_db)
+
+    # Bundle 2 (different path to avoid federation_conflicts and isolate cross_repo_links wrapper trigger)
+    b2_dir = tmp_path / "repo2"
+    b2_dir.mkdir()
+    b2_dump = b2_dir / "dump.json"
+    b2_chunks = b2_dir / "chunks.jsonl"
+    b2_db = b2_dir / "chunk_index.index.sqlite"
+
+    chunk_data_2 = [
+        {
+            "chunk_id": "c2",
+            "repo_id": "repo2",
+            "path": "lib/feature.py",
+            "content": "def feature(): print('hello shared')",
+            "start_line": 1,
+            "end_line": 1,
+            "layer": "core",
+            "artifact_type": "code",
+            "content_sha256": "h2",
+            "source_file": "lib/feature.py",
+            "start_byte": 0,
+            "end_byte": 100,
+        }
+    ]
+    with b2_chunks.open("w", encoding="utf-8") as f:
+        for c in chunk_data_2:
+            f.write(json.dumps(c) + "\n")
+    b2_dump.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    index_db.build_index(b2_dump, b2_chunks, b2_db)
+
+    fed_index = merges_dir / "federation_multi.json"
+    fed_data = {
+        "kind": "repolens.federation.index",
+        "version": "1.0",
+        "created_at": "2026-04-03T16:30:36.125043+00:00",
+        "updated_at": "2026-04-03T16:30:55.046944+00:00",
+        "federation_id": "fed-multi",
+        "bundles": [
+            {"repo_id": "repo1", "bundle_path": str(b1_dir)},
+            {"repo_id": "repo2", "bundle_path": str(b2_dir)},
+        ],
+    }
+    fed_index.write_text(json.dumps(fed_data), encoding="utf-8")
+
+    service_app.init_service(hub_path=hub_path, token="test_token", merges_dir=merges_dir)
+    return fed_index
+
+
+def test_api_federation_query_profile_preserves_cross_repo_links(fed_setup_multi):
+    request_data = {
+        "federation_index": "federation_multi.json",
+        "q": "hello shared",
+        "k": 5,
+        "trace": False,
+        "output_profile": "agent_minimal",
+    }
+
+    response = client.post(
+        "/api/federation/query",
+        json=request_data,
+        headers={"Authorization": "Bearer test_token"},
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # cross_repo_links must survive output_profile projection.
+    assert "context_bundle" in data
+    assert "cross_repo_links" in data
+    assert "hits" not in data
+
+    # No trace requested; this wrapper should be triggered by cross_repo_links, not by federation_trace.
+    assert "federation_trace" not in data
+
+    links = data["cross_repo_links"]
+    assert isinstance(links, list)
+    assert len(links) >= 1
+
+    # Schema validation for projected cross_repo_links.
+    if _jsonschema is not None:
+        schema = json.loads(
+            (Path(__file__).parents[1] / "contracts" / "cross-repo-links.v1.schema.json").read_text()
+        )
+        _jsonschema.validate(instance=links, schema=schema)
+
+    # evidence_refs must be traceable to chunk IDs present in the profiled context bundle.
+    hits = data["context_bundle"].get("hits", [])
+    hit_chunk_ids = {h.get("chunk_id") for h in hits if h.get("chunk_id")}
+    assert hit_chunk_ids, "expected profiled hits with chunk_id values"
+
+    for link in links:
+        assert link["link_type"] == "co_occurrence"
+        assert link["confidence"] == "inferred"
+        for ref in link["evidence_refs"]:
+            assert ref in hit_chunk_ids
+
+    # Result count and ranking surface must remain coherent.
+    assert len(hits) >= 2

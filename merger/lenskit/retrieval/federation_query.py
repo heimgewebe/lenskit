@@ -1,9 +1,55 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from .query_core import execute_query
 from ..core.federation import validate_federation
+
+def _build_cross_repo_links(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Builds minimal, schema-valid cross_repo_links for heuristic co-occurrence between repos.
+
+    Strategy: When results from at least two distinct bundles/repos appear in the final
+    returned results, one "co_occurrence" link is built per unique sorted
+    (source_repo, target_repo) pair. evidence_refs reference only chunk IDs that are
+    present in the supplied results list (payload-local: always verifiable by the client).
+
+    confidence is always "inferred" — no identity, dependency, or semantic equality
+    claims are made. co_occurrence means only: both repos returned results for the
+    same query.
+
+    Ranking and result ordering are not modified.
+    """
+    repo_chunks: Dict[str, List[str]] = {}
+    for hit in results:
+        repo_id = hit.get("federation_bundle", "")
+        chunk_id = hit.get("chunk_id", "")
+        if repo_id and chunk_id:
+            if repo_id not in repo_chunks:
+                repo_chunks[repo_id] = []
+            repo_chunks[repo_id].append(chunk_id)
+
+    repos = sorted(repo_chunks.keys())
+    if len(repos) < 2:
+        return []
+
+    links: List[Dict[str, Any]] = []
+    for i in range(len(repos)):
+        for j in range(i + 1, len(repos)):
+            repo_a = repos[i]
+            repo_b = repos[j]
+            # Bounded evidence: up to 5 chunk_ids from each of the two repos (max 10 total)
+            evidence: List[str] = repo_chunks[repo_a][:5] + repo_chunks[repo_b][:5]
+            links.append({
+                "source_repo": repo_a,
+                "target_repo": repo_b,
+                "link_type": "co_occurrence",
+                "confidence": "inferred",
+                "evidence_refs": evidence,
+            })
+
+    return links
+
 
 def _find_bundle_index(bundle_path: Path) -> Optional[Path]:
     """
@@ -245,6 +291,10 @@ def execute_federated_query(
 
     if conflicts:
         out["federation_conflicts"] = conflicts
+
+    cross_repo_links = _build_cross_repo_links(top_k)
+    if cross_repo_links:
+        out["cross_repo_links"] = cross_repo_links
 
     if trace:
         out["federation_trace"] = {

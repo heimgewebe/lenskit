@@ -2,32 +2,38 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://hauski.com/schemas/lenskit/cross-repo-links.v1.schema.json",
   "title": "Lenskit Cross-Repo Links",
-  "description": "Explicit linkages and relationships between different repository bundles.",
-  "type": "object",
-  "required": ["source_repo", "target_repo", "link_type", "evidence_refs", "confidence"],
-  "properties": {
-    "source_repo": {
-      "type": "string",
-      "description": "Repository ID where the reference originates."
-    },
-    "target_repo": {
-      "type": "string",
-      "description": "Repository ID being referenced."
-    },
-    "link_type": {
-      "type": "string",
-      "description": "The type of relationship (e.g., 'imports', 'calls', 'depends_on')."
-    },
-    "confidence": {
-      "type": "string",
-      "enum": ["explicit", "inferred"],
-      "description": "Confidence level of the linkage."
-    },
-    "evidence_refs": {
-      "type": "array",
-      "description": "List of references to evidence proving the link.",
-      "items": {
-        "type": "string"
+  "description": "Artifact schema for cross_repo_links.json: an array of heuristic co-occurrence links detected during a federated query. Note: the original v1 draft described a single link object (item schema); this version corrects the root type to array to match the actual artifact shape. The old draft had no runtime producer and was never stably consumed. Each link records only co-occurrence of results in the same query — it does NOT assert identity, dependency, or semantic equality between repositories.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["source_repo", "target_repo", "link_type", "evidence_refs", "confidence"],
+    "additionalProperties": false,
+    "properties": {
+      "source_repo": {
+        "type": "string",
+        "description": "Lexicographically first repository ID in the undirected co_occurrence pair."
+      },
+      "target_repo": {
+        "type": "string",
+        "description": "Lexicographically second repository ID in the undirected co_occurrence pair."
+      },
+      "link_type": {
+        "type": "string",
+        "const": "co_occurrence",
+        "description": "The type of relationship detected. 'co_occurrence' means both repos returned results for the same query; it proves only shared query-result presence, not identity, dependency, or semantic similarity. Future link types require a new schema version."
+      },
+      "confidence": {
+        "type": "string",
+        "const": "inferred",
+        "description": "Confidence level. Always 'inferred' for co_occurrence heuristic links: the producer observes query-result co-presence only. Explicit links require a new schema version."
+      },
+      "evidence_refs": {
+        "type": "array",
+        "description": "List of chunk IDs from the final returned results that evidence the link. All refs are present in the results payload of the same query response.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
       }
     }
   }

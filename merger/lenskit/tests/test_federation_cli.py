@@ -415,3 +415,125 @@ def test_federation_query_trace_without_conflicts_skips_json(tmp_path: Path, mon
 
     conflicts_file = tmp_path / "federation_conflicts.json"
     assert not conflicts_file.exists(), "federation_conflicts.json was incorrectly created despite no conflicts"
+
+
+# ── cross_repo_links CLI persistence tests ───────────────────────────────────
+
+def _make_two_bundle_fed(tmp_path, fed_id="crl-fed"):
+    """Helper: build a federation index with two bundles sharing a query hit."""
+    out_path = tmp_path / "fed.json"
+    init_federation(fed_id, out_path)
+
+    from merger.lenskit.retrieval import index_db as idb
+
+    for repo_id, sub in (("repo1", "b1"), ("repo2", "b2")):
+        bp = tmp_path / sub
+        bp.mkdir()
+        chunks_file = bp / "chunks.jsonl"
+        dump_file = bp / "dump.json"
+        db_file = bp / "chunk_index.index.sqlite"
+        chunk = {
+            "chunk_id": f"{repo_id}-c1",
+            "repo_id": repo_id,
+            "path": f"src/{sub}.py",
+            "content": f"hello {repo_id}",
+            "start_line": 1, "end_line": 1,
+            "layer": "core", "artifact_type": "code",
+            "content_sha256": f"h{sub}",
+            "source_file": f"src/{sub}.py",
+            "start_byte": 0, "end_byte": 100,
+        }
+        with chunks_file.open("w", encoding="utf-8") as f:
+            f.write(json.dumps(chunk) + "\n")
+        dump_file.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+        idb.build_index(dump_file, chunks_file, db_file)
+        add_bundle(out_path, repo_id, str(bp))
+
+    return out_path
+
+
+def test_federation_query_trace_writes_cross_repo_links_json(tmp_path: Path, monkeypatch):
+    """CLI --trace with multi-bundle results writes cross_repo_links.json."""
+    monkeypatch.chdir(tmp_path)
+    out_path = _make_two_bundle_fed(tmp_path)
+
+    from merger.lenskit.cli import main
+
+    ret = main.main(["federation", "query", "--index", str(out_path), "-q", "hello", "--trace"])
+    assert ret == 0
+
+    links_file = tmp_path / "cross_repo_links.json"
+    assert links_file.exists(), "cross_repo_links.json must be created when multiple bundles contribute"
+
+    with links_file.open("r", encoding="utf-8") as f:
+        links_data = json.load(f)
+
+    assert isinstance(links_data, list)
+    assert len(links_data) >= 1
+
+    link = links_data[0]
+    assert "source_repo" in link
+    assert "target_repo" in link
+    assert link["confidence"] == "inferred"
+    assert link["link_type"] == "co_occurrence"
+    assert isinstance(link["evidence_refs"], list)
+
+    # Schema validation — validate the whole artifact (array) against the schema
+    try:
+        import jsonschema
+        schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
+        if schema_path.exists():
+            with schema_path.open("r", encoding="utf-8") as sf:
+                schema = json.load(sf)
+            jsonschema.validate(instance=links_data, schema=schema)
+    except ImportError:
+        pass
+
+
+def test_federation_query_without_trace_skips_cross_repo_links_json(tmp_path: Path, monkeypatch):
+    """CLI without --trace must NOT write cross_repo_links.json."""
+    monkeypatch.chdir(tmp_path)
+    out_path = _make_two_bundle_fed(tmp_path)
+
+    from merger.lenskit.cli import main
+
+    ret = main.main(["federation", "query", "--index", str(out_path), "-q", "hello"])
+    assert ret == 0
+
+    links_file = tmp_path / "cross_repo_links.json"
+    assert not links_file.exists(), "cross_repo_links.json must not be created without --trace"
+
+
+def test_federation_query_trace_skips_cross_repo_links_json_single_bundle(tmp_path: Path, monkeypatch):
+    """CLI --trace with single-bundle results must NOT write cross_repo_links.json."""
+    monkeypatch.chdir(tmp_path)
+
+    out_path = tmp_path / "fed.json"
+    init_federation("single-fed", out_path)
+
+    from merger.lenskit.retrieval import index_db as idb
+
+    bp = tmp_path / "b1"
+    bp.mkdir()
+    chunks_file = bp / "chunks.jsonl"
+    dump_file = bp / "dump.json"
+    db_file = bp / "chunk_index.index.sqlite"
+    chunk = {
+        "chunk_id": "c1", "repo_id": "repo1", "path": "src/main.py",
+        "content": "hello repo1", "start_line": 1, "end_line": 1,
+        "layer": "core", "artifact_type": "code", "content_sha256": "h1",
+        "source_file": "src/main.py", "start_byte": 0, "end_byte": 100,
+    }
+    with chunks_file.open("w", encoding="utf-8") as f:
+        f.write(json.dumps(chunk) + "\n")
+    dump_file.write_text(json.dumps({"dummy": "data"}), encoding="utf-8")
+    idb.build_index(dump_file, chunks_file, db_file)
+    add_bundle(out_path, "repo1", str(bp))
+
+    from merger.lenskit.cli import main
+
+    ret = main.main(["federation", "query", "--index", str(out_path), "-q", "hello", "--trace"])
+    assert ret == 0
+
+    links_file = tmp_path / "cross_repo_links.json"
+    assert not links_file.exists(), "cross_repo_links.json must not be created for single-bundle queries"

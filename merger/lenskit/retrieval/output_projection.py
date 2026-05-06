@@ -14,6 +14,7 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
       Wrapper is created if at least one applies:
         - query_trace is present
         - federation_conflicts is non-empty
+                - cross_repo_links is non-empty
         - warnings is non-empty
       Note: Downstream API handlers (like /api/query) may append additional
       top-level fields to this wrapper (e.g., agent_query_session).
@@ -54,6 +55,7 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
         # Wrapper is created if at least one applies:
         # - query_trace is present
         # - federation_conflicts is non-empty
+        # - cross_repo_links is non-empty
         # - warnings is non-empty
         wrapper = {"context_bundle": bundle}
         needs_wrapper = False
@@ -68,6 +70,10 @@ def project_output(result: Dict[str, Any], output_profile: Optional[str] = None)
 
         if res.get("federation_conflicts"):
             wrapper["federation_conflicts"] = res["federation_conflicts"]
+            needs_wrapper = True
+
+        if res.get("cross_repo_links"):
+            wrapper["cross_repo_links"] = res["cross_repo_links"]
             needs_wrapper = True
 
         if res.get("warnings"):
