@@ -571,7 +571,7 @@ def test_federation_trace_schema_rejects_root_extra_field():
         "timestamp": "2026-05-06T00:00:00+00:00",
         "total_results": 1,
         "bundles": [],
-        "unexpected_root_field": "must_be_rejected",
+        "disallowed_root_field": "must_be_rejected",
     }
 
     with pytest.raises(jsonschema.ValidationError):
@@ -598,7 +598,7 @@ def test_federation_trace_schema_rejects_bundle_item_extra_field():
                 "repo_id": "repo1",
                 "bundle_path": "/data/repo1",
                 "status": "ok",
-                "unexpected_bundle_field": "must_be_rejected",
+                "disallowed_bundle_field": "must_be_rejected",
             }
         ],
     }
