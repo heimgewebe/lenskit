@@ -230,16 +230,16 @@ def test_federation_query_cli_trace_projection(tmp_path: Path, monkeypatch):
     # Check bundle projection
     assert len(trace_data["bundles"]) == 2
 
-    # Optional schema validation
+    # Hard schema validation — skip only if jsonschema is not installed
     try:
         import jsonschema
-        schema_path = Path(__file__).parent.parent / "contracts" / "federation-trace.v1.schema.json"
-        if schema_path.exists():
-            with schema_path.open("r", encoding="utf-8") as sf:
-                schema = json.load(sf)
-            jsonschema.validate(instance=trace_data, schema=schema)
     except ImportError:
-        pass
+        pytest.skip("jsonschema not installed")
+    schema_path = Path(__file__).parent.parent / "contracts" / "federation-trace.v1.schema.json"
+    assert schema_path.exists(), "federation-trace.v1.schema.json not found"
+    with schema_path.open("r", encoding="utf-8") as sf:
+        schema = json.load(sf)
+    jsonschema.validate(instance=trace_data, schema=schema)
 
 def test_federation_query_trace_writes_conflicts_json(tmp_path: Path, monkeypatch):
     # Isolate execution to tmp_path to verify file creation safely
@@ -537,3 +537,72 @@ def test_federation_query_trace_skips_cross_repo_links_json_single_bundle(tmp_pa
 
     links_file = tmp_path / "cross_repo_links.json"
     assert not links_file.exists(), "cross_repo_links.json must not be created for single-bundle queries"
+
+
+# ── federation_trace.json negative persistence test ──────────────────────────
+
+def test_federation_query_without_trace_skips_federation_trace_json(tmp_path: Path, monkeypatch):
+    """CLI without --trace must NOT write federation_trace.json."""
+    monkeypatch.chdir(tmp_path)
+    out_path = _make_two_bundle_fed(tmp_path)
+
+    from merger.lenskit.cli import main
+
+    ret = main.main(["federation", "query", "--index", str(out_path), "-q", "hello"])
+    assert ret == 0
+
+
+
+# ── federation-trace.v1.schema.json negative schema tests ────────────────────
+
+def test_federation_trace_schema_rejects_root_extra_field():
+    """federation-trace.v1.schema.json must reject an unexpected root-level field."""
+    try:
+        import jsonschema
+    except ImportError:
+        pytest.skip("jsonschema not installed")
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "federation-trace.v1.schema.json"
+    assert schema_path.exists(), "federation-trace.v1.schema.json not found"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    invalid_trace = {
+        "query": "hello",
+        "timestamp": "2026-05-06T00:00:00+00:00",
+        "total_results": 1,
+        "bundles": [],
+        "disallowed_root_field": "must_be_rejected",
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_trace, schema=schema)
+
+
+def test_federation_trace_schema_rejects_bundle_item_extra_field():
+    """federation-trace.v1.schema.json must reject an unexpected field inside a bundle item."""
+    try:
+        import jsonschema
+    except ImportError:
+        pytest.skip("jsonschema not installed")
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "federation-trace.v1.schema.json"
+    assert schema_path.exists(), "federation-trace.v1.schema.json not found"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    invalid_trace = {
+        "query": "hello",
+        "timestamp": "2026-05-06T00:00:00+00:00",
+        "total_results": 1,
+        "bundles": [
+            {
+                "repo_id": "repo1",
+                "bundle_path": "/data/repo1",
+                "status": "ok",
+                "disallowed_bundle_field": "must_be_rejected",
+            }
+        ],
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_trace, schema=schema)
+
