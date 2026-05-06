@@ -284,6 +284,52 @@ def test_agent_profile_preserves_cross_repo_links_in_wrapper():
     assert projected["cross_repo_links"][0]["confidence"] == "inferred"
 
 
+def test_agent_profile_agent_minimal_preserves_federation_trace():
+    """project_output must not drop federation_trace when output_profile='agent_minimal'."""
+    mock_result = {
+        "context_bundle": {
+            "hits": [
+                {
+                    "chunk_id": "c1",
+                    "explain": {"bm25": 1.0},
+                    "graph_context": {"distance": 1},
+                }
+            ]
+        },
+        "federation_trace": {
+            "query": "hello",
+            "timestamp": "2026-05-06T00:00:00+00:00",
+            "total_results": 1,
+            "bundles": [
+                {
+                    "repo_id": "repo1",
+                    "bundle_path": "/data/repo1",
+                    "status": "ok",
+                }
+            ],
+        },
+    }
+
+    projected = project_output(mock_result, output_profile="agent_minimal")
+
+    # Must return a wrapper (federation_trace triggers wrapper creation)
+    assert "context_bundle" in projected, "context_bundle must be present in wrapper"
+    assert "federation_trace" in projected, "federation_trace must be preserved by output_profile projection"
+
+    # context_bundle projection must still have applied
+    hits = projected["context_bundle"].get("hits", [])
+    assert len(hits) == 1
+    assert "explain" not in hits[0]
+    assert "graph_context" not in hits[0]
+
+    # federation_trace must be identical to what was in the input
+    ft = projected["federation_trace"]
+    assert ft["query"] == "hello"
+    assert ft["total_results"] == 1
+    assert ft["bundles"][0]["repo_id"] == "repo1"
+    assert ft["bundles"][0]["status"] == "ok"
+
+
 def test_agent_profile_keeps_conflicts_with_cross_repo_links():
     mock_result = {
         "context_bundle": {

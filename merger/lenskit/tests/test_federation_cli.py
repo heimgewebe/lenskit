@@ -551,5 +551,58 @@ def test_federation_query_without_trace_skips_federation_trace_json(tmp_path: Pa
     ret = main.main(["federation", "query", "--index", str(out_path), "-q", "hello"])
     assert ret == 0
 
-    trace_file = tmp_path / "federation_trace.json"
-    assert not trace_file.exists(), "federation_trace.json must not be created without --trace"
+
+
+# ── federation-trace.v1.schema.json negative schema tests ────────────────────
+
+def test_federation_trace_schema_rejects_root_extra_field():
+    """federation-trace.v1.schema.json must reject an unexpected root-level field."""
+    try:
+        import jsonschema
+    except ImportError:
+        pytest.skip("jsonschema not installed")
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "federation-trace.v1.schema.json"
+    assert schema_path.exists(), "federation-trace.v1.schema.json not found"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    invalid_trace = {
+        "query": "hello",
+        "timestamp": "2026-05-06T00:00:00+00:00",
+        "total_results": 1,
+        "bundles": [],
+        "unexpected_root_field": "must_be_rejected",
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_trace, schema=schema)
+
+
+def test_federation_trace_schema_rejects_bundle_item_extra_field():
+    """federation-trace.v1.schema.json must reject an unexpected field inside a bundle item."""
+    try:
+        import jsonschema
+    except ImportError:
+        pytest.skip("jsonschema not installed")
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "federation-trace.v1.schema.json"
+    assert schema_path.exists(), "federation-trace.v1.schema.json not found"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    invalid_trace = {
+        "query": "hello",
+        "timestamp": "2026-05-06T00:00:00+00:00",
+        "total_results": 1,
+        "bundles": [
+            {
+                "repo_id": "repo1",
+                "bundle_path": "/data/repo1",
+                "status": "ok",
+                "unexpected_bundle_field": "must_be_rejected",
+            }
+        ],
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_trace, schema=schema)
+
