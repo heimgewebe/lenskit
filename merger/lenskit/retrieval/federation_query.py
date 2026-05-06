@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from .query_core import execute_query
 from ..core.federation import validate_federation
 
-def _build_cross_repo_links(results: list) -> list:
+def _build_cross_repo_links(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Builds minimal, schema-valid cross_repo_links for heuristic co-occurrence between repos.
 
@@ -33,7 +33,7 @@ def _build_cross_repo_links(results: list) -> list:
     if len(repos) < 2:
         return []
 
-    links = []
+    links: List[Dict[str, Any]] = []
     for i in range(len(repos)):
         for j in range(i + 1, len(repos)):
             repo_a = repos[i]

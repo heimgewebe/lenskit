@@ -251,3 +251,66 @@ def test_agent_federated_conflict_warning_coexistence():
     for hit in hits:
         assert "explain" not in hit
         assert "graph_context" not in hit
+
+
+def test_agent_profile_preserves_cross_repo_links_in_wrapper():
+    mock_result = {
+        "context_bundle": {
+            "query": "hello",
+            "hits": [
+                {
+                    "chunk_id": "c1",
+                    "explain": {"bm25": 1.0},
+                    "graph_context": {"distance": 1},
+                }
+            ],
+        },
+        "cross_repo_links": [
+            {
+                "source_repo": "repo1",
+                "target_repo": "repo2",
+                "link_type": "co_occurrence",
+                "confidence": "inferred",
+                "evidence_refs": ["c1", "c2"],
+            }
+        ],
+    }
+
+    projected = project_output(mock_result, output_profile="agent_minimal")
+
+    assert "context_bundle" in projected
+    assert "cross_repo_links" in projected
+    assert projected["cross_repo_links"][0]["link_type"] == "co_occurrence"
+    assert projected["cross_repo_links"][0]["confidence"] == "inferred"
+
+
+def test_agent_profile_keeps_conflicts_with_cross_repo_links():
+    mock_result = {
+        "context_bundle": {
+            "hits": [{"chunk_id": "c1", "explain": {"bm25": 1.0}}]
+        },
+        "federation_conflicts": [
+            {
+                "conflict_id": "conflict_1",
+                "type": "path",
+                "description": "same filename collision",
+                "resolution": "unresolved",
+                "involved_results": ["c1", "c2"],
+            }
+        ],
+        "cross_repo_links": [
+            {
+                "source_repo": "repo1",
+                "target_repo": "repo2",
+                "link_type": "co_occurrence",
+                "confidence": "inferred",
+                "evidence_refs": ["c1", "c2"],
+            }
+        ],
+    }
+
+    projected = project_output(mock_result, output_profile="agent_minimal")
+
+    assert "context_bundle" in projected
+    assert "federation_conflicts" in projected
+    assert "cross_repo_links" in projected
