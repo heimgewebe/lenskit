@@ -5,6 +5,54 @@ from typing import Dict, Any, Optional
 from .query_core import execute_query
 from ..core.federation import validate_federation
 
+
+def _build_cross_repo_links(results):
+    """
+    Build undirected cross-repo co-occurrence links from already-ranked final results.
+
+    Semantics are intentionally minimal:
+    - A link means only that both repos appear in the same final query result set.
+    - It does not assert identity, dependency, or semantic equivalence.
+    """
+    repo_chunks = {}
+    for hit in results:
+        repo_id = hit.get("federation_bundle") or hit.get("repo_id")
+        if not repo_id:
+            continue
+        chunk_id = hit.get("chunk_id")
+        if not chunk_id:
+            continue
+        repo_chunks.setdefault(repo_id, []).append(str(chunk_id))
+
+    if len(repo_chunks) < 2:
+        return []
+
+    repos = sorted(repo_chunks.keys())
+    links = []
+
+    for idx_a in range(len(repos)):
+        for idx_b in range(idx_a + 1, len(repos)):
+            repo_a = repos[idx_a]
+            repo_b = repos[idx_b]
+
+            # Keep evidence payload-local: references are derived only from returned results.
+            refs_a = [f"{repo_a}:{cid}" for cid in sorted(set(repo_chunks.get(repo_a, [])))[:2]]
+            refs_b = [f"{repo_b}:{cid}" for cid in sorted(set(repo_chunks.get(repo_b, [])))[:2]]
+            evidence_refs = refs_a + refs_b
+
+            if not evidence_refs:
+                continue
+
+            links.append({
+                "source_repo": repo_a,
+                "target_repo": repo_b,
+                "link_type": "co_occurrence",
+                "confidence": "inferred",
+                "evidence_refs": evidence_refs,
+            })
+
+    return links
+
 def _find_bundle_index(bundle_path: Path) -> Optional[Path]:
     """
     Deterministically resolves the SQLite index for a given bundle path.
@@ -222,6 +270,7 @@ def execute_federated_query(
 
     total_candidates_found = len(all_results)
     top_k = all_results[:k]
+    cross_repo_links = _build_cross_repo_links(top_k)
 
     out = {
         "query": query_text,
@@ -231,6 +280,9 @@ def execute_federated_query(
         "results": top_k,
         "federation_id": fed_data.get("federation_id", "<unknown>")
     }
+
+    if cross_repo_links:
+        out["cross_repo_links"] = cross_repo_links
 
 
     # Minimal projection: This currently produces only a bare-bones context_bundle

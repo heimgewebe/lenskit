@@ -303,6 +303,17 @@ def test_federation_query_trace_writes_conflicts_json(tmp_path: Path, monkeypatc
     assert conflict["type"] == "path"
     assert "main.py" in conflict["description"]
 
+    links_file = tmp_path / "cross_repo_links.json"
+    assert links_file.exists(), "cross_repo_links.json was not created in CWD"
+
+    with links_file.open("r", encoding="utf-8") as f:
+        links_data = json.load(f)
+
+    assert isinstance(links_data, list)
+    assert len(links_data) == 1
+    assert links_data[0]["link_type"] == "co_occurrence"
+    assert links_data[0]["confidence"] == "inferred"
+
     # Optional schema validation
     try:
         import jsonschema
@@ -311,6 +322,12 @@ def test_federation_query_trace_writes_conflicts_json(tmp_path: Path, monkeypatc
             with schema_path.open("r", encoding="utf-8") as sf:
                 schema = json.load(sf)
             jsonschema.validate(instance=conflicts_data, schema=schema)
+
+        links_schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
+        if links_schema_path.exists():
+            with links_schema_path.open("r", encoding="utf-8") as sf:
+                links_schema = json.load(sf)
+            jsonschema.validate(instance=links_data, schema=links_schema)
     except ImportError:
         pass
 
@@ -365,6 +382,9 @@ def test_federation_query_without_trace_skips_conflicts_json(tmp_path: Path, mon
     conflicts_file = tmp_path / "federation_conflicts.json"
     assert not conflicts_file.exists(), "federation_conflicts.json was incorrectly created without --trace"
 
+    links_file = tmp_path / "cross_repo_links.json"
+    assert not links_file.exists(), "cross_repo_links.json was incorrectly created without --trace"
+
 def test_federation_query_trace_without_conflicts_skips_json(tmp_path: Path, monkeypatch):
     # Isolate execution to tmp_path
     monkeypatch.chdir(tmp_path)
@@ -415,3 +435,6 @@ def test_federation_query_trace_without_conflicts_skips_json(tmp_path: Path, mon
 
     conflicts_file = tmp_path / "federation_conflicts.json"
     assert not conflicts_file.exists(), "federation_conflicts.json was incorrectly created despite no conflicts"
+
+    links_file = tmp_path / "cross_repo_links.json"
+    assert links_file.exists(), "cross_repo_links.json was not created despite cross-repo co-occurrence"

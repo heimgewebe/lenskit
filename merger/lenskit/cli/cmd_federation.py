@@ -153,6 +153,13 @@ def handle_federation_command(args: argparse.Namespace) -> int:
                 with conflicts_out_path.open("w", encoding="utf-8") as f:
                     json.dump(conflicts, f, indent=2)
 
+            # Write cross-repo co-occurrence links only for explicit trace sessions.
+            links = res.get("cross_repo_links")
+            if args.trace and links:
+                links_out_path = Path("cross_repo_links.json")
+                with links_out_path.open("w", encoding="utf-8") as f:
+                    json.dump(links, f, indent=2)
+
             return 0
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)

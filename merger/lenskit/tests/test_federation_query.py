@@ -4,6 +4,7 @@ from pathlib import Path
 
 from merger.lenskit.core.federation import init_federation, add_bundle
 from merger.lenskit.retrieval.federation_query import execute_federated_query
+from merger.lenskit.retrieval.federation_query import _build_cross_repo_links
 from merger.lenskit.retrieval import index_db
 
 @pytest.fixture
@@ -494,3 +495,109 @@ def test_execute_federated_query_trace_behavior(federated_setup):
         trace=True
     )
     assert "federation_trace" in res_with_trace
+
+def test_cross_repo_links_are_emitted_for_multi_bundle_results(federated_setup):
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+    )
+
+    assert "cross_repo_links" in res
+    links = res["cross_repo_links"]
+    assert len(links) == 1
+
+    link = links[0]
+    assert link["source_repo"] == "repo1"
+    assert link["target_repo"] == "repo2"
+    assert link["link_type"] == "co_occurrence"
+    assert link["confidence"] == "inferred"
+    assert len(link["evidence_refs"]) >= 1
+
+def test_cross_repo_links_are_omitted_for_single_bundle_result(federated_setup):
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+        filters={"repo": "repo1"},
+    )
+
+    assert "cross_repo_links" not in res
+
+def test_build_cross_repo_links_does_not_mutate_results_input(federated_setup):
+    res = execute_federated_query(
+        federation_index_path=federated_setup,
+        query_text="hello",
+        k=10,
+    )
+
+    results = res["results"]
+    before = json.loads(json.dumps(results))
+    _ = _build_cross_repo_links(results)
+    assert results == before
+
+def test_cross_repo_links_schema_enforces_minimal_semantics():
+    try:
+        import jsonschema
+    except ImportError:
+        pytest.skip("jsonschema not installed")
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "cross-repo-links.v1.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    valid = [
+        {
+            "source_repo": "repo1",
+            "target_repo": "repo2",
+            "link_type": "co_occurrence",
+            "confidence": "inferred",
+            "evidence_refs": ["repo1:c1", "repo2:c2"],
+        }
+    ]
+    jsonschema.validate(instance=valid, schema=schema)
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance={"not": "an_array"}, schema=schema)
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(
+            instance=[
+                {
+                    "source_repo": "repo1",
+                    "target_repo": "repo2",
+                    "link_type": "depends_on",
+                    "confidence": "inferred",
+                    "evidence_refs": ["repo1:c1"],
+                }
+            ],
+            schema=schema,
+        )
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(
+            instance=[
+                {
+                    "source_repo": "repo1",
+                    "target_repo": "repo2",
+                    "link_type": "co_occurrence",
+                    "confidence": "explicit",
+                    "evidence_refs": ["repo1:c1"],
+                }
+            ],
+            schema=schema,
+        )
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(
+            instance=[
+                {
+                    "source_repo": "repo1",
+                    "target_repo": "repo2",
+                    "link_type": "co_occurrence",
+                    "confidence": "inferred",
+                    "evidence_refs": [],
+                }
+            ],
+            schema=schema,
+        )

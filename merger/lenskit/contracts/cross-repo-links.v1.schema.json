@@ -2,32 +2,38 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://hauski.com/schemas/lenskit/cross-repo-links.v1.schema.json",
   "title": "Lenskit Cross-Repo Links",
-  "description": "Explicit linkages and relationships between different repository bundles.",
-  "type": "object",
-  "required": ["source_repo", "target_repo", "link_type", "evidence_refs", "confidence"],
-  "properties": {
-    "source_repo": {
-      "type": "string",
-      "description": "Repository ID where the reference originates."
-    },
-    "target_repo": {
-      "type": "string",
-      "description": "Repository ID being referenced."
-    },
-    "link_type": {
-      "type": "string",
-      "description": "The type of relationship (e.g., 'imports', 'calls', 'depends_on')."
-    },
-    "confidence": {
-      "type": "string",
-      "enum": ["explicit", "inferred"],
-      "description": "Confidence level of the linkage."
-    },
-    "evidence_refs": {
-      "type": "array",
-      "description": "List of references to evidence proving the link.",
-      "items": {
-        "type": "string"
+  "description": "Undirected co-occurrence links between repositories found in final federated query results. Note: v1 existed as a non-runtime placeholder and was not a stable runtime-consumed output before this correction to array-root runtime artifacts.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["source_repo", "target_repo", "link_type", "evidence_refs", "confidence"],
+    "properties": {
+      "source_repo": {
+        "type": "string",
+        "description": "Lexicographically first repository ID in the undirected co_occurrence pair."
+      },
+      "target_repo": {
+        "type": "string",
+        "description": "Lexicographically second repository ID in the undirected co_occurrence pair."
+      },
+      "link_type": {
+        "type": "string",
+        "const": "co_occurrence",
+        "description": "Minimal semantic link: both repositories appear in the same final result set."
+      },
+      "confidence": {
+        "type": "string",
+        "const": "inferred",
+        "description": "The link is heuristic and inferred from co-occurrence only."
+      },
+      "evidence_refs": {
+        "type": "array",
+        "description": "Payload-local evidence references from returned final results.",
+        "minItems": 1,
+        "items": {
+          "type": "string"
+        }
       }
     }
   }
