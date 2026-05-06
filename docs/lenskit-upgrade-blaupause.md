@@ -1559,7 +1559,7 @@ Wichtige Tests:
 - [x] 1. federation_index.json (Struktur angelegt und validiert, Bundle-Reihenfolge wird nun kanonisch über repo_id stabilisiert)
 - [~] 2. cross_repo_links.json (Contract vorhanden, Root-Type auf `array` korrigiert; minimaler heuristischer Runtime-Producer `_build_cross_repo_links` implementiert: emittiert `co_occurrence`-Links mit `confidence: "inferred"` pro Repo-Paar in den finalen `results`; ganzes Artefakt-Array schema-validiert; CLI-Persistenz als `cross_repo_links.json` bei `--trace`; **`co_occurrence` beweist ausschließlich gemeinsame Query-Präsenz — keine Identität, keine Abhängigkeit, keine semantische Gleichheit; Ranking unverändert**; offen: semantisch belastbare Identity-Engine)
 - [ ] 3. federation_conflicts.json (teilweise: Runtime-Struktur vorhanden, minimale CLI-Persistenz im Trace-Pfad umgesetzt)
-- [ ] 4. federation_trace.json (als CLI-Projektion integriert, kanonisches Output-Artefakt offen)
+- [~] 4. federation_trace.json (CLI-Persistenz bei `--trace` implementiert; schema-validiert gegen `federation-trace.v1.schema.json` mit `additionalProperties: false` an Root- und Bundle-Item-Ebene; Output-Profile-Projektion verschluckt `federation_trace` nicht; **Trace beweist Ausführungs- und Aggregationsspur — keine semantische Identität, keine Ranking-Semantik**; offen: Latenz-Telemetrie pro Bundle, Status `missing` wird nicht emittiert)
 - [ ] 5. föderierte Query-Schnittstelle (als Minimal-Fan-out mit deterministischer Aggregation integriert, aber keine vollwertige Cross-Repo-Relevanz-Harmonisierung)
 - [ ] 6. bundleübergreifendes Context-Bundle (derzeit nur Treffermarkierung, echte Struktur offen)
 - [ ] 7. Identity-/Conflict-Regeln (derzeit minimale filename-basierte Heuristik, kein vollwertiges System)
