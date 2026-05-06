@@ -11,11 +11,11 @@
     "properties": {
       "source_repo": {
         "type": "string",
-        "description": "Repository ID where the reference originates."
+        "description": "Lexicographically first repository ID in the undirected co_occurrence pair."
       },
       "target_repo": {
         "type": "string",
-        "description": "Repository ID being referenced."
+        "description": "Lexicographically second repository ID in the undirected co_occurrence pair."
       },
       "link_type": {
         "type": "string",
