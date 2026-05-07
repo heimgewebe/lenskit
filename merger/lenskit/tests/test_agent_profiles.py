@@ -284,8 +284,13 @@ def test_agent_profile_preserves_cross_repo_links_in_wrapper():
     assert projected["cross_repo_links"][0]["confidence"] == "inferred"
 
 
-def test_agent_profile_agent_minimal_preserves_federation_trace():
-    """project_output must not drop federation_trace when output_profile='agent_minimal'."""
+def test_agent_profile_agent_minimal_preserves_runtime_federation_trace():
+    """project_output must not drop runtime federation_trace when output_profile='agent_minimal'.
+
+    Tests with the runtime inline form of federation_trace (not CLI file-artifact form).
+    Runtime form has queried_bundles_total, bundle_status dict, etc.
+    CLI form has query, timestamp, bundles[] list (tested separately in test_federation_cli.py).
+    """
     mock_result = {
         "context_bundle": {
             "hits": [
@@ -297,16 +302,11 @@ def test_agent_profile_agent_minimal_preserves_federation_trace():
             ]
         },
         "federation_trace": {
-            "query": "hello",
-            "timestamp": "2026-05-06T00:00:00+00:00",
-            "total_results": 1,
-            "bundles": [
-                {
-                    "repo_id": "repo1",
-                    "bundle_path": "/data/repo1",
-                    "status": "ok",
-                }
-            ],
+            "queried_bundles_total": 1,
+            "queried_bundles_effective": 1,
+            "bundle_status": {"repo1": "ok"},
+            "bundle_errors": {},
+            "bundle_traces": {},
         },
     }
 
@@ -322,12 +322,14 @@ def test_agent_profile_agent_minimal_preserves_federation_trace():
     assert "explain" not in hits[0]
     assert "graph_context" not in hits[0]
 
-    # federation_trace must be identical to what was in the input
+    # federation_trace runtime form must be preserved
     ft = projected["federation_trace"]
-    assert ft["query"] == "hello"
-    assert ft["total_results"] == 1
-    assert ft["bundles"][0]["repo_id"] == "repo1"
-    assert ft["bundles"][0]["status"] == "ok"
+    assert ft["queried_bundles_total"] == 1
+    assert ft["queried_bundles_effective"] == 1
+    assert isinstance(ft["bundle_status"], dict)
+    assert ft["bundle_status"]["repo1"] == "ok"
+    assert isinstance(ft["bundle_errors"], dict)
+    assert isinstance(ft["bundle_traces"], dict)
 
 
 def test_agent_profile_keeps_conflicts_with_cross_repo_links():
