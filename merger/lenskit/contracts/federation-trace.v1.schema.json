@@ -5,6 +5,7 @@
   "description": "Diagnostic execution trace of a federated query across multiple bundles.",
   "type": "object",
   "required": ["query", "bundles", "total_results", "timestamp"],
+  "additionalProperties": false,
   "properties": {
     "query": {
       "type": "string",
@@ -25,6 +26,7 @@
       "items": {
         "type": "object",
         "required": ["repo_id", "bundle_path", "status"],
+        "additionalProperties": false,
         "properties": {
           "repo_id": {
             "type": "string",
@@ -49,7 +51,7 @@
           },
           "error_message": {
             "type": "string",
-            "description": "Optional error message if status is 'error'."
+            "description": "Optional error message if status is 'error' or 'query_error'."
           }
         }
       }

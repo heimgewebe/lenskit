@@ -198,7 +198,13 @@ def build_agent_query_session(
             if repo_id and isinstance(repo_id, str):
                 resolved_bundles.add(repo_id)
 
-    # 4. Extract from federation_trace.v1 contract
+    # 4. Fallback: file-artifact federation_trace shape.
+    # This branch handles the CLI/file-artifact form validated by
+    # federation-trace.v1.schema.json (`bundles[]`).
+    # Current API/v2 runtime paths use the inline runtime shape
+    # (`bundle_status`, `bundle_errors`, `bundle_traces`, ...), not `bundles[]`.
+    # New code should not rely on this branch unless it intentionally consumes
+    # the file-artifact compatibility shape.
     if "federation_trace" in result and "bundles" in result["federation_trace"]:
         for bundle in result["federation_trace"]["bundles"]:
             if bundle.get("status") == "ok" and "repo_id" in bundle and isinstance(bundle["repo_id"], str):
