@@ -198,13 +198,13 @@ def build_agent_query_session(
             if repo_id and isinstance(repo_id, str):
                 resolved_bundles.add(repo_id)
 
-    # 4. Fallback: file-artifact federation_trace shape (deprecated v1 path only).
-    # NOTE: This branch looks for federation_trace["bundles"] — the list-of-dicts structure
-    # produced by cmd_federation.py and validated by federation-trace.v1.schema.json.
-    # The RUNTIME federation_trace (used by build_agent_query_session_v2 and the API path)
-    # carries bundle_status as a dict {repo_id: status_str}, NOT a bundles list — so this
-    # branch is unreachable in all current call sites and exists only as a compatibility
-    # remnant of the deprecated v1 builder. Do not rely on it for new code.
+    # 4. Fallback: file-artifact federation_trace shape.
+    # This branch handles the CLI/file-artifact form validated by
+    # federation-trace.v1.schema.json (`bundles[]`).
+    # Current API/v2 runtime paths use the inline runtime shape
+    # (`bundle_status`, `bundle_errors`, `bundle_traces`, ...), not `bundles[]`.
+    # New code should not rely on this branch unless it intentionally consumes
+    # the file-artifact compatibility shape.
     if "federation_trace" in result and "bundles" in result["federation_trace"]:
         for bundle in result["federation_trace"]["bundles"]:
             if bundle.get("status") == "ok" and "repo_id" in bundle and isinstance(bundle["repo_id"], str):
