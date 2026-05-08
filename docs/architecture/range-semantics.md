@@ -48,13 +48,17 @@ interpretieren.
 
 ## Feldnamen
 
-Verwende die im Repo etablierte Terminologie:
+Verwende für Range-Objekte und Range-Refs die im Repo etablierte Terminologie:
 
 - `start_byte`
 - `end_byte`
 - `start_line`
 - `end_line`
 - `file_path`
+
+Bestehende Chunk-Records in `chunk_index_jsonl` können weiterhin `path` als Chunk-/Source-Pfadfeld
+verwenden. Diese Benennung bleibt für Chunk-Records unverändert; `file_path` meint hier
+Range-Objekte und Range-Refs wie `range-ref.v1` / `content_range_ref`.
 
 ## Invarianten
 

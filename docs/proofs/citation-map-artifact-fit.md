@@ -9,7 +9,7 @@ welche Rollen sie nicht übernehmen darf.
 
 - `canonical_md` ist Inhaltsträger und kanonische Vollquelle.
 - `chunk_index_jsonl` ist abgeleiteter Retrieval-Index.
-- `bundle_manifest` ist die stärkste Registry-Basis.
+- Das Bundle Manifest (`*.bundle.manifest.json`, `kind: repolens.bundle.manifest`) ist das stärkste Registry-Root-Dokument; es ist keine ArtifactRole und darf nicht mit ArtifactRole-Strings wie `canonical_md` oder `chunk_index_jsonl` verwechselt werden.
 - `dump_index_json` ist Navigation/View.
 - `derived_manifest_json` ist Derived-/Cache-View.
 - `sqlite_index` ist Runtime-Cache.
@@ -36,9 +36,9 @@ Sie ersetzt nicht:
 
 Sie darf nie behaupten:
 
-- `canonical_content`
-- `content_source`
-- `runtime_cache`
+- `authority: canonical_content`
+- `authority: runtime_cache`
+- `canonicality: content_source`
 
 ## Inputs für spätere Citation Map
 
