@@ -2,12 +2,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://heimgewebe.local/schema/citation-map.v1.schema.json",
   "title": "Citation Map Entry (citation-map v1.0)",
-  "description": "One JSONL entry of citation_map_jsonl. A citation address pointing at a canonical byte range, optionally linked to a source range and a retrieval chunk. Citation Map entries are derived navigation, never canonical content, runtime cache, or content source. The schema validates structure. Ordering constraints such as end_byte > start_byte and end_line >= start_line are semantic validation responsibilities of the future producer/validator. See docs/proofs/citation-map-artifact-fit.md and docs/architecture/range-semantics.md.",
+  "description": "One JSONL entry of citation_map_jsonl. A citation address pointing at a canonical byte range, optionally linked to a source range and a retrieval chunk. Snapshot metadata is required so a citation can be tied to the exact canonical Markdown used for range and citation-id derivation. Citation Map entries are derived navigation, never canonical content, runtime cache, or content source. The schema validates structure. Ordering constraints such as end_byte > start_byte and end_line >= start_line are semantic validation responsibilities of the future producer/validator. See docs/proofs/citation-map-artifact-fit.md and docs/architecture/range-semantics.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "citation_id",
     "repo_id",
+    "snapshot",
     "canonical_range"
   ],
   "properties": {
@@ -20,6 +21,33 @@
       "type": "string",
       "minLength": 1,
       "description": "Repository identifier this citation belongs to."
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "canonical_md_path",
+        "canonical_md_sha256"
+      ],
+      "description": "Bundle snapshot identity. Required so a citation can be tied to the exact canonical Markdown used for range and citation-id derivation. Allows a consumer to look up the corresponding bundle manifest and validate against changes.",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Bundle run identifier."
+        },
+        "canonical_md_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to canonical_md file in the bundle (e.g., 'out.merge.md')."
+        },
+        "canonical_md_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of the canonical_md file at the time this citation was derived."
+        }
+      }
     },
     "canonical_range": {
       "type": "object",

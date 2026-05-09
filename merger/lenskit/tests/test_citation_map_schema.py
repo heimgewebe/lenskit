@@ -17,6 +17,7 @@ EXAMPLE_PATH = (
 
 CANONICAL_SHA = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 SOURCE_SHA = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+CANONICAL_MD_SHA = "1111111111111111111111111111111111111111111111111111111111111111"
 
 
 @pytest.fixture
@@ -29,6 +30,11 @@ def _minimal_entry():
     return {
         "citation_id": "cit_0000000000000001",
         "repo_id": "lenskit",
+        "snapshot": {
+            "run_id": "lenskit-full-max-260508-0518",
+            "canonical_md_path": "out.merge.md",
+            "canonical_md_sha256": CANONICAL_MD_SHA,
+        },
         "canonical_range": {
             "file_path": "out.merge.md",
             "start_byte": 0,
@@ -72,6 +78,59 @@ def test_citation_id_wrong_length_rejected(schema):
 def test_citation_id_uppercase_hex_rejected(schema):
     entry = _minimal_entry()
     entry["citation_id"] = "cit_000000000000000A"  # uppercase A
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)
+
+
+# ---------------------------------------------------------------------------
+# snapshot — required and structure
+# ---------------------------------------------------------------------------
+
+def test_snapshot_is_required(schema):
+    entry = _minimal_entry()
+    del entry["snapshot"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)
+
+
+def test_snapshot_run_id_is_required(schema):
+    entry = _minimal_entry()
+    del entry["snapshot"]["run_id"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)
+
+
+def test_snapshot_canonical_md_path_is_required(schema):
+    entry = _minimal_entry()
+    del entry["snapshot"]["canonical_md_path"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)
+
+
+def test_snapshot_canonical_md_sha256_is_required(schema):
+    entry = _minimal_entry()
+    del entry["snapshot"]["canonical_md_sha256"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)
+
+
+def test_snapshot_canonical_md_sha256_must_be_lower_hex(schema):
+    entry = _minimal_entry()
+    entry["snapshot"]["canonical_md_sha256"] = "NOT-A-HASH"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)
+
+
+def test_snapshot_canonical_md_sha256_uppercase_rejected(schema):
+    entry = _minimal_entry()
+    entry["snapshot"]["canonical_md_sha256"] = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)
+
+
+def test_snapshot_rejects_extra_properties(schema):
+    entry = _minimal_entry()
+    entry["snapshot"]["branch"] = "main"
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=entry, schema=schema)
 
