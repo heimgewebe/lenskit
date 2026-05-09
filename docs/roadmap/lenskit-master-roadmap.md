@@ -59,8 +59,8 @@ Rollenamen folgen `bundle-manifest.v1.schema.json`, nicht älteren Blueprint-Beg
 
 ### Phase 0 - Roadmap-Konsolidierung
 Aktueller PR:
-- `docs/roadmap/lenskit-master-roadmap.md`
-- optional kleine Korrektur in `docs/architecture/inconsistencies.md` bei belegtem Altbefund
+- [x] `docs/roadmap/lenskit-master-roadmap.md`
+- [ ] optional kleine Korrektur in `docs/architecture/inconsistencies.md` bei belegtem Altbefund
 Gate:
 - keine widersprüchlichen Rollennamen
 - keine erfundenen Blueprint-Pfade
@@ -68,12 +68,12 @@ Gate:
 
 ### Phase 1 - Range- und Citation-Fundament
 Spätere PRs:
-- `docs/architecture/range-semantics.md`
-- `docs/proofs/citation-map-artifact-fit.md`
-- `citation-map.v1.schema.json` plus minimale Beispiele plus Schema-Test
-- Bundle-Manifest-Role `citation_map_jsonl`
-- `chunk_index` dual range mit `content_range_ref`, `canonical_range`, `source_range`
-- Citation-Map-Producer, geplante Citation-/Evidence-Health-Prüfung in separater Folge-PR, Real-Dump-Proof
+- [x] `docs/architecture/range-semantics.md`
+- [x] `docs/proofs/citation-map-artifact-fit.md`
+- [x] `citation-map.v1.schema.json` plus minimale Beispiele plus Schema-Test
+- [ ] Bundle-Manifest-Role `citation_map_jsonl`
+- [ ] `chunk_index` dual range mit `content_range_ref`, `canonical_range`, `source_range`
+- [ ] Citation-Map-Producer, geplante Citation-/Evidence-Health-Prüfung in separater Folge-PR, Real-Dump-Proof
 Gate:
 - `citation_map_jsonl` nie `canonical_content` oder `content_source`
 - `canonical_range` und `source_range` getrennt
@@ -161,15 +161,19 @@ Begründung:
 
 ## Nächste konkrete PRs
 PR 0:
-- `docs/roadmap/lenskit-master-roadmap.md`
-- optional `docs/architecture/inconsistencies.md`, nur bei belegtem Altbefund
+- [x] `docs/roadmap/lenskit-master-roadmap.md`
+- [ ] optional `docs/architecture/inconsistencies.md`, nur bei belegtem Altbefund
 PR 1:
-- `docs/architecture/range-semantics.md`
-- `docs/proofs/citation-map-artifact-fit.md`
+- [x] `docs/architecture/range-semantics.md`
+- [x] `docs/proofs/citation-map-artifact-fit.md`
 PR 2:
-- `citation-map.v1.schema.json`
-- minimale Beispiele
-- Schema-Test
+- [x] `citation-map.v1.schema.json` (`merger/lenskit/contracts/citation-map.v1.schema.json`)
+- [x] minimale Beispiele (`merger/lenskit/contracts/examples/citation_map_minimal.jsonl`)
+- [x] Schema-Test (`merger/lenskit/tests/test_citation_map_schema.py`)
+PR 3 (offen):
+- [ ] Bundle-Manifest-Role `citation_map_jsonl`
+- [ ] Chunk-Index dual range (`canonical_range`, `source_range` zusätzlich zu `content_range_ref`)
+- [ ] Citation-Map-Producer plus Real-Dump-Proof
 Diagnosehinweis für Priorisierung:
 - `merge.md` bleibt kanonische Vollquelle; JSON-Artefakte sind Einstieg/Index/Metadaten.
 - Ein schwacher Retrieval-Eval-Stand priorisiert Evidence-/Retrieval-Grundlagen vor Semantic/Reranking.
