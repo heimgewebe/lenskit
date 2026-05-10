@@ -72,7 +72,7 @@ Spätere PRs:
 - [x] `docs/proofs/citation-map-artifact-fit.md`
 - [x] `citation-map.v1.schema.json` plus minimale Beispiele plus Schema-Test
 - [x] Bundle-Manifest-Role `citation_map_jsonl`
-- [ ] `chunk_index` dual range mit `content_range_ref`, `canonical_range`, `source_range`
+- [x] `chunk_index` dual range mit `content_range_ref`, `canonical_range`, `source_range`
 - [ ] Citation-Map-Producer, geplante Citation-/Evidence-Health-Prüfung in separater Folge-PR, Real-Dump-Proof
 Gate:
 - `citation_map_jsonl` nie `canonical_content` oder `content_source`
@@ -172,7 +172,7 @@ PR 2:
 - [x] Schema-Test (`merger/lenskit/tests/test_citation_map_schema.py`)
 PR 3 (teilweise erledigt):
 - [x] Bundle-Manifest-Role `citation_map_jsonl`
-- [ ] Chunk-Index dual range (`canonical_range`, `source_range` zusätzlich zu `content_range_ref`)
+- [x] Chunk-Index dual range (`canonical_range`, `source_range` zusätzlich zu `content_range_ref`)
 - [ ] Citation-Map-Producer plus Real-Dump-Proof
 Diagnosehinweis für Priorisierung:
 - `merge.md` bleibt kanonische Vollquelle; JSON-Artefakte sind Einstieg/Index/Metadaten.

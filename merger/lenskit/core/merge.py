@@ -5150,6 +5150,33 @@ def write_reports_v2(
                             end_line=d["end_line"],
                             content_sha256=d["sha256"]
                         )
+
+                # Dual Range: canonical_range — only when content_range_ref is provable.
+                # Chunks outside canonical_md (split overflow) do not receive canonical_range.
+                if "content_range_ref" in d:
+                    crr = d["content_range_ref"]
+                    d["canonical_range"] = {
+                        "artifact_role": crr["artifact_role"],
+                        "file_path": crr["file_path"],
+                        "start_byte": crr["start_byte"],
+                        "end_byte": crr["end_byte"],
+                        "start_line": crr["start_line"],
+                        "end_line": crr["end_line"],
+                        "content_sha256": crr["content_sha256"]
+                    }
+
+                # Dual Range: source_range — positions within the original source file as read.
+                # status="declared": positions are based on read content, not independently validated.
+                d["source_range"] = {
+                    "file_path": fi.rel_path.as_posix(),
+                    "start_byte": d["start_byte"],
+                    "end_byte": d["end_byte"],
+                    "start_line": d["start_line"],
+                    "end_line": d["end_line"],
+                    "content_sha256": d["sha256"],
+                    "status": "declared"
+                }
+
                 d["search_keys"] = {
                     "repo_id": fi.root_label,
                     "path_norm": fi.rel_path.as_posix().lower(),
