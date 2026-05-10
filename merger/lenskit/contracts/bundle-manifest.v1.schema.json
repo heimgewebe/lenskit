@@ -80,7 +80,8 @@
               "delta_json",
               "graph_index_json",
               "architecture_summary",
-              "output_health"
+              "output_health",
+              "citation_map_jsonl"
             ],
             "description": "Machine-readable enum role for this artifact."
           },
@@ -490,6 +491,28 @@
                 },
                 "canonicality": {
                   "const": "diagnostic"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "citation_map_jsonl"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "navigation_index"
+                },
+                "canonicality": {
+                  "const": "derived"
                 }
               }
             }

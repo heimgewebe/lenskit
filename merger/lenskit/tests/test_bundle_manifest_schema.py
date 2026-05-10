@@ -550,3 +550,90 @@ def test_delta_json_cannot_claim_canonical_content(schema):
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+# ---------------------------------------------------------------------------
+# citation_map_jsonl: navigation_index / derived (Phase 1 — registry-only,
+# no producer yet). Old bundles without this role remain valid.
+# ---------------------------------------------------------------------------
+
+def test_citation_map_jsonl_valid_with_correct_authority(schema):
+    artifact = {
+        "role": "citation_map_jsonl",
+        "path": "out.citation_map.jsonl",
+        "content_type": "application/x-ndjson",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "contract": {"id": "citation-map", "version": "v1"},
+        "interpretation": {"mode": "contract"},
+        "authority": "navigation_index",
+        "canonicality": "derived",
+        "regenerable": True,
+        "staleness_sensitive": True
+    }
+    jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_citation_map_jsonl_optional_old_bundle_remains_valid(schema):
+    # Existing bundle without citation_map_jsonl must stay valid.
+    artifact = {
+        "role": "canonical_md",
+        "path": "output.md",
+        "content_type": "text/markdown",
+        "bytes": 1024,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "interpretation": {"mode": "role_only"}
+    }
+    jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_citation_map_jsonl_cannot_claim_canonical_content(schema):
+    artifact = {
+        "role": "citation_map_jsonl",
+        "path": "out.citation_map.jsonl",
+        "content_type": "application/x-ndjson",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "authority": "canonical_content"  # forbidden: navigation index, not content
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_citation_map_jsonl_cannot_claim_runtime_cache(schema):
+    artifact = {
+        "role": "citation_map_jsonl",
+        "path": "out.citation_map.jsonl",
+        "content_type": "application/x-ndjson",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "authority": "runtime_cache"  # forbidden: derived navigation index, not cache
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_citation_map_jsonl_cannot_claim_content_source(schema):
+    artifact = {
+        "role": "citation_map_jsonl",
+        "path": "out.citation_map.jsonl",
+        "content_type": "application/x-ndjson",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "canonicality": "content_source"  # forbidden: citation map is derived, not content source
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
+
+
+def test_citation_map_jsonl_cannot_claim_cache(schema):
+    artifact = {
+        "role": "citation_map_jsonl",
+        "path": "out.citation_map.jsonl",
+        "content_type": "application/x-ndjson",
+        "bytes": 2048,
+        "sha256": TEST_ARTIFACT_SHA256,
+        "canonicality": "cache"  # forbidden: derived navigation artifact, not a cache
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_wrap_artifact(artifact), schema=schema)
