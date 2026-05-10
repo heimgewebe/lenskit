@@ -63,7 +63,7 @@ Dateiendung ist Kleidung; Autorität ist Identität.
    `canonical_md`, `index_sidecar_json`, `dump_index_json`, `derived_manifest_json`, `chunk_index_jsonl`, `sqlite_index`, `retrieval_eval_json` (Phase 3.5), `graph_index_json` (Phase 3.5), `output_health`.
 
    **Im Schema als erlaubte optionale Rolle registriert, kein Producer vorhanden:**
-   - `citation_map_jsonl` — Belegadress-Artefakt für spätere Citation Map. Authority: `navigation_index`, Canonicality: `derived`. Ersetzt nicht `canonical_md` und nicht `chunk_index_jsonl`. Ist kein Runtime-Cache. Dieser PR schafft nur die Manifest-Zulässigkeit; kein Emit, kein Producer.
+   - `citation_map_jsonl` — Belegadresse-Artefakt für spätere Citation Map. Authority: `navigation_index`, Canonicality: `derived`. Ersetzt nicht `canonical_md` und nicht `chunk_index_jsonl`. Ist kein Runtime-Cache. Dieser PR schafft nur die Manifest-Zulässigkeit; kein Emit, kein Producer.
 
    **Im Schema als Zukunftsform per-role-constrained, aber nicht vom `bundle-manifest.v1`-Producer emittiert:**
    - `architecture_summary` — wird von `write_reports_v2` *nicht* als Manifest-Artefakt aufgenommen; der `_write_architecture_summary`-Pfad schreibt die Datei, aber `_add_artifact` wird für diese Rolle nicht aufgerufen. Schema-Constraint (`diagnostic_signal` / `diagnostic`) bleibt als zulässige Zukunftsform.
