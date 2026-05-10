@@ -507,12 +507,44 @@
               ]
             },
             "then": {
+              "required": [
+                "content_type",
+                "contract",
+                "authority",
+                "canonicality",
+                "regenerable",
+                "staleness_sensitive"
+              ],
               "properties": {
+                "content_type": {
+                  "const": "application/x-ndjson"
+                },
+                "contract": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "version"
+                  ],
+                  "properties": {
+                    "id": {
+                      "const": "citation-map"
+                    },
+                    "version": {
+                      "const": "v1"
+                    }
+                  }
+                },
                 "authority": {
                   "const": "navigation_index"
                 },
                 "canonicality": {
                   "const": "derived"
+                },
+                "regenerable": {
+                  "const": true
+                },
+                "staleness_sensitive": {
+                  "const": true
                 }
               }
             }

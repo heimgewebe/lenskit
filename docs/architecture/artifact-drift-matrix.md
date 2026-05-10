@@ -34,7 +34,7 @@ Eingetragen als diagnostischer Vorgriff gemäß Rollout-Regel (Diagnose vor Bloc
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `canonical_md` | `citation_map_jsonl` | Citation Map verweist auf fehlende oder verschobene Passage | `canonical_md` für Inhalt, `citation_map_jsonl` nur Navigation | _(kein Guard; Producer fehlt)_ | Citation Map regenerieren |
 | `chunk_index_jsonl` | `citation_map_jsonl` | Citation-Adressen basieren auf veraltetem Chunk-Index | `chunk_index_jsonl` | _(kein Guard; Producer fehlt)_ | Citation Map regenerieren |
-| `bundle_manifest` | `citation_map_jsonl` | Manifest listet `citation_map_jsonl`, Datei fehlt oder SHA stimmt nicht | Manifest + Artefaktinhalt konsistent | _(kein Guard; Producer fehlt)_ | Manifest regenerieren |
+| Bundle Manifest (Artefakt, nicht Role) | `citation_map_jsonl` | Manifest listet `citation_map_jsonl`, Datei fehlt oder SHA stimmt nicht | Manifest + Artefaktinhalt konsistent | _(kein Guard; Producer fehlt)_ | Manifest regenerieren |
 
 ## Rollout-Regel
 
