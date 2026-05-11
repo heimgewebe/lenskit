@@ -277,7 +277,7 @@ def _line_for_byte(data: bytes, byte_offset: int) -> int:
     For an exclusive end_byte, pass max(start_byte, end_byte - 1) to get
     the line of the last byte in the range without underflowing empty chunks.
     """
-    return data[:byte_offset].count(b"\n") + 1
+    return data.count(b"\n", 0, byte_offset) + 1
 
 def _validate_agent_json_dict(d: Dict[str, Any], allow_empty_primary: bool = False) -> None:
     """
@@ -5155,21 +5155,31 @@ def write_reports_v2(
                     if md_file_name == canonical_md_name:
                         abs_start = md_start_byte + d["start_byte"]
                         abs_end = md_start_byte + d["end_byte"]
+
+                        if canonical_md_bytes is not None:
+                            # Compute canonical-local values once; share across both fields.
+                            can_chunk = canonical_md_bytes[abs_start:abs_end]
+                            can_sha256 = hashlib.sha256(can_chunk).hexdigest()
+                            can_start_line = _line_for_byte(canonical_md_bytes, abs_start)
+                            can_end_line = _line_for_byte(canonical_md_bytes, max(abs_start, abs_end - 1))
+                        else:
+                            # Fall back to source-local values when canonical bytes unavailable.
+                            can_sha256 = d["sha256"]
+                            can_start_line = d["start_line"]
+                            can_end_line = d["end_line"]
+
                         d["content_range_ref"] = build_explicit_range_ref(
                             artifact_role=ArtifactRole.CANONICAL_MD.value,
                             repo_id=fi.root_label,
                             file_path=md_file_name,
                             start_byte=abs_start,
                             end_byte=abs_end,
-                            start_line=d["start_line"],
-                            end_line=d["end_line"],
-                            content_sha256=d["sha256"]
+                            start_line=can_start_line,
+                            end_line=can_end_line,
+                            content_sha256=can_sha256,
                         )
+
                         if canonical_md_bytes is not None:
-                            can_chunk = canonical_md_bytes[abs_start:abs_end]
-                            can_sha256 = hashlib.sha256(can_chunk).hexdigest()
-                            can_start_line = _line_for_byte(canonical_md_bytes, abs_start)
-                            can_end_line = _line_for_byte(canonical_md_bytes, max(abs_start, abs_end - 1))
                             d["canonical_range"] = {
                                 "artifact_role": ArtifactRole.CANONICAL_MD.value,
                                 "repo_id": fi.root_label,
