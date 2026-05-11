@@ -5192,7 +5192,7 @@ def write_reports_v2(
                             }
 
                 # source_range: always present, coordinates in source content space.
-                # Status taxonomy: "declared" (verifiable) | "unavailable" (redacted or truncated).
+                # Status taxonomy: "declared" (source coords claimed, not externally verified) | "unavailable" (redacted or truncated).
                 if was_redacted or truncated:
                     d["source_range"] = {
                         "file_path": fi.rel_path.as_posix(),
