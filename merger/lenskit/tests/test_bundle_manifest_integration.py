@@ -20,6 +20,7 @@ _BUNDLE_MANIFEST_SCHEMA_PATH = (
 _OUTPUT_HEALTH_SCHEMA_PATH = (
     _CONTRACTS_DIR / "output-health.v1.schema.json"
 )
+_SHA256_HEX_LENGTH = 64
 
 
 def _sha256_file(path: Path) -> str:
@@ -211,7 +212,7 @@ def test_output_health_broken_range_ref_is_fail_in_repo_near_flow(tmp_path):
     assert isinstance(first_chunk, dict)
     assert isinstance(first_chunk.get("content_range_ref"), dict)
     first_chunk["content_range_ref"]["file_path"] = "totally_missing_artifact.md"
-    first_chunk["content_range_ref"]["content_sha256"] = "0" * 64
+    first_chunk["content_range_ref"]["content_sha256"] = "0" * _SHA256_HEX_LENGTH
     lines[0] = json.dumps(first_chunk, ensure_ascii=False)
     artifacts.chunk_index.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
