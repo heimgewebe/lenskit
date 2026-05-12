@@ -2,6 +2,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+
 import jsonschema
 import pytest
 
