@@ -55,3 +55,16 @@ Die Testsuite (`merger/lenskit/tests/`) belegt die Grundlagen für die Ingestion
 Diese Belege sichern spezifische Teilziele methodisch ab, decken jedoch weder die API-Sicherheit weitreichend ab, noch prüfen sie die tatsächliche Agent-Tauglichkeit der ausgegebenen Kontexte qualitativ.
 
 Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist durch Tests unter `test_federation_*.py` **teilweise abgedeckt**, bleibt aber insbesondere bei vollständigen End-to-End-Pfaden über mehrere Repositories unvollständig. **Phase 6 (Agent Control Surface / Provenienz):** `agent_query_session`-Provenienz-Härtung ist durch Crosscheck-Tests belegt (artifact_refs-Konsistenz, null-Self-ID, Roundtrip-Lookup, Schema-Rejection); Agent-Orchestrierung, Feedback-Schleifen und MCP-Anbindung sind noch offen.
+
+
+## Offene Deployment-/Boundary-Testpunkte
+
+Diese Punkte sind bewusst als offene Guards für Folgearbeiten aufgeführt; diese reine Doku-Änderung implementiert das geprüfte Verhalten nicht.
+
+| Bereich | Gewünschter Guard | Status | Hinweise |
+| :--- | :--- | :--- | :--- |
+| rLens-systemd-Template | Template enthält `RLENS_MERGES` und lädt Secrets über `EnvironmentFile`, nicht über einen statischen `RLENS_TOKEN`. | **Open.** | Verhindert Secret-Drift in Beispiel-Deployment-Units. |
+| Bounded Repo-Sync / Omnipull | Jede künftige Repo-Sync-Aktion schreibt Reports und ist auf Plan, Clone fehlender Repos, Fetch/Prune sowie Clean-Fast-Forward beschränkt. | **Open.** | Muss generische Shell-Command-Semantik ablehnen. |
+| Secure FS Navigation | Root-Browsing bleibt loopback/auth-gated und non-loopback Root-Browsing bleibt verweigert. | **Bestehende Sicherheitsinvariante; Guard soll explizit bleiben.** | Siehe Secure-FS-Navigation-ADR und Service-Tests. |
+| Atlas-Heimserver-Profile | Heimserver-Overview/Deep-Profile schließen Pseudo-/volatile Roots wie `/proc`, `/sys`, `/dev` und `/run` aus. | **Open.** | Verhindert, dass Host-Pseudo-Dateisysteme zu Content-Evidence werden. |
+| Forensic-Profil-Export | `heimserver-forensic-local` kann ohne menschliche Prüfung und Redaction nicht in Agent-/ChatGPT-Artefakte exportiert werden. | **Open.** | Schützt local-only forensische Evidence vor versehentlicher Externalisierung. |
