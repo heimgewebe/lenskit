@@ -70,11 +70,40 @@ Lenskit bleibt Quelle innerhalb kontrollierter Heimgewebe-Pfade. Direkte externe
 
 ## 5. Deployment-Grenze
 
-Lenskit Core läuft bevorzugt auf `heim-pc`, weil dort Repos, Dumps und Atlas-Zielpfade liegen. Damit bleibt Lenskit nahe an den lokalen Quellartefakten und muss keine eigenständige öffentliche Infrastrukturrolle übernehmen.
+Der Zielzustand ist nicht mehr `heimserver = lenskit-mirror only` und auch nicht mehr `Lenskit Core läuft ausschließlich oder bevorzugt nur auf heim-pc`. Stattdessen beschreibt Lenskit zwei lokale rLens-Rollen, die jeweils nah an ihren eigenen Quellartefakten laufen:
+
+- `rlens-local` auf `heim-pc`: lokale Arbeits- und Interaktionswahrheit für lokale Repos, Dumps, Atlas-Zielpfade sowie dirty/untracked Zustände.
+- `rlens-peer-heimserver` auf `heimserver`: vollständiger Service- und Analyse-Peer für den Heimserver-Dateibaum, lokale Repos, Atlas-Snapshots, Merger-Artefakte und die lokale rLens-WebUI.
+
+`rlens-peer-heimserver` ist trotzdem keine öffentliche Control-Plane. Der Full-Peer-Status bedeutet nicht, dass externe Agents direkt auf Lenskit zugreifen dürfen, dass Lenskit eine öffentliche Runtime wird oder dass rLens Command-Ausführung übernimmt.
 
 `rLens` ist ein lokaler Service und bleibt loopback-first. Tailscale Serve darf internen Tailnet-Zugriff auf autorisierten Pfaden ermöglichen. Tailscale Funnel ist kein Lenskit-Core-Dauerpfad.
 
 Öffentlicher Zugriff darf später nur über ein getrenntes `hausmaister-agent-gateway` laufen. Dieses Gateway ist nicht Teil des Lenskit-Core und darf keine Lenskit-Runtime in eine öffentliche Control-Plane verwandeln.
+
+## 5.1 Bounded Repo-Sync / Omnipull
+
+Omnipull ist in Lenskit-Terminologie keine allgemeine Command-Ausführung, sondern eine eng begrenzte Repo-Sync-Vorbereitung für lokale Evidence- und Merger-Arbeit. Es dient dazu, lokale Repository-Bestände für Beobachtung, Atlas-Snapshots und Merger-Artefakte bereitzustellen, ohne Lenskit in einen Command-Executor zu verwandeln.
+
+Erlaubt ist ausschließlich:
+
+- `plan`: vorhandene und fehlende Repos prüfen und einen Report schreiben, ohne Repos zu verändern.
+- `apply`: fehlende Repos klonen.
+- `apply`: vorhandene Repos per fetch/prune aktualisieren.
+- `apply`: vorhandene Repos nur dann aktualisieren, wenn der Arbeitsbaum clean ist und ein Fast-Forward möglich ist.
+- ein Statusartefakt schreiben.
+
+Verboten bleibt ausdrücklich:
+
+- `reset --hard`,
+- automatisches `stash`,
+- automatisches `rebase`,
+- Branch-Wechsel,
+- Löschen untracked files,
+- Verwerfen lokaler Änderungen,
+- beliebige Shell-Commands.
+
+Ein Omnipull-Report ist Evidence. Er ist kein Command-Freibrief, kein hausmAIster-Approval und keine implizite Berechtigung für weitere Mutationen.
 
 ## 6. API-Grenze
 

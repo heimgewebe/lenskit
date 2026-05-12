@@ -1,13 +1,17 @@
 [Unit]
-Description=rLens Web UI (rlens)
+Description=rLens Web UI (rlens example/template)
 After=network.target
 
 [Service]
 Type=simple
 Environment=RLENS_HUB=/home/alex/repos
+Environment=RLENS_MERGES=/home/alex/lenskit-out
 Environment=RLENS_HOST=127.0.0.1
 Environment=RLENS_PORT=8787
-Environment=RLENS_TOKEN=heimgewebe-local
+# Required local file; do not commit secrets.
+# Expected keys include RLENS_TOKEN and/or RLENS_FS_TOKEN_SECRET.
+# Missing file intentionally fails the unit for full-peer deployments.
+EnvironmentFile=%h/.config/rlens/env
 WorkingDirectory=/home/alex/repos/lenskit
 ExecStart=/usr/bin/python3 -m merger.lenskit.cli.rlens
 Restart=on-failure
