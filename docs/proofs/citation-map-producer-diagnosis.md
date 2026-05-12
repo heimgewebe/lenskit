@@ -18,7 +18,7 @@ Die Citation-Map-Producer-Komponente existiert nicht im Repo. Schema, Manifest-R
 | Beispiele | `merger/lenskit/contracts/examples/citation_map_minimal.jsonl` | 3 gültige Einträge demonstrieren source_range Varianten |
 | Schema-Test | `merger/lenskit/tests/test_citation_map_schema.py` | vorhanden |
 | Proof | `docs/proofs/citation-map-artifact-fit.md` | Rollen und Nicht-Rollen geklärt |
-| Manifest-Role | `bundle-manifest.v1.schema.json:84, 498–551` | strikt registriert mit Constraints: `contract=citation-map/v1`, `authority=navigation_index`, `canonicality=derived`, `regenerable=true`, `staleness_sensitive=true` |
+| Manifest-Role | `merger/lenskit/contracts/bundle-manifest.v1.schema.json:84, 498–551` | strikt registriert mit Constraints: `contract=citation-map/v1`, `authority=navigation_index`, `canonicality=derived`, `regenerable=true`, `staleness_sensitive=true` |
 | ArtifactRole Enum | `merger/lenskit/core/constants.py:21` | `CITATION_MAP_JSONL = "citation_map_jsonl"` |
 | Roadmap-Eintrag | `docs/roadmap/lenskit-master-roadmap.md:76` | `[ ] Citation-Map-Producer …, Real-Dump-Proof` offen |
 
@@ -71,7 +71,7 @@ Ein Producer ohne Real-Dump-Proof:
 
 ## Nächste erforderliche Vorbedingungen
 
-Bevor ein echtes `core/citation_map.py` begonnen wird, müssen diese Bedingungen erfüllt sein:
+Bevor ein echtes `merger/lenskit/core/citation_map.py` begonnen wird, müssen diese Bedingungen erfüllt sein:
 
 ### 1. Real-Dump mit dual ranges bereitstellen
 - Quelle: Ein von der aktuellen Lenskit-Pipeline erzeugter `*.bundle.manifest.json` mit zugehörigem chunk_index.jsonl, das `canonical_range`, `source_range`, `content_range_ref` enthält.
