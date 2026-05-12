@@ -227,8 +227,8 @@ def test_fts_content_hydrated_from_range_ref(tmp_path):
         conn.close()
 
 
-def test_fts_content_hydrated_from_canonical_range_without_jsonschema(tmp_path, monkeypatch):
-    """canonical_range hydration must not depend on jsonschema at index-build time."""
+def test_canonical_range_hydration_does_not_use_range_resolver(tmp_path, monkeypatch):
+    """canonical_range hydration is handled locally and must not call resolve_range_ref."""
     dump_path, canonical_md, ref, expected_text = _make_range_ref_env(tmp_path)
 
     chunk_path = tmp_path / "chunks.jsonl"
@@ -242,7 +242,16 @@ def test_fts_content_hydrated_from_canonical_range_without_jsonschema(tmp_path, 
             "content_range_ref": ref,
         }) + "\n")
 
-    monkeypatch.setattr("merger.lenskit.core.range_resolver.jsonschema", None)
+    resolve_range_ref_called = {"value": False}
+
+    def _unexpected_resolve_range_ref(*args, **kwargs):
+        resolve_range_ref_called["value"] = True
+        raise AssertionError("resolve_range_ref must not be called for canonical_range hydration")
+
+    monkeypatch.setattr(
+        "merger.lenskit.core.range_resolver.resolve_range_ref",
+        _unexpected_resolve_range_ref,
+    )
 
     db_path = tmp_path / "index.sqlite"
     index_db.build_index(dump_path, chunk_path, db_path)
@@ -258,6 +267,7 @@ def test_fts_content_hydrated_from_canonical_range_without_jsonschema(tmp_path, 
         meta = dict(conn.execute("SELECT key, value FROM index_meta").fetchall())
         assert meta.get("ingest.fts_hydrated_from_canonical_range") == "1"
         assert meta.get("ingest.fts_hydrated_from_range_ref") == "0"
+        assert resolve_range_ref_called["value"] is False
     finally:
         conn.close()
 
@@ -392,6 +402,207 @@ def test_fts_content_hydration_supports_list_artifacts_and_normalized_file_path(
         assert row[0] == content.decode("utf-8")
     finally:
         conn.close()
+
+
+def test_fts_content_hydration_rejects_parent_segment_ref_file_path(tmp_path):
+    """Ref file_path with parent-segment traversal must be rejected."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "../canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_parent_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="must not contain parent directory segments"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_rejects_non_string_ref_file_path(tmp_path):
+    """Ref file_path must be a string when present."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": 123,
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_non_string_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="ref file_path must be a non-empty string"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_legacy_source_file_content_range_ref_uses_resolve_range_ref(tmp_path, monkeypatch):
+    """Legacy source_file refs must hydrate via resolve_range_ref fallback when canonical_range is absent."""
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {},
+    }))
+
+    source_ref = {
+        "artifact_role": "source_file",
+        "repo_id": "testrepo",
+        "file_path": "src/main.py",
+        "start_byte": 0,
+        "end_byte": 5,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": "a" * 64,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_legacy_source_ref",
+        "repo_id": "testrepo",
+        "path": "src/main.py",
+        "layer": "core",
+        "content_range_ref": source_ref,
+    }) + "\n")
+
+    calls = {"count": 0}
+
+    def _mock_resolve_range_ref(manifest_path, ref):
+        calls["count"] += 1
+        assert manifest_path == dump_path
+        assert ref["artifact_role"] == "source_file"
+        return {"text": "legacy fallback hydrated text"}
+
+    monkeypatch.setattr(
+        "merger.lenskit.core.range_resolver.resolve_range_ref",
+        _mock_resolve_range_ref,
+    )
+
+    db_path = tmp_path / "index.sqlite"
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    assert calls["count"] == 1
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT content FROM chunks_fts WHERE chunk_id = 'c_legacy_source_ref'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "legacy fallback hydrated text"
+        meta = dict(conn.execute("SELECT key, value FROM index_meta").fetchall())
+        assert meta.get("ingest.fts_hydrated_from_canonical_range") == "0"
+        assert meta.get("ingest.fts_hydrated_from_range_ref") == "1"
+    finally:
+        conn.close()
+
+
+def test_broken_canonical_range_does_not_fallback_to_legacy_source_ref(tmp_path, monkeypatch):
+    """If canonical_range exists and fails, legacy source_file fallback must not be attempted."""
+    dump_path, canonical_md, ref, _ = _make_range_ref_env(tmp_path)
+    bad_canonical_ref = dict(ref)
+    bad_canonical_ref["content_sha256"] = "b" * 64
+    source_ref = {
+        "artifact_role": "source_file",
+        "repo_id": "testrepo",
+        "file_path": "src/main.py",
+        "start_byte": 0,
+        "end_byte": 5,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": "a" * 64,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_broken_canonical",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": bad_canonical_ref,
+        "content_range_ref": source_ref,
+    }) + "\n")
+
+    calls = {"count": 0}
+
+    def _mock_resolve_range_ref(manifest_path, ref):
+        calls["count"] += 1
+        return {"text": "should never be used"}
+
+    monkeypatch.setattr(
+        "merger.lenskit.core.range_resolver.resolve_range_ref",
+        _mock_resolve_range_ref,
+    )
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="hash mismatch"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert calls["count"] == 0
+    assert not db_path.exists()
 
 
 def test_fts_content_hydration_empty_range_raises(tmp_path):

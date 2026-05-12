@@ -61,11 +61,21 @@ def _resolve_dump_artifact_path(
     if not isinstance(target_path_str, str) or not target_path_str:
         raise RuntimeError(f"Artifact with role '{role}' not found in dump_index")
 
-    ref_file_path = ref.get("file_path")
-    def _norm_rel_path(value: str) -> str:
-        return Path(value).as_posix().lstrip("./")
+    def _norm_rel_path(value: Any, *, field_name: str) -> str:
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"{field_name} must be a non-empty string")
+        if Path(value).is_absolute():
+            raise RuntimeError(f"{field_name} must be a relative path, got: {value!r}")
+        value_posix = value.replace("\\", "/")
+        if value_posix.startswith("./"):
+            value_posix = value_posix[2:]
+        if ".." in Path(value_posix).parts:
+            raise RuntimeError(f"{field_name} must not contain parent directory segments: {value!r}")
+        return Path(value_posix).as_posix()
 
-    if ref_file_path and _norm_rel_path(ref_file_path) != _norm_rel_path(target_path_str):
+    normalized_target_path = _norm_rel_path(target_path_str, field_name="manifest artifact path")
+    ref_file_path = ref.get("file_path")
+    if ref_file_path is not None and _norm_rel_path(ref_file_path, field_name="ref file_path") != normalized_target_path:
         raise RuntimeError(f"file_path mismatch: ref={ref_file_path} manifest={target_path_str}")
 
     if Path(target_path_str).is_absolute():
@@ -136,6 +146,26 @@ def _hydrate_text_from_range_like_ref(
         raise RuntimeError(
             f"FTS hydration failed for chunk '{chunk_id}': extracted range could not be decoded as UTF-8: {e}"
         ) from e
+
+
+def _hydrate_text_from_legacy_source_file_ref(
+    dump_path: Path,
+    raw_ref: Any,
+    *,
+    field_name: str,
+    chunk_id: str,
+) -> str:
+    """Hydrate via legacy range_resolver path for source_file refs only."""
+    ref = _parse_range_like_ref(raw_ref, field_name=field_name, chunk_id=chunk_id)
+    from merger.lenskit.core.range_resolver import resolve_range_ref
+
+    resolved = resolve_range_ref(dump_path, ref)
+    text = resolved.get("text")
+    if not isinstance(text, str):
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': legacy source_file resolution did not return text"
+        )
+    return text
 
 def _compute_file_sha256(path: Path) -> str:
     """Compute SHA256 of a file."""
@@ -274,27 +304,56 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
                     # into canonical_md and will raise hard on any error.
                     # content_range_ref is used only as a backward-compatible fallback when
                     # canonical_range is absent — never as a silent alternative to a broken one.
-                    for field_name, stat_key in (
-                        ("canonical_range", "fts_hydrated_from_canonical_range"),
-                        ("content_range_ref", "fts_hydrated_from_range_ref"),
-                    ):
-                        raw_ref = chunk.get(field_name)
-                        if raw_ref is None:
-                            continue
+                    raw_canonical_range = chunk.get("canonical_range")
+                    if raw_canonical_range is not None:
                         try:
                             content_text = _hydrate_text_from_range_like_ref(
                                 dump_path,
                                 dump_manifest,
-                                raw_ref,
-                                field_name=field_name,
+                                raw_canonical_range,
+                                field_name="canonical_range",
                                 chunk_id=cid,
                             )
                         except RuntimeError as e:
+                            msg = str(e)
+                            if msg.startswith("FTS hydration failed for chunk "):
+                                raise RuntimeError(msg) from e
                             raise RuntimeError(
-                                f"FTS hydration failed for chunk '{cid}' via {field_name}: {e}"
+                                f"FTS hydration failed for chunk '{cid}' via canonical_range: {msg}"
                             ) from e
-                        stats[stat_key] += 1
-                        break
+                        stats["fts_hydrated_from_canonical_range"] += 1
+                    else:
+                        raw_content_range_ref = chunk.get("content_range_ref")
+                        if raw_content_range_ref is not None:
+                            try:
+                                parsed_ref = _parse_range_like_ref(
+                                    raw_content_range_ref,
+                                    field_name="content_range_ref",
+                                    chunk_id=cid,
+                                )
+                                if parsed_ref.get("artifact_role") == "source_file":
+                                    content_text = _hydrate_text_from_legacy_source_file_ref(
+                                        dump_path,
+                                        parsed_ref,
+                                        field_name="content_range_ref",
+                                        chunk_id=cid,
+                                    )
+                                else:
+                                    content_text = _hydrate_text_from_range_like_ref(
+                                        dump_path,
+                                        dump_manifest,
+                                        parsed_ref,
+                                        field_name="content_range_ref",
+                                        chunk_id=cid,
+                                    )
+                            except (RuntimeError, ValueError, FileNotFoundError) as e:
+                                msg = str(e)
+                                if msg.startswith("FTS hydration failed for chunk "):
+                                    raise RuntimeError(msg) from e
+                                raise RuntimeError(
+                                    f"FTS hydration failed for chunk '{cid}' via content_range_ref: {msg}"
+                                ) from e
+                            stats["fts_hydrated_from_range_ref"] += 1
                     if not content_text:
                         logger.debug(
                             "Chunk '%s' has no inline content and no canonical/content range ref; FTS content will be empty.",
