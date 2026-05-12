@@ -258,6 +258,8 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
                 # FTS Content: prefer inline content, otherwise hydrate from canonical bundle ranges.
                 content_text = chunk.get("content") or ""
                 if not content_text:
+                    # canonical_range is the direct canonical_md pointer; content_range_ref remains
+                    # the backward-compatible fallback. First successful hydration wins.
                     for field_name, stat_key in (
                         ("canonical_range", "fts_hydrated_from_canonical_range"),
                         ("content_range_ref", "fts_hydrated_from_range_ref"),
