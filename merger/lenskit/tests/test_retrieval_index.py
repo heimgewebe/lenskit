@@ -438,6 +438,6 @@ def test_fts_content_hydration_empty_range_raises(tmp_path):
     }) + "\n")
 
     db_path = tmp_path / "index.sqlite"
-    with pytest.raises(RuntimeError, match="out of bounds"):
+    with pytest.raises(RuntimeError, match="empty range"):
         index_db.build_index(dump_path, chunk_path, db_path)
     assert not db_path.exists()

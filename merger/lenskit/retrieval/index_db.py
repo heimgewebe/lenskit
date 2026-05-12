@@ -111,9 +111,13 @@ def _hydrate_text_from_range_like_ref(
         )
 
     file_size = target_path.stat().st_size
-    if start_byte < 0 or end_byte > file_size or start_byte >= end_byte:
+    if start_byte < 0 or end_byte > file_size or start_byte > end_byte:
         raise RuntimeError(
             f"FTS hydration failed for chunk '{chunk_id}': range [{start_byte}:{end_byte}] is out of bounds for file size {file_size}"
+        )
+    if start_byte == end_byte:
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': empty range [{start_byte}:{end_byte}] — a citation range must cover at least one byte"
         )
 
     with target_path.open("rb") as f:
