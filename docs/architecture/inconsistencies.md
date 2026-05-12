@@ -30,11 +30,20 @@ Diese Liste dokumentiert systematisch die Lücken zwischen der visionären Ziela
     *   *Befund:* Tests für Context-Bundles prüfen Output-Profile auf korrekte Struktur und Datenfilterung (`test_ui_payload_excludes_internal_fields`).
     *   *Lücke:* Dies belegt formale Strukturkonformität, ist aber kein umfassender Beleg für inhaltliche oder ergonomische "Kontextnutzbarkeit" im Sinne von Agenten-Feedbackschleifen.
 
-## 3. Was fehlt komplett (Echte Inkonsistenzen / Nicht-Ziele)?
-*(Diese Aspekte sind in der Blaupause definiert, aber im Code nicht existent)*
+## 3. Offene und teilweise offene Inkonsistenzen / Nicht-Ziele
+*(Diese Aspekte sind in der Blaupause definiert, aber im Code nicht oder nur partial/minimal belastbar umgesetzt.)*
 
 *   **Phase 5 (Cross-Repo-Knowledge-Layer):** Nicht mehr als vollständig nicht existent zu beschreiben. Aktueller Status ist **partial/minimal**: `federation_index`-Schema/Grundlagen sind vorhanden, `cross_repo_links` hat Contract plus minimalen heuristischen Producer, `federation_conflicts` wird heuristisch/minimal emittiert; föderierte Query-Pfade sind teilweise vorhanden. Offen bleiben belastbare Identity-Engine, Conflict-Semantik, Cross-Bundle-Evidence, API-/Runtime-Integration sowie Tests/Hardening.
-*   **Phase 6 (Agent Control Surface - Session Trace):** Ein explizites `agent_query_session.json` (Session Trace) Artefakt wird noch nicht geschrieben, obwohl ein HTTP API-Endpoint existiert.
 
-## 4. Architektonische Zusammenfassung
+## 4. Geschlossene Altbefunde / PR-0-Restcheck
+
+Dieser Abschnitt dokumentiert ehemalige Inkonsistenzbefunde, die durch aktuellen Repo-Stand nicht mehr als offene Lücke geführt werden.
+
+*   **Phase 6 (Agent Control Surface - Session Trace):** Altbefund ist **closed/resolved**. `agent_query_session` wird als Runtime-Artefakt gebaut (`build_agent_query_session_v2`), bei aktivem Store persistiert und via `/api/artifact_lookup` referenzierbar gemacht.
+
+| Historischer Begriff / Altbefund | Kanonischer Begriff / Ist-Zustand | Betroffene Datei(en) | Aktueller Status | Folgeaktion |
+| :--- | :--- | :--- | :--- | :--- |
+| `agent_query_session.json` „wird noch nicht geschrieben“ | Runtime-Artefakt `agent_query_session` wird gebaut und (bei aktiviertem `QueryArtifactStore`) gespeichert; Lookup über `artifact_ids.agent_query_session` und `/api/artifact_lookup` | `merger/lenskit/retrieval/session.py`, `merger/lenskit/service/app.py`, `docs/architecture/runtime-matrix.md`, `docs/architecture/artifact-inventory.md` | resolved/closed | keine Folgeaktion für PR-0 |
+
+## 5. Architektonische Zusammenfassung
 Die Grundlagen der Phase 1 bis 3 und wesentliche Strukturbausteine der Phase 4 sind für isolierte, lokale Bundles nachvollziehbar implementiert und reduzieren den Drift vor der Cross-Repo-Komplexität erheblich. Für die verbleibenden Gates der Phase 4 (insbesondere API/UI-Struktur und tatsächliche Agenten-Sicherheit) sind jedoch stärkere Integrationstests erforderlich. Die Föderation (Phase 5) ist im aktuellen Stand **partial/minimal** umgesetzt, aber als robuste Architekturphase noch offen; Hardening bleibt eine eigenständige Komplexitätsstufe.
