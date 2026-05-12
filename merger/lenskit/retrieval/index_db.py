@@ -7,6 +7,7 @@ import json
 import hashlib
 import datetime
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -67,6 +68,8 @@ def _resolve_dump_artifact_path(
         if Path(value).is_absolute():
             raise RuntimeError(f"{field_name} must be a relative path, got: {value!r}")
         value_posix = value.replace("\\", "/")
+        if re.match(r"^[A-Za-z]:/", value_posix):
+            raise RuntimeError(f"{field_name} must not contain a Windows drive prefix: {value!r}")
         if value_posix.startswith("./"):
             value_posix = value_posix[2:]
         if ".." in Path(value_posix).parts:
@@ -112,7 +115,7 @@ def _hydrate_text_from_range_like_ref(
     start_byte = ref.get("start_byte")
     end_byte = ref.get("end_byte")
     expected_sha256 = ref.get("content_sha256")
-    if not isinstance(start_byte, int) or not isinstance(end_byte, int):
+    if type(start_byte) is not int or type(end_byte) is not int:
         raise RuntimeError(
             f"FTS hydration failed for chunk '{chunk_id}': {field_name} must include integer start_byte/end_byte"
         )
