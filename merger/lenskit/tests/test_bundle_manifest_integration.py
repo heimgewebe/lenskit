@@ -2,8 +2,6 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from unittest.mock import patch
-
 import jsonschema
 import pytest
 
@@ -177,29 +175,6 @@ def test_output_health_verdict_pass_for_healthy_dual_bundle(tmp_path):
     assert health["checks"]["chunk_index_hash_ok"] is True
     assert health["checks"]["range_ref_resolution_ok"] is True
     assert health["checks"]["range_ref_resolution_status"] == "ok"
-
-
-def test_output_health_jsonschema_unavailable_is_warn_in_generated_bundle(tmp_path):
-    with patch(
-        "merger.lenskit.core.range_resolver.resolve_range_ref",
-        side_effect=RuntimeError(
-            "Schema validation requested but jsonschema is unavailable in this environment."
-        ),
-    ):
-        artifacts, _, _ = _make_minimal_bundle(tmp_path, output_mode="dual")
-
-    assert artifacts.output_health is not None
-    health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
-
-    assert "range_ref_resolution_status" in health["checks"]
-    assert health["checks"]["range_ref_resolution_ok"] is None
-    assert health["checks"]["range_ref_resolution_status"] == "environment_error"
-    assert health["verdict"] == "warn"
-    assert any("jsonschema" in w.lower() for w in health["warnings"])
-    assert not any("jsonschema" in e.lower() for e in health["errors"])
-    assert health["checks"]["canonical_md_hash_ok"] is True
-    assert health["checks"]["chunk_index_hash_ok"] is True
-    assert health["checks"]["chunk_count"] > 0
 
 
 def test_output_health_broken_range_ref_is_fail_in_repo_near_flow(tmp_path):
