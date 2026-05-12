@@ -30,8 +30,8 @@ Diese Liste dokumentiert systematisch die Lücken zwischen der visionären Ziela
     *   *Befund:* Tests für Context-Bundles prüfen Output-Profile auf korrekte Struktur und Datenfilterung (`test_ui_payload_excludes_internal_fields`).
     *   *Lücke:* Dies belegt formale Strukturkonformität, ist aber kein umfassender Beleg für inhaltliche oder ergonomische "Kontextnutzbarkeit" im Sinne von Agenten-Feedbackschleifen.
 
-## 3. Was fehlt komplett (Echte Inkonsistenzen / Nicht-Ziele)?
-*(Diese Aspekte sind in der Blaupause definiert, aber im Code nicht existent)*
+## 3. Offene und teilweise offene Inkonsistenzen / Nicht-Ziele
+*(Diese Aspekte sind in der Blaupause definiert, aber im Code nicht oder nur partial/minimal belastbar umgesetzt.)*
 
 *   **Phase 5 (Cross-Repo-Knowledge-Layer):** Nicht mehr als vollständig nicht existent zu beschreiben. Aktueller Status ist **partial/minimal**: `federation_index`-Schema/Grundlagen sind vorhanden, `cross_repo_links` hat Contract plus minimalen heuristischen Producer, `federation_conflicts` wird heuristisch/minimal emittiert; föderierte Query-Pfade sind teilweise vorhanden. Offen bleiben belastbare Identity-Engine, Conflict-Semantik, Cross-Bundle-Evidence, API-/Runtime-Integration sowie Tests/Hardening.
 
