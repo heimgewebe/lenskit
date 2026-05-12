@@ -500,6 +500,54 @@ def test_fts_content_hydration_rejects_non_string_ref_file_path(tmp_path):
     assert not db_path.exists()
 
 
+def test_fts_content_hydration_rejects_empty_string_ref_file_path(tmp_path):
+    """Ref file_path must not be an empty string."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_empty_string_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="ref file_path must be a non-empty string"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
 def test_legacy_source_file_content_range_ref_uses_resolve_range_ref(tmp_path, monkeypatch):
     """Legacy source_file refs must hydrate via resolve_range_ref fallback when canonical_range is absent."""
     dump_path = tmp_path / "dump.json"
