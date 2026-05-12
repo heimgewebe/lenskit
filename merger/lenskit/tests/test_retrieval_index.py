@@ -227,6 +227,51 @@ def test_fts_content_hydrated_from_range_ref(tmp_path):
         conn.close()
 
 
+def test_canonical_range_hydration_does_not_use_range_resolver(tmp_path, monkeypatch):
+    """canonical_range hydration is handled locally and must not call resolve_range_ref."""
+    dump_path, canonical_md, ref, expected_text = _make_range_ref_env(tmp_path)
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    with chunk_path.open("w") as f:
+        f.write(json.dumps({
+            "chunk_id": "c_can",
+            "repo_id": "testrepo",
+            "path": "docs/section.md",
+            "layer": "core",
+            "canonical_range": ref,
+            "content_range_ref": ref,
+        }) + "\n")
+
+    resolve_range_ref_called = {"value": False}
+
+    def _unexpected_resolve_range_ref(*args, **kwargs):
+        resolve_range_ref_called["value"] = True
+        raise AssertionError("resolve_range_ref must not be called for canonical_range hydration")
+
+    monkeypatch.setattr(
+        "merger.lenskit.core.range_resolver.resolve_range_ref",
+        _unexpected_resolve_range_ref,
+    )
+
+    db_path = tmp_path / "index.sqlite"
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT content FROM chunks_fts WHERE chunk_id = 'c_can'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == expected_text
+
+        meta = dict(conn.execute("SELECT key, value FROM index_meta").fetchall())
+        assert meta.get("ingest.fts_hydrated_from_canonical_range") == "1"
+        assert meta.get("ingest.fts_hydrated_from_range_ref") == "0"
+        assert resolve_range_ref_called["value"] is False
+    finally:
+        conn.close()
+
+
 def test_fts_content_hydration_hash_mismatch_raises(tmp_path):
     """A wrong content_sha256 in content_range_ref must cause a controlled failure."""
     dump_path, canonical_md, ref, _ = _make_range_ref_env(tmp_path)
@@ -248,6 +293,7 @@ def test_fts_content_hydration_hash_mismatch_raises(tmp_path):
     db_path = tmp_path / "index.sqlite"
     with pytest.raises(RuntimeError, match="FTS hydration failed"):
         index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
 
 
 def test_fts_content_hydration_invalid_json_ref_raises(tmp_path):
@@ -278,6 +324,7 @@ def test_fts_content_hydration_invalid_json_ref_raises(tmp_path):
     db_path = tmp_path / "index.sqlite"
     with pytest.raises(RuntimeError, match="invalid content_range_ref JSON"):
         index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
 
 
 def test_fts_content_hydration_missing_artifact_raises(tmp_path):
@@ -298,3 +345,550 @@ def test_fts_content_hydration_missing_artifact_raises(tmp_path):
     db_path = tmp_path / "index.sqlite"
     with pytest.raises(RuntimeError, match="FTS hydration failed"):
         index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_supports_list_artifacts_and_normalized_file_path(tmp_path):
+    """Resolver accepts dump_index artifacts as list and tolerates ./ path differences."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"hydrateduniquetokenxq7z from list artifacts\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": [
+            {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        ],
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "./canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_list_artifacts",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT content FROM chunks_fts WHERE chunk_id = 'c_list_artifacts'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == content.decode("utf-8")
+    finally:
+        conn.close()
+
+
+def test_fts_content_hydration_rejects_parent_segment_ref_file_path(tmp_path):
+    """Ref file_path with parent-segment traversal must be rejected."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "../canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_parent_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="must not contain parent directory segments"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_rejects_non_string_ref_file_path(tmp_path):
+    """Ref file_path must be a string when present."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": 123,
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_non_string_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="ref file_path must be a non-empty string"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_rejects_empty_string_ref_file_path(tmp_path):
+    """Ref file_path must not be an empty string."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_empty_string_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="ref file_path must be a non-empty string"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_rejects_windows_drive_ref_file_path(tmp_path):
+    """Ref file_path with a Windows drive prefix must be rejected."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "C:\\canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_windows_drive_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="must not contain a Windows drive prefix"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_rejects_windows_drive_relative_ref_file_path(tmp_path):
+    """Ref file_path with Windows drive-relative prefix must be rejected."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": "C:canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_windows_drive_relative_ref_path",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="must not contain a Windows drive prefix"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_rejects_unc_ref_file_path(tmp_path):
+    """Ref file_path with UNC-style absolute path must be rejected."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": r"\\server\share\canonical.md",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_unc_path_rejection",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="must be a relative path"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_rejects_bool_byte_offsets(tmp_path):
+    """Boolean byte offsets must be rejected even though bool is an int subclass in Python."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"safe content\n"
+    canonical_md.write_bytes(content)
+    sha = hashlib.sha256(content).hexdigest()
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": "canonical.md",
+            }
+        },
+    }))
+
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": canonical_md.name,
+        "start_byte": True,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": sha,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_bool_offsets",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="must include integer start_byte/end_byte"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()
+
+
+def test_legacy_source_file_content_range_ref_uses_resolve_range_ref(tmp_path, monkeypatch):
+    """Legacy source_file refs must hydrate via resolve_range_ref fallback when canonical_range is absent."""
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {},
+    }))
+
+    source_ref = {
+        "artifact_role": "source_file",
+        "repo_id": "testrepo",
+        "file_path": "src/main.py",
+        "start_byte": 0,
+        "end_byte": 5,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": "a" * 64,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_legacy_source_ref",
+        "repo_id": "testrepo",
+        "path": "src/main.py",
+        "layer": "core",
+        "content_range_ref": source_ref,
+    }) + "\n")
+
+    calls = {"count": 0}
+
+    def _mock_resolve_range_ref(manifest_path, ref):
+        calls["count"] += 1
+        assert manifest_path == dump_path
+        assert ref["artifact_role"] == "source_file"
+        return {"text": "legacy fallback hydrated text"}
+
+    monkeypatch.setattr(
+        "merger.lenskit.core.range_resolver.resolve_range_ref",
+        _mock_resolve_range_ref,
+    )
+
+    db_path = tmp_path / "index.sqlite"
+    index_db.build_index(dump_path, chunk_path, db_path)
+
+    assert calls["count"] == 1
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT content FROM chunks_fts WHERE chunk_id = 'c_legacy_source_ref'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "legacy fallback hydrated text"
+        meta = dict(conn.execute("SELECT key, value FROM index_meta").fetchall())
+        assert meta.get("ingest.fts_hydrated_from_canonical_range") == "0"
+        assert meta.get("ingest.fts_hydrated_from_range_ref") == "1"
+    finally:
+        conn.close()
+
+
+def test_broken_canonical_range_does_not_fallback_to_legacy_source_ref(tmp_path, monkeypatch):
+    """If canonical_range exists and fails, legacy source_file fallback must not be attempted."""
+    dump_path, canonical_md, ref, _ = _make_range_ref_env(tmp_path)
+    bad_canonical_ref = dict(ref)
+    bad_canonical_ref["content_sha256"] = "b" * 64
+    source_ref = {
+        "artifact_role": "source_file",
+        "repo_id": "testrepo",
+        "file_path": "src/main.py",
+        "start_byte": 0,
+        "end_byte": 5,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": "a" * 64,
+    }
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_broken_canonical",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": bad_canonical_ref,
+        "content_range_ref": source_ref,
+    }) + "\n")
+
+    calls = {"count": 0}
+
+    def _mock_resolve_range_ref(manifest_path, ref):
+        calls["count"] += 1
+        return {"text": "should never be used"}
+
+    monkeypatch.setattr(
+        "merger.lenskit.core.range_resolver.resolve_range_ref",
+        _mock_resolve_range_ref,
+    )
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="hash mismatch"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert calls["count"] == 0
+    assert not db_path.exists()
+
+
+def test_fts_content_hydration_empty_range_raises(tmp_path):
+    """A range where start_byte == end_byte must be rejected as semantically empty."""
+    import hashlib
+
+    canonical_md = tmp_path / "canonical.md"
+    content = b"non-empty content line\n"
+    canonical_md.write_bytes(content)
+
+    # Construct a zero-length range (start == end)
+    empty_sha = hashlib.sha256(b"").hexdigest()
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "testrepo",
+        "file_path": canonical_md.name,
+        "start_byte": 5,
+        "end_byte": 5,
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": empty_sha,
+    }
+
+    dump_path = tmp_path / "dump.json"
+    dump_path.write_text(json.dumps({
+        "contract": "dump-index",
+        "contract_version": "v1",
+        "run_id": "test-run",
+        "artifacts": {
+            "canonical_md": {
+                "role": "canonical_md",
+                "path": canonical_md.name,
+            }
+        },
+    }))
+
+    chunk_path = tmp_path / "chunks.jsonl"
+    chunk_path.write_text(json.dumps({
+        "chunk_id": "c_empty_range",
+        "repo_id": "testrepo",
+        "path": "docs/section.md",
+        "layer": "core",
+        "canonical_range": ref,
+    }) + "\n")
+
+    db_path = tmp_path / "index.sqlite"
+    with pytest.raises(RuntimeError, match="empty range"):
+        index_db.build_index(dump_path, chunk_path, db_path)
+    assert not db_path.exists()

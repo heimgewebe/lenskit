@@ -7,14 +7,176 @@ import json
 import hashlib
 import datetime
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
-
-from ..core.range_resolver import resolve_range_ref
 
 logger = logging.getLogger(__name__)
 
 INDEX_SCHEMA_VERSION = "v1"
+
+
+def _parse_range_like_ref(raw_ref: Any, *, field_name: str, chunk_id: str) -> Dict[str, Any]:
+    """Normalize a canonical/content range payload into dict form for hydration."""
+    if isinstance(raw_ref, str):
+        try:
+            raw_ref = json.loads(raw_ref)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"FTS hydration failed for chunk '{chunk_id}': invalid {field_name} JSON"
+            ) from e
+    if not isinstance(raw_ref, dict):
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': {field_name} must be an object"
+        )
+    return raw_ref
+
+
+def _resolve_dump_artifact_path(
+    dump_path: Path,
+    dump_manifest: Dict[str, Any],
+    ref: Dict[str, Any],
+) -> Path:
+    """Resolve a dump_index artifact path and enforce relative-path boundaries."""
+    artifacts = dump_manifest.get("artifacts", {})
+    role = ref.get("artifact_role")
+    if not isinstance(role, str) or not role:
+        raise RuntimeError("range-like ref must include a non-empty artifact_role")
+
+    target_path_str = None
+    if isinstance(artifacts, dict):
+        artifact_entry = artifacts.get(role)
+        if isinstance(artifact_entry, dict):
+            target_path_str = artifact_entry.get("path")
+        if not target_path_str:
+            for artifact in artifacts.values():
+                if isinstance(artifact, dict) and artifact.get("role") == role:
+                    target_path_str = artifact.get("path")
+                    break
+    elif isinstance(artifacts, list):
+        for artifact in artifacts:
+            if isinstance(artifact, dict) and artifact.get("role") == role:
+                target_path_str = artifact.get("path")
+                break
+
+    if not isinstance(target_path_str, str) or not target_path_str:
+        raise RuntimeError(f"Artifact with role '{role}' not found in dump_index")
+
+    def _norm_rel_path(value: Any, *, field_name: str) -> str:
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"{field_name} must be a non-empty string")
+        if Path(value).is_absolute():
+            raise RuntimeError(f"{field_name} must be a relative path, got: {value!r}")
+        value_posix = value.replace("\\", "/")
+        if value_posix.startswith("//"):
+            raise RuntimeError(f"{field_name} must be a relative path, got: {value!r}")
+        if re.match(r"^[A-Za-z]:", value_posix):
+            raise RuntimeError(f"{field_name} must not contain a Windows drive prefix: {value!r}")
+        if value_posix.startswith("./"):
+            value_posix = value_posix[2:]
+        if ".." in Path(value_posix).parts:
+            raise RuntimeError(f"{field_name} must not contain parent directory segments: {value!r}")
+        return Path(value_posix).as_posix()
+
+    normalized_target_path = _norm_rel_path(target_path_str, field_name="manifest artifact path")
+    ref_file_path = ref.get("file_path")
+    if ref_file_path is not None:
+        normalized_ref_file_path = _norm_rel_path(ref_file_path, field_name="ref file_path")
+        if normalized_ref_file_path != normalized_target_path:
+            raise RuntimeError(
+                f"file_path mismatch: ref={normalized_ref_file_path} manifest={normalized_target_path}"
+            )
+
+    base_dir = dump_path.parent.resolve()
+    target_path = (base_dir / normalized_target_path).resolve()
+    try:
+        target_path.relative_to(base_dir)
+    except ValueError as e:
+        raise RuntimeError(
+            f"Artifact path '{target_path_str}' attempts to escape the dump_index directory"
+        ) from e
+    return target_path
+
+
+def _hydrate_text_from_range_like_ref(
+    dump_path: Path,
+    dump_manifest: Dict[str, Any],
+    raw_ref: Any,
+    *,
+    field_name: str,
+    chunk_id: str,
+) -> str:
+    """Extract UTF-8 text for a byte range and verify its declared SHA256."""
+    ref = _parse_range_like_ref(raw_ref, field_name=field_name, chunk_id=chunk_id)
+    target_path = _resolve_dump_artifact_path(dump_path, dump_manifest, ref)
+    if not target_path.exists():
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': resolved artifact file not found: {target_path}"
+        )
+
+    start_byte = ref.get("start_byte")
+    end_byte = ref.get("end_byte")
+    expected_sha256 = ref.get("content_sha256")
+    if (
+        not isinstance(start_byte, int)
+        or isinstance(start_byte, bool)
+        or not isinstance(end_byte, int)
+        or isinstance(end_byte, bool)
+    ):
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': {field_name} must include integer start_byte/end_byte"
+        )
+    if not isinstance(expected_sha256, str) or not expected_sha256:
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': {field_name} must include content_sha256"
+        )
+
+    file_size = target_path.stat().st_size
+    if start_byte < 0 or end_byte > file_size or start_byte > end_byte:
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': range [{start_byte}:{end_byte}] is out of bounds for file size {file_size}"
+        )
+    if start_byte == end_byte:
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': empty range [{start_byte}:{end_byte}] — a citation range must cover at least one byte"
+        )
+
+    with target_path.open("rb") as f:
+        f.seek(start_byte)
+        content_bytes = f.read(end_byte - start_byte)
+
+    actual_sha256 = hashlib.sha256(content_bytes).hexdigest()
+    if actual_sha256 != expected_sha256:
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': hash mismatch. Expected: {expected_sha256}, Actual: {actual_sha256}"
+        )
+
+    try:
+        return content_bytes.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': extracted range could not be decoded as UTF-8: {e}"
+        ) from e
+
+
+def _hydrate_text_from_legacy_source_file_ref(
+    dump_path: Path,
+    raw_ref: Any,
+    *,
+    field_name: str,
+    chunk_id: str,
+) -> str:
+    """Hydrate via legacy range_resolver path for source_file refs only."""
+    ref = _parse_range_like_ref(raw_ref, field_name=field_name, chunk_id=chunk_id)
+    from ..core.range_resolver import resolve_range_ref
+
+    resolved = resolve_range_ref(dump_path, ref)
+    text = resolved.get("text")
+    if not isinstance(text, str):
+        raise RuntimeError(
+            f"FTS hydration failed for chunk '{chunk_id}': legacy source_file resolution did not return text"
+        )
+    return text
 
 def _compute_file_sha256(path: Path) -> str:
     """Compute SHA256 of a file."""
@@ -90,7 +252,9 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
         except OSError as e:
             raise RuntimeError(f"Could not remove existing DB {db_path}: {e}")
 
+    dump_manifest = json.loads(dump_path.read_text(encoding="utf-8"))
     conn = sqlite3.connect(str(db_path))
+    build_succeeded = False
     try:
         create_schema(conn)
         c = conn.cursor()
@@ -102,6 +266,7 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
             "invalid_json_lines": 0,
             "missing_chunk_id_lines": 0,
             "ingested_chunks_count": 0,
+            "fts_hydrated_from_canonical_range": 0,
             "fts_hydrated_from_range_ref": 0,
         }
 
@@ -143,43 +308,66 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
                 size = chunk.get("size") or chunk.get("size_bytes") or 0
                 lang = chunk.get("language", "")
 
-                # FTS Content: prefer inline content, fall back to content_range_ref
+                # FTS Content: prefer inline content, otherwise hydrate from canonical bundle ranges.
                 content_text = chunk.get("content") or ""
                 if not content_text:
-                    raw_ref = chunk.get("content_range_ref")
-                    if raw_ref is not None:
-                        # raw_ref may already be a dict or a JSON string (stored either way)
-                        if isinstance(raw_ref, str):
-                            try:
-                                raw_ref = json.loads(raw_ref)
-                            except json.JSONDecodeError as e:
-                                raise RuntimeError(
-                                    f"FTS hydration failed for chunk '{cid}': invalid content_range_ref JSON"
-                                ) from e
-                        if not isinstance(raw_ref, dict):
-                            raise RuntimeError(
-                                f"FTS hydration failed for chunk '{cid}': content_range_ref must be an object"
-                            )
+                    # canonical_range is authoritative when present: it is a hash-verified pointer
+                    # into canonical_md and will raise hard on any error.
+                    # content_range_ref is used only as a backward-compatible fallback when
+                    # canonical_range is absent — never as a silent alternative to a broken one.
+                    raw_canonical_range = chunk.get("canonical_range")
+                    if raw_canonical_range is not None:
                         try:
-                            resolved = resolve_range_ref(dump_path, raw_ref)
-                            content_text = resolved["text"]
-                            stats["fts_hydrated_from_range_ref"] += 1
-                        except ValueError as e:
-                            # Hash mismatch or schema violation — controlled fail, no unverified text in FTS
+                            content_text = _hydrate_text_from_range_like_ref(
+                                dump_path,
+                                dump_manifest,
+                                raw_canonical_range,
+                                field_name="canonical_range",
+                                chunk_id=cid,
+                            )
+                        except RuntimeError as e:
+                            msg = str(e)
+                            if msg.startswith("FTS hydration failed for chunk "):
+                                raise RuntimeError(msg) from e
                             raise RuntimeError(
-                                f"FTS hydration failed for chunk '{cid}': {e}"
+                                f"FTS hydration failed for chunk '{cid}' via canonical_range: {msg}"
                             ) from e
-                        except FileNotFoundError as e:
-                            raise RuntimeError(
-                                f"FTS hydration failed for chunk '{cid}': {e}"
-                            ) from e
-                        except Exception as e:
-                            raise RuntimeError(
-                                f"FTS hydration failed for chunk '{cid}' (unexpected error): {e}"
-                            ) from e
+                        stats["fts_hydrated_from_canonical_range"] += 1
                     else:
+                        raw_content_range_ref = chunk.get("content_range_ref")
+                        if raw_content_range_ref is not None:
+                            try:
+                                parsed_ref = _parse_range_like_ref(
+                                    raw_content_range_ref,
+                                    field_name="content_range_ref",
+                                    chunk_id=cid,
+                                )
+                                if parsed_ref.get("artifact_role") == "source_file":
+                                    content_text = _hydrate_text_from_legacy_source_file_ref(
+                                        dump_path,
+                                        parsed_ref,
+                                        field_name="content_range_ref",
+                                        chunk_id=cid,
+                                    )
+                                else:
+                                    content_text = _hydrate_text_from_range_like_ref(
+                                        dump_path,
+                                        dump_manifest,
+                                        parsed_ref,
+                                        field_name="content_range_ref",
+                                        chunk_id=cid,
+                                    )
+                            except (RuntimeError, ValueError, FileNotFoundError) as e:
+                                msg = str(e)
+                                if msg.startswith("FTS hydration failed for chunk "):
+                                    raise RuntimeError(msg) from e
+                                raise RuntimeError(
+                                    f"FTS hydration failed for chunk '{cid}' via content_range_ref: {msg}"
+                                ) from e
+                            stats["fts_hydrated_from_range_ref"] += 1
+                    if not content_text:
                         logger.debug(
-                            "Chunk '%s' has no inline content and no content_range_ref; FTS content will be empty.",
+                            "Chunk '%s' has no inline content and no canonical/content range ref; FTS content will be empty.",
                             cid,
                         )
 
@@ -258,8 +446,14 @@ def build_index(dump_path: Path, chunk_path: Path, db_path: Path, config_payload
         c.executemany("INSERT OR REPLACE INTO index_meta (key, value) VALUES (?, ?)", meta_items)
 
         conn.commit()
+        build_succeeded = True
     finally:
         conn.close()
+        if not build_succeeded and db_path.exists():
+            try:
+                db_path.unlink()
+            except OSError:
+                logger.warning("Could not remove partial DB after failed build: %s", db_path, exc_info=True)
 
     # Emit warning if issues found
     if stats["invalid_json_lines"] > 0 or stats["missing_chunk_id_lines"] > 0:
