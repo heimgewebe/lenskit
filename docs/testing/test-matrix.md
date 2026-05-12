@@ -57,14 +57,14 @@ Diese Belege sichern spezifische Teilziele methodisch ab, decken jedoch weder di
 Die Test-Matrix verifiziert, dass für die Single-Repo/Single-Bundle Use Cases eine solide Grundlage herrscht. **Phase 5 (Cross-Repo-Knowledge-Layer)** ist durch Tests unter `test_federation_*.py` **teilweise abgedeckt**, bleibt aber insbesondere bei vollständigen End-to-End-Pfaden über mehrere Repositories unvollständig. **Phase 6 (Agent Control Surface / Provenienz):** `agent_query_session`-Provenienz-Härtung ist durch Crosscheck-Tests belegt (artifact_refs-Konsistenz, null-Self-ID, Roundtrip-Lookup, Schema-Rejection); Agent-Orchestrierung, Feedback-Schleifen und MCP-Anbindung sind noch offen.
 
 
-## Open Deployment / Boundary Test Points
+## Offene Deployment-/Boundary-Testpunkte
 
-These items are intentionally listed as open guards for future work; this documentation-only change does not implement the tested behavior.
+Diese Punkte sind bewusst als offene Guards für Folgearbeiten aufgeführt; diese reine Doku-Änderung implementiert das geprüfte Verhalten nicht.
 
-| Area | Desired guard | Status | Notes |
+| Bereich | Gewünschter Guard | Status | Hinweise |
 | :--- | :--- | :--- | :--- |
-| rLens systemd template | Template includes `RLENS_MERGES` and loads secrets from `EnvironmentFile`, not a static `RLENS_TOKEN`. | **Open.** | Prevents secret drift in example deployment units. |
-| Bounded repo-sync / Omnipull | Any future repo-sync action is report-producing and restricted to plan, clone missing, fetch/prune, and clean fast-forward. | **Open.** | Must reject generic shell command semantics. |
-| Secure FS navigation | Root-browsing remains loopback/auth-gated and non-loopback root browsing remains refused. | **Existing security invariant; guard should remain explicit.** | See secure FS navigation ADR and service tests. |
-| Atlas heimserver profiles | Heimserver overview/deep profiles exclude pseudo/volatile roots such as `/proc`, `/sys`, `/dev`, and `/run`. | **Open.** | Prevents host pseudo-filesystems from becoming content evidence. |
-| Forensic profile export | `heimserver-forensic-local` cannot be exported into Agent/ChatGPT artifacts without human review and redaction. | **Open.** | Protects local-only forensic evidence from accidental externalization. |
+| rLens-systemd-Template | Template enthält `RLENS_MERGES` und lädt Secrets über `EnvironmentFile`, nicht über einen statischen `RLENS_TOKEN`. | **Open.** | Verhindert Secret-Drift in Beispiel-Deployment-Units. |
+| Bounded Repo-Sync / Omnipull | Jede künftige Repo-Sync-Aktion schreibt Reports und ist auf Plan, Clone fehlender Repos, Fetch/Prune sowie Clean-Fast-Forward beschränkt. | **Open.** | Muss generische Shell-Command-Semantik ablehnen. |
+| Secure FS Navigation | Root-Browsing bleibt loopback/auth-gated und non-loopback Root-Browsing bleibt verweigert. | **Bestehende Sicherheitsinvariante; Guard soll explizit bleiben.** | Siehe Secure-FS-Navigation-ADR und Service-Tests. |
+| Atlas-Heimserver-Profile | Heimserver-Overview/Deep-Profile schließen Pseudo-/volatile Roots wie `/proc`, `/sys`, `/dev` und `/run` aus. | **Open.** | Verhindert, dass Host-Pseudo-Dateisysteme zu Content-Evidence werden. |
+| Forensic-Profil-Export | `heimserver-forensic-local` kann ohne menschliche Prüfung und Redaction nicht in Agent-/ChatGPT-Artefakte exportiert werden. | **Open.** | Schützt local-only forensische Evidence vor versehentlicher Externalisierung. |

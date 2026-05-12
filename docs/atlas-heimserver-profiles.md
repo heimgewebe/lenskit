@@ -34,6 +34,13 @@ Dieses Profil ist für grobe Inventarisierung und Evidence-Übersicht gedacht. I
   - `/srv`
   - `/home/alex/repos`
   - `/home/alex/.config/systemd`
+- exclude content roots:
+  - `/proc`
+  - `/sys`
+  - `/dev`
+  - `/run`
+  - `/tmp`
+  - `/var/run`
 
 Dieses Profil ist für tieferes lokales Verständnis von Konfigurationen, Skripten, Services und Repos gedacht. Secret-nahe Bereiche bleiben inventory-only, damit Pfad-, Existenz- und Metadatenbelege nicht automatisch zu Inhaltslecks werden.
 

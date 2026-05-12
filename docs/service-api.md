@@ -240,15 +240,16 @@ All runtime artifacts stored in the `QueryArtifactStore` (`query_trace`, `contex
 
 ## Mutation Boundary Classification
 
-Lenskit API documentation distinguishes three classes for mutation-near buttons or paths. This is a contract boundary, not an implementation of new endpoints:
+Lenskit API documentation distinguishes four classes for mutation-near buttons or paths. This is a contract boundary, not an implementation of new endpoints:
 
 | Class | Meaning | Agent exposure |
 |---|---|---|
-| `read-only observation` | Lookup, query, diagnostics, trace, context, artifact, Atlas snapshot, or inventory access that reads or reports evidence without changing source repos or host state. | May be consumed through authorized read-only adapters. |
+| `read-only observation` | Lookup, query, diagnostics, trace, or context access that reads or reports evidence without mutating source repos, working trees, user files, or derived artifact outputs. | May be consumed through authorized read-only adapters. |
+| `local artifact generation` | Snapshot, inventory, report, or merge-artifact generation that may write derived files locally, for example under a merges or artifact directory, while still avoiding source-repo or working-tree mutation. | May be exposed only where local artifact writes are explicitly documented, bounded, and authorized; it must not be presented as side-effect-free read-only access. |
 | `bounded repo-sync mutation` | Narrow Omnipull-style repo preparation: plan/report, clone missing repos, fetch/prune existing repos, and clean fast-forward only. | Must remain locally authorized, report-producing, and unavailable as a general external Agent tool. |
 | `local-only forensic operation` | Broad local filesystem or forensic inspection, especially profiles marked non-exportable. | Must remain local-only unless a reviewed, redacted export artifact is produced. |
 
-Omnipull-shaped paths, if added later, must be documented and tested as `bounded repo-sync mutation`. They are not generic command execution and must not provide arbitrary shell command, branch switching, reset, stash, rebase, untracked-file deletion, or local-change discard semantics. Snapshot and Merger controls must similarly state whether they are pure observation, local artifact generation, or local-only forensic work before they are exposed beyond the local rLens peer.
+Omnipull-shaped paths, if added later, must be documented and tested as `bounded repo-sync mutation`. They are not generic command execution and must not provide arbitrary shell command, branch switching, reset, stash, rebase, untracked-file deletion, or local-change discard semantics. Snapshot and Merger controls must similarly state whether they are read-only observation, local artifact generation, or local-only forensic work before they are exposed beyond the local rLens peer.
 
 ## Job Submission & Dispatch
 
