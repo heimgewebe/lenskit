@@ -77,12 +77,12 @@ Spätere PRs:
   - **Blocker (Diagnose 2026-05-12):**
     - Im Repo ist kein Real-Dump mit dual ranges abgelegt.
     - Konsument nicht im Code definiert.
-    - Citation-Id-Regel nicht in Code fixiert.
+    - Citation-Id-Regel nicht in Code fixiert. *(Derivationsregel jetzt als Helper in `merger/lenskit/core/citation_id.py` vorbereitet; Producer bleibt blockiert durch Real-Dump-Proof und Konsument/Validator.)*
     - Diagnose: `docs/proofs/citation-map-producer-diagnosis.md`.
     - Nächste Vorbedingungen:
       - Real-Dump mit dual ranges bereitstellen.
       - Konsument oder Validator benennen.
-      - Citation-Id-Derivation als `merger/lenskit/core/citation_id.py` implementieren.
+      - ~~Citation-Id-Derivation als `merger/lenskit/core/citation_id.py` implementieren.~~ (erledigt)
 Gate:
 - `citation_map_jsonl` nie `canonical_content` oder `content_source`
 - `canonical_range` und `source_range` getrennt
