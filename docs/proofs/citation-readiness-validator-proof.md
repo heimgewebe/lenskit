@@ -15,7 +15,7 @@ Der Proof wurde gegen einen real mit dem aktuellen Merger erzeugten Dump ausgef�
 
 Repo-belegte Korrektur gegenüber dem alten STOP-Bericht:
 
-- Der reale Chunk-Index-Dateiname ist `lenskit-max-260513-1503_merge.chunk_index.jsonl`, **nicht** `..._chunk_index.jsonl`.
+- Der reale Chunk-Index-Dateiname folgt dem Muster `<stem>_merge.chunk_index.jsonl`, **nicht** `<stem>_chunk_index.jsonl`.
 - Die reale Chunk-Zahl ist **594**, **nicht 585**.
 - Der Validator funktioniert gegen die reale Bundle-Struktur **unverändert korrekt**.
 
