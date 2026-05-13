@@ -188,7 +188,7 @@ PR 2:
 PR 3 (teilweise erledigt):
 - [x] Bundle-Manifest-Role `citation_map_jsonl`
 - [x] Chunk-Index dual range (`canonical_range`, `source_range` zusätzlich zu `content_range_ref`)
-- [ ] Citation-Map-Producer
+- [ ] Citation-Map-Producer plus eigener Producer-Real-Dump-Proof
 - [x] Citation-Readiness-Validator (`merger/lenskit/core/citation_validate.py`, CLI `lenskit citation validate`, Testabdeckung in `merger/lenskit/tests/test_citation_validate.py` und `merger/lenskit/tests/test_cli_citation.py`; Real-Dump-Proof erbracht mit aktuellem Dump, 594 Chunks, Status `ok`)
 Diagnosehinweis für Priorisierung:
 - `merge.md` bleibt kanonische Vollquelle; JSON-Artefakte sind Einstieg/Index/Metadaten.

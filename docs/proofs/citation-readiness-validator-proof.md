@@ -125,6 +125,7 @@ Der einzige belegte Korrekturbedarf lag in der Dokumentation des alten STOP-Beri
 3. Die dokumentierte Erwartung `585` ist durch den real gemessenen Wert `594` ersetzt.
 
 Es gibt aus diesem Proof **keinen** belegten Anlass für einen Code-Patch am Validator.
+Dieser PASS hebt ausschließlich den Validator-/Readiness-Blocker auf. Er ersetzt keinen späteren Producer-Proof für `citation_map_jsonl`.
 
 ---
 
