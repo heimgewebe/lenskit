@@ -79,6 +79,7 @@ Spätere PRs:
     - Konsument nicht im Code definiert.
     - Citation-Id-Regel als Helper in `merger/lenskit/core/citation_id.py` vorbereitet, aber noch nicht in Producer/Validator verdrahtet.
     - Diagnose: `docs/proofs/citation-map-producer-diagnosis.md`.
+    - Producer-Real-Dump-Proof-Versuch 2026-05-13: STOP, kein repolens/iPad-Dump verfügbar; siehe `docs/proofs/citation-map-producer-proof.md`.
     - Offene Vorbedingungen:
       - Real-Dump mit dual ranges bereitstellen.
       - Konsument oder Validator benennen.
@@ -188,7 +189,7 @@ PR 2:
 PR 3 (teilweise erledigt):
 - [x] Bundle-Manifest-Role `citation_map_jsonl`
 - [x] Chunk-Index dual range (`canonical_range`, `source_range` zusätzlich zu `content_range_ref`)
-- [ ] Citation-Map-Producer plus eigener Producer-Real-Dump-Proof
+- [ ] Citation-Map-Producer plus eigener Producer-Real-Dump-Proof (Versuch 2026-05-13: STOP, kein repolens/iPad-Dump verfügbar; siehe `docs/proofs/citation-map-producer-proof.md`)
 - [x] Citation-Readiness-Validator (`merger/lenskit/core/citation_validate.py`, CLI `lenskit citation validate`, Testabdeckung in `merger/lenskit/tests/test_citation_validate.py` und `merger/lenskit/tests/test_cli_citation.py`; Real-Dump-Proof erbracht mit aktuellem Dump, 594 Chunks, Status `ok`)
 Diagnosehinweis für Priorisierung:
 - `merge.md` bleibt kanonische Vollquelle; JSON-Artefakte sind Einstieg/Index/Metadaten.
