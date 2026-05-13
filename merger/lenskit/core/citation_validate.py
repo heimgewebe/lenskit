@@ -54,9 +54,11 @@ def _fail_report(
     chunk_index_sha256: Any = None,
     canonical_md_actual_sha256: Any = None,
     chunk_index_actual_sha256: Any = None,
+    error_kind: str = "validation_error",
 ) -> Dict[str, Any]:
     return {
         "status": "fail",
+        "error_kind": error_kind,
         "bundle_manifest_path": bundle_manifest_path,
         "bundle_run_id": bundle_run_id,
         "validation_run_id": validation_run_id,
@@ -113,12 +115,14 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             validation_run_id,
             [f"Manifest not found: {manifest_path}"],
             bundle_manifest_path=bundle_manifest_path,
+            error_kind="path_read_error",
         )
     if not manifest_path.is_file():
         return _fail_report(
             validation_run_id,
             [f"Manifest path is not a file: {manifest_path}"],
             bundle_manifest_path=bundle_manifest_path,
+            error_kind="path_read_error",
         )
 
     manifest_dir = manifest_path.parent
@@ -132,12 +136,14 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             validation_run_id,
             [f"Manifest is not valid JSON: {e}"],
             bundle_manifest_path=bundle_manifest_path,
+            error_kind="path_read_error",
         )
     except OSError as e:
         return _fail_report(
             validation_run_id,
             [f"Cannot read manifest: {e}"],
             bundle_manifest_path=bundle_manifest_path,
+            error_kind="path_read_error",
         )
 
     bundle_run_id = manifest.get("run_id")
@@ -193,6 +199,7 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             bundle_run_id=bundle_run_id,
             canonical_md_sha256=canonical_md_manifest_sha,
             chunk_index_sha256=chunk_index_manifest_sha,
+            error_kind="path_read_error",
         )
 
     try:
@@ -208,6 +215,7 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             bundle_run_id=bundle_run_id,
             canonical_md_sha256=canonical_md_manifest_sha,
             chunk_index_sha256=chunk_index_manifest_sha,
+            error_kind="path_read_error",
         )
 
     if not canonical_md_path.exists():
@@ -218,6 +226,7 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             bundle_run_id=bundle_run_id,
             canonical_md_sha256=canonical_md_manifest_sha,
             chunk_index_sha256=chunk_index_manifest_sha,
+            error_kind="path_read_error",
         )
     if not chunk_index_path.exists():
         return _fail_report(
@@ -227,10 +236,22 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             bundle_run_id=bundle_run_id,
             canonical_md_sha256=canonical_md_manifest_sha,
             chunk_index_sha256=chunk_index_manifest_sha,
+            error_kind="path_read_error",
         )
 
     # --- verify manifest SHAs ---
-    actual_canonical_sha = _sha256_file(canonical_md_path)
+    try:
+        actual_canonical_sha = _sha256_file(canonical_md_path)
+    except OSError as e:
+        return _fail_report(
+            validation_run_id,
+            [f"Cannot read canonical_md: {e}"],
+            bundle_manifest_path=bundle_manifest_path,
+            bundle_run_id=bundle_run_id,
+            canonical_md_sha256=canonical_md_manifest_sha,
+            chunk_index_sha256=chunk_index_manifest_sha,
+            error_kind="path_read_error",
+        )
     if not canonical_md_manifest_sha:
         errors.append("canonical_md sha256 is missing in manifest")
     elif not isinstance(canonical_md_manifest_sha, str) or not _SHA256_RE.fullmatch(
@@ -245,7 +266,19 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             f"actual={actual_canonical_sha!r}"
         )
 
-    actual_chunk_sha = _sha256_file(chunk_index_path)
+    try:
+        actual_chunk_sha = _sha256_file(chunk_index_path)
+    except OSError as e:
+        return _fail_report(
+            validation_run_id,
+            [f"Cannot read chunk_index_jsonl: {e}"],
+            bundle_manifest_path=bundle_manifest_path,
+            bundle_run_id=bundle_run_id,
+            canonical_md_sha256=canonical_md_manifest_sha,
+            chunk_index_sha256=chunk_index_manifest_sha,
+            canonical_md_actual_sha256=actual_canonical_sha,
+            error_kind="path_read_error",
+        )
     if not chunk_index_manifest_sha:
         errors.append("chunk_index_jsonl sha256 is missing in manifest")
     elif not isinstance(chunk_index_manifest_sha, str) or not _SHA256_RE.fullmatch(
@@ -276,6 +309,7 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             chunk_index_sha256=chunk_index_manifest_sha,
             canonical_md_actual_sha256=actual_canonical_sha,
             chunk_index_actual_sha256=actual_chunk_sha,
+            error_kind="path_read_error",
         )
 
     canonical_md_file_size = len(canonical_md_bytes)
@@ -294,6 +328,7 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             chunk_index_sha256=chunk_index_manifest_sha,
             canonical_md_actual_sha256=actual_canonical_sha,
             chunk_index_actual_sha256=actual_chunk_sha,
+            error_kind="path_read_error",
         )
 
     for lineno, raw_line in enumerate(lines, start=1):
@@ -362,6 +397,7 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
                 f"manifest canonical_md path {canonical_md_rel_raw!r} "
                 f"(normalized {canonical_md_rel!r})"
             )
+            continue
 
         start_byte = cr.get("start_byte")
         end_byte = cr.get("end_byte")
@@ -456,6 +492,7 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
     status = "ok" if not errors else "fail"
     return {
         "status": status,
+        "error_kind": "ok" if status == "ok" else "validation_error",
         "bundle_manifest_path": bundle_manifest_path,
         "bundle_run_id": bundle_run_id,
         "validation_run_id": validation_run_id,

@@ -110,6 +110,7 @@ def test_valid_bundle_reports_ok(tmp_path):
     report = validate_bundle(str(manifest_path))
 
     assert report["status"] == "ok"
+    assert report["error_kind"] == "ok"
     assert report["chunk_count"] == 1
     assert report["canonical_range_count"] == 1
     assert report["citation_id_count"] == 1
@@ -441,6 +442,18 @@ def test_canonical_range_file_path_with_windows_drive_prefix_fails(tmp_path):
         assert any("Windows drive-prefixed paths are forbidden" in e for e in report["errors"])
 
 
+def test_canonical_range_file_path_mismatch_does_not_increment_hash_or_citation_counts(tmp_path):
+    content = b"path mismatch counter guard"
+    chunk = _make_chunk(content, "different.md", 0, 10)
+    manifest_path = _make_bundle(tmp_path, content, [chunk])
+
+    report = validate_bundle(str(manifest_path))
+
+    assert report["status"] == "fail"
+    assert report["canonical_range_hash_ok_count"] == 0
+    assert report["citation_id_count"] == 0
+
+
 # ---------------------------------------------------------------------------
 # Missing manifest / artifact roles
 # ---------------------------------------------------------------------------
@@ -448,6 +461,7 @@ def test_canonical_range_file_path_with_windows_drive_prefix_fails(tmp_path):
 def test_manifest_not_found_fails():
     report = validate_bundle("/nonexistent/path/bundle.manifest.json")
     assert report["status"] == "fail"
+    assert report["error_kind"] == "path_read_error"
     assert any("not found" in e for e in report["errors"])
 
 
@@ -476,6 +490,7 @@ def test_manifest_missing_canonical_md_role_fails(tmp_path):
     report = validate_bundle(str(manifest_path))
 
     assert report["status"] == "fail"
+    assert report["error_kind"] == "validation_error"
     assert any("canonical_md" in e for e in report["errors"])
 
 
@@ -522,7 +537,7 @@ def test_report_has_all_required_keys(tmp_path):
     report = validate_bundle(str(manifest_path))
 
     required_keys = {
-        "status", "bundle_manifest_path", "bundle_run_id", "validation_run_id",
+        "status", "error_kind", "bundle_manifest_path", "bundle_run_id", "validation_run_id",
         "canonical_md_sha256", "chunk_index_sha256",
         "canonical_md_actual_sha256", "chunk_index_actual_sha256",
         "chunk_count", "canonical_range_count",

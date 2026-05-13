@@ -7,8 +7,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import pytest
-
 from merger.lenskit.cli.main import main
 
 
@@ -54,7 +52,7 @@ def _make_bundle(tmp_path: Path, canonical_content: bytes, chunks: list) -> Path
         "capabilities": [],
     }
     manifest_path = tmp_path / "bundle.manifest.json"
-    manifest_path.write_text(json.dumps(manifest))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     return manifest_path
 
 
@@ -88,6 +86,7 @@ def test_cli_json_output_exit_0_on_valid_bundle(tmp_path, capsys):
     captured = capsys.readouterr()
     report = json.loads(captured.out)
     assert report["status"] == "ok"
+    assert report["error_kind"] == "ok"
     assert report["chunk_count"] == 2
     assert report["citation_id_count"] == 2
     assert report["canonical_md_actual_sha256"] == report["canonical_md_sha256"]
@@ -113,6 +112,7 @@ def test_cli_exit_1_on_invalid_bundle(tmp_path, capsys):
     captured = capsys.readouterr()
     report = json.loads(captured.out)
     assert report["status"] == "fail"
+    assert report["error_kind"] == "validation_error"
     assert len(report["errors"]) > 0
 
 
@@ -123,6 +123,59 @@ def test_cli_exit_1_on_invalid_bundle(tmp_path, capsys):
 def test_cli_exit_2_on_missing_manifest(tmp_path, capsys):
     rc = main(["citation", "validate", str(tmp_path / "nonexistent.manifest.json")])
     assert rc == 2
+
+
+def test_cli_exit_2_on_manifest_path_directory(tmp_path, capsys):
+    manifest_dir = tmp_path / "manifest_dir"
+    manifest_dir.mkdir()
+
+    rc = main(["citation", "validate", "--json", str(manifest_dir)])
+
+    assert rc == 2
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    assert report["status"] == "fail"
+    assert report["error_kind"] == "path_read_error"
+
+
+def test_cli_exit_2_on_missing_canonical_md_artifact_file(tmp_path, capsys):
+    content = b"missing canonical md file"
+    chunk = _make_chunk(content, 0, 7)
+    manifest_path = _make_bundle(tmp_path, content, [chunk])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["artifacts"]:
+        if artifact["role"] == "canonical_md":
+            artifact["path"] = "missing-merge.md"
+            break
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    rc = main(["citation", "validate", "--json", str(manifest_path)])
+
+    assert rc == 2
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    assert report["status"] == "fail"
+    assert report["error_kind"] == "path_read_error"
+
+
+def test_cli_exit_2_on_missing_chunk_index_artifact_file(tmp_path, capsys):
+    content = b"missing chunk index file"
+    chunk = _make_chunk(content, 0, 7)
+    manifest_path = _make_bundle(tmp_path, content, [chunk])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["artifacts"]:
+        if artifact["role"] == "chunk_index_jsonl":
+            artifact["path"] = "missing-chunk-index.jsonl"
+            break
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    rc = main(["citation", "validate", "--json", str(manifest_path)])
+
+    assert rc == 2
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    assert report["status"] == "fail"
+    assert report["error_kind"] == "path_read_error"
 
 
 # ---------------------------------------------------------------------------

@@ -43,7 +43,11 @@ def run_citation_validate(args: argparse.Namespace) -> int:
     else:
         _print_human_report(report)
 
-    return 0 if report["status"] == "ok" else 1
+    if report["status"] == "ok":
+        return 0
+    if report.get("error_kind") == "path_read_error":
+        return 2
+    return 1
 
 
 def _print_human_report(report: dict) -> None:
