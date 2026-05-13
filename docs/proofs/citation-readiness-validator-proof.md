@@ -13,6 +13,8 @@ Der Proof wurde gegen einen real mit dem aktuellen Merger erzeugten Dump ausgef�
 - Canonical MD: `/tmp/lenskit-hub/merges/lenskit-max-260513-1503_merge.md`
 - Chunk Index: `/tmp/lenskit-hub/merges/lenskit-max-260513-1503_merge.chunk_index.jsonl`
 
+Hinweis: Diese `/tmp`-Pfade sind die konkreten Sandbox-Pfade des Proof-Runs; maßgeblich ist das belegte Bundle-Muster im erzeugten Merger-Output, nicht ein repo-stabiler Ablageort.
+
 Repo-belegte Korrektur gegenüber dem alten STOP-Bericht:
 
 - Der reale Chunk-Index-Dateiname folgt dem Muster `<stem>_merge.chunk_index.jsonl`, **nicht** `<stem>_chunk_index.jsonl`.
