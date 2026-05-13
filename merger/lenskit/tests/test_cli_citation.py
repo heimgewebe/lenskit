@@ -121,8 +121,14 @@ def test_cli_exit_1_on_invalid_bundle(tmp_path, capsys):
 # ---------------------------------------------------------------------------
 
 def test_cli_exit_2_on_missing_manifest(tmp_path, capsys):
-    rc = main(["citation", "validate", str(tmp_path / "nonexistent.manifest.json")])
+    rc = main(
+        ["citation", "validate", "--json", str(tmp_path / "nonexistent.manifest.json")]
+    )
     assert rc == 2
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    assert report["status"] == "fail"
+    assert report["error_kind"] == "path_read_error"
 
 
 def test_cli_exit_2_on_manifest_path_directory(tmp_path, capsys):

@@ -5,11 +5,7 @@ All tests use synthetic in-memory fixtures — no real dump required.
 """
 import hashlib
 import json
-import os
-import tempfile
 from pathlib import Path
-
-import pytest
 
 from merger.lenskit.core.citation_validate import validate_bundle
 
@@ -375,7 +371,7 @@ def test_path_traversal_in_canonical_md_path_fails(tmp_path):
         "capabilities": [],
     }
     manifest_path = tmp_path / "bundle.manifest.json"
-    manifest_path.write_text(json.dumps(manifest))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     report = validate_bundle(str(manifest_path))
 
@@ -412,7 +408,7 @@ def test_absolute_canonical_md_path_fails(tmp_path):
         "capabilities": [],
     }
     manifest_path = tmp_path / "bundle.manifest.json"
-    manifest_path.write_text(json.dumps(manifest))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     report = validate_bundle(str(manifest_path))
 
@@ -485,7 +481,7 @@ def test_manifest_missing_canonical_md_role_fails(tmp_path):
         "capabilities": [],
     }
     manifest_path = tmp_path / "bundle.manifest.json"
-    manifest_path.write_text(json.dumps(manifest))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     report = validate_bundle(str(manifest_path))
 
@@ -517,7 +513,7 @@ def test_manifest_missing_chunk_index_role_fails(tmp_path):
         "capabilities": [],
     }
     manifest_path = tmp_path / "bundle.manifest.json"
-    manifest_path.write_text(json.dumps(manifest))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     report = validate_bundle(str(manifest_path))
 

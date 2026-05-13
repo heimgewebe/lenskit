@@ -1,7 +1,6 @@
 import argparse
 import json
 import sys
-from pathlib import Path
 
 
 def register_citation_commands(subparsers) -> None:
@@ -28,9 +27,6 @@ def run_citation_validate(args: argparse.Namespace) -> int:
     from merger.lenskit.core.citation_validate import validate_bundle
 
     manifest_path = args.bundle_manifest
-    if not Path(manifest_path).exists():
-        print(f"Error: manifest not found: {manifest_path}", file=sys.stderr)
-        return 2
 
     try:
         report = validate_bundle(manifest_path)
