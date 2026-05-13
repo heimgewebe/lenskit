@@ -117,6 +117,8 @@ def test_valid_bundle_reports_ok(tmp_path):
     assert report["citation_id_duplicate_count"] == 0
     assert len(report["errors"]) == 0
     assert len(report["sample_citation_ids"]) == 1
+    assert report["canonical_md_actual_sha256"] == report["canonical_md_sha256"]
+    assert report["chunk_index_actual_sha256"] == report["chunk_index_sha256"]
 
 
 def test_valid_bundle_multiple_chunks(tmp_path):
@@ -185,6 +187,18 @@ def test_chunk_index_sha_mismatch_fails(tmp_path):
 
     assert report["status"] == "fail"
     assert any("chunk_index_jsonl SHA256 mismatch" in e for e in report["errors"])
+
+
+def test_report_contains_actual_sha_on_manifest_mismatch(tmp_path):
+    content = b"canonical content"
+    chunk = _make_chunk(content, "merge.md", 0, 9)
+    manifest_path = _make_bundle(tmp_path, content, [chunk], canonical_sha_override="b" * 64)
+
+    report = validate_bundle(str(manifest_path))
+
+    assert report["status"] == "fail"
+    assert report["canonical_md_sha256"] == "b" * 64
+    assert report["canonical_md_actual_sha256"] == _sha256(content)
 
 
 def test_missing_manifest_sha256_fails(tmp_path):
@@ -509,7 +523,9 @@ def test_report_has_all_required_keys(tmp_path):
 
     required_keys = {
         "status", "bundle_manifest_path", "bundle_run_id", "validation_run_id",
-        "canonical_md_sha256", "chunk_index_sha256", "chunk_count", "canonical_range_count",
+        "canonical_md_sha256", "chunk_index_sha256",
+        "canonical_md_actual_sha256", "chunk_index_actual_sha256",
+        "chunk_count", "canonical_range_count",
         "source_range_count", "content_range_ref_count", "citation_id_count",
         "citation_id_duplicate_count", "canonical_range_hash_ok_count",
         "errors", "warnings", "sample_citation_ids",

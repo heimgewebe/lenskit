@@ -54,6 +54,8 @@ def _print_human_report(report: dict) -> None:
     print(f"  validation_run_id:       {report['validation_run_id']}")
     print(f"  canonical_md_sha256:     {report['canonical_md_sha256']}")
     print(f"  chunk_index_sha256:      {report['chunk_index_sha256']}")
+    print(f"  canonical_md_actual_sha256: {report['canonical_md_actual_sha256']}")
+    print(f"  chunk_index_actual_sha256:  {report['chunk_index_actual_sha256']}")
     print(f"  chunks:                  {report['chunk_count']}")
     print(f"  canonical_range_count:   {report['canonical_range_count']}")
     print(f"  source_range_count:      {report['source_range_count']}")

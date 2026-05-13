@@ -90,6 +90,8 @@ def test_cli_json_output_exit_0_on_valid_bundle(tmp_path, capsys):
     assert report["status"] == "ok"
     assert report["chunk_count"] == 2
     assert report["citation_id_count"] == 2
+    assert report["canonical_md_actual_sha256"] == report["canonical_md_sha256"]
+    assert report["chunk_index_actual_sha256"] == report["chunk_index_sha256"]
     assert isinstance(report["errors"], list)
     assert len(report["errors"]) == 0
 

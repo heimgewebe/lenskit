@@ -52,6 +52,8 @@ def _fail_report(
     bundle_run_id: Any = None,
     canonical_md_sha256: Any = None,
     chunk_index_sha256: Any = None,
+    canonical_md_actual_sha256: Any = None,
+    chunk_index_actual_sha256: Any = None,
 ) -> Dict[str, Any]:
     return {
         "status": "fail",
@@ -60,6 +62,8 @@ def _fail_report(
         "validation_run_id": validation_run_id,
         "canonical_md_sha256": canonical_md_sha256,
         "chunk_index_sha256": chunk_index_sha256,
+        "canonical_md_actual_sha256": canonical_md_actual_sha256,
+        "chunk_index_actual_sha256": chunk_index_actual_sha256,
         "chunk_count": 0,
         "canonical_range_count": 0,
         "source_range_count": 0,
@@ -175,6 +179,8 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
     chunk_index_rel_raw = chunk_index_artifact.get("path", "")
     canonical_md_manifest_sha = canonical_md_artifact.get("sha256", "")
     chunk_index_manifest_sha = chunk_index_artifact.get("sha256", "")
+    actual_canonical_sha = None
+    actual_chunk_sha = None
 
     try:
         canonical_md_rel = _normalize_relative_path(canonical_md_rel_raw, "canonical_md path")
@@ -268,6 +274,8 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             bundle_run_id=bundle_run_id,
             canonical_md_sha256=canonical_md_manifest_sha,
             chunk_index_sha256=chunk_index_manifest_sha,
+            canonical_md_actual_sha256=actual_canonical_sha,
+            chunk_index_actual_sha256=actual_chunk_sha,
         )
 
     canonical_md_file_size = len(canonical_md_bytes)
@@ -284,6 +292,8 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
             bundle_run_id=bundle_run_id,
             canonical_md_sha256=canonical_md_manifest_sha,
             chunk_index_sha256=chunk_index_manifest_sha,
+            canonical_md_actual_sha256=actual_canonical_sha,
+            chunk_index_actual_sha256=actual_chunk_sha,
         )
 
     for lineno, raw_line in enumerate(lines, start=1):
@@ -451,6 +461,8 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
         "validation_run_id": validation_run_id,
         "canonical_md_sha256": canonical_md_manifest_sha,
         "chunk_index_sha256": chunk_index_manifest_sha,
+        "canonical_md_actual_sha256": actual_canonical_sha,
+        "chunk_index_actual_sha256": actual_chunk_sha,
         "chunk_count": chunk_count,
         "canonical_range_count": canonical_range_count,
         "source_range_count": source_range_count,
