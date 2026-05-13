@@ -2,7 +2,6 @@ import hashlib
 import json
 import re
 import uuid
-import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -27,10 +26,10 @@ def _normalize_relative_path(raw: str, label: str) -> str:
     parts = raw.replace("\\", "/").split("/")
     if ".." in parts:
         raise ValueError(f"{label}: path traversal ('..') is forbidden")
-    normalized = os.path.normpath(raw.replace("\\", "/"))
-    if normalized in (".", ""):
+    normalized_parts = [part for part in parts if part not in ("", ".")]
+    if not normalized_parts:
         raise ValueError(f"{label}: path must not be empty")
-    return normalized
+    return "/".join(normalized_parts)
 
 
 def _sha256_file(path: Path) -> str:
@@ -349,7 +348,9 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
         if cr_file_path != canonical_md_rel:
             errors.append(
                 f"Line {lineno}: canonical_range.file_path {cr_file_path_raw!r} "
-                f"does not match manifest canonical_md path {canonical_md_rel!r}"
+                f"(normalized {cr_file_path!r}) does not match "
+                f"manifest canonical_md path {canonical_md_rel_raw!r} "
+                f"(normalized {canonical_md_rel!r})"
             )
 
         start_byte = cr.get("start_byte")

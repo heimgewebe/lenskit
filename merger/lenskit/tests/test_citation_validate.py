@@ -192,8 +192,9 @@ def test_missing_manifest_sha256_fails(tmp_path):
     chunk = _make_chunk(content, "merge.md", 0, 9)
     manifest_path = _make_bundle(tmp_path, content, [chunk])
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["artifacts"][0].pop("sha256", None)
-    manifest["artifacts"][1].pop("sha256", None)
+    for artifact in manifest["artifacts"]:
+        if artifact.get("role") in ("canonical_md", "chunk_index_jsonl"):
+            artifact.pop("sha256", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     report = validate_bundle(str(manifest_path))
@@ -412,6 +413,18 @@ def test_canonical_range_file_path_with_dot_slash_is_accepted(tmp_path):
     report = validate_bundle(str(manifest_path))
 
     assert report["status"] == "ok"
+
+
+def test_canonical_range_file_path_with_windows_drive_prefix_fails(tmp_path):
+    content = b"windows drive path"
+    for windows_path in ("C:merge.md", "C:/merge.md", r"C:\merge.md"):
+        chunk = _make_chunk(content, windows_path, 0, 5)
+        manifest_path = _make_bundle(tmp_path, content, [chunk])
+
+        report = validate_bundle(str(manifest_path))
+
+        assert report["status"] == "fail"
+        assert any("Windows drive-prefixed paths are forbidden" in e for e in report["errors"])
 
 
 # ---------------------------------------------------------------------------
