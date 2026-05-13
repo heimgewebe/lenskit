@@ -87,7 +87,7 @@ Bevor ein echtes `merger/lenskit/core/citation_map.py` begonnen wird, müssen di
 
 ### 3. Citation-Id-Derivationsregel als Code-Helper fixieren ✓ erledigt (PR #652)
 - `merger/lenskit/core/citation_id.py` implementiert `make_citation_id(...)` mit Payload-Präfix `lenskit.citation-map.v1:`, Feldreihenfolge und 16-hex-Truncation.
-- 22 Tests (Determinismus, Sensitivität, Format, Input-Guards, Golden-Vector).
+- Umfangreiche Tests zu Determinismus, Sensitivität, Format, Input-Guards und Golden-Vector.
 - **Stop-Entscheidung bleibt bestehen:** Helper ist vorbereitet, aber Real-Dump und Konsument/Validator fehlen weiterhin.
 
 ## Roadmap-Implikation
