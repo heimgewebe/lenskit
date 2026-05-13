@@ -122,7 +122,9 @@ Ziel: Spätere Roadmap-Reader sehen sofort, dass Producer nicht „vergessen" is
 - Beweis, dass ein Producer **könnte** funktionieren (Skizze/Pseudo-Code).
 - Beweis, dass die Blueprint-Regel richtig ist.
 - Implementierung einer der Vorbedingungen.
-- Änderung an der aktuellen Roadmap (nur Blocker-Notiz optional).
+- Änderung des Citation-Map-Producer-Status auf `[x]`.
+- Beweis, dass der spätere Producer mit Real-Dump funktioniert.
+- Weitere Roadmap-Änderungen über die Blocker-Notiz hinaus.
 
 Dieser Proof **dokumentiert die Stop-Entscheidung**, nicht die Machbarkeit des Patches.
 
