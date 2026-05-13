@@ -19,10 +19,12 @@ def _normalize_relative_path(raw: str, label: str) -> str:
         raise ValueError(f"{label}: path must be a string")
     if raw.startswith("/"):
         raise ValueError(f"{label}: absolute paths are forbidden")
+    if raw.startswith("\\"):
+        if _UNC_RE.match(raw):
+            raise ValueError(f"{label}: UNC paths are forbidden")
+        raise ValueError(f"{label}: Windows rooted paths are forbidden")
     if _WINDOWS_DRIVE_RE.match(raw):
         raise ValueError(f"{label}: Windows drive-prefixed paths are forbidden")
-    if _UNC_RE.match(raw):
-        raise ValueError(f"{label}: UNC paths are forbidden")
     parts = raw.replace("\\", "/").split("/")
     if ".." in parts:
         raise ValueError(f"{label}: path traversal ('..') is forbidden")

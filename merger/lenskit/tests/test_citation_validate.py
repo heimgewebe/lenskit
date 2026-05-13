@@ -438,6 +438,17 @@ def test_canonical_range_file_path_with_windows_drive_prefix_fails(tmp_path):
         assert any("Windows drive-prefixed paths are forbidden" in e for e in report["errors"])
 
 
+def test_canonical_range_file_path_with_windows_root_prefix_fails(tmp_path):
+    content = b"windows rooted path"
+    chunk = _make_chunk(content, r"\merge.md", 0, 5)
+    manifest_path = _make_bundle(tmp_path, content, [chunk])
+
+    report = validate_bundle(str(manifest_path))
+
+    assert report["status"] == "fail"
+    assert any("Windows rooted paths are forbidden" in e for e in report["errors"])
+
+
 def test_canonical_range_file_path_mismatch_does_not_increment_hash_or_citation_counts(tmp_path):
     content = b"path mismatch counter guard"
     chunk = _make_chunk(content, "different.md", 0, 10)
