@@ -161,7 +161,14 @@ def validate_bundle(manifest_path_str: str) -> Dict[str, Any]:
 
     canonical_md_artifact = None
     chunk_index_artifact = None
-    for art in artifacts:
+    for index, art in enumerate(artifacts):
+        if not isinstance(art, dict):
+            return _fail_report(
+                validation_run_id,
+                [f"Manifest artifact at index {index} is not an object"],
+                bundle_manifest_path=bundle_manifest_path,
+                bundle_run_id=bundle_run_id,
+            )
         role = art.get("role", "")
         if role == "canonical_md" and canonical_md_artifact is None:
             canonical_md_artifact = art

@@ -532,6 +532,27 @@ def test_manifest_missing_chunk_index_role_fails(tmp_path):
     assert any("chunk_index_jsonl" in e for e in report["errors"])
 
 
+def test_manifest_artifact_entry_not_object_fails(tmp_path):
+    manifest = {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "test-bad-artifact-entry",
+        "created_at": "2026-05-13T00:00:00Z",
+        "generator": {"name": "test", "version": "0", "config_sha256": "a" * 64},
+        "artifacts": ["not-an-object"],
+        "links": [],
+        "capabilities": [],
+    }
+    manifest_path = tmp_path / "bundle.manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    report = validate_bundle(str(manifest_path))
+
+    assert report["status"] == "fail"
+    assert report["error_kind"] == "validation_error"
+    assert any("artifact at index 0 is not an object" in e for e in report["errors"])
+
+
 # ---------------------------------------------------------------------------
 # Report structure completeness
 # ---------------------------------------------------------------------------
