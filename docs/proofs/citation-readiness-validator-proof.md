@@ -70,7 +70,7 @@ Der Report muss enthalten:
 - `chunk_index_sha256`: aus Manifest
 - `chunk_count`: erwartet 585
 - `canonical_range_count`: erwartet 585
-- `citation_id_count`: erwartet 585 (bei duplikatfreien validen Ranges)
+- `citation_id_count`: erwartet 585 (bei duplikatefreien validen Ranges)
 - Falls `citation_id_count` kleiner als `chunk_count`/`canonical_range_count` ist, signalisiert das Fehler oder übersprungene Zeilen (kein valider Duplikatfall).
 - `citation_id_duplicate_count`: erwartet 0
 - `status`: `ok` oder `fail` mit Fehlerliste
