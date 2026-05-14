@@ -346,5 +346,73 @@ class TestMergeCore(unittest.TestCase):
         self.assertFalse(config.health)
         self.assertEqual(len(warnings), 0)
 
+class TestScanRepoWorktreeExclusion(unittest.TestCase):
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        # Normal repo content
+        (self.root / "merger" / "lenskit" / "core").mkdir(parents=True)
+        (self.root / "merger" / "lenskit" / "core" / "merge.py").write_text("# merge")
+        # .claude settings — must be included
+        (self.root / ".claude").mkdir()
+        (self.root / ".claude" / "settings.local.json").write_text("{}")
+        # Worktree artefacts — must be excluded
+        (self.root / ".claude" / "worktrees" / "foo" / "merger" / "lenskit" / "core").mkdir(parents=True)
+        (self.root / ".claude" / "worktrees" / "foo" / "merger" / "lenskit" / "core" / "merge.py").write_text("# worktree copy")
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def _collected_relpaths(self, **kwargs):
+        from lenskit.core.merge import scan_repo
+        result = scan_repo(self.root, extensions=[".py", ".json"], **kwargs)
+        return {str(f.rel_path).replace("\\", "/") for f in result["files"]}
+
+    def test_scan_repo_excludes_worktree_files(self):
+        paths = self._collected_relpaths()
+        self.assertIn("merger/lenskit/core/merge.py", paths)
+        self.assertIn(".claude/settings.local.json", paths)
+        worktree_hits = [p for p in paths if p.startswith(".claude/worktrees/")]
+        self.assertEqual(worktree_hits, [], msg=f"Unexpected worktree paths: {worktree_hits}")
+
+    def test_scan_repo_include_hidden_true_still_excludes_worktrees(self):
+        paths = self._collected_relpaths(include_hidden=True)
+        self.assertIn(".claude/settings.local.json", paths)
+        worktree_hits = [p for p in paths if p.startswith(".claude/worktrees/")]
+        self.assertEqual(worktree_hits, [], msg=f"include_hidden=True must not resurrect worktrees: {worktree_hits}")
+
+
+class TestPrescanRepoWorktreeExclusion(unittest.TestCase):
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        (self.root / "merger" / "lenskit" / "core").mkdir(parents=True)
+        (self.root / "merger" / "lenskit" / "core" / "merge.py").write_text("# merge")
+        (self.root / ".claude").mkdir()
+        (self.root / ".claude" / "settings.local.json").write_text("{}")
+        (self.root / ".claude" / "worktrees" / "foo" / "pkg").mkdir(parents=True)
+        (self.root / ".claude" / "worktrees" / "foo" / "pkg" / "file.py").write_text("# wt")
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def _tree_paths(self):
+        from lenskit.core.merge import prescan_repo
+        result = prescan_repo(self.root)
+        paths = set()
+        def _collect(node, prefix=""):
+            for child in node.get("children", []):
+                rel = (prefix + "/" + child["name"]).lstrip("/")
+                paths.add(rel)
+                _collect(child, rel)
+        _collect(result)
+        return paths
+
+    def test_prescan_repo_excludes_worktree_subtree(self):
+        paths = self._tree_paths()
+        worktree_hits = [p for p in paths if ".claude/worktrees" in p or p.startswith(".claude/worktrees")]
+        self.assertEqual(worktree_hits, [], msg=f"prescan_repo must not include worktrees: {worktree_hits}")
+
+
 if __name__ == '__main__':
     unittest.main()
