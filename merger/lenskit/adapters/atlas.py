@@ -242,8 +242,8 @@ class AtlasScanner:
         self.incremental_dirs_inventory = self._load_jsonl_inventory_map(incremental_dirs_inventory, "incremental dirs inventory", "incremental dirs")
 
         if self.inventory_strict:
-            # Minimal excludes for strict inventory: only git, venv, and agent runtime checkouts.
-            # .claude/worktrees holds agent-managed repository checkouts; they are never canonical
+            # Minimal excludes for strict inventory: git directories, venv directories, and
+            # .claude/worktrees (agent runtime checkouts). Runtime checkouts are never canonical
             # repository content and must be excluded even in strict mode.
             default_excludes = ["**/.git", "**/.venv", "**/.claude/worktrees/**"]
         else:
