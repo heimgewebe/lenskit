@@ -242,8 +242,10 @@ class AtlasScanner:
         self.incremental_dirs_inventory = self._load_jsonl_inventory_map(incremental_dirs_inventory, "incremental dirs inventory", "incremental dirs")
 
         if self.inventory_strict:
-            # Minimal excludes for strict inventory: only git and venv
-            default_excludes = ["**/.git", "**/.venv"]
+            # Minimal excludes for strict inventory: only git, venv, and agent runtime checkouts.
+            # .claude/worktrees holds agent-managed repository checkouts; they are never canonical
+            # repository content and must be excluded even in strict mode.
+            default_excludes = ["**/.git", "**/.venv", "**/.claude/worktrees/**"]
         else:
             # .claude/worktrees contains agent runtime checkouts; must not be treated as repository content.
             default_excludes = ["**/.git", "**/node_modules", "**/.venv", "**/__pycache__", "**/.cache", "atlas/**", "**/.pytest_cache", "**/.claude/worktrees/**"]

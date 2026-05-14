@@ -400,16 +400,25 @@ class TestPrescanRepoWorktreeExclusion(unittest.TestCase):
         from lenskit.core.merge import prescan_repo
         result = prescan_repo(self.root)
         paths = set()
-        def _collect(node, prefix=""):
+        def _collect(node):
             for child in node.get("children", []):
-                rel = (prefix + "/" + child["name"]).lstrip("/")
-                paths.add(rel)
-                _collect(child, rel)
-        _collect(result)
+                paths.add(child["path"])
+                _collect(child)
+        _collect(result["tree"])
         return paths
 
     def test_prescan_repo_excludes_worktree_subtree(self):
         paths = self._tree_paths()
+
+        # Ensure the traversal is not vacuous: expected repo paths must be present
+        self.assertIn("merger", paths, "Expected 'merger' in prescan tree")
+        self.assertIn("merger/lenskit", paths, "Expected 'merger/lenskit' in prescan tree")
+        self.assertIn("merger/lenskit/core", paths, "Expected 'merger/lenskit/core' in prescan tree")
+        self.assertIn("merger/lenskit/core/merge.py", paths, "Expected 'merger/lenskit/core/merge.py' in prescan tree")
+        self.assertIn(".claude", paths, "Expected '.claude' in prescan tree")
+        self.assertIn(".claude/settings.local.json", paths, "Expected '.claude/settings.local.json' in prescan tree")
+
+        # Worktree subtree must be absent
         worktree_hits = [p for p in paths if ".claude/worktrees" in p or p.startswith(".claude/worktrees")]
         self.assertEqual(worktree_hits, [], msg=f"prescan_repo must not include worktrees: {worktree_hits}")
 
