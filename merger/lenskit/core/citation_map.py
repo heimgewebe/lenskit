@@ -774,7 +774,7 @@ def produce_citation_map(
         "output_bytes": output_bytes_count,
         "chunk_count": chunk_count,
         "valid_chunk_count": valid_chunk_count,
-        "citation_map_row_count": len(output_lines),
+        "citation_map_row_count": len(output_lines) if status == "ok" else 0,
         "citation_id_count": citation_id_count,
         "citation_id_duplicate_count": citation_id_duplicate_count,
         "repo_id_source": repo_id_source,

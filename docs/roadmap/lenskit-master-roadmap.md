@@ -84,14 +84,14 @@ Spätere PRs:
     - `ARTIFACT_CONTRACT_REGISTRY` und `ARTIFACT_AUTHORITY_REGISTRY` auf Modulebene in `merge.py`.
     - Tests: `test_citation_map_producer.py` (64 Tests, alle grün).
     - Real-Dump-Proof PASS gegen Dump `lenskit-max-260514-0409_merge` (541 Chunks, 0 Fehler, 0 Duplikate, Schema-Validierung PASS); Beleg: `docs/proofs/citation-map-producer-proof.md`.
+- [x] Citation-Readiness-Validator plus Real-Dump-Proof
+  - `merger/lenskit/core/citation_validate.py` implementiert (Konsument/Readiness-Gate, kein Producer).
+  - CLI: `lenskit citation validate <bundle_manifest>` mit `--json`-Option.
+  - Tests: `test_citation_validate.py`, `test_cli_citation.py` (synthetische Fixtures, kein Real-Dump erforderlich).
+  - Real-Dump-Proof erbracht: aktueller echter Dump validiert (`594` Chunks, Status `ok`); Beleg: `docs/proofs/citation-readiness-validator-proof.md`.
 - [ ] Merger-Pipeline-Emission von `citation_map_jsonl` ins Bundle-Manifest
   - `_add_artifact(citation_map_path, ArtifactRole.CITATION_MAP_JSONL, …)` ist in `write_reports_v2()` noch nicht verdrahtet.
   - Registries sind vorbereitet; Verdrahtung ist Phase-2-Arbeit.
-  - **Citation-Readiness-Validator (Validator-PR):**
-    - `merger/lenskit/core/citation_validate.py` implementiert (Konsument/Readiness-Gate, kein Producer).
-    - CLI: `lenskit citation validate <bundle_manifest>` mit `--json`-Option.
-    - Tests: `test_citation_validate.py`, `test_cli_citation.py` (synthetische Fixtures, kein Real-Dump erforderlich).
-    - Real-Dump-Proof erbracht: aktueller echter Dump validiert (`594` Chunks, Status `ok`); Beleg: `docs/proofs/citation-readiness-validator-proof.md`.
 Gate:
 - `citation_map_jsonl` nie `canonical_content` oder `content_source`
 - `canonical_range` und `source_range` getrennt

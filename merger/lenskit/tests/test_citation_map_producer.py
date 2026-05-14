@@ -766,6 +766,7 @@ class TestNoPartialOutputOnErrors:
         assert not expected_output.exists(), "Partial output must not be written on failure"
         assert report["output_path"] is None
         assert report["output_sha256"] is None
+        assert report["citation_map_row_count"] == 0, "No rows written means count must be 0"
 
     def test_no_output_on_duplicate_citation_id(self, tmp_path):
         content = b"Duplicate test content XYZ"

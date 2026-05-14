@@ -188,11 +188,12 @@ Dieser Dump enthält `content_range_ref` statt `canonical_range`. Die Producer-N
 ## Invarianten des Producers
 
 - Producer schreibt; validiert nichts außer dem nötigen für die Produktion.
-- Byte-Range-Hash jeder Range wird gegen `canonical_md` geprüft; Fehler → Zeile übersprungen.
+- Byte-Range-Hash jeder Range wird gegen `canonical_md` geprüft; bei Fehlern schlägt der Run fehl und es wird kein `citation_map_jsonl` geschrieben.
 - `make_citation_id(canonical_md_sha256, start_byte, end_byte, content_sha256)` wird für jede Zeile aufgerufen.
 - `citation_map_jsonl` wird nie als `canonical_content` oder `content_source` eingestuft.
 - Pfad-Traversal, absolute Pfade, Windows-Drive-Prefixe, UNC-Pfade werden abgelehnt.
-- Duplikate werden als Fehler behandelt (Zeile wird übersprungen).
+- Duplikate werden als Fehler behandelt; bei einem Duplikat schlägt der Run fehl und es wird kein `citation_map_jsonl` geschrieben.
+- `citation_map_row_count` im Report zählt ausschließlich tatsächlich geschriebene Zeilen: `0` bei `status=fail`, `N` bei `status=ok` (entspricht `valid_chunk_count` minus Duplikate, sofern kein Fehler vorliegt).
 
 ---
 
