@@ -40,3 +40,7 @@ repolensd.log
 atlas_scan_*.json
 atlas_scan_*.jsonl
 atlas_scan_*.md
+
+# Local Claude/agent runtime state
+.claude/settings.local.json
+.claude/worktrees/
