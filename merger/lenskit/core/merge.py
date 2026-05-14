@@ -293,6 +293,11 @@ SKIP_FILES = {
     "thumbs.db",
 }
 
+def _is_runtime_worktree_path(rel_path: str) -> bool:
+    """Return True for .claude/worktrees paths — agent runtime artefacts, not repo content."""
+    norm = rel_path.replace("\\", "/")
+    return norm == ".claude/worktrees" or norm.startswith(".claude/worktrees/")
+
 # Extensions considered text (broadened)
 TEXT_EXTENSIONS = {
     ".md", ".txt", ".rst", ".py", ".rs", ".ts", ".tsx", ".js", ".jsx",
@@ -2048,6 +2053,8 @@ def prescan_repo(repo_root: Path, max_depth: int = 10, ignore_globs: Optional[Li
             return True
         if name.startswith(".env") and name not in (".env.example", ".env.template", ".env.sample"):
             return True
+        if _is_runtime_worktree_path(relpath):
+            return True
         if ignore_globs:
             for g in ignore_globs:
                 # User request: match against name (basename) OR relpath
@@ -2235,6 +2242,10 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
             if d in SKIP_DIRS:
                 continue
             if not include_hidden and d.startswith("."):
+                continue
+            # Exclude agent runtime worktrees by relative path, not just name.
+            d_rel = d if dirpath == root_str else (dirpath[root_len:].lstrip(os.sep).replace("\\", "/") + "/" + d)
+            if _is_runtime_worktree_path(d_rel):
                 continue
             keep_dirs.append(d)
         dirnames[:] = keep_dirs
