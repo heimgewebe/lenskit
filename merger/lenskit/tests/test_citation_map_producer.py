@@ -1093,3 +1093,41 @@ class TestRunIdValidation:
         manifest_path = self._make_bundle_no_run_id(tmp_path, content, [chunk], "valid-run-123")
         report = produce_citation_map(str(manifest_path))
         assert report["status"] == "ok", report["errors"]
+
+
+# ---------------------------------------------------------------------------
+# Explicit --output protection before artifact resolution
+# ---------------------------------------------------------------------------
+
+class TestExplicitOutputProtectionBeforeArtifactResolution:
+    def test_bad_run_id_does_not_delete_explicit_output(self, tmp_path):
+        """Explicit --output must survive early fail before artifact paths are in protected_paths."""
+        canonical_md = tmp_path / "test_merge.md"
+        canonical_md.write_bytes(b"canonical content\n")
+        chunk_index = tmp_path / "test_merge.chunk_index.jsonl"
+        chunk_index.write_bytes(b"")
+
+        manifest = {
+            "run_id": "",  # triggers early fail before canonical_md is resolved
+            "artifacts": [
+                {
+                    "role": "canonical_md",
+                    "path": "test_merge.md",
+                    "sha256": _sha256(b"canonical content\n"),
+                },
+                {
+                    "role": "chunk_index_jsonl",
+                    "path": "test_merge.chunk_index.jsonl",
+                    "sha256": _sha256(b""),
+                },
+            ],
+        }
+        manifest_path = tmp_path / "test_merge.bundle.manifest.json"
+        manifest_path.write_text(json.dumps(manifest))
+
+        report = produce_citation_map(str(manifest_path), output_path_str=str(canonical_md))
+        assert report["status"] == "fail"
+        assert any("run_id" in e for e in report["errors"])
+        assert canonical_md.exists(), (
+            "Explicit --output must not be deleted before artifact protection is complete"
+        )

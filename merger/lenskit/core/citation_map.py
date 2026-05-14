@@ -555,11 +555,16 @@ def produce_citation_map(
         stem = manifest_path.name[: -len(_MANIFEST_SUFFIX)]
         output_path = manifest_path.parent / (stem + _OUTPUT_SUFFIX)
 
+    # Explicit --output paths may coincide with input artifacts not yet in
+    # protected_paths. Skip early-fail cleanup for explicit paths until both
+    # canonical_md and chunk_index_jsonl are resolved and protected.
+    output_path_is_explicit = output_path_str is not None
+
     # protected_paths grows as artifacts are resolved; at minimum contains the manifest.
     protected_paths: Set[Path] = {manifest_path.resolve()}
 
     if not manifest_path.exists() or not manifest_path.is_file():
-        _s = _remove_stale_output(output_path, protected_paths)
+        _s = _remove_stale_output(output_path, protected_paths) if not output_path_is_explicit else None
         return _fail_report(
             production_run_id,
             bundle_manifest_path_str,
@@ -573,7 +578,7 @@ def produce_citation_map(
     try:
         manifest = load_manifest(manifest_path)
     except (json.JSONDecodeError, OSError) as e:
-        _s = _remove_stale_output(output_path, protected_paths)
+        _s = _remove_stale_output(output_path, protected_paths) if not output_path_is_explicit else None
         return _fail_report(
             production_run_id,
             bundle_manifest_path_str,
@@ -585,7 +590,7 @@ def produce_citation_map(
 
     # H3: run_id must be a non-empty string — an empty snapshot.run_id is invalid.
     if not isinstance(bundle_run_id, str) or not bundle_run_id:
-        _s = _remove_stale_output(output_path, protected_paths)
+        _s = _remove_stale_output(output_path, protected_paths) if not output_path_is_explicit else None
         return _fail_report(
             production_run_id,
             bundle_manifest_path_str,
@@ -602,7 +607,7 @@ def produce_citation_map(
             resolve_artifact_by_role(manifest, "canonical_md", manifest_dir)
         )
     except CitationMapError as e:
-        _s = _remove_stale_output(output_path, protected_paths)
+        _s = _remove_stale_output(output_path, protected_paths) if not output_path_is_explicit else None
         return _fail_report(
             production_run_id,
             bundle_manifest_path_str,
@@ -620,7 +625,7 @@ def produce_citation_map(
             resolve_artifact_by_role(manifest, "chunk_index_jsonl", manifest_dir)
         )
     except CitationMapError as e:
-        _s = _remove_stale_output(output_path, protected_paths)
+        _s = _remove_stale_output(output_path, protected_paths) if not output_path_is_explicit else None
         return _fail_report(
             production_run_id,
             bundle_manifest_path_str,
