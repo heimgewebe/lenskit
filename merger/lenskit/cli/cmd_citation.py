@@ -48,11 +48,7 @@ def run_citation_produce(args: argparse.Namespace) -> int:
     manifest_path = args.bundle_manifest
     output_path = getattr(args, "output_path", None)
 
-    try:
-        report = produce_citation_map(manifest_path, output_path)
-    except Exception as e:
-        print(f"Error: unexpected failure during production: {e}", file=sys.stderr)
-        return 2
+    report = produce_citation_map(manifest_path, output_path)
 
     if args.emit_json:
         print(json.dumps(report, indent=2))

@@ -7,7 +7,7 @@ is in docs/proofs/citation-map-producer-proof.md.
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -39,8 +39,8 @@ def _make_bundle(
     canonical_content: bytes,
     chunks: List[Dict[str, Any]],
     *,
-    canonical_sha_override: str = None,
-    chunk_index_sha_override: str = None,
+    canonical_sha_override: Optional[str] = None,
+    chunk_index_sha_override: Optional[str] = None,
     stem: str = "test_merge",
 ) -> Path:
     canonical_md_path = tmp_path / f"{stem}.md"
@@ -158,26 +158,26 @@ class TestNormalizeCanonicalRange:
         canonical = {"artifact_role": "canonical_md", "file_path": "a.md", "start_byte": 0, "end_byte": 10}
         fallback = {"artifact_role": "canonical_md", "file_path": "b.md", "start_byte": 0, "end_byte": 10}
         chunk = {"canonical_range": canonical, "content_range_ref": fallback}
-        result = normalize_canonical_range(chunk, lineno=1)
+        result = normalize_canonical_range(chunk)
         assert result is canonical
 
     def test_falls_back_to_content_range_ref_when_no_canonical_range(self):
         fallback = {"artifact_role": "canonical_md", "file_path": "a.md"}
         chunk = {"content_range_ref": fallback}
-        result = normalize_canonical_range(chunk, lineno=1)
+        result = normalize_canonical_range(chunk)
         assert result is fallback
 
     def test_returns_none_when_neither_present(self):
         chunk = {"chunk_id": "x"}
-        assert normalize_canonical_range(chunk, lineno=1) is None
+        assert normalize_canonical_range(chunk) is None
 
     def test_returns_none_when_canonical_range_wrong_role(self):
         chunk = {"canonical_range": {"artifact_role": "source_file", "file_path": "x"}}
-        assert normalize_canonical_range(chunk, lineno=1) is None
+        assert normalize_canonical_range(chunk) is None
 
     def test_returns_none_when_content_range_ref_wrong_role(self):
         chunk = {"content_range_ref": {"artifact_role": "index_sidecar_json", "file_path": "x"}}
-        assert normalize_canonical_range(chunk, lineno=1) is None
+        assert normalize_canonical_range(chunk) is None
 
     def test_does_not_fall_back_when_canonical_range_wrong_role(self):
         # canonical_range with wrong role should NOT fall back to content_range_ref
@@ -185,7 +185,7 @@ class TestNormalizeCanonicalRange:
             "canonical_range": {"artifact_role": "source_file"},
             "content_range_ref": {"artifact_role": "canonical_md", "file_path": "a.md"},
         }
-        assert normalize_canonical_range(chunk, lineno=1) is None
+        assert normalize_canonical_range(chunk) is None
 
     def test_content_range_ref_fallback_with_all_fields(self):
         crr = {
@@ -198,7 +198,7 @@ class TestNormalizeCanonicalRange:
             "content_sha256": "a" * 64,
         }
         chunk = {"content_range_ref": crr}
-        result = normalize_canonical_range(chunk, lineno=1)
+        result = normalize_canonical_range(chunk)
         assert result["start_byte"] == 10
         assert result["end_byte"] == 20
 
@@ -733,6 +733,119 @@ class TestManifestWiring:
 
         assert actual_sha == report["output_sha256"]
         assert report["output_bytes"] == len(output_bytes)
+
+
+# ---------------------------------------------------------------------------
+# A: Zero-row run writes empty artifact
+# ---------------------------------------------------------------------------
+
+class TestEmptyChunkIndex:
+    def test_empty_chunk_index_writes_empty_file(self, tmp_path):
+        content = b"some canonical content"
+        manifest_path = _make_bundle(tmp_path, content, [])
+        report = produce_citation_map(str(manifest_path))
+
+        assert report["status"] == "ok", report["errors"]
+        assert report["citation_map_row_count"] == 0
+        assert report["chunk_count"] == 0
+        assert report["output_bytes"] == 0
+        assert report["output_sha256"] == _sha256(b"")
+        assert report["output_path"] is not None
+        assert Path(report["output_path"]).exists()
+        assert Path(report["output_path"]).read_bytes() == b""
+
+    def test_blank_lines_only_chunk_index_writes_empty_file(self, tmp_path):
+        content = b"canonical content"
+        # Build a manifest but then overwrite chunk_index with blank lines only
+        manifest_path = _make_bundle(tmp_path, content, [])
+        # Rewrite chunk_index with whitespace lines and update manifest SHA
+        chunk_index_path = tmp_path / "test_merge.chunk_index.jsonl"
+        blank_bytes = b"\n\n   \n"
+        chunk_index_path.write_bytes(blank_bytes)
+
+        # Update manifest so SHA matches
+        manifest = json.loads((tmp_path / "test_merge.bundle.manifest.json").read_text())
+        for art in manifest["artifacts"]:
+            if art["role"] == "chunk_index_jsonl":
+                art["sha256"] = _sha256(blank_bytes)
+                art["bytes"] = len(blank_bytes)
+        (tmp_path / "test_merge.bundle.manifest.json").write_text(json.dumps(manifest))
+
+        report = produce_citation_map(str(manifest_path))
+
+        assert report["status"] == "ok", report["errors"]
+        assert report["citation_map_row_count"] == 0
+        assert report["output_bytes"] == 0
+        assert report["output_sha256"] == _sha256(b"")
+        assert Path(report["output_path"]).read_bytes() == b""
+
+
+# ---------------------------------------------------------------------------
+# B: Stale output removed on fail rerun
+# ---------------------------------------------------------------------------
+
+class TestStaleOutputCleanup:
+    def test_stale_output_removed_on_fail_rerun(self, tmp_path):
+        content = b"Valid content for first run\nSecond line here\n"
+        valid_chunk = _canonical_range_chunk(content, 0, 5, "test_merge.md", chunk_id="c1")
+
+        # First run: success — output file is created
+        manifest_path = _make_bundle(tmp_path, content, [valid_chunk])
+        report1 = produce_citation_map(str(manifest_path))
+        assert report1["status"] == "ok", report1["errors"]
+        output_path = Path(report1["output_path"])
+        assert output_path.exists()
+
+        # Modify chunk_index to introduce an error (bad SHA), keeping manifest consistent
+        bad_sha = "b" * 64
+        invalid_chunk = {
+            "chunk_id": "c2",
+            "repo": "testrepo",
+            "canonical_range": {
+                "artifact_role": "canonical_md",
+                "file_path": "test_merge.md",
+                "start_byte": 6,
+                "end_byte": 11,
+                "content_sha256": bad_sha,
+            },
+        }
+        chunk_lines = json.dumps(invalid_chunk) + "\n"
+        chunk_index_bytes = chunk_lines.encode("utf-8")
+        (tmp_path / "test_merge.chunk_index.jsonl").write_bytes(chunk_index_bytes)
+
+        # Update manifest SHA to match new chunk_index
+        manifest = json.loads((tmp_path / "test_merge.bundle.manifest.json").read_text())
+        for art in manifest["artifacts"]:
+            if art["role"] == "chunk_index_jsonl":
+                art["sha256"] = _sha256(chunk_index_bytes)
+                art["bytes"] = len(chunk_index_bytes)
+        (tmp_path / "test_merge.bundle.manifest.json").write_text(json.dumps(manifest))
+
+        # Second run: fail — stale output must be removed
+        report2 = produce_citation_map(str(manifest_path))
+        assert report2["status"] == "fail"
+        assert report2["output_path"] is None
+        assert report2["citation_map_row_count"] == 0
+        assert not output_path.exists(), "Stale output from first run must be removed"
+
+
+# ---------------------------------------------------------------------------
+# D: snapshot_source precision
+# ---------------------------------------------------------------------------
+
+class TestSnapshotSource:
+    def test_snapshot_source_none_on_missing_manifest(self, tmp_path):
+        report = produce_citation_map(str(tmp_path / "nonexistent.bundle.manifest.json"))
+        assert report["status"] == "fail"
+        assert report["snapshot_source"] is None
+
+    def test_snapshot_source_bundle_manifest_on_success(self, tmp_path):
+        content = b"snapshot source test"
+        chunk = _canonical_range_chunk(content, 0, 7, "test_merge.md")
+        manifest_path = _make_bundle(tmp_path, content, [chunk])
+        report = produce_citation_map(str(manifest_path))
+        assert report["status"] == "ok", report["errors"]
+        assert report["snapshot_source"] == "bundle_manifest"
 
 
 # ---------------------------------------------------------------------------

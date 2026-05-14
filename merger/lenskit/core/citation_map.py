@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
@@ -117,7 +118,6 @@ def resolve_artifact_by_role(
 
 def normalize_canonical_range(
     chunk: Dict[str, Any],
-    lineno: int,
 ) -> Optional[Dict[str, Any]]:
     """
     Return the canonical range dict for a chunk, normalising legacy input.
@@ -268,18 +268,11 @@ def verify_byte_range_hash(
 # Row iterator (pure — yields structured results, never writes)
 # ---------------------------------------------------------------------------
 
+@dataclass(frozen=True, slots=True)
 class _ChunkResult:
-    __slots__ = ("row", "error", "repo_id_source")
-
-    def __init__(
-        self,
-        row: Optional[Dict[str, Any]],
-        error: Optional[str],
-        repo_id_source: Optional[str],
-    ) -> None:
-        self.row = row
-        self.error = error
-        self.repo_id_source = repo_id_source
+    row: Optional[Dict[str, Any]]
+    error: Optional[str]
+    repo_id_source: Optional[str]
 
 
 def iter_chunk_results(
@@ -320,7 +313,7 @@ def iter_chunk_results(
                 continue
 
             # --- normalise range ---
-            norm_range = normalize_canonical_range(chunk, lineno)
+            norm_range = normalize_canonical_range(chunk)
             if norm_range is None:
                 yield _ChunkResult(
                     None,
@@ -361,24 +354,13 @@ def iter_chunk_results(
             end_byte = norm_range.get("end_byte")
             content_sha256 = norm_range.get("content_sha256", "")
 
-            for name, val in (
-                ("start_byte", start_byte),
-                ("end_byte", end_byte),
-            ):
+            _int_error: Optional[str] = None
+            for name, val in (("start_byte", start_byte), ("end_byte", end_byte)):
                 if isinstance(val, bool) or not isinstance(val, int):
-                    yield _ChunkResult(
-                        None,
-                        f"Line {lineno}: range.{name} must be an int",
-                        None,
-                    )
+                    _int_error = f"Line {lineno}: range.{name} must be an int"
                     break
-            else:
-                pass  # all int checks passed — fall through
-
-            if any(
-                isinstance(v, bool) or not isinstance(v, int)
-                for v in (start_byte, end_byte)
-            ):
+            if _int_error:
+                yield _ChunkResult(None, _int_error, None)
                 continue
 
             if (
@@ -480,6 +462,7 @@ def _fail_report(
     *,
     bundle_run_id: Any = None,
     error_kind: str = "production_error",
+    snapshot_source: Optional[str] = None,
 ) -> Dict[str, Any]:
     return {
         "status": "fail",
@@ -498,7 +481,7 @@ def _fail_report(
         "citation_id_count": 0,
         "citation_id_duplicate_count": 0,
         "repo_id_source": None,
-        "snapshot_source": "bundle_manifest",
+        "snapshot_source": snapshot_source,
         "errors": errors,
         "warnings": [],
         "sample_rows": [],
@@ -514,6 +497,7 @@ def produce_citation_map(
 
     The output NDJSON file is written adjacent to the manifest unless
     output_path_str is given.  Each line is a schema-valid citation map entry.
+    An empty chunk index writes an empty file (0 bytes) with status=ok.
     """
     production_run_id = str(uuid.uuid4())
     errors: List[str] = []
@@ -734,32 +718,39 @@ def produce_citation_map(
 
     citation_id_count = len(seen_citation_ids)
 
-    # --- write output only when there are no errors (H1) ---
-    # A partial output on a failed run would be silently mistaken for a valid one.
+    # --- write output or clean up stale file ---
     output_sha256: Optional[str] = None
     output_bytes_count: Optional[int] = None
     written_output_path: Optional[str] = None
 
     if errors:
         status = "fail"
+        # B: Remove any stale output from a prior successful run at the same path.
+        # output_path is safe (collision check above ensures it is not a protected input).
+        if output_path.exists():
+            try:
+                output_path.unlink()
+            except OSError:
+                pass  # best-effort; caller sees status=fail regardless
     else:
         status = "ok"
-        if output_lines:
-            ndjson_content = "\n".join(output_lines) + "\n"
-            ndjson_bytes = ndjson_content.encode("utf-8")
-            try:
-                output_path.write_bytes(ndjson_bytes)
-            except OSError as e:
-                return _fail_report(
-                    production_run_id,
-                    bundle_manifest_path_str,
-                    [f"Cannot write output: {e}"],
-                    bundle_run_id=bundle_run_id,
-                    error_kind="path_read_error",
-                )
-            output_sha256 = _sha256_bytes(ndjson_bytes)
-            output_bytes_count = len(ndjson_bytes)
-            written_output_path = str(output_path)
+        # A: Always write, even when there are no rows (empty chunk index → empty file).
+        ndjson_bytes = (
+            ("\n".join(output_lines) + "\n").encode("utf-8") if output_lines else b""
+        )
+        try:
+            output_path.write_bytes(ndjson_bytes)
+        except OSError as e:
+            return _fail_report(
+                production_run_id,
+                bundle_manifest_path_str,
+                [f"Cannot write output: {e}"],
+                bundle_run_id=bundle_run_id,
+                error_kind="path_read_error",
+            )
+        output_sha256 = _sha256_bytes(ndjson_bytes)
+        output_bytes_count = len(ndjson_bytes)
+        written_output_path = str(output_path)
 
     return {
         "status": status,
