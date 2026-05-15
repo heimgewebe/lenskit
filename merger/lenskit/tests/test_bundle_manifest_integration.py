@@ -724,105 +724,119 @@ def test_bundle_manifest_hash_recompute_detects_artifact_drift(tmp_path):
     )
 
 
-def test_is_manifest_coherent_guard_accepts_coherent_manifest(tmp_path):
-    """The coherence guard must return True for a manifest with matching canonical_md/chunk_index."""
-    from merger.lenskit.core.citation_map import is_manifest_coherent_for_citation_map
+def test_manifest_coherence_check_accepts_coherent_manifest(tmp_path):
+    from merger.lenskit.core.citation_map import check_manifest_coherence_for_citation_map
 
-    artifacts, manifest_data, manifest_dir = _make_minimal_bundle(tmp_path)
-    # Use the actual manifest path from artifacts, not a hardcoded filename
+    artifacts, manifest_data, _ = _make_minimal_bundle(tmp_path)
     manifest_path = artifacts.bundle_manifest
     assert manifest_path is not None and manifest_path.exists()
 
-    # Verify canonical_md and chunk_index exist
     assert any(a["role"] == "canonical_md" for a in manifest_data["artifacts"])
     assert any(a["role"] == "chunk_index_jsonl" for a in manifest_data["artifacts"])
 
-    # Guard must accept this coherent manifest
-    assert is_manifest_coherent_for_citation_map(manifest_path) is True
+    coherence = check_manifest_coherence_for_citation_map(manifest_path)
+    assert coherence.coherent is True
+    assert coherence.skip_allowed is False
+    assert coherence.reason in ("coherent", "coherent_empty_chunk_index")
 
 
-def test_is_manifest_coherent_guard_rejects_incoherent_manifest(tmp_path):
-    """The coherence guard must return False when chunk ranges don't match canonical_md path."""
-    from merger.lenskit.core.citation_map import is_manifest_coherent_for_citation_map
-
-    artifacts, manifest_data, manifest_dir = _make_minimal_bundle(tmp_path)
-    manifest_path = artifacts.bundle_manifest
-    assert manifest_path is not None and manifest_path.exists()
-
-    # Find canonical_md and chunk_index entries
-    canonical_md_entry = next(
-        (a for a in manifest_data["artifacts"] if a["role"] == "canonical_md"), None
-    )
-    chunk_index_entry = next(
-        (a for a in manifest_data["artifacts"] if a["role"] == "chunk_index_jsonl"), None
-    )
-    assert canonical_md_entry is not None
-    assert chunk_index_entry is not None
-
-    # Modify chunk_index to have a mismatched file_path
-    chunk_index_path = manifest_dir / chunk_index_entry["path"]
-    assert chunk_index_path.exists()
-
-    original_chunks = []
-    with chunk_index_path.open("r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                original_chunks.append(json.loads(line))
-
-    # Inject a chunk with mismatched file_path
-    if original_chunks:
-        original_chunks[0]["canonical_range"]["file_path"] = "wrong_file.md"
-
-    # Rewrite chunk_index
-    with chunk_index_path.open("w", encoding="utf-8") as f:
-        for chunk in original_chunks:
-            f.write(json.dumps(chunk) + "\n")
-
-    # Guard must reject this incoherent manifest
-    assert is_manifest_coherent_for_citation_map(manifest_path) is False
-
-
-def test_pro_repo_multi_repo_skips_citation_map_for_incoherent_manifest(tmp_path):
-    """
-    Regression test for Codex-P1: The coherence guard must correctly identify
-    incoherent manifest pairs and allow write_reports_v2 to skip citation_map generation.
-
-    This test validates the guard's ability to detect and handle the case where
-    canonical_md and chunk_index_jsonl reference different file paths
-    (as can occur in pro-repo/multi-repo mode with output_mode='dual').
-    """
-    from merger.lenskit.core.citation_map import is_manifest_coherent_for_citation_map
+def test_manifest_coherence_check_marks_path_mismatch_as_skippable(tmp_path):
+    from merger.lenskit.core.citation_map import check_manifest_coherence_for_citation_map
 
     artifacts, manifest_data, manifest_dir = _make_minimal_bundle(tmp_path)
     manifest_path = artifacts.bundle_manifest
     assert manifest_path is not None and manifest_path.exists()
 
-    # Precondition: verify the original manifest is coherent
-    assert is_manifest_coherent_for_citation_map(manifest_path) is True
-
-    # Now simulate incoherent manifest by tampering with chunk_index
     chunk_index_entry = next(
         (a for a in manifest_data["artifacts"] if a["role"] == "chunk_index_jsonl"), None
     )
     assert chunk_index_entry is not None
 
     chunk_index_path = manifest_dir / chunk_index_entry["path"]
-    original_chunks = []
+    rows = []
     with chunk_index_path.open("r", encoding="utf-8") as f:
         for line in f:
             if line.strip():
-                original_chunks.append(json.loads(line))
-
-    # Inject mismatch: change one chunk's canonical_range.file_path to simulate
-    # a scenario where repoA's markdown exists but repoB's chunk_index points elsewhere
-    if original_chunks:
-        original_chunks[0]["canonical_range"]["file_path"] = "repo_B.md"
-
+                rows.append(json.loads(line))
+    assert rows
+    rows[0]["canonical_range"]["file_path"] = "wrong_file.md"
     with chunk_index_path.open("w", encoding="utf-8") as f:
-        for chunk in original_chunks:
-            f.write(json.dumps(chunk) + "\n")
+        for row in rows:
+            f.write(json.dumps(row) + "\n")
 
-    # Verify guard now rejects this incoherent manifest
-    assert is_manifest_coherent_for_citation_map(manifest_path) is False, (
-        "Guard must reject manifest with mismatched canonical_md/chunk_index paths"
+    coherence = check_manifest_coherence_for_citation_map(manifest_path)
+    assert coherence.coherent is False
+    assert coherence.skip_allowed is True
+    assert coherence.reason == "range_file_path_mismatch"
+
+
+def test_manifest_coherence_check_marks_invalid_json_as_hard_error(tmp_path):
+    from merger.lenskit.core.citation_map import check_manifest_coherence_for_citation_map
+
+    artifacts, manifest_data, manifest_dir = _make_minimal_bundle(tmp_path)
+    manifest_path = artifacts.bundle_manifest
+    assert manifest_path is not None and manifest_path.exists()
+
+    chunk_index_entry = next(
+        (a for a in manifest_data["artifacts"] if a["role"] == "chunk_index_jsonl"), None
     )
+    assert chunk_index_entry is not None
+
+    chunk_index_path = manifest_dir / chunk_index_entry["path"]
+    chunk_index_path.write_text("{not-json}\n", encoding="utf-8")
+
+    coherence = check_manifest_coherence_for_citation_map(manifest_path)
+    assert coherence.coherent is False
+    assert coherence.skip_allowed is False
+    assert coherence.reason == "invalid_chunk_index_json"
+
+
+def test_manifest_coherence_check_accepts_empty_chunk_index(tmp_path):
+    from merger.lenskit.core.citation_map import check_manifest_coherence_for_citation_map
+
+    artifacts, manifest_data, manifest_dir = _make_minimal_bundle(tmp_path)
+    manifest_path = artifacts.bundle_manifest
+    assert manifest_path is not None and manifest_path.exists()
+
+    chunk_index_entry = next(
+        (a for a in manifest_data["artifacts"] if a["role"] == "chunk_index_jsonl"), None
+    )
+    assert chunk_index_entry is not None
+
+    chunk_index_path = manifest_dir / chunk_index_entry["path"]
+    chunk_index_path.write_text("", encoding="utf-8")
+
+    coherence = check_manifest_coherence_for_citation_map(manifest_path)
+    assert coherence.coherent is True
+    assert coherence.skip_allowed is False
+    assert coherence.reason == "coherent_empty_chunk_index"
+
+
+def test_manifest_coherence_check_marks_unsafe_path_as_hard_error(tmp_path):
+    from merger.lenskit.core.citation_map import check_manifest_coherence_for_citation_map
+
+    artifacts, manifest_data, manifest_dir = _make_minimal_bundle(tmp_path)
+    manifest_path = artifacts.bundle_manifest
+    assert manifest_path is not None and manifest_path.exists()
+
+    chunk_index_entry = next(
+        (a for a in manifest_data["artifacts"] if a["role"] == "chunk_index_jsonl"), None
+    )
+    assert chunk_index_entry is not None
+
+    chunk_index_path = manifest_dir / chunk_index_entry["path"]
+    rows = []
+    with chunk_index_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                rows.append(json.loads(line))
+    assert rows
+    rows[0]["canonical_range"]["file_path"] = "../escape.md"
+    with chunk_index_path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row) + "\n")
+
+    coherence = check_manifest_coherence_for_citation_map(manifest_path)
+    assert coherence.coherent is False
+    assert coherence.skip_allowed is False
+    assert coherence.reason == "unsafe_range_file_path"

@@ -55,22 +55,35 @@ Failure-Semantik:
 
 Das Manifest paart dann repoA-Markdown mit repoB-Chunks, und der Producer schlägt mit "range.file_path does not match manifest canonical_md path" fehl.
 
-**Lösung:** Kohärenz-Guard vor Producer-Aufruf
+**Lösung:** Gehärteter Kohärenz-Guard vor Producer-Aufruf
 
-Die neue Funktion `is_manifest_coherent_for_citation_map()` in `merger/lenskit/core/citation_map.py` prüft:
+Die neue Funktion `check_manifest_coherence_for_citation_map()` in `merger/lenskit/core/citation_map.py`
+liefert ein strukturiertes Ergebnis `CitationMapCoherence` mit:
+- `coherent`
+- `skip_allowed`
+- `reason`
+
+Sie prüft:
 1. Manifest hat canonical_md und chunk_index_jsonl Artefakte
-2. Alle Chunks referenzieren denselben `canonical_range.file_path` wie das `canonical_md.path` Artefakt
-3. Wenn chunk_index_jsonl leer ist, gilt das als kohärent (keine Chunks zum Matchen)
+2. Beide Pfade sind sicher/normalisierbar
+3. Alle Chunks referenzieren denselben normalisierten `canonical_range.file_path` wie das normalisierte `canonical_md.path`
+4. Wenn chunk_index_jsonl leer ist, gilt das als kohärent (keine Chunks zum Matchen)
 
 **Verhalten:**
-- **Kohärent:** produce_citation_map() wird ausgeführt, citation_map_jsonl wird in Manifest eingetragen
-- **Inkohärent:** produce_citation_map() wird ÜBERSPRUNGEN, write_reports_v2 schlägt nicht fehl, Manifest enthält kein citation_map_jsonl
-- **Producer-Fehler bei kohärentem Manifest:** Bleibt harter Fehler (nicht pauschal verschluckt)
+- **Kohärent (`coherent=True`):** produce_citation_map() wird ausgeführt, citation_map_jsonl wird in Manifest eingetragen
+- **Inkohärent aber erlaubt (`skip_allowed=True`, `reason=range_file_path_mismatch`):** produce_citation_map() wird bewusst übersprungen
+- **Defekt (`skip_allowed=False`):** harter Fehler in write_reports_v2 (z. B. invalid JSONL, fehlende Artefakte, unsichere Pfade, unlesbare chunk_index)
+- **Producer-Fehler bei kohärentem Manifest:** bleibt harter Fehler
 
 Dies ermöglicht es:
 - Gesamt/Dual Bundles können weiterhin automatisch citation_map_jsonl erzeugen
 - Pro-repo Szenarien mit inkohärentem Manifest schlagen nicht fehl
 - Per-repo Citation Maps sind ein Folgepunkt, nicht Teil dieses PRs
+
+**Regressionstest (realer Codex-P1-Pfad):**
+- `merger/lenskit/tests/test_per_repo_cohesion.py::TestPerRepoCohesion::test_pro_repo_multi_repo_skips_citation_map_for_incoherent_manifest`
+- Führt tatsächlich `write_reports_v2(..., mode="pro-repo", output_mode="dual")` mit mehreren Repos aus
+- Verifiziert: Run ohne Exception, inkohärenter Aggregate-Manifest-Fall wird als `range_file_path_mismatch` erkannt, `citation_map_jsonl` wird für das Aggregate-Manifest nicht emittiert
 
 ## Count-Konsistenz
 

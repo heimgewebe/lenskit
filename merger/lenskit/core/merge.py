@@ -62,6 +62,7 @@ def _write_text_atomic(path: Path, text: str) -> None:
             except OSError:
                 pass
 
+
 def _slug_token(s: str) -> str:
     """Deterministic ASCII token suitable for heading ids across renderers."""
 
@@ -6053,13 +6054,15 @@ def write_reports_v2(
     out_paths.append(bundle_manifest_path)
 
     if final_canonical_md and final_chunk_index:
-        from .citation_map import produce_citation_map, is_manifest_coherent_for_citation_map
+        from .citation_map import (
+            produce_citation_map,
+            check_manifest_coherence_for_citation_map,
+        )
 
-        # Guard: Only emit citation_map if the manifest has a coherent canonical_md/chunk_index pair.
-        # In pro-repo/multi-repo scenarios with output_mode='dual', the provisional manifest may
-        # pair canonical_md from repoA with chunk_index from repoB (late repo), causing producer to fail
-        # with a "range.file_path does not match" error. Skip silently in that case.
-        if is_manifest_coherent_for_citation_map(bundle_manifest_path):
+        # Guard: emit citation_map only for coherent canonical_md/chunk_index pairs.
+        # Known pro-repo mismatch is a deliberate skip; malformed artifacts remain hard errors.
+        coherence = check_manifest_coherence_for_citation_map(bundle_manifest_path)
+        if coherence.coherent:
             citation_map_report = produce_citation_map(str(bundle_manifest_path))
             if citation_map_report.get("status") != "ok":
                 raise RuntimeError(
@@ -6079,6 +6082,11 @@ def write_reports_v2(
             artifacts_list.sort(key=lambda a: (a["role"], a["path"]))
             bundle_manifest["artifacts"] = artifacts_list
             _write_text_atomic(bundle_manifest_path, json.dumps(bundle_manifest, indent=2))
+        elif not coherence.skip_allowed:
+            raise RuntimeError(
+                "Cannot evaluate citation_map_jsonl coherence: "
+                f"{coherence.reason}"
+            )
 
     if extras and extras.json_sidecar:
         # JSON is primary when json_sidecar is enabled
