@@ -6063,6 +6063,9 @@ def write_reports_v2(
             )
 
         citation_map_path = Path(citation_map_report["output_path"])
+        out_paths.append(citation_map_path)
+        if citation_map_path not in other_paths:
+            other_paths.append(citation_map_path)
         _add_artifact(
             citation_map_path,
             ArtifactRole.CITATION_MAP_JSONL,

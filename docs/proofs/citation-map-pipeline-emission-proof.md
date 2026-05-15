@@ -33,6 +33,19 @@
 - regenerable: true
 - staleness_sensitive: true
 
+## Designnotiz: Zweiphasige Manifest-Erzeugung
+
+Die Pipeline-Integration ist bewusst zweiphasig:
+
+1. write_reports_v2 schreibt ein provisorisches Bundle-Manifest ohne citation_map_jsonl.
+2. Der bestehende Producer produce_citation_map() liest dieses Manifest und erzeugt citation_map_jsonl.
+3. write_reports_v2 ergänzt citation_map_jsonl als Artefakt und schreibt das finale Manifest erneut atomar.
+
+Failure-Semantik:
+
+- Schlägt der Producer fehl, bricht der Run mit Fehler ab.
+- Es wird kein erfolgreicher finaler Bundle-Claim mit citation_map_jsonl erzeugt.
+
 ## Count-Konsistenz
 
 - citation_map_row_count: 613
