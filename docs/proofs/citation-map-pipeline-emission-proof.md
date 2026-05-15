@@ -44,7 +44,8 @@ Die Pipeline-Integration ist bewusst zweiphasig:
 Failure-Semantik:
 
 - Schlägt der Producer fehl, bricht der Run mit Fehler ab.
-- Es wird kein erfolgreicher finaler Bundle-Claim mit citation_map_jsonl erzeugt.
+- Ein eventuell bereits geschriebenes provisorisches Manifest gilt nicht als erfolgreicher finaler Bundle-Claim.
+- Die Service-/Job-Schicht darf Artefakte erst nach erfolgreichem write_reports_v2-Return als erfolgreich registrieren.
 
 ## Count-Konsistenz
 
