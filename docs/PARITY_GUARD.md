@@ -57,4 +57,6 @@ When adding a new feature (control) to `JobRequest`:
 6.  Run the script again. It should pass.
 
 ## CI Integration
-This script should be part of the pre-commit checks or CI pipeline to enforce parity.
+The parity guard is implemented, self-tested, and wired into CI via `.github/workflows/parity_check.yml`.
+The workflow runs `pytest tests/test_parity_guard.py` and `python3 tools/parity_guard.py` on push and pull-request events targeting `main`/`master`, triggered by path filters on the relevant frontend and guard files.
+This is dedicated path-scoped CI enforcement; it is not a statement that every repository workflow executes the guard unconditionally.
