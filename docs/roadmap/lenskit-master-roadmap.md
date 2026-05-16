@@ -20,8 +20,8 @@ Gefunden:
 - `docs/architecture/runtime-matrix.md`
 - `docs/architecture/two-layer-artifact-pattern.md`
 - `docs/contracts/contracts-matrix.md`
-Optional erwartet, nicht im aktuellen Branch vorhanden:
-- `docs/blueprints/lenskit-output-optimierung-v1.md`
+Optional erwartet; Stand dieses Branches:
+- `docs/blueprints/lenskit-output-optimierung-v1.md` ist vorhanden.
 - `docs/blueprints/range-ref-v2-semantic-boundary-split-preimage.md`
 - `docs/blueprints/lenskit-evidence-address-architecture.md`
 Einordnung:
@@ -42,7 +42,7 @@ Diagnosebefunde für Terminologie:
 | `derived_index_json` | `derived_manifest_json` |
 | `*.derived_index.json` | Dateiname zur Role `derived_manifest_json` |
 | `output_health_json` / `output_health` | `output_health` ist als Bundle-Manifest-ArtifactRole vorhanden und wird als Diagnoseartefakt emittiert; Citation-/Evidence-Health-Erweiterung bleibt geplant |
-| `citation_map_jsonl` | Manifest-Role registriert; `derived`/`navigation_index`; CLI-Producer implementiert; Merger-Pipeline-Emission noch offen |
+| `citation_map_jsonl` | Manifest-Role registriert; `derived`/`navigation_index`; CLI-Producer implementiert; Merger-Pipeline-Emission umgesetzt (Beleg: `docs/proofs/citation-map-pipeline-emission-proof.md`) |
 Zusatz:
 Rollenamen folgen `bundle-manifest.v1.schema.json`, nicht älteren Blueprint-Begriffen oder Dateinamen.
 
@@ -89,9 +89,8 @@ Spätere PRs:
   - CLI: `lenskit citation validate <bundle_manifest>` mit `--json`-Option.
   - Tests: `test_citation_validate.py`, `test_cli_citation.py` (synthetische Fixtures, kein Real-Dump erforderlich).
   - Real-Dump-Proof erbracht: aktueller echter Dump validiert (`594` Chunks, Status `ok`); Beleg: `docs/proofs/citation-readiness-validator-proof.md`.
-- [ ] Merger-Pipeline-Emission von `citation_map_jsonl` ins Bundle-Manifest
-  - `_add_artifact(citation_map_path, ArtifactRole.CITATION_MAP_JSONL, …)` ist in `write_reports_v2()` noch nicht verdrahtet.
-  - Registries sind vorbereitet; Verdrahtung ist Phase-2-Arbeit.
+- [x] Merger-Pipeline-Emission von `citation_map_jsonl` ins Bundle-Manifest
+  - Beleg: `docs/proofs/citation-map-pipeline-emission-proof.md`
 Gate:
 - `citation_map_jsonl` nie `canonical_content` oder `content_source`
 - `canonical_range` und `source_range` getrennt

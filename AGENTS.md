@@ -22,3 +22,15 @@ This script checks for:
 *   JS payload keys in `app.js`.
 
 See `docs/PARITY_GUARD.md` for details.
+
+## Documentation Order for Parity / Evidence Changes
+
+For repolens-vs-rlens, evidence, or runtime-state changes, read in this order before patching:
+1. `docs/roadmap/lenskit-master-roadmap.md`
+2. `docs/testing/test-matrix.md`
+3. Relevant `docs/proofs/*`
+
+The parity-gate terms `content_parity_pass` and `diagnostic_parity_pass` are currently documented/tested semantics only.
+Do not describe them as an enforced runtime or service gate unless a production module or CLI integration exists.
+
+Do not modify generated docs (`docs/_generated/*`) or commit local runtime artifacts.

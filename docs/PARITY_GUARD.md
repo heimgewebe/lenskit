@@ -57,4 +57,5 @@ When adding a new feature (control) to `JobRequest`:
 6.  Run the script again. It should pass.
 
 ## CI Integration
-This script should be part of the pre-commit checks or CI pipeline to enforce parity.
+This script is implemented and self-tested (`tests/test_parity_guard.py`), but in the currently visible workflow set of this repository it is not yet wired as a dedicated CI job.
+Treat CI enforcement here as a target state, not as an already enforced branch guarantee.
