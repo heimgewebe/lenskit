@@ -5,7 +5,14 @@ from merger.lenskit.core.merge import scan_repo, write_reports_v2, ExtrasConfig,
 
 
 def _evaluate_parity_gates(state):
-    """Evaluate separated parity gates for content vs diagnostics."""
+    """Evaluate separated parity gates for content vs diagnostics.
+
+    content_parity_pass: equality/coverage conditions only.
+      fts_non_empty is deliberately excluded — two frontends producing
+      identically empty FTS (e.g. binary-only or source-excluded repos)
+      still satisfy content parity.  FTS non-emptiness is a diagnostic
+      / retrieval-capability condition, not a content-equality condition.
+    """
     content_parity_pass = all(
         [
             state["source_file_count_equal"],
@@ -13,7 +20,6 @@ def _evaluate_parity_gates(state):
             state["source_sha256_equal"],
             state["source_chunk_coverage_equal"],
             state["fts_logically_equal"],
-            state["fts_non_empty"],
         ]
     )
 
@@ -301,7 +307,32 @@ def test_content_parity_gate_can_pass_without_retrieval_eval_json():
         "source_sha256_equal": True,
         "source_chunk_coverage_equal": True,
         "fts_logically_equal": True,
-        "fts_non_empty": True,
+        "fts_non_empty": True,  # present but not evaluated for content_parity_pass
+        "output_health_verdict_pass": False,
+        "range_ref_resolution_status_ok": False,
+        "retrieval_eval_json_manifested": False,
+        "health_warnings_errors_empty": False,
+        "manifest_hash_bytes_consistent": True,
+        "citation_map_requirement_satisfied": True,
+    }
+
+    gates = _evaluate_parity_gates(state)
+
+    assert gates["content_parity_pass"] is True
+    assert gates["diagnostic_parity_pass"] is False
+
+
+def test_content_parity_allows_equal_empty_fts():
+    """Two frontends producing identically empty FTS still satisfy content parity.
+    FTS non-emptiness is a diagnostic/retrieval-capability condition, not equality.
+    """
+    state = {
+        "source_file_count_equal": True,
+        "missing_source_paths_count": 0,
+        "source_sha256_equal": True,
+        "source_chunk_coverage_equal": True,
+        "fts_logically_equal": True,
+        "fts_non_empty": False,
         "output_health_verdict_pass": False,
         "range_ref_resolution_status_ok": False,
         "retrieval_eval_json_manifested": False,
@@ -323,7 +354,7 @@ def test_diagnostic_parity_gate_requires_diagnostic_artifacts_and_status():
         "source_sha256_equal": True,
         "source_chunk_coverage_equal": True,
         "fts_logically_equal": True,
-        "fts_non_empty": True,
+        "fts_non_empty": True,  # in state for caller tracking; not evaluated in content gate
         "output_health_verdict_pass": True,
         "range_ref_resolution_status_ok": True,
         "retrieval_eval_json_manifested": True,

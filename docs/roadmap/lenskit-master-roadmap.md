@@ -173,6 +173,7 @@ Zwei getrennte Gates sind verpflichtend, um Content-Paritaet nicht mit Diagnose-
 
 - `content_parity_pass`
   - Bedeutet: gleiche Repo-Dateien, gleiche Source-Hashes, gleiche source-basierte Chunk-Abdeckung, logisch gleiche FTS-Inhalte.
+  - Content parity allows equal empty FTS for repos without indexable text; FTS non-emptiness is a diagnostic/profile health condition, not a content equality condition.
   - Beweist nicht: gleiche Pipeline-/Diagnose-/Runtime-Artefakte.
 - `diagnostic_parity_pass`
   - Bedeutet zusaetzlich:
