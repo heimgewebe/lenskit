@@ -26,7 +26,7 @@ Optional erwartet; Stand dieses Branches:
 - `docs/blueprints/lenskit-evidence-address-architecture.md`
 Einordnung:
 - `docs/blueprints/lenskit-output-optimierung-v1.md` ist vorhanden (frühere Annahme über fehlenden File-Proof ist durch Branch-Stand überholt).
-- `docs/blueprints/range-ref-v2-semantic-boundary-split-preimage.md` und `docs/blueprints/lenskit-evidence-address-architecture.md` sind weiterhin optional erwartet, aber kein File-Proof unter `docs/blueprints/` vorhanden.
+- `docs/blueprints/range-ref-v2-semantic-boundary-split-preimage.md` und `docs/blueprints/lenskit-evidence-address-architecture.md` sind weiterhin optional erwartet; fuer diese beiden ist im aktuellen Branch kein File-Proof vorhanden.
 - Evidence-Address-Architektur kann als aktueller PR-Kontext oder geplanter Blueprint existieren.
 Diagnosebefunde für Terminologie:
 - Historische Begriffe (`chunk_index_sqlite`, `derived_index_json`) sind noch in älteren Blaupausen sichtbar.
