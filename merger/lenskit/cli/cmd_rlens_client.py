@@ -111,6 +111,8 @@ def _cmd_health(args: argparse.Namespace) -> int:
         return _exit_error(args, "remote_error", f"Connection error: {e.reason}", token)
     except json.JSONDecodeError as e:
         return _exit_error(args, "parse_error", f"Invalid JSON response: {e}", token)
+    except (ValueError, TimeoutError, OSError) as e:
+        return _exit_error(args, "remote_error", f"Request failed: {e}", token)
 
     if args.json:
         print(json.dumps(data, indent=2))
@@ -144,6 +146,8 @@ def _cmd_artifacts(args: argparse.Namespace) -> int:
         return _exit_error(args, "remote_error", f"Connection error: {e.reason}", token)
     except json.JSONDecodeError as e:
         return _exit_error(args, "parse_error", f"Invalid JSON response: {e}", token)
+    except (ValueError, TimeoutError, OSError) as e:
+        return _exit_error(args, "remote_error", f"Request failed: {e}", token)
 
     if args.json:
         print(json.dumps(data, indent=2))
@@ -181,6 +185,8 @@ def _cmd_latest(args: argparse.Namespace) -> int:
         return _exit_error(args, "remote_error", f"Connection error: {e.reason}", token)
     except json.JSONDecodeError as e:
         return _exit_error(args, "parse_error", f"Invalid JSON response: {e}", token)
+    except (ValueError, TimeoutError, OSError) as e:
+        return _exit_error(args, "remote_error", f"Request failed: {e}", token)
 
     if args.json:
         print(json.dumps(data, indent=2))

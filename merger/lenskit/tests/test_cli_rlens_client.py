@@ -155,6 +155,7 @@ def test_rlens_client_token_header_from_env(monkeypatch: pytest.MonkeyPatch) -> 
     assert rc == 0
     auth = captured["req"].get_header("Authorization")
     assert auth == "Bearer secret-token"
+    assert "secret-token" not in captured["req"].full_url
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +173,7 @@ def test_rlens_client_token_flag_overrides_env(monkeypatch: pytest.MonkeyPatch) 
     assert rc == 0
     auth = captured["req"].get_header("Authorization")
     assert auth == "Bearer flag-token"
+    assert "flag-token" not in captured["req"].full_url
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +262,7 @@ def test_rlens_client_latest_requires_repo(monkeypatch: pytest.MonkeyPatch) -> N
     with pytest.raises(SystemExit) as exc_info:
         main(["rlens-client", "latest", "--json"])
 
-    assert exc_info.value.code != 0
+    assert exc_info.value.code == 2
     assert "hit" not in network_called
 
 
@@ -340,3 +342,29 @@ def test_rlens_client_invalid_json_response_exit_1(
     parsed = json.loads(out)
     assert parsed["status"] == "error"
     assert parsed["error_kind"] == "parse_error"
+
+
+# ---------------------------------------------------------------------------
+# Test 15 — request ValueError -> exit 1 remote_error + no token leak
+# ---------------------------------------------------------------------------
+
+
+def test_rlens_client_value_error_exit_1_no_token_leak(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setenv("RLENS_TOKEN", "my-secret-token")
+
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        raise ValueError("bad url my-secret-token")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main(["rlens-client", "health", "--json"])
+    out, err = capsys.readouterr()
+
+    assert rc == 1
+    parsed = json.loads(out)
+    assert parsed["status"] == "error"
+    assert parsed["error_kind"] == "remote_error"
+    assert "my-secret-token" not in out
+    assert "my-secret-token" not in err
