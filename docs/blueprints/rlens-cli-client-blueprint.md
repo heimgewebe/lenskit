@@ -22,10 +22,10 @@ Das CLI wird als HTTP-Client mit expliziter Base-URL, Token-Modell und Host-Prof
 
 ## Abgrenzung zum bestehenden Launcher
 
-| Modul | Rolle | Änderbar in diesem Blueprint |
+| Modul | Rolle | Gegenstand dieses Blueprints |
 | --- | --- | --- |
 | `merger/lenskit/cli/rlens.py` | rLens Service Entry Point / Launcher — startet den Service-Prozess | Nein |
-| geplanter CLI Client | HTTP-Client gegen laufende rLens HTTP-API | Ja — wird hier beschrieben |
+| geplanter CLI Client | HTTP-Client gegen laufende rLens HTTP-API | Ja — Zielarchitektur, keine Implementierung |
 
 Der geplante CLI Client darf den Launcher nicht ersetzen, umbenennen oder neu interpretieren.
 
