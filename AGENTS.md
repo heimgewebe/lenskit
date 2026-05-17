@@ -37,6 +37,6 @@ Do not modify generated docs (`docs/_generated/*`) or commit local runtime artif
 
 ## rLens CLI Client vs Service Launcher
 
-`merger/lenskit/cli/rlens.py` ist der rLens Service Entry Point / Launcher.
+`merger/lenskit/cli/rlens.py` is the rLens service entry point / launcher.
 
-Ein geplanter rLens CLI Client ist separat zu behandeln und in `docs/blueprints/rlens-cli-client-blueprint.md` beschrieben. Agenten dürfen den Launcher nicht still zu einem HTTP-Client umdeuten. Vor CLI-Implementierung Roadmap und Blueprint lesen.
+A planned rLens CLI client must be treated separately and is described in `docs/blueprints/rlens-cli-client-blueprint.md`. Agents must not silently reinterpret the launcher as an HTTP client. Before implementing CLI functionality, read the roadmap and blueprint.

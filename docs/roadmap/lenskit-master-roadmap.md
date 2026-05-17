@@ -231,7 +231,7 @@ Diagnosehinweis für Priorisierung:
 - `merge.md` bleibt kanonische Vollquelle; JSON-Artefakte sind Einstieg/Index/Metadaten.
 - Ein schwacher Retrieval-Eval-Stand priorisiert Evidence-/Retrieval-Grundlagen vor Semantic/Reranking.
 
-PR 5 (geplant): rLens CLI Client Blueprint und Umsetzungspfad
+PR 5 (docs-only): rLens CLI Client Blueprint und Umsetzungspfad
 
 - [x] Blueprint anlegen: `docs/blueprints/rlens-cli-client-blueprint.md`
 - [ ] Read-only rLens CLI Client implementieren

@@ -114,7 +114,7 @@ Optionale spätere Profile:
 | `lenskit rlens-client latest` | `GET /api/artifacts/latest` | neuestes Artefakt | ja | MVP |
 | `lenskit rlens-client jobs` | noch zu prüfen | Jobliste | ja | MVP, falls API vorhanden |
 | `lenskit rlens-client job JOB_ID` | noch zu prüfen | Jobdetails | ja | MVP, falls API vorhanden |
-| `lenskit rlens-client logs JOB_ID` | `GET /api/jobs/{job_id}/logs` | SSE-Logs bis `event: end` | optional | MVP |
+| `lenskit rlens-client logs JOB_ID` | `GET /api/jobs/{job_id}/logs` | SSE-Logs bis `event: end` | optional | später (PR C) |
 
 ## Namensentscheidung
 
@@ -170,7 +170,7 @@ RLENS_BASE_URL=http://heim-pc:8787 lenskit rlens-client health --json
 1. Soll rLens auf Heimserver selbst laufen?
 2. Soll Heimserver nur Client zu Heim-PC sein?
 3. Soll Remote-Zugriff über Tailscale, LAN-DNS oder SSH-Tunnel laufen?
-4. Bleibt `RLENS_HOST=127.0.0.1` Default?
+4. Bleibt `RLENS_BASE_URL=http://127.0.0.1:8787` der Client-Default? (`RLENS_HOST` bleibt Launcher-/Service-Konfiguration und ist nicht die Client-Base-URL.)
 5. Soll es host-spezifische Tokens geben?
 6. Wie heißt das CLI endgültig: `rlens-client`, `service`, `rlensctl`?
 7. Welche Job-Listen-/Job-Detail-Routen sind API-stabil dokumentiert?
