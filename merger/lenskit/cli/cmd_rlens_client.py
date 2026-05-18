@@ -400,6 +400,8 @@ def _cmd_logs(args: argparse.Namespace) -> int:
     req.add_header("Accept", "text/event-stream")
 
     timeout = args.timeout if args.timeout is not None else DEFAULT_SSE_TIMEOUT_SECONDS
+    if timeout <= 0:
+        return _exit_config_error(args, "--timeout must be greater than 0", token)
 
     try:
         response = urllib.request.urlopen(req, timeout=timeout)

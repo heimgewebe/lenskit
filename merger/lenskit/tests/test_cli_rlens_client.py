@@ -950,6 +950,32 @@ def test_rlens_client_jobs_negative_limit_is_config_error(
     assert parsed["error_kind"] == "config_error"
 
 
+@pytest.mark.parametrize("timeout_value", ["0", "-1"])
+def test_rlens_client_logs_timeout_non_positive_is_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+    timeout_value: str,
+) -> None:
+    monkeypatch.setenv("RLENS_TOKEN", "timeout-secret")
+
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        raise AssertionError("Network must not be called for invalid --timeout")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main(
+        ["rlens-client", "logs", "job-1", "--timeout", timeout_value, "--json"]
+    )
+    out, err = capsys.readouterr()
+
+    assert rc == 2
+    parsed = json.loads(out)
+    assert parsed["status"] == "error"
+    assert parsed["error_kind"] == "config_error"
+    assert "timeout-secret" not in out
+    assert "timeout-secret" not in err
+
+
 def test_rlens_client_logs_last_id_negative_is_passed_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
