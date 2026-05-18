@@ -906,3 +906,59 @@ def test_rlens_client_logs_stream_without_end_event_still_succeeds(
 
     assert rc == 0
     assert "only" in out
+
+
+def test_rlens_client_logs_json_redacts_token_in_data(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setenv("RLENS_TOKEN", "json-secret")
+    lines = [
+        b"id: 1\n",
+        b"data: json-secret appears\n",
+        b"\n",
+        b"event: end\n",
+        b"data: end\n",
+        b"\n",
+    ]
+    _, opener = _make_sse_opener(lines)
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+
+    rc = main(["rlens-client", "logs", "job-1", "--json"])
+    out, _ = capsys.readouterr()
+
+    assert rc == 0
+    assert "json-secret" not in out
+    objs = [json.loads(line) for line in out.strip().splitlines() if line.strip()]
+    assert len(objs) == 1
+    assert "[REDACTED]" in objs[0]["data"]
+
+
+def test_rlens_client_jobs_negative_limit_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        raise AssertionError("Network must not be called for invalid limit")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main(["rlens-client", "jobs", "--limit", "-1", "--json"])
+    out, _ = capsys.readouterr()
+
+    assert rc == 2
+    parsed = json.loads(out)
+    assert parsed["status"] == "error"
+    assert parsed["error_kind"] == "config_error"
+
+
+def test_rlens_client_logs_last_id_negative_is_passed_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # --last-id negative values are intentionally forwarded; server clamps to 0.
+    lines = [b"event: end\n", b"data: end\n", b"\n"]
+    captured, opener = _make_sse_opener(lines)
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+
+    rc = main(["rlens-client", "logs", "job-1", "--last-id", "-5"])
+
+    assert rc == 0
+    assert "last_id=-5" in captured["req"].full_url

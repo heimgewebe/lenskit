@@ -283,6 +283,9 @@ def _cmd_jobs(args: argparse.Namespace) -> int:
     except ValueError as e:
         return _exit_config_error(args, str(e), token)
 
+    if args.limit is not None and args.limit < 1:
+        return _exit_config_error(args, "--limit must be a positive integer", token)
+
     params: dict = {}
     if args.status:
         params["status"] = args.status
@@ -363,7 +366,7 @@ def _dispatch_sse_event(
     if event_type == "end":
         return 0
 
-    data = event.get("data", "")
+    data = _redact(event.get("data", ""), token)
     if json_output:
         payload: dict = {"data": data}
         if "id" in event:
@@ -372,8 +375,7 @@ def _dispatch_sse_event(
             payload["event"] = event_type
         print(json.dumps(payload), flush=True)
     else:
-        safe = _redact(data, token)
-        print(safe, flush=True)
+        print(data, flush=True)
     return None
 
 
