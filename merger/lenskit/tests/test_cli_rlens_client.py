@@ -4,6 +4,7 @@ No real rLens server is used. urllib.request.urlopen is monkeypatched.
 """
 import json
 import pathlib
+import ast
 import urllib.error
 import urllib.request
 
@@ -58,8 +59,12 @@ def _make_bad_json_opener():
 
 def test_rlens_client_no_requests_dependency() -> None:
     src = pathlib.Path(_mod.__file__).read_text(encoding="utf-8")
-    assert "import requests" not in src
-    assert "requests." not in src
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            assert all(alias.name != "requests" for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            assert node.module != "requests"
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +179,22 @@ def test_rlens_client_token_flag_overrides_env(monkeypatch: pytest.MonkeyPatch) 
     auth = captured["req"].get_header("Authorization")
     assert auth == "Bearer flag-token"
     assert "flag-token" not in captured["req"].full_url
+
+
+def test_rlens_client_token_before_subcommand_is_safe(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    captured, opener = _make_opener({"status": "ok"})
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+
+    rc = main(["rlens-client", "--token", "secret-token", "health", "--json"])
+    out, err = capsys.readouterr()
+
+    assert rc == 0
+    parsed = json.loads(out)
+    assert parsed["status"] == "ok"
+    assert captured["req"].get_header("Authorization") == "Bearer secret-token"
+    assert "secret-token" not in err
 
 
 # ---------------------------------------------------------------------------
@@ -368,3 +389,35 @@ def test_rlens_client_value_error_exit_1_no_token_leak(
     assert parsed["error_kind"] == "remote_error"
     assert "my-secret-token" not in out
     assert "my-secret-token" not in err
+
+
+def test_rlens_client_invalid_base_url_scheme_rejected(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    network_called: dict = {}
+
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        network_called["hit"] = True
+        raise AssertionError("Network must not be called for invalid base URL")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main(["rlens-client", "health", "--base-url", "file:///etc/passwd", "--json"])
+    out, err = capsys.readouterr()
+
+    assert rc == 1
+    parsed = json.loads(out)
+    assert parsed["status"] == "error"
+    assert parsed["error_kind"] == "remote_error"
+    assert "http://" in parsed["message"]
+    assert "https://" in parsed["message"]
+    assert "hit" not in network_called
+    assert "file:///etc/passwd" not in out
+    assert "file:///etc/passwd" not in err
+
+
+def test_redact_masks_bearer_token_even_without_explicit_token() -> None:
+    msg = "Authorization failed: Bearer abc123.xyz"
+    redacted = _mod._redact(msg, None)
+    assert "abc123.xyz" not in redacted
+    assert "Bearer [REDACTED]" in redacted
