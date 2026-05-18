@@ -197,6 +197,46 @@ def test_rlens_client_token_before_subcommand_is_safe(
     assert "secret-token" not in err
 
 
+def test_rlens_client_leaf_token_overrides_parent_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured, opener = _make_opener([])
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+
+    rc = main(
+        [
+            "rlens-client",
+            "--token",
+            "parent-token",
+            "artifacts",
+            "--token",
+            "leaf-token",
+            "--json",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["req"].get_header("Authorization") == "Bearer leaf-token"
+
+
+def test_rlens_client_leaf_base_url_overrides_parent_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured, opener = _make_opener({"status": "ok"})
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+
+    rc = main(
+        [
+            "rlens-client",
+            "--base-url",
+            "http://parent:8787",
+            "health",
+            "--base-url",
+            "http://leaf:8787",
+            "--json",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["req"].full_url.startswith("http://leaf:8787")
+
+
 # ---------------------------------------------------------------------------
 # Test 7 — token not leaked on HTTP error
 # ---------------------------------------------------------------------------
@@ -405,15 +445,37 @@ def test_rlens_client_invalid_base_url_scheme_rejected(
     rc = main(["rlens-client", "health", "--base-url", "file:///etc/passwd", "--json"])
     out, err = capsys.readouterr()
 
-    assert rc == 1
+    assert rc == 2
     parsed = json.loads(out)
     assert parsed["status"] == "error"
-    assert parsed["error_kind"] == "remote_error"
+    assert parsed["error_kind"] == "config_error"
     assert "http://" in parsed["message"]
     assert "https://" in parsed["message"]
     assert "hit" not in network_called
     assert "file:///etc/passwd" not in out
     assert "file:///etc/passwd" not in err
+
+
+def test_rlens_client_invalid_base_url_env_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    network_called: dict = {}
+    monkeypatch.setenv("RLENS_BASE_URL", "ftp://example.org")
+
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        network_called["hit"] = True
+        raise AssertionError("Network must not be called for invalid env base URL")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main(["rlens-client", "health", "--json"])
+    out, _ = capsys.readouterr()
+
+    assert rc == 2
+    parsed = json.loads(out)
+    assert parsed["status"] == "error"
+    assert parsed["error_kind"] == "config_error"
+    assert "hit" not in network_called
 
 
 def test_redact_masks_bearer_token_even_without_explicit_token() -> None:

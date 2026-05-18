@@ -14,7 +14,7 @@ DEFAULT_TIMEOUT_SECONDS = 10
 
 
 def _resolve_base_url(args: argparse.Namespace) -> str:
-    base_url = getattr(args, "base_url", None)
+    base_url = getattr(args, "leaf_base_url", None) or getattr(args, "base_url", None)
     if base_url:
         base = base_url
     else:
@@ -23,15 +23,19 @@ def _resolve_base_url(args: argparse.Namespace) -> str:
     parsed = urllib.parse.urlparse(base)
     scheme = parsed.scheme.lower()
     if scheme not in ("http", "https") or not parsed.netloc:
-        raise ValueError("Base URL must be an absolute http:// or https:// URL")
+        raise ValueError("Base URL config must be an absolute http:// or https:// URL")
     return base.rstrip("/")
 
 
 def _resolve_token(args: argparse.Namespace) -> Optional[str]:
-    token = getattr(args, "token", None)
+    token = getattr(args, "leaf_token", None) or getattr(args, "token", None)
     if token:
         return token
     return os.environ.get("RLENS_TOKEN") or None
+
+
+def _is_json_output(args: argparse.Namespace) -> bool:
+    return bool(getattr(args, "leaf_json", False) or getattr(args, "json", False))
 
 
 def _redact(text: str, token: Optional[str]) -> str:
@@ -49,11 +53,24 @@ def _exit_error(
     token: Optional[str] = None,
 ) -> int:
     safe_msg = _redact(message, token)
-    if args.json:
+    if _is_json_output(args):
         print(json.dumps({"status": "error", "error_kind": error_kind, "message": safe_msg}))
     else:
         print(f"Error ({error_kind}): {safe_msg}", file=sys.stderr)
     return 1
+
+
+def _exit_config_error(
+    args: argparse.Namespace,
+    message: str,
+    token: Optional[str] = None,
+) -> int:
+    safe_msg = _redact(message, token)
+    if _is_json_output(args):
+        print(json.dumps({"status": "error", "error_kind": "config_error", "message": safe_msg}))
+    else:
+        print(f"Error (config_error): {safe_msg}", file=sys.stderr)
+    return 2
 
 
 def _fetch_json(url: str, token: Optional[str], timeout: int = DEFAULT_TIMEOUT_SECONDS) -> Any:
@@ -80,23 +97,29 @@ def _fetch_json_with_errors(
         return None, _exit_error(args, "remote_error", f"Request failed: {e}", token)
 
 
-def _add_common_options(parser: argparse.ArgumentParser, suppress_defaults: bool = False) -> None:
+def _add_common_options(
+    parser: argparse.ArgumentParser,
+    suppress_defaults: bool = False,
+    dest_prefix: str = "",
+) -> None:
     scalar_default = argparse.SUPPRESS if suppress_defaults else None
     flag_default = argparse.SUPPRESS if suppress_defaults else False
     parser.add_argument(
         "--base-url",
-        dest="base_url",
+        dest=f"{dest_prefix}base_url",
         default=scalar_default,
         help="rLens service base URL (overrides RLENS_BASE_URL; default: http://127.0.0.1:8787)",
     )
     parser.add_argument(
         "--token",
+        dest=f"{dest_prefix}token",
         default=scalar_default,
         help="Bearer token (overrides RLENS_TOKEN env var)",
     )
     parser.add_argument(
         "--json",
         action="store_true",
+        dest=f"{dest_prefix}json",
         default=flag_default,
         help="Output raw JSON response",
     )
@@ -112,16 +135,16 @@ def register_rlens_client_commands(subparsers: argparse._SubParsersAction) -> No
     )
 
     health_parser = client_subparsers.add_parser("health", help="Check service health")
-    _add_common_options(health_parser, suppress_defaults=True)
+    _add_common_options(health_parser, suppress_defaults=True, dest_prefix="leaf_")
 
     artifacts_parser = client_subparsers.add_parser("artifacts", help="List artifacts")
-    _add_common_options(artifacts_parser, suppress_defaults=True)
+    _add_common_options(artifacts_parser, suppress_defaults=True, dest_prefix="leaf_")
     artifacts_parser.add_argument("--repo", default=None, help="Filter by repository name")
 
     latest_parser = client_subparsers.add_parser(
         "latest", help="Get latest artifact for a repository"
     )
-    _add_common_options(latest_parser, suppress_defaults=True)
+    _add_common_options(latest_parser, suppress_defaults=True, dest_prefix="leaf_")
     latest_parser.add_argument("--repo", required=True, help="Repository name (required)")
     latest_parser.add_argument("--level", default="max", help="Level (default: max)")
     latest_parser.add_argument("--mode", default="gesamt", help="Mode (default: gesamt)")
@@ -132,13 +155,13 @@ def _cmd_health(args: argparse.Namespace) -> int:
     try:
         base_url = _resolve_base_url(args)
     except ValueError as e:
-        return _exit_error(args, "remote_error", f"Request failed: {e}", token)
+        return _exit_config_error(args, str(e), token)
     url = f"{base_url}/api/health"
     data, error_code = _fetch_json_with_errors(args, url, token)
     if error_code is not None:
         return error_code
 
-    if args.json:
+    if _is_json_output(args):
         print(json.dumps(data, indent=2))
         return 0
 
@@ -161,7 +184,7 @@ def _cmd_artifacts(args: argparse.Namespace) -> int:
     try:
         base_url = _resolve_base_url(args)
     except ValueError as e:
-        return _exit_error(args, "remote_error", f"Request failed: {e}", token)
+        return _exit_config_error(args, str(e), token)
     url = f"{base_url}/api/artifacts"
     if args.repo:
         url = f"{url}?{urllib.parse.urlencode({'repo': args.repo})}"
@@ -169,7 +192,7 @@ def _cmd_artifacts(args: argparse.Namespace) -> int:
     if error_code is not None:
         return error_code
 
-    if args.json:
+    if _is_json_output(args):
         print(json.dumps(data, indent=2))
         return 0
 
@@ -197,14 +220,14 @@ def _cmd_latest(args: argparse.Namespace) -> int:
     try:
         base_url = _resolve_base_url(args)
     except ValueError as e:
-        return _exit_error(args, "remote_error", f"Request failed: {e}", token)
+        return _exit_config_error(args, str(e), token)
     params = urllib.parse.urlencode({"repo": args.repo, "level": args.level, "mode": args.mode})
     url = f"{base_url}/api/artifacts/latest?{params}"
     data, error_code = _fetch_json_with_errors(args, url, token)
     if error_code is not None:
         return error_code
 
-    if args.json:
+    if _is_json_output(args):
         print(json.dumps(data, indent=2))
         return 0
 

@@ -194,7 +194,7 @@ Umgesetzt:
 - Base-URL-Priorität: `--base-url` > `RLENS_BASE_URL` > `http://127.0.0.1:8787`
 - Bearer-Token-Auth: `--token` > `RLENS_TOKEN`; Token nie als Query-Parameter
 - Token-Redaction in allen Fehlerausgaben
-- Tests: `merger/lenskit/tests/test_cli_rlens_client.py` (18 Tests, kein echter Server)
+- Tests: `merger/lenskit/tests/test_cli_rlens_client.py` (21 Tests, kein echter Server)
 
 Offen (folgende PRs):
 
