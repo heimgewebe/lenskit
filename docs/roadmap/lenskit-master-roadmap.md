@@ -245,7 +245,7 @@ PR 5 (docs-only): rLens CLI Client Blueprint und Umsetzungspfad
 - [ ] Heim-PC/Heimserver-Betriebsmodell entscheiden
   - lokaler Service je Host
   - Remote-Client via LAN/Tailscale/SSH-Tunnel
-- [x] Sicherheitsmodell durch Tests abgesichert
+- [x] CLI-Client-Sicherheitsinvarianten durch Tests abgesichert
   - Bearer Token (`--token` / `RLENS_TOKEN`)
   - Token-Redaction in Fehlerausgaben
   - Token nie als Query-Parameter
