@@ -243,6 +243,7 @@ Umgesetzt:
 - `lenskit rlens-client profiles [--json]`: listet Profile (redigiert; nur `base_url` und `token_env`-Name) und validiert Config strikt (unknown/forbidden keys -> `config_error`)
 - Sobald eine Profil-Config-Datei existiert, wird sie bei `rlens-client`-Aufrufen strikt validiert (auch ohne explizite Profilselektion).
 - Sicherheitsinvarianten (durch Tests abgesichert):
+  - Existierende Profil-Config wird vor Netzwerkkommandos strikt validiert, auch bei `--token`/`RLENS_TOKEN`/`--base-url`/`RLENS_BASE_URL`-Overrides.
   - `token`/`rlens_token`/`secret`-Felder im Profil sind verboten -> `config_error` (Exit 2)
   - unbekannte Profil-Schlüssel -> `config_error`
   - Unbekanntes Profil -> `config_error`
@@ -250,7 +251,7 @@ Umgesetzt:
   - Explizit angefordertes Profil wird nie still ignoriert, auch nicht bei `--base-url`/`RLENS_BASE_URL`-Override -> `config_error`
   - Kein Profil/keine Config -> stiller Fallback auf Default
   - Profile-Listing gibt nur `base_url` und `token_env`-Name zurück, niemals Werte
-- Tests: `merger/lenskit/tests/test_cli_rlens_client.py` (69 Tests, davon 24 für PR D)
+- Tests: `merger/lenskit/tests/test_cli_rlens_client.py` (74 Tests, davon 29 für PR D)
 
 Heim-PC/Heimserver-Betriebsentscheidung bleibt offen — der Profile-Mechanismus erleichtert nur die Konfiguration, behauptet keine Erreichbarkeit.
 

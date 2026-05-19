@@ -50,6 +50,14 @@ def _validate_profile_config(data: Any, path: pathlib.Path) -> dict:
         base_url = profile.get("base_url")
         if base_url is not None and not isinstance(base_url, str):
             raise ValueError(f"Profile {name!r} 'base_url' must be a string")
+        if isinstance(base_url, str):
+            parsed = urllib.parse.urlparse(base_url)
+            scheme = parsed.scheme.lower()
+            if scheme not in ("http", "https") or not parsed.netloc:
+                raise ValueError(
+                    f"Profile {name!r} 'base_url' must be an absolute "
+                    "http:// or https:// URL"
+                )
         token_env = profile.get("token_env")
         if token_env is not None and not isinstance(token_env, str):
             raise ValueError(f"Profile {name!r} 'token_env' must be a string")
@@ -59,9 +67,9 @@ def _validate_profile_config(data: Any, path: pathlib.Path) -> dict:
 def _profile_config_path() -> pathlib.Path:
     explicit = os.environ.get("LENSKIT_RLENS_PROFILES")
     if explicit:
-        return pathlib.Path(explicit)
+        return pathlib.Path(explicit).expanduser()
     xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = pathlib.Path(xdg) if xdg else pathlib.Path.home() / ".config"
+    base = pathlib.Path(xdg).expanduser() if xdg else pathlib.Path.home() / ".config"
     return base / "lenskit" / "rlens-profiles.json"
 
 
@@ -80,6 +88,13 @@ def _is_profile_explicitly_requested(args: argparse.Namespace) -> bool:
     name = getattr(args, "leaf_profile", None) or getattr(args, "profile", None)
     env_name = os.environ.get("RLENS_PROFILE") or None
     return bool(name or env_name)
+
+
+def _ensure_profile_config_valid_if_present(args: argparse.Namespace) -> None:
+    _ = args
+    path = _profile_config_path()
+    if path.exists():
+        _load_profile_config(path)
 
 
 def _select_profile(args: argparse.Namespace) -> Optional[Tuple[str, dict]]:
@@ -316,6 +331,7 @@ def register_rlens_client_commands(subparsers: argparse._SubParsersAction) -> No
 
 def _cmd_health(args: argparse.Namespace) -> int:
     try:
+        _ensure_profile_config_valid_if_present(args)
         token = _resolve_token(args)
         base_url = _resolve_base_url(args)
     except ValueError as e:
@@ -345,6 +361,7 @@ def _cmd_health(args: argparse.Namespace) -> int:
 
 def _cmd_artifacts(args: argparse.Namespace) -> int:
     try:
+        _ensure_profile_config_valid_if_present(args)
         token = _resolve_token(args)
         base_url = _resolve_base_url(args)
     except ValueError as e:
@@ -381,6 +398,7 @@ def _cmd_artifacts(args: argparse.Namespace) -> int:
 
 def _cmd_latest(args: argparse.Namespace) -> int:
     try:
+        _ensure_profile_config_valid_if_present(args)
         token = _resolve_token(args)
         base_url = _resolve_base_url(args)
     except ValueError as e:
@@ -408,6 +426,7 @@ def _cmd_latest(args: argparse.Namespace) -> int:
 
 def _cmd_jobs(args: argparse.Namespace) -> int:
     try:
+        _ensure_profile_config_valid_if_present(args)
         token = _resolve_token(args)
         base_url = _resolve_base_url(args)
     except ValueError as e:
@@ -449,6 +468,7 @@ def _cmd_jobs(args: argparse.Namespace) -> int:
 
 def _cmd_job(args: argparse.Namespace) -> int:
     try:
+        _ensure_profile_config_valid_if_present(args)
         token = _resolve_token(args)
         base_url = _resolve_base_url(args)
     except ValueError as e:
@@ -511,6 +531,7 @@ def _dispatch_sse_event(
 
 def _cmd_logs(args: argparse.Namespace) -> int:
     try:
+        _ensure_profile_config_valid_if_present(args)
         token = _resolve_token(args)
         base_url = _resolve_base_url(args)
     except ValueError as e:
