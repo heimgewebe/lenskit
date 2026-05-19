@@ -1185,6 +1185,35 @@ def test_rlens_client_unknown_profile_is_config_error(
     assert "nope" in parsed["message"]
 
 
+def test_rlens_client_profile_unknown_even_with_base_url_override_is_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    config = _write_profiles(tmp_path, {
+        "profiles": {"local": {"base_url": "http://127.0.0.1:8787"}},
+    })
+    _isolate_profile_env(monkeypatch, config)
+
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        raise AssertionError("Network must not be called for unknown profile")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main([
+        "rlens-client", "health",
+        "--base-url", "http://override:8787",
+        "--profile", "nope",
+        "--json",
+    ])
+    out, _ = capsys.readouterr()
+
+    assert rc == 2
+    parsed = json.loads(out)
+    assert parsed["error_kind"] == "config_error"
+    assert "nope" in parsed["message"]
+
+
 def test_rlens_client_profile_requested_but_no_config(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
@@ -1204,6 +1233,31 @@ def test_rlens_client_profile_requested_but_no_config(
     assert rc == 2
     parsed = json.loads(out)
     assert parsed["error_kind"] == "config_error"
+
+
+def test_rlens_client_profile_default_profile_non_string_is_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    config = _write_profiles(tmp_path, {
+        "default_profile": 42,
+        "profiles": {"x": {"base_url": "http://x:8787"}},
+    })
+    _isolate_profile_env(monkeypatch, config)
+
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        raise AssertionError("Network must not be called for invalid config")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main(["rlens-client", "health", "--json"])
+    out, _ = capsys.readouterr()
+
+    assert rc == 2
+    parsed = json.loads(out)
+    assert parsed["error_kind"] == "config_error"
+    assert "default_profile" in parsed["message"]
 
 
 def test_rlens_client_no_config_no_profile_uses_default(
@@ -1244,6 +1298,41 @@ def test_rlens_client_profile_with_token_field_rejected(
     monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
 
     rc = main(["rlens-client", "health", "--profile", "bad", "--json"])
+    out, err = capsys.readouterr()
+
+    assert rc == 2
+    parsed = json.loads(out)
+    assert parsed["error_kind"] == "config_error"
+    assert "secret-in-config" not in out
+    assert "secret-in-config" not in err
+
+
+def test_rlens_client_profile_forbidden_key_even_with_base_url_override_is_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    config = _write_profiles(tmp_path, {
+        "profiles": {
+            "bad": {
+                "base_url": "http://x:8787",
+                "token": "secret-in-config",
+            },
+        },
+    })
+    _isolate_profile_env(monkeypatch, config)
+
+    def _urlopen(req: urllib.request.Request, timeout: object = None) -> None:
+        raise AssertionError("Network must not be called when profile is invalid")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    rc = main([
+        "rlens-client", "health",
+        "--profile", "bad",
+        "--base-url", "http://override:8787",
+        "--json",
+    ])
     out, err = capsys.readouterr()
 
     assert rc == 2
@@ -1341,28 +1430,61 @@ def test_rlens_client_profiles_subcommand_lists_profiles(
 def test_rlens_client_profiles_subcommand_no_secret_leak(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture
 ) -> None:
-    # Even if someone managed to land a forbidden key, the lister must never
-    # echo unknown/forbidden fields back as values. The strictest guarantee:
-    # only base_url and token_env name surface.
-    config = tmp_path / "rlens-profiles.json"
-    config.write_text(json.dumps({
+    config = _write_profiles(tmp_path, {
         "profiles": {
             "naughty": {
                 "base_url": "http://x:8787",
                 "token_env": "RLENS_TOKEN_X",
-                "garbage": "should-not-surface",
             }
         }
-    }), encoding="utf-8")
+    })
     _isolate_profile_env(monkeypatch, config)
 
     rc = main(["rlens-client", "profiles", "--json"])
     out, _ = capsys.readouterr()
 
     assert rc == 0
+    assert "RLENS_TOKEN_X" in out
+    assert "secret" not in out
+
+
+def test_rlens_client_profiles_subcommand_unknown_key_is_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    config = _write_profiles(tmp_path, {
+        "profiles": {"naughty": {"base_url": "http://x:8787", "garbage": "x"}},
+    })
+    _isolate_profile_env(monkeypatch, config)
+
+    rc = main(["rlens-client", "profiles", "--json"])
+    out, _ = capsys.readouterr()
+
+    assert rc == 2
     parsed = json.loads(out)
-    assert "should-not-surface" not in out
-    assert "garbage" not in parsed["profiles"]["naughty"]
+    assert parsed["error_kind"] == "config_error"
+    assert "garbage" in parsed["message"]
+
+
+def test_rlens_client_profiles_subcommand_forbidden_key_is_config_error_no_secret_leak(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    config = _write_profiles(tmp_path, {
+        "profiles": {"naughty": {"base_url": "http://x:8787", "token": "super-secret"}},
+    })
+    _isolate_profile_env(monkeypatch, config)
+
+    rc = main(["rlens-client", "profiles", "--json"])
+    out, err = capsys.readouterr()
+
+    assert rc == 2
+    parsed = json.loads(out)
+    assert parsed["error_kind"] == "config_error"
+    assert "super-secret" not in out
+    assert "super-secret" not in err
 
 
 def test_rlens_client_profiles_subcommand_no_config(

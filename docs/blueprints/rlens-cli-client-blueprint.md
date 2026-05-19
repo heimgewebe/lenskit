@@ -240,15 +240,16 @@ Umgesetzt:
   - `profiles[NAME].token_env`: Name einer Env-Variable, deren Wert als Bearer Token verwendet wird (string)
 - Priorität Base-URL: `--base-url` > `RLENS_BASE_URL` > Profil-`base_url` (selektiert via `--profile` > `RLENS_PROFILE` > `default_profile`) > Default `http://127.0.0.1:8787`
 - Priorität Token: `--token` > `RLENS_TOKEN` > Wert der Env-Variable aus Profil-`token_env`
-- `lenskit rlens-client profiles [--json]`: listet Profile (redigiert; nur `base_url` und `token_env`-Name)
+- `lenskit rlens-client profiles [--json]`: listet Profile (redigiert; nur `base_url` und `token_env`-Name) und validiert Config strikt (unknown/forbidden keys -> `config_error`)
 - Sicherheitsinvarianten (durch Tests abgesichert):
   - `token`/`rlens_token`/`secret`-Felder im Profil sind verboten -> `config_error` (Exit 2)
   - unbekannte Profil-Schlüssel -> `config_error`
   - Unbekanntes Profil -> `config_error`
   - Explizit angefordertes Profil ohne Config -> `config_error`
+  - Explizit angefordertes Profil wird nie still ignoriert, auch nicht bei `--base-url`/`RLENS_BASE_URL`-Override -> `config_error`
   - Kein Profil/keine Config -> stiller Fallback auf Default
   - Profile-Listing gibt nur `base_url` und `token_env`-Name zurück, niemals Werte
-- Tests: `merger/lenskit/tests/test_cli_rlens_client.py` (63 Tests, davon 18 für PR D)
+- Tests: `merger/lenskit/tests/test_cli_rlens_client.py` (68 Tests, davon 23 für PR D)
 
 Heim-PC/Heimserver-Betriebsentscheidung bleibt offen — der Profile-Mechanismus erleichtert nur die Konfiguration, behauptet keine Erreichbarkeit.
 
