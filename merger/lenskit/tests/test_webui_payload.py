@@ -5,6 +5,8 @@ import json
 import os
 import time
 
+pytestmark = pytest.mark.browser
+
 UI_DIR = os.path.abspath("merger/lenskit/frontends/webui")
 
 @pytest.fixture
