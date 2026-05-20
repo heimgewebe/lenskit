@@ -1,9 +1,15 @@
-from playwright.sync_api import expect
+from __future__ import annotations
+
 import pytest
-from playwright.sync_api import Page, Route
 import json
 import os
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Page, Route
+
+pytestmark = pytest.mark.browser
 
 UI_DIR = os.path.abspath("merger/lenskit/frontends/webui")
 
@@ -372,6 +378,8 @@ def test_run_merge_plan_only_omits_force_new(page_with_static: Page):
     assert "force_new" not in p, "force_new should be omitted for plan_only jobs"
 
 def test_query_tab_submits_payload(page_with_static: Page):
+    from playwright.sync_api import expect
+
     import os
     if os.environ.get("DEBUG_PLAYWRIGHT_REQUESTS") == "1":
         page_with_static.on("request", lambda r: print(f"REQ: {r.method} {r.url}"))
