@@ -285,6 +285,22 @@ def test_how_to_search_resolves_range_against_bundle_manifest(tmp_path):
     assert 'range get --manifest "demo.md"' not in body
 
 
+def test_how_to_search_uses_absolute_manifest_when_output_is_elsewhere(tmp_path):
+    """When --output is in a different directory, render the absolute manifest path."""
+    bundle_dir = tmp_path / "bundle"
+    bundle_dir.mkdir()
+    manifest = _make_bundle(bundle_dir)
+    out_dir = tmp_path / "export"
+    out_dir.mkdir()
+    out = out_dir / "custom_pack.md"
+    report = produce_agent_reading_pack(str(manifest), str(out))
+    assert report["status"] == "ok"
+    body = out.read_text(encoding="utf-8")
+    assert f'range get --manifest "{manifest.resolve()}"' in body
+    # The bare filename alone is not useful when co-location is gone.
+    assert f'range get --manifest "{manifest.name}"' not in body
+
+
 def test_stale_output_preserved_on_missing_manifest(tmp_path):
     """A pre-load input error must not delete an existing default output."""
     stale = tmp_path / "ghost.agent_reading_pack.md"

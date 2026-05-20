@@ -793,6 +793,14 @@ def produce_agent_reading_pack(
     generator = manifest.get("generator") if isinstance(manifest.get("generator"), dict) else {}
     capabilities = manifest.get("capabilities") if isinstance(manifest.get("capabilities"), dict) else {}
 
+    # Render a usable manifest path in the range command: use the filename only when
+    # the pack and the manifest are co-located; otherwise render the absolute path so
+    # a reader can resolve the range command from wherever the pack file was placed.
+    if output_path is not None and output_path.parent.resolve() == manifest_path.parent.resolve():
+        bundle_manifest_for_pack = manifest_path.name
+    else:
+        bundle_manifest_for_pack = str(manifest_path)
+
     model = PackModel(
         run_id=bundle_run_id,
         created_at=manifest.get("created_at") if isinstance(manifest.get("created_at"), str) else None,
@@ -805,7 +813,7 @@ def produce_agent_reading_pack(
         top_files=tuple(top_files),
         indexed_chunk_count=indexed_chunk_count,
         repo_ids=tuple(repo_ids),
-        bundle_manifest_path=manifest_path.name,
+        bundle_manifest_path=bundle_manifest_for_pack,
         canonical_md_path=str(by_role[_CANONICAL_MD].get("path")) if _CANONICAL_MD in by_role else None,
         chunk_index_path=str(by_role[_CHUNK_INDEX].get("path")) if _CHUNK_INDEX in by_role else None,
         dump_index_path=str(by_role[_DUMP_INDEX].get("path")) if _DUMP_INDEX in by_role else None,
