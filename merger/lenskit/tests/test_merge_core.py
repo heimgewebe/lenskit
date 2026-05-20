@@ -434,13 +434,13 @@ class TestScanRepoCacheExclusion(unittest.TestCase):
 
         # Cache directories that should be excluded
         (self.root / ".ruff_cache" / "0.15.13").mkdir(parents=True)
-        (self.root / ".ruff_cache" / "0.15.13" / "cachefile").write_text("# ruff cache")
+        (self.root / ".ruff_cache" / "0.15.13" / "cache.py").write_text("# ruff cache")
         (self.root / ".pytest_cache" / "v").mkdir(parents=True)
-        (self.root / ".pytest_cache" / "v" / ".gitkeep").write_text("")
+        (self.root / ".pytest_cache" / "v" / "cache.txt").write_text("pytest cache")
         (self.root / ".mypy_cache" / "3.11").mkdir(parents=True)
-        (self.root / ".mypy_cache" / "3.11" / ".gitkeep").write_text("")
+        (self.root / ".mypy_cache" / "3.11" / "cache.py").write_text("# mypy cache")
         (self.root / "__pycache__").mkdir()
-        (self.root / "__pycache__" / "app.cpython-311.pyc").write_text("# python bytecode")
+        (self.root / "__pycache__" / "cache.py").write_text("# pycache")
 
     def tearDown(self):
         shutil.rmtree(self.root)
@@ -488,13 +488,13 @@ class TestPrescanRepoCacheExclusion(unittest.TestCase):
 
         # Cache directories that should be excluded
         (self.root / ".ruff_cache" / "0.15.13").mkdir(parents=True)
-        (self.root / ".ruff_cache" / "0.15.13" / "cachefile").write_text("# ruff cache")
+        (self.root / ".ruff_cache" / "0.15.13" / "cache.py").write_text("# ruff cache")
         (self.root / ".pytest_cache" / "v").mkdir(parents=True)
-        (self.root / ".pytest_cache" / "v" / ".gitkeep").write_text("")
+        (self.root / ".pytest_cache" / "v" / "cache.txt").write_text("pytest cache")
         (self.root / ".mypy_cache" / "3.11").mkdir(parents=True)
-        (self.root / ".mypy_cache" / "3.11" / ".gitkeep").write_text("")
+        (self.root / ".mypy_cache" / "3.11" / "cache.py").write_text("# mypy cache")
         (self.root / "__pycache__").mkdir()
-        (self.root / "__pycache__" / "app.cpython-311.pyc").write_text("# python bytecode")
+        (self.root / "__pycache__" / "cache.py").write_text("# pycache")
 
     def tearDown(self):
         shutil.rmtree(self.root)
@@ -524,6 +524,48 @@ class TestPrescanRepoCacheExclusion(unittest.TestCase):
             cache_hits = [p for p in paths if cache_dir in p or p.startswith(cache_dir)]
             self.assertEqual(cache_hits, [],
                            msg=f"prescan_repo must exclude {cache_dir}: {cache_hits}")
+
+
+class TestReportArtifactCacheExclusion(unittest.TestCase):
+    """Verify generated report content does not surface excluded cache directories."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        (self.root / "src").mkdir()
+        (self.root / "src" / "app.py").write_text("print('ok')\n")
+
+        (self.root / ".ruff_cache" / "0.15.13").mkdir(parents=True)
+        (self.root / ".ruff_cache" / "0.15.13" / "cache.py").write_text("# ruff cache")
+        (self.root / ".pytest_cache" / "v").mkdir(parents=True)
+        (self.root / ".pytest_cache" / "v" / "cache.txt").write_text("pytest cache")
+        (self.root / ".mypy_cache" / "3.11").mkdir(parents=True)
+        (self.root / ".mypy_cache" / "3.11" / "cache.py").write_text("# mypy cache")
+        (self.root / "__pycache__").mkdir()
+        (self.root / "__pycache__" / "cache.py").write_text("# pycache")
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def test_iter_report_blocks_excludes_cache_paths(self):
+        from lenskit.core.merge import scan_repo
+
+        summary = scan_repo(self.root, extensions=[".py", ".txt"], include_hidden=True)
+        report = "".join(
+            iter_report_blocks(
+                files=summary["files"],
+                level="max",
+                max_file_bytes=0,
+                sources=[self.root],
+                plan_only=False,
+                debug=False,
+            )
+        )
+
+        self.assertIn("src/app.py", report)
+        self.assertNotIn(".ruff_cache", report)
+        self.assertNotIn(".pytest_cache", report)
+        self.assertNotIn(".mypy_cache", report)
+        self.assertNotIn("__pycache__", report)
 
 
 if __name__ == '__main__':

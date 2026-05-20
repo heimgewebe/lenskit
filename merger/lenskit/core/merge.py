@@ -304,7 +304,6 @@ SKIP_DIRS = {
     ".DS_Store",
     ".mypy_cache",
     ".ruff_cache",
-    ".cache",
     "coverage",
 }
 
