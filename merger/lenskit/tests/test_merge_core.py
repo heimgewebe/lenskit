@@ -2,6 +2,8 @@
 import unittest
 import sys
 import os
+import json
+import sqlite3
 import unicodedata
 import tempfile
 import shutil
@@ -566,6 +568,111 @@ class TestReportArtifactCacheExclusion(unittest.TestCase):
         self.assertNotIn(".pytest_cache", report)
         self.assertNotIn(".mypy_cache", report)
         self.assertNotIn("__pycache__", report)
+
+
+class TestFullSnapshotCacheExclusionParity(unittest.TestCase):
+    """Verify max-style full artifact outputs stay cache-clean with hidden config included."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.repo = self.root / "repo"
+        self.out_dir = self.root / "out"
+        self.repo.mkdir()
+        self.out_dir.mkdir()
+
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "app.py").write_text("print('ok')\n", encoding="utf-8")
+
+        (self.repo / ".github" / "workflows").mkdir(parents=True)
+        (self.repo / ".github" / "workflows" / "ci.yml").write_text("name: ci\n", encoding="utf-8")
+
+        (self.repo / ".wgx").mkdir()
+        (self.repo / ".wgx" / "profile.yml").write_text("profile: default\n", encoding="utf-8")
+
+        (self.repo / ".ruff_cache" / "0.15.13").mkdir(parents=True)
+        (self.repo / ".ruff_cache" / ".gitignore").write_text("*\n", encoding="utf-8")
+        (self.repo / ".ruff_cache" / "0.15.13" / "cache.py").write_text("# ruff cache\n", encoding="utf-8")
+
+        (self.repo / ".pytest_cache" / "v").mkdir(parents=True)
+        (self.repo / ".pytest_cache" / "v" / "cache.txt").write_text("pytest cache\n", encoding="utf-8")
+
+        (self.repo / ".mypy_cache" / "3.11").mkdir(parents=True)
+        (self.repo / ".mypy_cache" / "3.11" / "cache.py").write_text("# mypy cache\n", encoding="utf-8")
+
+        (self.repo / "__pycache__").mkdir()
+        (self.repo / "__pycache__" / "cache.py").write_text("# pycache\n", encoding="utf-8")
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def test_max_style_outputs_exclude_tooling_cache_dirs(self):
+        from lenskit.core.merge import scan_repo, write_reports_v2, ExtrasConfig
+
+        summary = scan_repo(self.repo, include_hidden=True, calculate_md5=True)
+        artifacts = write_reports_v2(
+            merges_dir=self.out_dir,
+            hub=self.root,
+            repo_summaries=[summary],
+            detail="max",
+            mode="gesamt",
+            max_bytes=0,
+            plan_only=False,
+            output_mode="dual",
+            extras=ExtrasConfig(json_sidecar=True, augment_sidecar=True),
+        )
+
+        md_text = artifacts.canonical_md.read_text(encoding="utf-8")
+        sidecar = json.loads(artifacts.index_json.read_text(encoding="utf-8"))
+        chunk_rows = [
+            json.loads(line)
+            for line in artifacts.chunk_index.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        md_paths = [
+            line.split('path="', 1)[1].split('"', 1)[0]
+            for line in md_text.splitlines()
+            if "<!-- FILE_START path=" in line
+        ]
+
+        sidecar_paths = [entry.get("path", "") for entry in sidecar.get("files", [])]
+        sidecar_lens_paths = [entry.get("path", "") for entry in sidecar.get("reading_lenses", {}).get("file_index", [])]
+        combined_sidecar_paths = sidecar_paths + sidecar_lens_paths
+        chunk_paths = [row.get("source_range", {}).get("file_path", "") for row in chunk_rows]
+        expected_paths = ["src/app.py", ".github/workflows/ci.yml", ".wgx/profile.yml"]
+
+        for expected in expected_paths:
+            self.assertIn(expected, md_paths)
+            self.assertIn(expected, combined_sidecar_paths)
+            self.assertIn(expected, chunk_paths)
+
+        for forbidden in [".ruff_cache", ".pytest_cache", ".mypy_cache", "__pycache__"]:
+            self.assertFalse(
+                any(forbidden in p for p in md_paths),
+                msg=f"markdown file markers must exclude {forbidden}: {md_paths}",
+            )
+            self.assertFalse(
+                any(forbidden in p for p in combined_sidecar_paths),
+                msg=f"sidecar paths must exclude {forbidden}: {combined_sidecar_paths}",
+            )
+            self.assertFalse(
+                any(forbidden in p for p in chunk_paths),
+                msg=f"chunk source paths must exclude {forbidden}: {chunk_paths}",
+            )
+
+        conn = sqlite3.connect(artifacts.sqlite_index)
+        try:
+            rows = [r[0] for r in conn.execute("SELECT path FROM chunks")]
+        finally:
+            conn.close()
+
+        for expected in expected_paths:
+            self.assertIn(expected, rows)
+
+        for forbidden in [".ruff_cache", ".pytest_cache", ".mypy_cache", "__pycache__"]:
+            self.assertFalse(
+                any(forbidden in p for p in rows),
+                msg=f"sqlite chunk paths must exclude {forbidden}: {rows}",
+            )
 
 
 if __name__ == '__main__':
