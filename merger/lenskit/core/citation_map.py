@@ -171,6 +171,32 @@ def normalize_canonical_range(
     return None
 
 
+def _is_split_mode_noncanonical_chunk(chunk: Dict[str, Any]) -> bool:
+        """
+        Return True only for split-mode non-canonical chunks that are intentionally
+        excluded from citation-map coherence and production.
+
+        Required conditions:
+            - source_range is present (dict)
+            - source_status == "full"
+            - canonical_range is absent
+            - content_range_ref is absent
+        """
+        source_range = chunk.get("source_range")
+        source_status = chunk.get("source_status")
+
+        has_source_range = isinstance(source_range, dict)
+        has_canonical_range = chunk.get("canonical_range") is not None
+        has_content_range_ref = chunk.get("content_range_ref") is not None
+
+        return (
+                has_source_range
+                and source_status == "full"
+                and not has_canonical_range
+                and not has_content_range_ref
+        )
+
+
 # ---------------------------------------------------------------------------
 # repo_id resolution
 # ---------------------------------------------------------------------------
@@ -341,6 +367,8 @@ def iter_chunk_results(
             # --- normalise range ---
             norm_range = normalize_canonical_range(chunk)
             if norm_range is None:
+                if _is_split_mode_noncanonical_chunk(chunk):
+                    continue
                 yield _ChunkResult(
                     None,
                     f"Line {lineno}: no valid canonical range found "
@@ -630,6 +658,8 @@ def check_manifest_coherence_for_citation_map(manifest_path: Path) -> CitationMa
 
                 normalized_range = normalize_canonical_range(chunk)
                 if normalized_range is None:
+                    if _is_split_mode_noncanonical_chunk(chunk):
+                        continue
                     return CitationMapCoherence(False, False, "missing_or_invalid_canonical_range")
 
                 chunk_file_raw = normalized_range.get("file_path")

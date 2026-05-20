@@ -16,6 +16,7 @@ from merger.lenskit.core.citation_map import (
     CitationMapError,
     PRODUCED_BY,
     byte_range_to_line_range,
+    check_manifest_coherence_for_citation_map,
     normalize_canonical_range,
     produce_citation_map,
     resolve_repo_id,
@@ -683,6 +684,101 @@ class TestProduceCitationMap:
         report = produce_citation_map(str(manifest_path))
         assert report["status"] == "ok", report["errors"]
         assert report["repo_id_source"] == "range.repo_id"
+
+
+class TestSplitModeCoherence:
+    def test_split_mode_noncanonical_chunks_skip_coherence(self, tmp_path):
+        content = b"split mode content\n"
+        chunk = {
+            "chunk_id": "split_only",
+            "repo": "testrepo",
+            "source_status": "full",
+            "source_range": {
+                "file_path": "src.txt",
+                "repo_id": "testrepo",
+                "start_byte": 0,
+                "end_byte": 10,
+                "status": "declared",
+            },
+        }
+        manifest_path = _make_bundle(tmp_path, content, [chunk])
+
+        coherence = check_manifest_coherence_for_citation_map(manifest_path)
+        assert coherence.coherent is True
+
+        report = produce_citation_map(str(manifest_path))
+        assert report["status"] == "ok", report["errors"]
+        assert report["citation_map_row_count"] == 0
+
+    def test_canonical_chunks_still_checked_for_coherence(self, tmp_path):
+        content = b"canonical content\n"
+        chunk = {
+            "chunk_id": "bad",
+            "repo": "testrepo",
+        }
+        manifest_path = _make_bundle(tmp_path, content, [chunk])
+
+        coherence = check_manifest_coherence_for_citation_map(manifest_path)
+        assert coherence.coherent is False
+        assert coherence.reason == "missing_or_invalid_canonical_range"
+
+        report = produce_citation_map(str(manifest_path))
+        assert report["status"] == "fail"
+        assert any("no valid canonical range" in e for e in report["errors"])
+
+    def test_mixed_canonical_and_split_mode_chunks(self, tmp_path):
+        content = b"ABCDEFGHIJ"
+        canonical_chunk = _canonical_range_chunk(content, 0, 5, "test_merge.md", chunk_id="c1")
+        split_chunk = {
+            "chunk_id": "split_only",
+            "repo": "testrepo",
+            "source_status": "full",
+            "source_range": {
+                "file_path": "src.txt",
+                "repo_id": "testrepo",
+                "start_byte": 0,
+                "end_byte": 4,
+                "status": "declared",
+            },
+        }
+        manifest_path = _make_bundle(tmp_path, content, [canonical_chunk, split_chunk])
+
+        coherence = check_manifest_coherence_for_citation_map(manifest_path)
+        assert coherence.coherent is True
+
+        report = produce_citation_map(str(manifest_path))
+        assert report["status"] == "ok", report["errors"]
+        assert report["citation_map_row_count"] == 1
+
+    @pytest.mark.parametrize(
+        "chunk",
+        [
+            {
+                "chunk_id": "missing_source_range",
+                "repo": "testrepo",
+                "source_status": "full",
+            },
+            {
+                "chunk_id": "wrong_status",
+                "repo": "testrepo",
+                "source_status": "truncated",
+                "source_range": {
+                    "file_path": "src.txt",
+                    "repo_id": "testrepo",
+                    "start_byte": 0,
+                    "end_byte": 1,
+                    "status": "unavailable",
+                },
+            },
+        ],
+    )
+    def test_split_mode_chunk_requires_source_range_and_full_status(self, tmp_path, chunk):
+        content = b"content\n"
+        manifest_path = _make_bundle(tmp_path, content, [chunk])
+
+        coherence = check_manifest_coherence_for_citation_map(manifest_path)
+        assert coherence.coherent is False
+        assert coherence.reason == "missing_or_invalid_canonical_range"
 
 
 # ---------------------------------------------------------------------------
