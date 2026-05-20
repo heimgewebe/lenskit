@@ -321,6 +321,39 @@ SKIP_FILES = {
     "thumbs.db",
 }
 
+def _should_skip_scan_entry(
+    name: str,
+    rel_path: str,
+    *,
+    is_dir: bool,
+    include_hidden: bool = True,
+    ignore_globs: Optional[List[str]] = None,
+) -> bool:
+    """Shared skip logic for repo scanning paths."""
+    if is_dir:
+        if name in SKIP_DIRS:
+            return True
+        if not include_hidden and name.startswith("."):
+            return True
+    else:
+        if name in SKIP_FILES:
+            return True
+        if name.startswith(".env") and name not in (".env.example", ".env.template", ".env.sample"):
+            return True
+        if not include_hidden and name.startswith("."):
+            return True
+
+    if _is_runtime_worktree_path(rel_path):
+        return True
+
+    if ignore_globs:
+        import fnmatch
+        for g in ignore_globs:
+            if fnmatch.fnmatch(name, g) or fnmatch.fnmatch(rel_path, g):
+                return True
+
+    return False
+
 def _is_runtime_worktree_path(rel_path: str) -> bool:
     """Return True for .claude/worktrees paths — agent runtime artefacts, not repo content."""
     norm = rel_path.replace("\\", "/")
@@ -2063,10 +2096,6 @@ def prescan_repo(repo_root: Path, max_depth: int = 10, ignore_globs: Optional[Li
     repo_root = repo_root.resolve()
     root_label = repo_root.name
 
-    # Build ignores
-    ignore_set = set(SKIP_DIRS)
-    import fnmatch
-
     # Simple tree structure: { "path": ".", "type": "dir", "children": [...] }
     # To build it, we traverse and collect nodes.
     # We can perform a recursive function.
@@ -2075,20 +2104,6 @@ def prescan_repo(repo_root: Path, max_depth: int = 10, ignore_globs: Optional[Li
     total_bytes = 0
     node_count = 0
     MAX_NODES = 50000
-
-    def _is_ignored(name: str, relpath: str) -> bool:
-        if name in ignore_set or name in SKIP_FILES:
-            return True
-        if name.startswith(".env") and name not in (".env.example", ".env.template", ".env.sample"):
-            return True
-        if _is_runtime_worktree_path(relpath):
-            return True
-        if ignore_globs:
-            for g in ignore_globs:
-                # User request: match against name (basename) OR relpath
-                if fnmatch.fnmatch(name, g) or fnmatch.fnmatch(relpath, g):
-                    return True
-        return False
 
     def _walk(path: Path, depth: int) -> Dict[str, Any]:
         nonlocal total_files, total_bytes, node_count
@@ -2122,7 +2137,13 @@ def prescan_repo(repo_root: Path, max_depth: int = 10, ignore_globs: Optional[Li
             # if rel_dir is ".", then relpath is name. Else rel_dir/name.
             child_rel = name if rel_dir == "." else f"{rel_dir}/{name}"
 
-            if _is_ignored(name, child_rel):
+            if _should_skip_scan_entry(
+                name,
+                child_rel,
+                is_dir=entry.is_dir(follow_symlinks=False),
+                include_hidden=True,
+                ignore_globs=ignore_globs,
+            ):
                 continue
 
             # Symlink Check (Security/Recursion)
@@ -2265,13 +2286,13 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
         # Filter directories
         keep_dirs = []
         for d in dirnames:
-            if d in SKIP_DIRS:
-                continue
-            if not include_hidden and d.startswith("."):
-                continue
-            # Exclude agent runtime worktrees by relative path, not just name.
             d_rel = d if dirpath == root_str else (dirpath[root_len:].lstrip(os.sep).replace("\\", "/") + "/" + d)
-            if _is_runtime_worktree_path(d_rel):
+            if _should_skip_scan_entry(
+                d,
+                d_rel,
+                is_dir=True,
+                include_hidden=include_hidden,
+            ):
                 continue
             keep_dirs.append(d)
         dirnames[:] = keep_dirs
@@ -2303,20 +2324,18 @@ def scan_repo(repo_root: Path, extensions: Optional[List[str]] = None, path_cont
             rel_dir = dirpath[root_len:].lstrip(os.sep).replace("\\", "/")
 
         for fn in filenames:
-            if fn in SKIP_FILES:
-                continue
-
-            # Keep safe .env samples even when include_hidden=False
-            if fn.startswith(".env"):
-                if fn not in (".env.example", ".env.template", ".env.sample"):
-                    continue
-            elif not include_hidden and fn.startswith("."):
-                continue
-
             if rel_dir:
                 rel_path_str = f"{rel_dir}/{fn}"
             else:
                 rel_path_str = fn
+
+            if _should_skip_scan_entry(
+                fn,
+                rel_path_str,
+                is_dir=False,
+                include_hidden=include_hidden,
+            ):
+                continue
 
             # Optimization: Defer Path object creation until we confirm the file should be processed
             abs_path_str = os.path.join(dirpath, fn)
