@@ -171,6 +171,55 @@ def normalize_canonical_range(
     return None
 
 
+def _is_split_mode_noncanonical_chunk(chunk: Dict[str, Any]) -> bool:
+    """
+    Return True only for split-mode non-canonical chunks that are intentionally
+    excluded from citation-map coherence and production.
+
+    Required conditions:
+      - source_range is present (dict)
+      - source_status == "full"
+      - canonical_range is absent
+      - content_range_ref is absent
+
+    Conservative positive split-shape signals:
+      - content_artifact == "merge_md"
+      - content_range is present (dict)
+      - chunk.path matches source_range.file_path
+      - source_range.status == "declared"
+    """
+    source_range = chunk.get("source_range")
+    source_status = chunk.get("source_status")
+
+    if not isinstance(source_range, dict):
+        return False
+    if source_status != "full":
+        return False
+    if chunk.get("canonical_range") is not None:
+        return False
+    if chunk.get("content_range_ref") is not None:
+        return False
+
+    if chunk.get("content_artifact") != "merge_md":
+        return False
+    if not isinstance(chunk.get("content_range"), dict):
+        return False
+
+    chunk_path = chunk.get("path")
+    source_file_path = source_range.get("file_path")
+    if not isinstance(chunk_path, str) or not chunk_path:
+        return False
+    if not isinstance(source_file_path, str) or not source_file_path:
+        return False
+    if chunk_path != source_file_path:
+        return False
+
+    if source_range.get("status") != "declared":
+        return False
+
+    return True
+
+
 # ---------------------------------------------------------------------------
 # repo_id resolution
 # ---------------------------------------------------------------------------
@@ -341,6 +390,8 @@ def iter_chunk_results(
             # --- normalise range ---
             norm_range = normalize_canonical_range(chunk)
             if norm_range is None:
+                if _is_split_mode_noncanonical_chunk(chunk):
+                    continue
                 yield _ChunkResult(
                     None,
                     f"Line {lineno}: no valid canonical range found "
@@ -630,6 +681,8 @@ def check_manifest_coherence_for_citation_map(manifest_path: Path) -> CitationMa
 
                 normalized_range = normalize_canonical_range(chunk)
                 if normalized_range is None:
+                    if _is_split_mode_noncanonical_chunk(chunk):
+                        continue
                     return CitationMapCoherence(False, False, "missing_or_invalid_canonical_range")
 
                 chunk_file_raw = normalized_range.get("file_path")
