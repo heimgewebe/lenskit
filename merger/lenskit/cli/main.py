@@ -257,9 +257,11 @@ def main(args: Optional[List[str]] = None) -> int:
         from .cmd_federation import handle_federation_command
         return handle_federation_command(parsed_args)
     elif parsed_args.command == "parity":
-        from .cmd_parity import run_parity_compare
+        from .cmd_parity import run_parity_compare, run_parity_enforce
         if parsed_args.parity_cmd == "compare":
             return run_parity_compare(parsed_args)
+        elif parsed_args.parity_cmd == "enforce":
+            return run_parity_enforce(parsed_args)
         raise RuntimeError(
             f"Unexpected parity command dispatch: {parsed_args.parity_cmd!r}"
         )

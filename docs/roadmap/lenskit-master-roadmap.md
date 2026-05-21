@@ -217,17 +217,21 @@ PR 3 (teilweise erledigt):
 - [x] Chunk-Index dual range (`canonical_range`, `source_range` zusätzlich zu `content_range_ref`)
 - [x] Citation-Map-Producer plus eigener Producer-Real-Dump-Proof
 - [x] Citation-Readiness-Validator (`merger/lenskit/core/citation_validate.py`, CLI `lenskit citation validate`, Testabdeckung in `merger/lenskit/tests/test_citation_validate.py` und `merger/lenskit/tests/test_cli_citation.py`; Real-Dump-Proof erbracht mit aktuellem Dump, 594 Chunks, Status `ok`)
-PR 4 (teilweise erledigt):
+PR 4 (erledigt):
 
 - [x] `merger/lenskit/core/parity_gates.py` — Produktionsmodul mit `evaluate_parity_gates` und `ParityGateResult`. Gate-Semantik ist jetzt kanonisch und wiederverwendbar (nicht mehr nur Test-Helper).
 - [x] PR 4b Basis: Real-Dump-Parser + CLI-Compare-Pfad
   - `merger/lenskit/core/parity_state.py` erzeugt ein kanonisches State-Dict aus zwei realen Bundle-Manifests fuer `evaluate_parity_gates`.
   - CLI: `lenskit parity compare LEFT_MANIFEST RIGHT_MANIFEST --json` mit standardisierten Exit-Codes (0/1/2).
   - Bundle-Manifest bleibt Registry-Wahrheit; Diagnoseartefakte werden nicht als stray files akzeptiert.
-- [ ] repolens diagnostic parity hardening (offen)
-  - Ziel: repolens erreicht optional nicht nur Content-Paritaet, sondern auch Diagnostic-Paritaet zu rlens.
-  - Falls iOS/Pythonista-Grenzen einzelne Diagnoseartefakte nicht zulassen, muss das explizit als Profilgrenze dokumentiert werden.
-- [ ] CLI-Erzwingung und CI-Gate (offen) — globale CI-Blockierung und policy-basierte Erzwingung folgen in separatem PR nach der Parser/CLI-Basis.
+- [x] repolens diagnostic parity hardening
+  - Ziel erreicht: repolens und rlens teilen dieselbe Pipeline und erreichen auf vollwertigen Hosts nicht nur Content-, sondern Diagnostic-Paritaet.
+  - E2E-Beleg gegen echte Bundle-Manifests via `build_parity_state`+`evaluate_parity_gates`: `merger/lenskit/tests/test_parity.py::test_e2e_repolens_rlens_reach_diagnostic_parity` (alle 15 State-Flags True, 10 Artefakte verglichen, kein left/right-only). Beleg: `docs/proofs/repolens-rlens-diagnostic-parity-proof.md`.
+  - Profilgrenze explizit dokumentiert: capability-degradierte iOS/Pythonista-Hosts (kein `jsonschema`/`fts5`) fordern nur Content-Paritaet; siehe `docs/architecture/artifact-capability-matrix.md` (Abschnitt "Diagnostic-Paritaet als Profilgrenze").
+- [x] CLI-Erzwingung und CI-Gate
+  - CLI-Erzwingung: `lenskit parity enforce LEFT RIGHT --require {content,diagnostic}` (Default `diagnostic`) in `merger/lenskit/cli/cmd_parity.py`, Exit-Codes 0/1/2, `--json`/`--include-state`. Policy ist profilabhaengig (content fuer degradierte Profile, diagnostic fuer vollwertige Hosts).
+  - CI-Gate: blockierender Workflow `.github/workflows/parity-gate.yml` ("Parity Gate") faehrt die Gate-Suite (`test_parity.py`, `test_parity_state.py`, `test_cli_parity_compare.py`) inkl. `jsonschema`-Runtime-Dependency. Abgegrenzt vom Frontend-Feature-Guard (`parity_check.yml`).
+  - Tests: `merger/lenskit/tests/test_cli_parity_compare.py` (enforce Policy-/Exit-Code-Faelle), `test_parity.py::test_e2e_parity_enforce_cli_on_real_bundles`.
 Diagnosehinweis für Priorisierung:
 - `merge.md` bleibt kanonische Vollquelle; JSON-Artefakte sind Einstieg/Index/Metadaten.
 - Ein schwacher Retrieval-Eval-Stand priorisiert Evidence-/Retrieval-Grundlagen vor Semantic/Reranking.

@@ -265,6 +265,78 @@ def test_tool_parity_contract_invariants(golden_fixture, tmp_path):
     assert "# Lenskit Architecture Snapshot" in r_arch_content
 
 
+def _find_bundle_manifest(output_dir):
+    candidates = sorted(output_dir.glob("*.bundle.manifest.json"))
+    assert len(candidates) == 1, f"expected exactly one bundle manifest in {output_dir}, found {len(candidates)}"
+    return candidates[0]
+
+
+def test_e2e_repolens_rlens_reach_diagnostic_parity(golden_fixture, tmp_path):
+    """End-to-end proof: repolens and rlens, run through the same pipeline on
+    the same source, produce bundles that reach *diagnostic* parity (not merely
+    content parity) when evaluated by the real parity-gate runtime.
+
+    This is the repolens-diagnostic-parity hardening evidence: it exercises
+    build_parity_state + evaluate_parity_gates on real generated bundle
+    manifests rather than hand-crafted state dicts.
+    """
+    from merger.lenskit.core.parity_state import build_parity_state
+    from merger.lenskit.core.parity_gates import evaluate_parity_gates
+
+    rlens_out = tmp_path / "rlens_out"
+    repolens_out = tmp_path / "repolens_out"
+    rlens_out.mkdir()
+    repolens_out.mkdir()
+
+    run_rlens_fixture(golden_fixture, rlens_out)
+    run_repolens_fixture(golden_fixture, repolens_out)
+
+    left = _find_bundle_manifest(rlens_out)
+    right = _find_bundle_manifest(repolens_out)
+
+    built = build_parity_state(left, right)
+    gates = evaluate_parity_gates(built.state)
+
+    assert gates.content_parity_pass is True, gates.content_reasons
+    assert gates.diagnostic_parity_pass is True, gates.diagnostic_reasons
+
+    # Both frontends emit the full diagnostic artifact set when the host
+    # provides the required capabilities (jsonschema, sqlite/fts5).
+    for role in ("citation_map_jsonl", "retrieval_eval_json", "output_health", "sqlite_index"):
+        assert role in built.compared_artifacts, f"{role} missing from compared artifacts"
+    assert built.left_only_artifacts == []
+    assert built.right_only_artifacts == []
+
+
+def test_e2e_parity_enforce_cli_on_real_bundles(golden_fixture, tmp_path, capsys):
+    """The enforcement CLI gates real generated repolens-vs-rlens bundles:
+    diagnostic policy passes (exit 0), and content policy also passes.
+    """
+    from merger.lenskit.cli.main import main
+
+    rlens_out = tmp_path / "rlens_out"
+    repolens_out = tmp_path / "repolens_out"
+    rlens_out.mkdir()
+    repolens_out.mkdir()
+
+    run_rlens_fixture(golden_fixture, rlens_out)
+    run_repolens_fixture(golden_fixture, repolens_out)
+
+    left = _find_bundle_manifest(rlens_out)
+    right = _find_bundle_manifest(repolens_out)
+
+    rc = main(["parity", "enforce", str(left), str(right), "--require", "diagnostic", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0, payload
+    assert payload["required_level"] == "diagnostic"
+    assert payload["enforced_pass"] is True
+
+    rc_content = main(["parity", "enforce", str(left), str(right), "--require", "content", "--json"])
+    payload_content = json.loads(capsys.readouterr().out)
+    assert rc_content == 0, payload_content
+    assert payload_content["enforced_pass"] is True
+
+
 def test_content_parity_gate_can_pass_without_retrieval_eval_json():
     state = {
         "source_paths_equal": True,
