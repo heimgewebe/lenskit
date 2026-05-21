@@ -35,7 +35,7 @@ Der Pack fasst zusammen:
 - **TOP_FILES**: die nach Chunk-Coverage größten aggregierten canonical Spans je
   Quelldatei (Navigationshilfe für präzises Zitieren in `canonical_md`) — **keine**
   Wichtigkeitsaussage; Begriff wird zu `TOP_CHUNK_SPANS` migriert (siehe
-  `docs/blueprints/lenskit-anti-hallucination-output-architecture.md`, PR A1),
+  `docs/blueprints/lenskit-anti-hallucination-output-architecture.md`, PR A1).
 - **EPISTEMIC_EMPTINESS**: was im Bundle fehlt.
 
 Standalone erzeugen oder regenerieren:

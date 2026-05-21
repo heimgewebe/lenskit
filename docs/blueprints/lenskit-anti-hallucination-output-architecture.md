@@ -69,8 +69,8 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 
 #### PR A1 — Agent Reading Pack Begriffshärtung  (härtet AP D)
 - **Ziel:** Navigationsbegriffe entschärfen; Importance-Implikation entfernen.
-- **Repo-Befund:** `agent_reading_pack.py:489` (`## TOP_FILES`); `README.md:35`
-  ("wichtigsten Quelldateien"); `output-optimierung-v1.md:199-200`
+- **Repo-Befund:** `merger/lenskit/core/agent_reading_pack.py:489` (`## TOP_FILES`); `README.md:35`
+  ("wichtigsten Quelldateien"); `docs/blueprints/lenskit-output-optimierung-v1.md:199-200`
   ("wichtigste Entry-Points/Contracts" als v2-offene Punkte).
 - **Änderung:**
   - Heading `## TOP_FILES` → `## TOP_CHUNK_SPANS` (Producer + Tests + Proof-Doku).
@@ -80,7 +80,7 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
     `risk_class: navigation`, `may_cite: false`, `must_resolve_to:
     role_specific_authority`, `does_not_prove: [semantic_importance,
     architecture_truth, complete_context]` — wiederverwendet das Vokabular aus
-    `agent-query-session.v2.schema.json:91-110`.
+    `merger/lenskit/contracts/agent-query-session.v2.schema.json:91-110`.
   - README-Beschreibung von TOP_FILES neutral fassen (in dieser Doku-PR vorgezogen).
 - **Nicht-Ziele:** Kein `TOP_LEVEL_ARCHITECTURE`, keine Entry-Point-/Modulzweck-Prosa,
   keine Claim-Bewertung im Pack.
@@ -92,13 +92,13 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
   `test_agent_pack_has_no_top_level_architecture`; bestehende
   `test_agent_reading_pack.py`/`test_cli_agent_pack.py` anpassen.
 - **Risiko:** Snapshot-Erwartungen brechen (gezielt, gewollt). v1-Leser, die nach
-  `## TOP_FILES` grep'en — Migrationsnotiz in `output-optimierung-v1.md`.
+  `## TOP_FILES` grep'en — Migrationsnotiz in `docs/blueprints/lenskit-output-optimierung-v1.md`.
 
 #### PR A2 — Output Noise Hygiene härten  (härtet #681–#683)
 - **Ziel:** Hard-Exclusion absichern + sichtbar machen; Listendrift beseitigen.
-- **Repo-Befund:** `merge.py:297-314` (`SKIP_DIRS` deckt Caches), `:2277` (Walk-Filter);
-  `merge.py:1772-1780` (`is_noise_file.noisy_dirs` ohne `.ruff_cache/.pytest_cache/
-  .mypy_cache`); `lenses.py:87` (Fallback `core`).
+- **Repo-Befund:** `merger/lenskit/core/merge.py:297-314` (`SKIP_DIRS` deckt Caches), `:2277` (Walk-Filter);
+  `merger/lenskit/core/merge.py:1772-1780` (`is_noise_file.noisy_dirs` ohne `.ruff_cache/.pytest_cache/
+  .mypy_cache`); `merger/lenskit/core/lenses.py:87` (Fallback `core`).
 - **Änderung:**
   - `is_noise_file` aus `SKIP_DIRS` ableiten statt Parallelliste pflegen.
   - Regressions-Guard: Cache-Dirs nie in canonical/chunk/sqlite/agent-navigation.
@@ -115,9 +115,9 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 
 #### PR A3 — Range-Ref v2  (= AP B; reuse Blueprint)
 - **Ziel:** Source- und Artifact-Achsen schema-seitig trennen.
-- **Repo-Befund:** `range-ref-v2-…-preimage.md`; `range-semantics.md`; nur
-  `range-ref.v1.schema.json`; AP B `[ ]`.
-- **Änderung:** `contracts/range-ref.v2.schema.json` mit `artifact_role`,
+- **Repo-Befund:** `docs/blueprints/range-ref-v2-semantic-boundary-split-preimage.md`; `docs/architecture/range-semantics.md`; nur
+  `merger/lenskit/contracts/range-ref.v1.schema.json`; AP B `[ ]`.
+- **Änderung:** `merger/lenskit/contracts/range-ref.v2.schema.json` mit `artifact_role`,
   `artifact_path`, `artifact_line_start/end`, `source_file_path`,
   `source_line_start/end`, `content_sha256`, `range_content_sha256`,
   `range_ref_version:"2"`. v1 bleibt lesbar; Resolver akzeptiert v1+v2; neue
@@ -132,8 +132,8 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 #### PR A4 — Post-hoc Bundle Validator  (= AP H; reuse `post_emit_health`)
 - **Ziel:** Vollständiges Bundle nach Emission prüfen (Health kennt den Pack in-pipeline
   noch nicht).
-- **Repo-Befund:** `output_health.py:424-466`; `control-plane.md` §2.4
-  (`post_emit_health`); `artifact-evidence-levels.md` (`post_emit_validation_available`).
+- **Repo-Befund:** `merger/lenskit/core/output_health.py:424-466`; `docs/blueprints/lenskit-artifact-output-control-plane.md` §2.4
+  (`post_emit_health`); `docs/architecture/artifact-evidence-levels.md` (`post_emit_validation_available`).
 - **Änderung:** `post_emit_health` (Datei `<stem>.bundle_health.post.json`) bzw. CLI
   `lenskit bundle-health post <manifest> --json`: prüft Manifest-/Artefakt-Hashes,
   `agent_reading_pack` presence/hash, Self-Role nicht gelistet, Range-Ref-Resolution,
@@ -152,7 +152,7 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 #### PR A5 — Safe Output Profiles / agent-safe Gate  (= AP E; reuse control-plane-Namen)
 - **Ziel:** Export-Sicherheit profilbasiert erzwingen; Redaction an agent-safe koppeln.
 - **Repo-Befund:** **Namens-Drift** AP E (`max-private/agent-safe/…`) vs control-plane §7
-  (`agent-portable/local-search/…`); `redactor.py`; `capabilities.redaction`.
+  (`agent-portable/local-search/…`); `merger/lenskit/core/redactor.py`; `capabilities.redaction`.
 - **Änderung:** control-plane-Namen sind kanonisch. Mapping der Plan-Intents:
   `agent-safe → agent-portable + redact_secrets=true + require post_emit_health`;
   `max-private → debug-full/local intern, agent_export=false`. Profil-Gate validiert vor
@@ -169,7 +169,7 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 
 #### PR B1 — Context Quality Signals  (scope: Projektion, kein neuer Wahrheitslayer)
 - **Ziel:** Kontextbedingungen transparent machen — **keine** globale Verstehensampel.
-- **Repo-Befund:** überlappt `artifact-evidence-levels.md`; kein `context_quality.json`.
+- **Repo-Befund:** überlappt `docs/architecture/artifact-evidence-levels.md`; kein `context_quality.json`.
 - **Änderung:** `<stem>.context_quality.json` als **Projektion** vorhandener Signale
   (Health-Checks + erreichter Evidence-Level + Retrieval-Diagnose), `authority:
   diagnostic_signal`, `risk_class: diagnostic`, mit `agent_use_constraints` und
@@ -183,7 +183,7 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 
 #### PR B2 — Retrieval Miss Taxonomy  (neu, über AP-Eval)
 - **Ziel:** Retrieval-Schwächen mechanisch klassifizieren (vor Task-Packs/MCP).
-- **Repo-Befund:** `retrieval/eval_core.py`, `contracts/retrieval-eval.v1.schema.json`.
+- **Repo-Befund:** `merger/lenskit/retrieval/eval_core.py`, `merger/lenskit/contracts/retrieval-eval.v1.schema.json`.
 - **Änderung:** `<stem>.retrieval_miss_taxonomy.json` über vorhandenem Eval; erlaubte
   `miss_class`: `zero_results`, `expected_path_not_in_top10`,
   `expected_symbol_not_in_top10`, `filter_excluded_expected`,
@@ -215,8 +215,8 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 
 #### PR C1 — Authority Matrix + Risk Classes normieren  (härtet vorhandene Authority)
 - **Ziel:** Vorhandene Authority/Canonicality normieren, `risk_class` **additiv** ableiten.
-- **Repo-Befund:** `artifact-inventory.md` Authority/Canonicality; `AUTHORITY_REGISTRY`
-  in `merge.py`.
+- **Repo-Befund:** `docs/architecture/artifact-inventory.md` Authority/Canonicality; `AUTHORITY_REGISTRY`
+  in `merger/lenskit/core/merge.py`.
 - **Änderung:** `risk_class` aus Authority ableiten (`canonical_content→canonical`,
   `navigation_index→navigation+must_resolve`, `diagnostic_signal→diagnostic`,
   `runtime_*→runtime_observation`, heuristisch→`heuristic`), in der Matrix dokumentiert.
