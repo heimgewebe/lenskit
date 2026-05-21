@@ -447,7 +447,7 @@ def render_agent_reading_pack(model: PackModel) -> str:
         )
         lines.append("```")
     else:
-        lines.append("- No `sqlite_index` present: full-text search is unavailable for this bundle.")
+        lines.append("- No verified `sqlite_index` available: full-text search is unavailable for this bundle.")
     lines.append("Resolve a byte/line range to exact text (against this bundle manifest):")
     lines.append("```bash")
     lines.append(
