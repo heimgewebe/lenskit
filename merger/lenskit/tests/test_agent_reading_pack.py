@@ -347,6 +347,24 @@ def test_output_collision_with_input_is_rejected(tmp_path):
     assert any("collides with an input artifact" in e for e in report["errors"])
 
 
+def test_output_collision_with_unverified_manifest_artifact_is_rejected(tmp_path):
+    """--output must not overwrite a manifest-listed artifact that fails soft verification."""
+    manifest = _make_bundle(tmp_path)
+    data = json.loads(manifest.read_text())
+    output_health_path = None
+    for a in data["artifacts"]:
+        if a["role"] == "output_health":
+            a["sha256"] = "not-a-valid-hash"  # soft-invalid → never added via verification
+            output_health_path = tmp_path / a["path"]
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    assert output_health_path is not None
+    report = produce_agent_reading_pack(str(manifest), str(output_health_path))
+    assert report["status"] == "fail"
+    assert any("collides with an input artifact" in e for e in report["errors"])
+    # The protected input file must survive the rejected write.
+    assert output_health_path.exists()
+
+
 # ---------------------------------------------------------------------------
 # Graceful degradation
 # ---------------------------------------------------------------------------

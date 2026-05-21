@@ -676,7 +676,11 @@ def produce_agent_reading_pack(
         )
 
     # Build the artifact-role view, skipping the pack's own role so re-runs never
-    # list a previous pack as bundle content.
+    # list a previous pack as bundle content. While iterating, collect every
+    # non-self artifact path into `protected` so an explicit --output can never
+    # overwrite a manifest-listed input — even one that is not part of the
+    # verification set or that fails soft verification. _SELF_ROLE stays excluded
+    # so idempotent regeneration over a final manifest still works.
     by_role: Dict[str, Dict[str, Any]] = {}
     artifact_views: List[ArtifactView] = []
     for a in raw_artifacts:
@@ -685,6 +689,15 @@ def produce_agent_reading_pack(
         role = a.get("role")
         if not isinstance(role, str) or role == _SELF_ROLE:
             continue
+        raw_path = a.get("path")
+        if isinstance(raw_path, str):
+            try:
+                rel = _normalize_relative_path(raw_path, f"{role}.path")
+                protected.add(resolve_secure_path(manifest_dir, rel))
+            except ValueError:
+                # Role-specific verification still reports hard/soft errors for
+                # malformed paths where relevant; tolerate them here.
+                pass
         by_role.setdefault(role, a)
         artifact_views.append(
             ArtifactView(
