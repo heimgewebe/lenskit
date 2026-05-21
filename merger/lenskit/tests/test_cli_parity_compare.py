@@ -286,3 +286,128 @@ def test_cli_payload_reports_left_right_only_artifacts(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert "retrieval_eval_json" in payload["left_only_artifacts"]
     assert "retrieval_eval_json" not in payload["right_only_artifacts"]
+
+
+def test_cli_parity_enforce_diagnostic_default_exit_0_on_green(tmp_path, capsys):
+    left = _make_bundle(tmp_path / "left")
+    right = _make_bundle(tmp_path / "right")
+
+    rc = main(["parity", "enforce", str(left), str(right), "--json"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["required_level"] == "diagnostic"
+    assert payload["enforced_pass"] is True
+    assert payload["content_parity_pass"] is True
+    assert payload["diagnostic_parity_pass"] is True
+
+
+def test_cli_parity_enforce_diagnostic_exit_1_when_diagnostic_fails(tmp_path, capsys):
+    left = _make_bundle(tmp_path / "left")
+    right = _make_bundle(tmp_path / "right", health_warning=True)
+
+    rc = main(["parity", "enforce", str(left), str(right), "--require", "diagnostic", "--json"])
+
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["required_level"] == "diagnostic"
+    assert payload["enforced_pass"] is False
+    assert payload["content_parity_pass"] is True
+    assert payload["diagnostic_parity_pass"] is False
+
+
+def test_cli_parity_enforce_content_policy_passes_when_only_diagnostic_fails(tmp_path, capsys):
+    """A capability-degraded profile can require only content parity; a
+    diagnostic-only failure (e.g. health warning) must not block it."""
+    left = _make_bundle(tmp_path / "left")
+    right = _make_bundle(tmp_path / "right", health_warning=True)
+
+    rc = main(["parity", "enforce", str(left), str(right), "--require", "content", "--json"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["required_level"] == "content"
+    assert payload["enforced_pass"] is True
+    assert payload["content_parity_pass"] is True
+    assert payload["diagnostic_parity_pass"] is False
+
+
+def test_cli_parity_enforce_content_policy_exit_1_when_content_fails(tmp_path, capsys):
+    left = _make_bundle(tmp_path / "left")
+    right = _make_bundle(tmp_path / "right")
+
+    # Break content parity: change a source file hash in the right sidecar.
+    right_manifest = json.loads(right.read_text(encoding="utf-8"))
+    sidecar_rel = next(
+        a["path"] for a in right_manifest["artifacts"] if a["role"] == "index_sidecar_json"
+    )
+    sidecar_path = right.parent / sidecar_rel
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    sidecar["files"][0]["sha256"] = "0" * 64
+    sidecar_path.write_text(json.dumps(sidecar), encoding="utf-8")
+    for a in right_manifest["artifacts"]:
+        if a["role"] == "index_sidecar_json":
+            raw = sidecar_path.read_bytes()
+            a["bytes"] = len(raw)
+            a["sha256"] = _sha256_bytes(raw)
+    right.write_text(json.dumps(right_manifest, indent=2), encoding="utf-8")
+
+    rc = main(["parity", "enforce", str(left), str(right), "--require", "content", "--json"])
+
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["required_level"] == "content"
+    assert payload["enforced_pass"] is False
+    assert payload["content_parity_pass"] is False
+
+
+def test_cli_parity_enforce_exit_2_on_missing_manifest(tmp_path, capsys):
+    missing = tmp_path / "missing.bundle.manifest.json"
+    other = _make_bundle(tmp_path / "other")
+
+    rc = main(["parity", "enforce", str(missing), str(other), "--json"])
+
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "fail"
+    assert payload["error_kind"] == "path_read_error"
+    assert payload["required_level"] == "diagnostic"
+
+
+def test_cli_parity_enforce_rejects_invalid_require_level(tmp_path, capsys):
+    """Unknown require_level values must return exit 2 and a structured error,
+    not silently fall through to the diagnostic branch."""
+    import argparse
+    from merger.lenskit.cli.cmd_parity import run_parity_enforce
+
+    left = _make_bundle(tmp_path / "left")
+    right = _make_bundle(tmp_path / "right")
+
+    args = argparse.Namespace(
+        left_manifest=str(left),
+        right_manifest=str(right),
+        require_level="diagnotic",  # intentional typo
+        emit_json=True,
+        include_state=False,
+    )
+
+    rc = run_parity_enforce(args)
+
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "fail"
+    assert payload["error_kind"] == "invalid_require_level"
+    assert payload["required_level"] == "diagnotic"
+    assert "content" in payload["allowed"]
+    assert "diagnostic" in payload["allowed"]
+
+
+def test_cli_parity_enforce_include_state(tmp_path, capsys):
+    left = _make_bundle(tmp_path / "left")
+    right = _make_bundle(tmp_path / "right")
+
+    rc = main(["parity", "enforce", str(left), str(right), "--json", "--include-state"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert isinstance(payload["state"], dict)

@@ -20,3 +20,20 @@ Zweck: Sichtbar machen, welche Laufzeit welche Prüffähigkeit besitzt und welch
 ## Regel
 
 Ein Profil kann angefordert werden; bestehendes `output_health` (während der Migration: Legacy-Pre-Health) und später `post_emit_health` bestimmen, ob es vollständig erfüllt oder degradiert erreicht wurde.
+
+## Diagnostic-Paritaet als Profilgrenze
+
+`content_parity_pass` und `diagnostic_parity_pass` (siehe
+`merger/lenskit/core/parity_gates.py`) sind capability-abhaengig, nicht
+frontend-abhaengig: `repolens` und `rlens` teilen dieselbe Pipeline.
+
+- Volle Diagnostic-Paritaet (inkl. `citation_map_jsonl_valid`, `fts_non_empty`)
+  setzt `jsonschema_available` und `sqlite_fts5_available` voraus.
+- Fehlt eine dieser Capabilities (typisch fuer eingeschraenkte
+  iOS/Pythonista-Hosts), degradiert die betroffene Diagnose. Content-Paritaet
+  bleibt verbindlich; logisch gleich leere FTS bricht Content-Paritaet nicht.
+
+Durchsetzung erfolgt per `lenskit parity enforce --require {content,diagnostic}`:
+capability-degradierte Profile fordern `content`, vollwertige Hosts (ci,
+rlens/service, heim-pc, heimserver) fordern `diagnostic`. E2E-Beleg:
+`docs/proofs/repolens-rlens-diagnostic-parity-proof.md`.

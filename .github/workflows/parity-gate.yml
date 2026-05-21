@@ -1,0 +1,78 @@
+name: Parity Gate (Content vs Diagnostic)
+
+# Path-scoped blocking gate for parity-relevant changes in the content/diagnostic
+# parity runtime (merger/lenskit/core/parity_gates.py + parity_state.py + the
+# `lenskit parity compare|enforce` CLI). Runs only when changes touch parity code,
+# tests, contracts, or the merge pipeline. This is distinct from the
+# Frontend Parity Guard (parity_check.yml), which checks frontend feature
+# parity (CLI args / HTML IDs / JS payload keys), not artifact parity.
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - "merger/lenskit/core/parity_gates.py"
+      - "merger/lenskit/core/parity_state.py"
+      - "merger/lenskit/core/merge.py"
+      - "merger/lenskit/core/citation_map.py"
+      - "merger/lenskit/core/citation_validate.py"
+      - "merger/lenskit/core/citation_id.py"
+      - "merger/lenskit/cli/cmd_parity.py"
+      - "merger/lenskit/cli/main.py"
+      - "merger/lenskit/contracts/**"
+      - "merger/lenskit/tests/test_parity.py"
+      - "merger/lenskit/tests/test_parity_state.py"
+      - "merger/lenskit/tests/test_cli_parity_compare.py"
+      - "merger/lenskit/requirements.txt"
+      - "requirements-dev.txt"
+      - ".github/workflows/parity-gate.yml"
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - "merger/lenskit/core/parity_gates.py"
+      - "merger/lenskit/core/parity_state.py"
+      - "merger/lenskit/core/merge.py"
+      - "merger/lenskit/core/citation_map.py"
+      - "merger/lenskit/core/citation_validate.py"
+      - "merger/lenskit/core/citation_id.py"
+      - "merger/lenskit/cli/cmd_parity.py"
+      - "merger/lenskit/cli/main.py"
+      - "merger/lenskit/contracts/**"
+      - "merger/lenskit/tests/test_parity.py"
+      - "merger/lenskit/tests/test_parity_state.py"
+      - "merger/lenskit/tests/test_cli_parity_compare.py"
+      - "merger/lenskit/requirements.txt"
+      - "requirements-dev.txt"
+      - ".github/workflows/parity-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  parity-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Log Python Version
+        run: python --version
+
+      - name: Install Dependencies
+        # jsonschema (runtime requirement) is mandatory: the parity gate
+        # validates citation_map_jsonl against its contract schema and fails
+        # closed if jsonschema is unavailable.
+        run: |
+          pip install -r merger/lenskit/requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run Parity Gate Suite
+        run: |
+          pytest -q \
+            merger/lenskit/tests/test_parity.py \
+            merger/lenskit/tests/test_parity_state.py \
+            merger/lenskit/tests/test_cli_parity_compare.py
