@@ -734,6 +734,8 @@ def produce_agent_reading_pack(
             chunk_index_path, chunk_index_sha = res
             protected.add(chunk_index_path)
 
+    verified_soft_paths: Dict[str, str] = {}
+
     health: HealthSummary = HealthSummary(present=False)
     if _OUTPUT_HEALTH in by_role:
         res = _verify_referenced_artifact(
@@ -755,6 +757,7 @@ def produce_agent_reading_pack(
             )
             if res:
                 protected.add(res[0])
+                verified_soft_paths[soft_role] = str(by_role[soft_role].get("path"))
 
     if errors:
         _s = _remove_stale_output(output_path, protected) if not output_is_explicit else None
@@ -795,8 +798,16 @@ def produce_agent_reading_pack(
         absent_notes.append("`chunk_index_jsonl` is absent: no precise range navigation available.")
     if _SQLITE_INDEX not in by_role:
         absent_notes.append("`sqlite_index` is absent: full-text search is unavailable.")
+    elif _SQLITE_INDEX not in verified_soft_paths:
+        absent_notes.append(
+            "`sqlite_index` is present but failed verification; full-text search command suppressed."
+        )
     if _CITATION_MAP not in by_role:
         absent_notes.append("`citation_map_jsonl` is absent: no stable citation_id mapping.")
+    elif _CITATION_MAP not in verified_soft_paths:
+        absent_notes.append(
+            "`citation_map_jsonl` is present but failed verification; citation guidance suppressed."
+        )
     if not health.present:
         absent_notes.append("`output_health` is absent: bundle integrity is self-unverified.")
     absent_notes.append(
@@ -829,9 +840,9 @@ def produce_agent_reading_pack(
         bundle_manifest_path=bundle_manifest_for_pack,
         canonical_md_path=str(by_role[_CANONICAL_MD].get("path")) if _CANONICAL_MD in by_role else None,
         chunk_index_path=str(by_role[_CHUNK_INDEX].get("path")) if _CHUNK_INDEX in by_role else None,
-        dump_index_path=str(by_role[_DUMP_INDEX].get("path")) if _DUMP_INDEX in by_role else None,
-        sqlite_index_path=str(by_role[_SQLITE_INDEX].get("path")) if _SQLITE_INDEX in by_role else None,
-        citation_map_path=str(by_role[_CITATION_MAP].get("path")) if _CITATION_MAP in by_role else None,
+        dump_index_path=verified_soft_paths.get(_DUMP_INDEX),
+        sqlite_index_path=verified_soft_paths.get(_SQLITE_INDEX),
+        citation_map_path=verified_soft_paths.get(_CITATION_MAP),
         absent_notes=tuple(absent_notes),
     )
 

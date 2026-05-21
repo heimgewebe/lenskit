@@ -391,6 +391,50 @@ def test_output_health_sha_mismatch_warns_not_fails(tmp_path):
     assert any("output_health" in w and "sha256 mismatch" in w for w in report["warnings"])
 
 
+def _inject_artifact(manifest: Path, role: str, filename: str, content: bytes, *, bad_sha: bool = False) -> None:
+    """Write a file and inject a manifest entry, optionally with a broken sha256."""
+    path = manifest.parent / filename
+    path.write_bytes(content)
+    sha = ("c" * 64) if bad_sha else _sha256(content)
+    data = json.loads(manifest.read_text())
+    data["artifacts"].append({
+        "role": role,
+        "path": filename,
+        "content_type": "application/octet-stream",
+        "bytes": len(content),
+        "sha256": sha,
+        "authority": "runtime_cache",
+        "canonicality": "derived",
+    })
+    manifest.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def test_invalid_sqlite_index_suppresses_fts_command(tmp_path):
+    """A sqlite_index with a bad sha256 must warn and suppress the FTS command."""
+    manifest = _make_bundle(tmp_path)
+    _inject_artifact(manifest, "sqlite_index", "demo.sqlite", b"fake-db", bad_sha=True)
+    report = produce_agent_reading_pack(str(manifest))
+    assert report["status"] == "ok"
+    assert any("sqlite_index" in w and "sha256" in w for w in report["warnings"])
+    body = Path(report["output_path"]).read_text(encoding="utf-8")
+    assert "query --index" not in body
+    assert "failed verification" in body
+    assert "full-text search command suppressed" in body
+
+
+def test_invalid_citation_map_suppresses_citation_guidance(tmp_path):
+    """A citation_map_jsonl with a bad sha256 must warn and suppress stable-citation guidance."""
+    manifest = _make_bundle(tmp_path)
+    _inject_artifact(manifest, "citation_map_jsonl", "demo.citation_map.jsonl", b"", bad_sha=True)
+    report = produce_agent_reading_pack(str(manifest))
+    assert report["status"] == "ok"
+    assert any("citation_map" in w and "sha256" in w for w in report["warnings"])
+    body = Path(report["output_path"]).read_text(encoding="utf-8")
+    assert "Stable citations" not in body
+    assert "failed verification" in body
+    assert "citation guidance suppressed" in body
+
+
 # ---------------------------------------------------------------------------
 # Pure functions
 # ---------------------------------------------------------------------------

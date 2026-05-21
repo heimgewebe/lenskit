@@ -54,8 +54,11 @@ python3 -m merger.lenskit.cli.main agent-pack produce <stem>.bundle.manifest.jso
   **kein** Pack wird geschrieben (Test `test_canonical_md_sha_mismatch_fails_hard`).
 - **Fehlender oder ungültiger** `sha256` eines Wahrheitsankers ⇒ harter Fehler (kein neutraler Zustand;
   Tests `test_canonical_md_missing_sha_fails_hard`, `test_chunk_index_invalid_sha_fails_hard`).
-- `output_health` / `citation_map_jsonl` Mismatch/fehlender Hash ⇒ Warnung, Pack wird trotzdem erzeugt,
-  das Artefakt wird aber nicht verwendet (diagnostisch/abgeleitet; Test `test_output_health_sha_mismatch_warns_not_fails`).
+- Soft-invalid Diagnostic-/Navigation-Artefakte (`output_health`, `sqlite_index`, `citation_map_jsonl`) mit
+  Mismatch/fehlendem Hash ⇒ Warnung, Pack wird trotzdem erzeugt, das Artefakt wird jedoch **nicht als aktive
+  Navigation gerendert**: FTS-Befehl und Citation-Guidance werden unterdrückt; `EPISTEMIC_EMPTINESS` weist den
+  Grund aus (Tests `test_output_health_sha_mismatch_warns_not_fails`, `test_invalid_sqlite_index_suppresses_fts_command`,
+  `test_invalid_citation_map_suppresses_citation_guidance`).
 - Output-Pfad-Kollision mit **irgendeinem** im Manifest gelisteten Input-Artefakt ⇒ harter Fehler — der Schutz
   umfasst alle nicht-`agent_reading_pack`-Artefaktpfade, nicht nur erfolgreich verifizierte (Tests
   `test_output_collision_with_input_is_rejected`, `test_output_collision_with_unverified_manifest_artifact_is_rejected`).
@@ -75,13 +78,13 @@ python3 -m merger.lenskit.cli.main agent-pack produce <stem>.bundle.manifest.jso
 
 ## Tests
 
-- `merger/lenskit/tests/test_agent_reading_pack.py` — 22 Tests (Producer, Determinismus, Härtung, Output-Kollisionsschutz, pure Funktionen).
+- `merger/lenskit/tests/test_agent_reading_pack.py` — 24 Tests (Producer, Determinismus, Härtung, Output-Kollisionsschutz, Soft-invalid-Rendering, pure Funktionen).
 - `merger/lenskit/tests/test_cli_agent_pack.py` — CLI-Smoke.
 - `merger/lenskit/tests/test_bundle_manifest_integration.py::test_agent_reading_pack_emitted_schema_valid_and_hashed` — Pipeline-Emission + Schema + Hash.
 - `merger/lenskit/tests/test_output_health.py` — `agent_pack_present` Parametrisierung (skipped/pass/warning).
 - `merger/lenskit/tests/test_role_completeness.py` — Enum/Schema-Synchronität inkl. neuer Rolle.
 
-Gesamte (nicht-Browser) Suite: **1280 passed, 1 skipped** (`pytest -m "not browser"`, 7 deselected). `tools/parity_guard.py`: **PASS**.
+Gesamte (nicht-Browser) Suite: **1282 passed, 1 skipped** (`pytest -m "not browser"`, 7 deselected). `tools/parity_guard.py`: **PASS**.
 
 ## Abgrenzung / offene Punkte (v2)
 
