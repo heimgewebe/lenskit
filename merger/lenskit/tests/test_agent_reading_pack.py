@@ -555,3 +555,18 @@ def test_compute_top_files_conflict_repo_id_is_omitted(tmp_path):
     assert top[0].repo_id is None  # conflict → conservative omission
     assert "canonical-repo" in repos
     assert "fallback-repo" in repos
+
+
+def test_compute_top_files_conflicting_fallback_repo_ids_are_omitted(tmp_path):
+    """search_keys.repo_id and chunk.repo conflict without canonical_range.repo_id → repo_id=None."""
+    chunk = _chunk("README.md", _README_START, _README_END, repo="search-repo")
+    chunk["repo"] = "chunk-repo"  # different from search_keys.repo_id
+    # No canonical_range.repo_id present.
+    chunk_path = tmp_path / "c.jsonl"
+    chunk_path.write_text(json.dumps(chunk) + "\n")
+    top, repos, count = compute_top_files(chunk_path, _CANONICAL, "demo.md")
+    assert count == 1
+    assert top[0].repo_id is None  # fallback conflict — conservative
+    # Both candidates are still tracked in the global repos set.
+    assert "search-repo" in repos
+    assert "chunk-repo" in repos

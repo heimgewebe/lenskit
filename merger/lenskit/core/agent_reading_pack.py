@@ -234,14 +234,20 @@ def compute_top_files(
                 continue
             indexed_chunk_count += 1
 
-            # Derive repo_id from search_keys/chunk (broad repos tracking — all indexed chunks).
+            # Derive repo_id from search_keys and chunk.repo independently so conflicts
+            # within the fallback tier are also detected conservatively.
             search_keys = chunk.get("search_keys")
-            fallback_repo_id = _first_nonempty_str(
-                search_keys.get("repo_id") if isinstance(search_keys, dict) else None,
-                chunk.get("repo"),
+            search_repo_id = _first_nonempty_str(
+                search_keys.get("repo_id") if isinstance(search_keys, dict) else None
             )
-            if fallback_repo_id:
-                repos.add(fallback_repo_id)
+            chunk_repo_id = _first_nonempty_str(chunk.get("repo"))
+            for _cand in (search_repo_id, chunk_repo_id):
+                if _cand:
+                    repos.add(_cand)
+            if search_repo_id and chunk_repo_id and search_repo_id != chunk_repo_id:
+                fallback_repo_id = None  # conflicting fallback sources — conservative
+            else:
+                fallback_repo_id = _first_nonempty_str(search_repo_id, chunk_repo_id)
 
             norm_range = normalize_canonical_range(chunk)
             if norm_range is None:
@@ -722,7 +728,7 @@ def produce_agent_reading_pack(
                 authority=a.get("authority") if isinstance(a.get("authority"), str) else None,
                 canonicality=a.get("canonicality") if isinstance(a.get("canonicality"), str) else None,
                 bytes=a.get("bytes") if isinstance(a.get("bytes"), int) else 0,
-                sha256=str(a.get("sha256", "")),
+                sha256=_first_nonempty_str(a.get("sha256")) or "",
             )
         )
     artifact_views.sort(key=lambda v: (v.role, v.path))
