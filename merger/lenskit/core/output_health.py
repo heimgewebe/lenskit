@@ -427,12 +427,24 @@ def compute_output_health(
     # the path to assert presence. Non-blocking in v1 (warn-only when expected),
     # per output-optimierung Arbeitspaket C/D.
     if agent_reading_pack_path is not None:
-        if agent_reading_pack_path.exists():
+        if agent_reading_pack_path.is_file():
             checks["agent_pack_present"] = {
                 "status": "pass",
                 "required": bool(agent_reading_pack_expected),
                 "reason": f"agent_reading_pack present: {agent_reading_pack_path.name}",
             }
+        elif agent_reading_pack_path.exists():
+            # Path exists but is not a regular file (e.g. a directory): never pass.
+            _status = "fail" if agent_reading_pack_expected else "warning"
+            checks["agent_pack_present"] = {
+                "status": _status,
+                "required": bool(agent_reading_pack_expected),
+                "reason": f"agent_reading_pack path is not a regular file: {agent_reading_pack_path.name}",
+            }
+            if agent_reading_pack_expected:
+                warnings.append(
+                    f"agent_reading_pack path is not a regular file: {agent_reading_pack_path.name}"
+                )
         elif agent_reading_pack_expected:
             checks["agent_pack_present"] = {
                 "status": "warning",

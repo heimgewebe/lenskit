@@ -569,6 +569,32 @@ def test_agent_pack_missing_and_not_expected_is_skipped(tmp_path):
     assert check["required"] is False
 
 
+def test_agent_pack_directory_at_path_fails_when_expected(tmp_path):
+    """A directory at the pack path must not count as present; expected → fail."""
+    pack_dir = tmp_path / "test.agent_reading_pack.md"
+    pack_dir.mkdir()
+    kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
+    result = compute_output_health(
+        **kwargs, agent_reading_pack_path=pack_dir, agent_reading_pack_expected=True
+    )
+    check = result["checks"]["agent_pack_present"]
+    assert check["status"] == "fail"
+    assert check["required"] is True
+
+
+def test_agent_pack_directory_at_path_warns_when_not_expected(tmp_path):
+    """A directory at the pack path must not pass; not expected → warning."""
+    pack_dir = tmp_path / "test.agent_reading_pack.md"
+    pack_dir.mkdir()
+    kwargs = _base_kwargs(tmp_path=tmp_path, with_sqlite=False)
+    result = compute_output_health(
+        **kwargs, agent_reading_pack_path=pack_dir, agent_reading_pack_expected=False
+    )
+    check = result["checks"]["agent_pack_present"]
+    assert check["status"] == "warning"
+    assert check["required"] is False
+
+
 def test_agent_pack_check_schema_conformance(tmp_path):
     schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
     pack = tmp_path / "test.agent_reading_pack.md"

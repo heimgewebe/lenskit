@@ -12,6 +12,7 @@ from pathlib import Path
 from merger.lenskit.core.agent_reading_pack import (
     HealthSummary,
     PackModel,
+    _md_cell,
     compute_top_files,
     produce_agent_reading_pack,
     render_agent_reading_pack,
@@ -495,3 +496,62 @@ def test_render_is_pure_from_model():
     assert "run_id: `r1`" in body
     assert "note one" in body
     assert body.endswith("\n")
+
+
+def test_md_cell_none_renders_dash():
+    assert _md_cell(None) == "—"
+
+
+def test_md_cell_empty_string_renders_dash():
+    assert _md_cell("") == "—"
+
+
+def test_md_cell_whitespace_only_renders_dash():
+    assert _md_cell("   ") == "—"
+
+
+def test_md_cell_nonempty_preserved():
+    assert _md_cell("hello") == "hello"
+
+
+def test_md_cell_escapes_pipe_and_newline():
+    assert _md_cell("a|b\nc") == "a\\|b c"
+
+
+def test_compute_top_files_prefers_canonical_range_repo_id(tmp_path):
+    """When canonical_range.repo_id and search_keys.repo_id agree, the repo_id is used."""
+    # Both sources present, same value — non-conflict case with both present.
+    chunk = _chunk("README.md", _README_START, _README_END, repo="shared-repo")
+    chunk["canonical_range"]["repo_id"] = "shared-repo"
+    chunk_path = tmp_path / "c.jsonl"
+    chunk_path.write_text(json.dumps(chunk) + "\n")
+    top, repos, count = compute_top_files(chunk_path, _CANONICAL, "demo.md")
+    assert count == 1
+    assert top[0].repo_id == "shared-repo"
+    assert "shared-repo" in repos
+
+
+def test_compute_top_files_uses_canonical_range_repo_id_when_no_fallback(tmp_path):
+    """canonical_range.repo_id is used when search_keys is absent."""
+    chunk = _chunk("README.md", _README_START, _README_END)
+    del chunk["search_keys"]
+    chunk["canonical_range"]["repo_id"] = "range-only-repo"
+    chunk_path = tmp_path / "c.jsonl"
+    chunk_path.write_text(json.dumps(chunk) + "\n")
+    top, repos, count = compute_top_files(chunk_path, _CANONICAL, "demo.md")
+    assert count == 1
+    assert top[0].repo_id == "range-only-repo"
+    assert "range-only-repo" in repos
+
+
+def test_compute_top_files_conflict_repo_id_is_omitted(tmp_path):
+    """Conflicting canonical_range.repo_id and search_keys.repo_id → repo_id=None."""
+    chunk = _chunk("README.md", _README_START, _README_END, repo="fallback-repo")
+    chunk["canonical_range"]["repo_id"] = "canonical-repo"
+    chunk_path = tmp_path / "c.jsonl"
+    chunk_path.write_text(json.dumps(chunk) + "\n")
+    top, repos, count = compute_top_files(chunk_path, _CANONICAL, "demo.md")
+    assert count == 1
+    assert top[0].repo_id is None  # conflict → conservative omission
+    assert "canonical-repo" in repos
+    assert "fallback-repo" in repos

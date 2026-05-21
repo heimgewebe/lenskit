@@ -234,17 +234,31 @@ def compute_top_files(
                 continue
             indexed_chunk_count += 1
 
+            # Derive repo_id from search_keys/chunk (broad repos tracking — all indexed chunks).
             search_keys = chunk.get("search_keys")
-            repo_id = _first_nonempty_str(
+            fallback_repo_id = _first_nonempty_str(
                 search_keys.get("repo_id") if isinstance(search_keys, dict) else None,
                 chunk.get("repo"),
             )
-            if repo_id:
-                repos.add(repo_id)
+            if fallback_repo_id:
+                repos.add(fallback_repo_id)
 
             norm_range = normalize_canonical_range(chunk)
             if norm_range is None:
                 continue
+
+            # Prefer canonical_range.repo_id over search_keys/chunk.repo for TopFile attribution;
+            # on conflict, omit rather than silently assert a potentially wrong affiliation.
+            range_repo_id = _first_nonempty_str(
+                norm_range.get("repo_id") if isinstance(norm_range, dict) else None
+            )
+            if range_repo_id:
+                repos.add(range_repo_id)
+
+            if range_repo_id and fallback_repo_id and range_repo_id != fallback_repo_id:
+                repo_id = None  # conflicting sources — conservative
+            else:
+                repo_id = _first_nonempty_str(range_repo_id, fallback_repo_id)
             raw_fp = norm_range.get("file_path", "")
             try:
                 norm_fp = _normalize_relative_path(raw_fp, "range.file_path")
@@ -331,6 +345,8 @@ def _md_cell(value: Any) -> str:
     if value is None:
         return "—"
     text = str(value)
+    if text.strip() == "":
+        return "—"
     return text.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
 
 
