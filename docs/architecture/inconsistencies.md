@@ -55,9 +55,9 @@ Drifts/Widersprüche (nicht Phase-0-Altbefunde):
 
 | Befund | Beleg | Status | Folge |
 | :--- | :--- | :--- | :--- |
-| README beschreibt `TOP_FILES` als "wichtigste Quelldateien" (Importance-Claim), Pack-Producer dagegen "by chunk coverage" | `README.md:35` (korrigiert) vs `core/agent_reading_pack.py:489-494` | resolved (README) / offen (Heading-Rename PR A1) | `TOP_FILES → TOP_CHUNK_SPANS` |
-| `output_health.verdict=pass` möglich trotz `redact_secrets=false` und `agent_pack=skipped` | `core/output_health.py:461-491` | offen (by design der Health-Schicht) | separates Gate `post_emit_health`/agent-safe (PR A4/A5), Health nicht umbiegen |
-| Auto-Claim-Bewertung: AP F verlangt `supported/unsupported` | `lenskit-output-optimierung-v1.md` AP F (korrigiert) | resolved | nur `claim → evidence_refs` + `does_not_establish`, kein Verdikt |
-| Zwei Profilnamensschemata | AP E vs `lenskit-artifact-output-control-plane.md` §7 | resolved (Mapping) | control-plane-Namen kanonisch |
-| `is_noise_file.noisy_dirs` inkonsistent mit `SKIP_DIRS` | `core/merge.py:1772-1780` vs `:297-314` | offen | reconcile (PR A2) |
+| README beschreibt `TOP_FILES` als "wichtigste Quelldateien" (Importance-Claim), Pack-Producer dagegen "by chunk coverage" | `README.md:35` (korrigiert) vs `merger/lenskit/core/agent_reading_pack.py:489-494` | resolved (README) / offen (Heading-Rename PR A1) | `TOP_FILES → TOP_CHUNK_SPANS` |
+| `output_health.verdict=pass` möglich trotz `redact_secrets=false` und `agent_pack=skipped` | `merger/lenskit/core/output_health.py:461-491` | offen (by design der Health-Schicht) | separates Gate `post_emit_health`/agent-safe (PR A4/A5), Health nicht umbiegen |
+| Auto-Claim-Bewertung: AP F verlangt `supported/unsupported` | `docs/blueprints/lenskit-output-optimierung-v1.md` AP F (korrigiert) | resolved | nur `claim → evidence_refs` + `does_not_establish`, kein Verdikt |
+| Zwei Profilnamensschemata | AP E vs `docs/blueprints/lenskit-artifact-output-control-plane.md` §7 | resolved (Mapping) | control-plane-Namen kanonisch |
+| `is_noise_file.noisy_dirs` inkonsistent mit `SKIP_DIRS` | `merger/lenskit/core/merge.py:1772-1780` vs `merger/lenskit/core/merge.py:297-314` | offen | reconcile (PR A2) |
 | `.ruff_cache` im Output (Plan-Beleg) | Plan-extern, Snapshot `lenskit-max-260502-*` | **stale/closed** | bereits behoben durch `SKIP_DIRS` (#681–#683) |

@@ -151,7 +151,8 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 
 #### PR A5 — Safe Output Profiles / agent-safe Gate  (= AP E; reuse control-plane-Namen)
 - **Ziel:** Export-Sicherheit profilbasiert erzwingen; Redaction an agent-safe koppeln.
-- **Repo-Befund:** **Namens-Drift** AP E (`max-private/agent-safe/…`) vs control-plane §7
+- **Repo-Befund:** **Namens-Drift** AP E (`max-private/agent-safe/…`) vs
+  `docs/blueprints/lenskit-artifact-output-control-plane.md` §7
   (`agent-portable/local-search/…`); `merger/lenskit/core/redactor.py`; `capabilities.redaction`.
 - **Änderung:** control-plane-Namen sind kanonisch. Mapping der Plan-Intents:
   `agent-safe → agent-portable + redact_secrets=true + require post_emit_health`;
@@ -198,8 +199,9 @@ Arbeitspaket (AP), das er härtet, oder markiert sich als **neu**.
 
 #### PR B3 — Context Bundle Resolve Discipline  (härtet `query-context-bundle.v1`)
 - **Ziel:** Context Bundles sind Auswahlspuren, keine Wahrheitsbündel.
-- **Repo-Befund:** `agent-query-session.v2` hat `session_authority`+`claim_boundaries`;
-  `query-context-bundle.v1.schema.json` hat nur `resolver_status`.
+- **Repo-Befund:** `merger/lenskit/contracts/agent-query-session.v2.schema.json` hat
+  `session_authority`+`claim_boundaries`;
+  `merger/lenskit/contracts/query-context-bundle.v1.schema.json` hat nur `resolver_status`.
 - **Änderung:** additiver `context_risk`-Block (`retrieval_based_subset`,
   `missing_relevant_context_possible`, `may_answer_from_this_directly:false`,
   `*_claims_resolve_to: {content:canonical_md, metadata:bundle_manifest,
@@ -320,4 +322,3 @@ kein Parallelartefakt zu `architecture_summary`; keine Agentenintegration vor C2
 direktem Risiko-Bezug: `TOP_FILES → TOP_CHUNK_SPANS` + `does_not_prove`-Block, Tests
 angepasst, README/Proof-Doku nachgezogen. Voraussetzung erfüllt: A0 (Audit) liegt vor.
 A2 (Noise-Hygiene-Härtung) kann parallel laufen, da unabhängiger Code-Pfad.
-</content>
