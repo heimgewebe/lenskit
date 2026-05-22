@@ -41,7 +41,7 @@ from .path_security import resolve_secure_path
 
 PRODUCED_BY = "agent_reading_pack_producer/v1"
 PACK_VERSION = "v1"
-TOP_FILE_LIMIT = 30
+TOP_CHUNK_SPAN_LIMIT = 30
 
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 _WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
@@ -204,7 +204,7 @@ def compute_top_files(
     canonical_md_bytes: bytes,
     canonical_md_rel: str,
     *,
-    limit: int = TOP_FILE_LIMIT,
+    limit: int = TOP_CHUNK_SPAN_LIMIT,
 ) -> Tuple[List[TopFile], List[str], int]:
     """
     Aggregate chunk-index entries into per-source-file canonical spans.
@@ -486,7 +486,7 @@ def render_agent_reading_pack(model: PackModel) -> str:
     lines.append("")
 
     # ── TOP_CHUNK_SPANS ──────────────────────────────────────────────────
-    lines.append(f"## TOP_CHUNK_SPANS (top {TOP_FILE_LIMIT} by chunk coverage)")
+    lines.append(f"## TOP_CHUNK_SPANS (top {TOP_CHUNK_SPAN_LIMIT} by chunk coverage)")
     lines.append(
         "```json\n"
         "{\n"
