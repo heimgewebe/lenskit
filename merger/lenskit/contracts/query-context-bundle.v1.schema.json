@@ -163,7 +163,7 @@
         },
         "may_answer_from_this_directly": {
           "type": "boolean",
-          "description": "False: this bundle is a navigation/projection surface; answers must be resolved against the authoritative surfaces in claims_resolve_to."
+          "description": "False: this bundle alone is not sufficient as canonical proof; answers must qualify retrieval/projection limits and resolve claims against the authoritative surfaces in claims_resolve_to."
         },
         "claims_resolve_to": {
           "type": "object",
@@ -174,7 +174,7 @@
             "content": { "const": "canonical_md" },
             "metadata": { "const": "bundle_manifest" },
             "schema": { "const": "schema" },
-            "runtime": { "const": "query_trace" }
+            "runtime": { "const": "query_trace_if_present" }
           }
         },
         "does_not_prove": {
