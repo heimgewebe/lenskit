@@ -5,8 +5,8 @@ Scope: Phase-B-Härtung — Context Risk & Agent-facing Output Safety.
 Revision: rev2 — Scope nach Review präzisiert auf **strikte Surface-Lokalität** (kein
 globaler Epistemik-Layer, keine Cross-Artifact-Normalisierung, kein Shared-`$ref`/-
 Registry, kein agent-safe-Verdikt, kein Scoring). Siehe §6a.
-Diese Notiz beschreibt die **minimale additive** Härtung; die Phase-2-Umsetzung folgt
-als kleiner PR B3 entlang dieser Notiz.
+Diese Notiz beschreibt die **minimale additive** Härtung; die Phase-2-Umsetzung erfolgt
+in diesem PR als kleiner B3-Schritt entlang dieser Notiz.
 
 Beziehung zu bestehenden Docs (ersetzt nichts):
 - Reihenfolge/Gates: `docs/roadmap/lenskit-master-roadmap.md`
@@ -418,6 +418,7 @@ Zusätzlich (Review-rev2, siehe §6a): **kein** Cross-Artifact-Normalisierungs-L
 ## 11. Nächster Schritt
 
 rev1 wurde reviewt; Scope auf strikte Surface-Lokalität präzisiert (rev2, §6a). Die
-additive Phase-2-Umsetzung (§5, §8) erfolgt als kleiner, gezielter PR B3 entlang dieser
-Notiz: optionales `context_risk` im Bundle-Schema + konstanter, inline definierter Block
-im Producer + die vier benannten Tests (§9). Keine anderen Contracts werden angefasst.
+additive Phase-2-Umsetzung (§5, §8) ist in diesem PR als kleiner, gezielter B3-Schritt
+entlang dieser Notiz enthalten: optionales `context_risk` im Bundle-Schema + konstanter,
+inline definierter Block im Producer + die vier benannten Tests (§9). Keine anderen
+Contracts werden angefasst.

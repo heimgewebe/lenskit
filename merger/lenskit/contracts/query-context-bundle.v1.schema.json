@@ -143,7 +143,7 @@
     },
     "context_risk": {
       "type": "object",
-      "description": "Surface-local risk hints for this context bundle. Retrieval/projection/incompleteness signals only — not a truth verdict, not a score, not an aggregated or shared epistemic layer. Optional for backwards compatibility; emitted by build_context_bundle for all new bundles.",
+      "description": "Surface-local risk hints for this context bundle. Retrieval/projection/incompleteness signals only — not a truth verdict, not a score, not an aggregated or shared epistemic layer. Optional for backwards compatibility; included in all newly produced bundles.",
       "additionalProperties": false,
       "required": [
         "retrieval_based_subset",
@@ -167,14 +167,14 @@
         },
         "claims_resolve_to": {
           "type": "object",
-          "description": "Surface-local resolve pointers restating the existing reading policy (where each claim kind is authoritative). Not a new authority model and not shared across contracts.",
+          "description": "Surface-local resolve pointers restating the existing reading policy. Not a new authority model and not shared across contracts. The runtime surface resolves to query_trace when present.",
           "additionalProperties": false,
           "required": ["content", "metadata", "schema", "runtime"],
           "properties": {
             "content": { "const": "canonical_md" },
             "metadata": { "const": "bundle_manifest" },
             "schema": { "const": "schema" },
-            "runtime": { "const": "query_trace_if_present" }
+            "runtime": { "const": "query_trace" }
           }
         },
         "does_not_prove": {

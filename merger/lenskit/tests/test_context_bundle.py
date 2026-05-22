@@ -330,7 +330,7 @@ _EXPECTED_CONTEXT_RISK = {
         "content": "canonical_md",
         "metadata": "bundle_manifest",
         "schema": "schema",
-        "runtime": "query_trace_if_present",
+        "runtime": "query_trace",
     },
     "does_not_prove": [
         "Absence of a hit does not prove absence in the repository.",
