@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -376,7 +377,7 @@ def test_noise_dirs_absent_from_generated_bundle_surfaces(tmp_path):
         if "<!-- FILE_START path=" in line
     ]
     chunk_rows = [
-        __import__("json").loads(line)
+        json.loads(line)
         for line in chunk_text.splitlines()
         if line.strip()
     ]
@@ -394,14 +395,23 @@ def test_noise_dirs_absent_from_generated_bundle_surfaces(tmp_path):
             f"A2 new noise dir '{dir_name}' content must not appear in chunk_index"
         )
 
-    # Assertion 2: Noise dir names must not appear as path components
+    # Assertion 2: Noise dir names must not appear as actual path components (symmetric to is_noise_file logic)
     for dir_name in sentinels:
-        assert not any(dir_name in p for p in md_file_paths), (
-            f"A2 new noise dir '{dir_name}' must not appear as path in canonical_md: {md_file_paths}"
-        )
-        assert not any(dir_name in p for p in chunk_file_paths), (
-            f"A2 new noise dir '{dir_name}' must not appear as path in chunk_index JSONL: {chunk_file_paths}"
-        )
+        # Check canonical_md: noise dirs must not be parent-directory components
+        for p in md_file_paths:
+            path_parts = p.split("/")
+            parent_dirs = set(path_parts[:-1])  # all components except filename
+            assert dir_name not in parent_dirs, (
+                f"A2 new noise dir '{dir_name}' must not appear as actual component in canonical_md path: {p}"
+            )
+        # Check chunk_index: noise dirs must not be parent-directory components
+        for p in chunk_file_paths:
+            if p:  # skip empty strings
+                path_parts = p.split("/")
+                parent_dirs = set(path_parts[:-1])
+                assert dir_name not in parent_dirs, (
+                    f"A2 new noise dir '{dir_name}' must not appear as actual component in chunk_index path: {p}"
+                )
 
     # Assertion 3: Noise filenames must not appear in paths
     noise_filenames = ["pip_wheels.txt", "lcov.info"]
@@ -410,7 +420,7 @@ def test_noise_dirs_absent_from_generated_bundle_surfaces(tmp_path):
             f"Noise file '{filename}' must not appear in canonical_md paths: {md_file_paths}"
         )
         assert not any(filename in p for p in chunk_file_paths), (
-            f"Noise file '{filename}' must not appear in chunk_index paths: {chunk_file_paths}"
+            f"Noise file '{filename}' must not appear in chunk_index JSONL paths: {chunk_file_paths}"
         )
 
     # Assertion 4: Source file must be present
