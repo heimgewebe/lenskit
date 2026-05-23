@@ -100,12 +100,16 @@ Uses `write_reports_v2()` to generate a complete bundle from a synthetic repo co
 - `.cache/pip_wheels.txt` and `coverage/lcov.info` (A2-new noise dirs, with distinct sentinels)
 - `.github/workflows/ci.yml`, `.wgx/config.yml`, `.ai-context.yml` (intentional hidden context)
 
-Verifies on generated `canonical_md` and `chunk_index`:
+Verifies on generated `canonical_md` and `chunk_index` (JSONL format):
 - ✅ `.cache` and `coverage` sentinel content absent from both surfaces
 - ✅ `.cache` and `coverage` absent as path components in markdown file markers
-- ✅ `src/main.py` present in markdown file paths
+- ✅ `pip_wheels.txt` and `lcov.info` filenames absent from all paths
+- ✅ `src/main.py` present in both canonical_md and chunk_index file paths
+- ✅ Hidden context files (`.github/workflows/ci.yml`, `.wgx/config.yml`, `.ai-context.yml`) present in both surfaces — direct proof, not deferred to scan_repo test
 
-This closes the A2 proof gap from "traversal is clean" to "generated bundle surfaces are clean".
+This closes the A2 proof gap from "traversal is clean" to "generated bundle surfaces are demonstrably clean".
+
+**Note:** `agent_reading_pack` is not directly tested in this integration. The bundle-surface proof is limited to `canonical_md` and `chunk_index` JSONL file_path fields; `agent_reading_pack` cleanliness follows from upstream scan_repo() inputs being noise-free.
 
 ## Scope
 
