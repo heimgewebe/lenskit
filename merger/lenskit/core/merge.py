@@ -5203,6 +5203,11 @@ def write_reports_v2(
         can_md = resolve_canonical_md(md_paths) if md_paths else None
         canonical_md_name = can_md.name if can_md else None
         canonical_md_bytes = can_md.read_bytes() if (can_md and can_md.exists()) else None
+        canonical_md_sha256 = (
+            hashlib.sha256(canonical_md_bytes).hexdigest()
+            if canonical_md_bytes is not None
+            else None
+        )
 
         all_chunks = []
 
@@ -5298,8 +5303,8 @@ def write_reports_v2(
                                 source_file_path=fi.rel_path.as_posix(),
                                 source_line_start=d["start_line"],
                                 source_line_end=d["end_line"],
-                                content_sha256=can_sha256,
-                                range_content_sha256=d["sha256"],
+                                content_sha256=canonical_md_sha256,
+                                range_content_sha256=can_sha256,
                                 repo_id=fi.root_label,
                             )
                         else:

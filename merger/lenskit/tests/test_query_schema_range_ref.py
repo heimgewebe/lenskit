@@ -8,7 +8,8 @@ def test_schema_validates_both_cases(tmp_path):
     dump_path = tmp_path / "dump.json"
     chunk_path = tmp_path / "chunks.jsonl"
 
-    hash_value = "3" * 64
+    full_hash = "3" * 64
+    range_hash = "4" * 64
 
     ref_obj = {
         "range_ref_version": "2",
@@ -22,8 +23,8 @@ def test_schema_validates_both_cases(tmp_path):
         "source_file_path": "src/main.py",
         "source_line_start": 1,
         "source_line_end": 1,
-        "content_sha256": hash_value,
-        "range_content_sha256": hash_value,
+        "content_sha256": full_hash,
+        "range_content_sha256": range_hash,
         "file_path": "merged.md",
         "start_byte": 0,
         "end_byte": 10,

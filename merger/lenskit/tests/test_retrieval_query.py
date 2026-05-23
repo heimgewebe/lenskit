@@ -128,7 +128,8 @@ def test_citation_resolve_prefers_v2(tmp_path):
     dump_path = tmp_path / "dump.json"
     chunk_path = tmp_path / "chunks.jsonl"
 
-    hash_value = "1" * 64
+    full_hash = "1" * 64
+    range_hash = "2" * 64
 
     ref_obj = {
         "range_ref_version": "2",
@@ -142,8 +143,8 @@ def test_citation_resolve_prefers_v2(tmp_path):
         "source_file_path": "src/main.py",
         "source_line_start": 1,
         "source_line_end": 1,
-        "content_sha256": hash_value,
-        "range_content_sha256": hash_value,
+        "content_sha256": full_hash,
+        "range_content_sha256": range_hash,
         "file_path": "merged.md",
         "start_byte": 0,
         "end_byte": 10,
@@ -173,7 +174,8 @@ def test_citation_resolve_prefers_v2(tmp_path):
     assert hit["range_ref"]["range_ref_version"] == "2"
     assert hit["range_ref"]["artifact_path"] == "merged.md"
     assert hit["range_ref"]["source_file_path"] == "src/main.py"
-    assert hit["range_ref"]["content_sha256"] == hash_value
+    assert hit["range_ref"]["content_sha256"] == full_hash
+    assert hit["range_ref"]["range_content_sha256"] == range_hash
 
 def test_query_semantic_markers(mini_index):
     policy = {

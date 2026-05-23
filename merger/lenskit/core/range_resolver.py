@@ -275,6 +275,12 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
             raise ValueError("range_ref v2 must include a valid 'range_content_sha256'")
 
         file_bytes = target_path.read_bytes()
+        actual_artifact_sha256 = hashlib.sha256(file_bytes).hexdigest()
+        if actual_artifact_sha256 != content_sha256:
+            raise ValueError(
+                f"Artifact content hash mismatch. Expected: {content_sha256}, Actual: {actual_artifact_sha256}"
+            )
+
         file_size = len(file_bytes)
         if artifact_byte_start < 0 or artifact_byte_end > file_size or artifact_byte_start > artifact_byte_end:
             raise ValueError(
@@ -283,9 +289,9 @@ def resolve_range_ref(manifest_path: Path, ref: Dict[str, Any]) -> Dict[str, Any
 
         content_bytes = file_bytes[artifact_byte_start:artifact_byte_end]
         actual_range_sha256 = hashlib.sha256(content_bytes).hexdigest()
-        if actual_range_sha256 != content_sha256:
+        if actual_range_sha256 != range_content_sha256:
             raise ValueError(
-                f"Range hash mismatch. Expected: {content_sha256}, Actual: {actual_range_sha256}"
+                f"Range content hash mismatch. Expected: {range_content_sha256}, Actual: {actual_range_sha256}"
             )
 
         try:
