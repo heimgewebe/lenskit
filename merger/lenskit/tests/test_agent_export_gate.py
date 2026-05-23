@@ -22,6 +22,8 @@ def _write_manifest(
     redaction: bool,
     include_output_health: bool = True,
     output_health_verdict: str = "pass",
+    output_health_path: str = "demo.output_health.json",
+    run_id: object = "demo-run",
 ) -> Path:
     canonical = b"# repo: demo\n\nhello\n"
     (tmp_path / "demo.md").write_bytes(canonical)
@@ -53,11 +55,13 @@ def _write_manifest(
             "verdict": output_health_verdict,
         }
         output_bytes = json.dumps(output_doc, indent=2).encode("utf-8")
-        (tmp_path / "demo.output_health.json").write_bytes(output_bytes)
+        output_file = tmp_path / output_health_path
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_bytes(output_bytes)
         artifacts.append(
             {
                 "role": "output_health",
-                "path": "demo.output_health.json",
+            "path": output_health_path,
                 "content_type": "application/json",
                 "bytes": len(output_bytes),
                 "sha256": _sha256(output_bytes),
@@ -70,19 +74,22 @@ def _write_manifest(
     manifest = {
         "kind": "repolens.bundle.manifest",
         "version": "1.0",
-        "run_id": "demo-run",
         "created_at": "2026-05-23T00:00:00Z",
         "generator": {"name": "test", "version": "1.0", "config_sha256": "a" * 64},
         "artifacts": artifacts,
         "links": {},
         "capabilities": {"fts5_bm25": False, "redaction": redaction},
     }
+    if run_id is not ...:
+        manifest["run_id"] = run_id
     path = tmp_path / "demo.bundle.manifest.json"
     path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return path
 
 
-def _write_post_health(tmp_path: Path, status: str, *, observed_output_health: str = "pass") -> Path:
+def _write_post_health(
+    tmp_path: Path, status: str, *, observed_output_health: str | None = "pass"
+) -> Path:
     report = {
         "kind": "lenskit.post_emit_health",
         "version": "1.0",
@@ -99,8 +106,9 @@ def _write_post_health(tmp_path: Path, status: str, *, observed_output_health: s
         "artifact_count_checked": 0,
         "hash_mismatch_count": 0,
         "missing_artifact_count": 0,
-        "output_health_verdict": observed_output_health,
     }
+    if observed_output_health is not None:
+        report["output_health_verdict"] = observed_output_health
     path = tmp_path / "demo.bundle_health.post.json"
     path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return path
@@ -165,6 +173,34 @@ def test_unknown_profile_is_blocked(tmp_path):
     assert any("unknown export profile" in e for e in report["errors"])
 
 
+def test_agent_facing_blocks_when_manifest_run_id_missing(tmp_path):
+    manifest = _write_manifest(tmp_path, redaction=True, run_id=...)
+    _write_post_health(tmp_path, "pass")
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile="agent_minimal",
+        require_redaction=True,
+    )
+
+    assert report["status"] == "blocked"
+    assert any("manifest run_id" in e for e in report["errors"])
+
+
+def test_agent_facing_blocks_when_manifest_run_id_empty(tmp_path):
+    manifest = _write_manifest(tmp_path, redaction=True, run_id="")
+    _write_post_health(tmp_path, "pass")
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile="agent_minimal",
+        require_redaction=True,
+    )
+
+    assert report["status"] == "blocked"
+    assert any("manifest run_id" in e for e in report["errors"])
+
+
 def test_agent_facing_output_health_pass_but_missing_post_emit_not_pass(tmp_path):
     manifest = _write_manifest(
         tmp_path,
@@ -182,6 +218,32 @@ def test_agent_facing_output_health_pass_but_missing_post_emit_not_pass(tmp_path
     assert report["output_health_verdict_observed"] == "pass"
     assert report["status"] in {"blocked", "fail"}
     assert report["status"] != "pass"
+
+
+def test_output_health_observation_does_not_read_outside_bundle(tmp_path):
+    outside_doc = {
+        "kind": "lenskit.output_health",
+        "version": "1.0",
+        "verdict": "pass",
+    }
+    outside_path = tmp_path.parent / "outside.output_health.json"
+    outside_path.write_text(json.dumps(outside_doc, indent=2), encoding="utf-8")
+
+    manifest = _write_manifest(
+        tmp_path,
+        redaction=True,
+        output_health_path="../outside.output_health.json",
+    )
+    _write_post_health(tmp_path, "pass", observed_output_health=None)
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile="agent_minimal",
+        require_redaction=True,
+    )
+
+    assert report["status"] == "pass"
+    assert report["output_health_verdict_observed"] is None
 
 
 def test_agent_facing_fails_when_post_emit_fail(tmp_path):
@@ -357,12 +419,12 @@ def test_agent_facing_fails_when_redaction_required_but_disabled(tmp_path):
     assert report["redaction_enabled"] is False
 
 
-def test_non_agent_local_profile_does_not_claim_agent_certification(tmp_path):
+def test_non_agent_human_review_profile_does_not_claim_agent_certification(tmp_path):
     manifest = _write_manifest(tmp_path, redaction=False)
 
     report = evaluate_agent_export_gate(
         manifest_path=str(manifest),
-        profile="local",
+        profile="human_review",
         require_redaction=True,
     )
 
@@ -372,11 +434,11 @@ def test_non_agent_local_profile_does_not_claim_agent_certification(tmp_path):
     assert any("does not certify agent-surface export" in w for w in report["warnings"])
 
 
-def test_non_agent_local_profile_stays_pass_when_require_redaction_false(tmp_path):
+def test_non_agent_human_review_stays_pass_when_require_redaction_false(tmp_path):
     manifest = _write_manifest(tmp_path, redaction=False)
     report = evaluate_agent_export_gate(
         manifest_path=str(manifest),
-        profile="local",
+        profile="human_review",
         require_redaction=False,
     )
     assert report["status"] == "pass"

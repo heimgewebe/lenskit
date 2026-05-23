@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from .clock import now_utc
+from .path_security import resolve_secure_path
 from .post_emit_health import derive_post_health_path
 
 try:
@@ -40,7 +41,6 @@ _NON_AGENT_PROFILES = {
     "ui_navigation",
     "lookup_minimal",
     "review_context",
-    "local",
 }
 _KNOWN_PROFILES = _AGENT_FACING_PROFILES | _NON_AGENT_PROFILES
 
@@ -103,7 +103,11 @@ def _find_output_health_verdict(manifest: Dict[str, Any], manifest_dir: Path) ->
     if not isinstance(rel_path, str) or not rel_path:
         return None
 
-    output_path = (manifest_dir / rel_path).resolve()
+    try:
+        output_path = resolve_secure_path(manifest_dir, rel_path)
+    except ValueError:
+        return None
+
     output_doc, _ = _load_json(output_path)
     if not isinstance(output_doc, dict):
         return None
@@ -162,9 +166,12 @@ def _validate_post_health_binding(
     if resolved_post_manifest != resolved_manifest:
         return "post_emit_health bundle_manifest_path does not match the evaluated manifest"
 
-    status = post_doc.get("status")
     post_bundle_run_id = post_doc.get("bundle_run_id")
-    if status == "pass" and isinstance(manifest_run_id, str) and manifest_run_id:
+    if status == "pass":
+        if not isinstance(manifest_run_id, str) or not manifest_run_id.strip():
+            return "manifest run_id is missing or empty; cannot bind post_emit_health"
+        if not isinstance(post_bundle_run_id, str) or not post_bundle_run_id.strip():
+            return "post_emit_health bundle_run_id is missing or empty"
         if post_bundle_run_id != manifest_run_id:
             return "post_emit_health bundle_run_id does not match manifest run_id"
 
@@ -229,7 +236,9 @@ def evaluate_agent_export_gate(
         }
 
     manifest_dir = resolved_manifest.parent
-    manifest_run_id = manifest.get("run_id") if isinstance(manifest.get("run_id"), str) else None
+    manifest_run_id_raw = manifest.get("run_id")
+    manifest_run_id = manifest_run_id_raw if isinstance(manifest_run_id_raw, str) else None
+    manifest_run_id_valid = isinstance(manifest_run_id, str) and bool(manifest_run_id.strip())
 
     profile_missing = profile is None
     profile_unknown = isinstance(profile, str) and profile not in _KNOWN_PROFILES
@@ -280,6 +289,10 @@ def evaluate_agent_export_gate(
         errors.append(f"unknown export profile: {profile!r}")
 
     if agent_facing:
+        if not manifest_run_id_valid:
+            status = "blocked"
+            errors.append("agent-facing export requires non-empty manifest run_id")
+
         if not post_health_valid:
             status = "blocked"
             errors.append("agent-facing export requires valid post_emit_health")
