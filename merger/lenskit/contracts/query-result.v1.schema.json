@@ -99,90 +99,26 @@
             "type": "string"
           },
           "range_ref": {
-            "type": "object",
             "description": "Optional deterministic range reference.",
-            "additionalProperties": false,
-            "required": [
-              "artifact_role",
-              "repo_id",
-              "file_path",
-              "start_byte",
-              "end_byte",
-              "content_sha256"
-            ],
-            "properties": {
-              "artifact_role": {
-                "type": "string"
+            "anyOf": [
+              {
+                "$ref": "#/definitions/rangeRefV1"
               },
-              "repo_id": {
-                "type": "string"
-              },
-              "file_path": {
-                "type": "string"
-              },
-              "start_byte": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "end_byte": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "start_line": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "end_line": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "content_sha256": {
-                "type": "string"
+              {
+                "$ref": "#/definitions/rangeRefV2"
               }
-            }
+            ]
           },
           "derived_range_ref": {
-            "type": "object",
             "description": "A dynamically derived fallback reference (e.g., pointing to the original source file) when a full bundle-verified range_ref is missing.",
-            "additionalProperties": false,
-            "required": [
-              "artifact_role",
-              "repo_id",
-              "file_path",
-              "start_byte",
-              "end_byte",
-              "content_sha256"
-            ],
-            "properties": {
-              "artifact_role": {
-                "type": "string"
+            "anyOf": [
+              {
+                "$ref": "#/definitions/rangeRefV1"
               },
-              "repo_id": {
-                "type": "string"
-              },
-              "file_path": {
-                "type": "string"
-              },
-              "start_byte": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "end_byte": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "start_line": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "end_line": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "content_sha256": {
-                "type": "string"
+              {
+                "$ref": "#/definitions/rangeRefV2"
               }
-            }
+            ]
           },
           "why": {
             "type": "object",
@@ -293,6 +229,170 @@
         "requires_live_check": {
           "type": "boolean",
           "description": "Whether authoritative answers require a live repository check beyond this index snapshot."
+        }
+      }
+    }
+  },
+  "definitions": {
+    "rangeRefV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_role",
+        "repo_id",
+        "file_path",
+        "start_byte",
+        "end_byte",
+        "content_sha256"
+      ],
+      "properties": {
+        "artifact_role": {
+          "type": "string",
+          "enum": [
+            "canonical_md",
+            "index_sidecar_json",
+            "chunk_index_jsonl",
+            "dump_index_json",
+            "sqlite_index",
+            "retrieval_eval_json",
+            "derived_manifest_json",
+            "architecture_summary",
+            "delta_json",
+            "graph_index_json",
+            "source_file"
+          ]
+        },
+        "repo_id": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "start_byte": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_byte": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "rangeRefV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "range_ref_version",
+        "artifact_role",
+        "artifact_path",
+        "artifact_byte_start",
+        "artifact_byte_end",
+        "artifact_line_start",
+        "artifact_line_end",
+        "source_file_path",
+        "source_line_start",
+        "source_line_end",
+        "content_sha256",
+        "range_content_sha256"
+      ],
+      "properties": {
+        "range_ref_version": {
+          "type": "string",
+          "const": "2"
+        },
+        "artifact_role": {
+          "type": "string",
+          "enum": [
+            "canonical_md",
+            "index_sidecar_json",
+            "chunk_index_jsonl",
+            "dump_index_json",
+            "sqlite_index",
+            "retrieval_eval_json",
+            "derived_manifest_json",
+            "architecture_summary",
+            "delta_json",
+            "graph_index_json",
+            "source_file"
+          ]
+        },
+        "repo_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifact_path": {
+          "type": "string"
+        },
+        "artifact_byte_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifact_byte_end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifact_line_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "artifact_line_end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_file_path": {
+          "type": "string"
+        },
+        "source_line_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_line_end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "range_content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "start_byte": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_byte": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "chunk_id": {
+          "type": "string"
         }
       }
     }

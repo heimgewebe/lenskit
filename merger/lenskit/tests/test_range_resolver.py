@@ -1,6 +1,8 @@
 import json
 import hashlib
+from pathlib import Path
 import pytest
+import jsonschema
 from merger.lenskit.core.range_resolver import resolve_range_ref
 
 @pytest.fixture
@@ -42,6 +44,29 @@ def manifest_env(tmp_path):
         "expected_sha256": expected_sha256
     }
 
+
+def _build_v2_ref(manifest_env, source_file_path="src/code.md"):
+    return {
+        "range_ref_version": "2",
+        "artifact_role": "canonical_md",
+        "repo_id": "test-repo",
+        "artifact_path": "code.md",
+        "artifact_byte_start": manifest_env["start_byte"],
+        "artifact_byte_end": manifest_env["end_byte"],
+        "artifact_line_start": 2,
+        "artifact_line_end": 2,
+        "source_file_path": source_file_path,
+        "source_line_start": 11,
+        "source_line_end": 11,
+        "content_sha256": hashlib.sha256(manifest_env["content"]).hexdigest(),
+        "range_content_sha256": manifest_env["expected_sha256"],
+        "file_path": "code.md",
+        "start_byte": manifest_env["start_byte"],
+        "end_byte": manifest_env["end_byte"],
+        "start_line": 2,
+        "end_line": 2,
+    }
+
 def test_valid_range_returns_exact_content(manifest_env):
     ref = {
         "artifact_role": "canonical_md",
@@ -59,6 +84,63 @@ def test_valid_range_returns_exact_content(manifest_env):
     assert result["sha256"] == manifest_env["expected_sha256"]
     assert result["bytes"] == 7
 
+
+def test_range_ref_v2_schema(manifest_env):
+    schema_path = Path(__file__).parent.parent / "contracts" / "range-ref.v2.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    ref = _build_v2_ref(manifest_env)
+    jsonschema.validate(instance=ref, schema=schema)
+
+    assert ref["artifact_line_start"] != ref["source_line_start"]
+    assert ref["content_sha256"] != ref["range_content_sha256"]
+
+    result = resolve_range_ref(manifest_env["manifest_path"], ref)
+    assert result["text"] == "Line 2\n"
+    assert result["sha256"] == manifest_env["expected_sha256"]
+    assert result["lines"] == [2, 2]
+
+
+def test_range_ref_v2_schema_missing_range_content_sha256_fails(manifest_env):
+    schema_path = Path(__file__).parent.parent / "contracts" / "range-ref.v2.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    ref = _build_v2_ref(manifest_env)
+    del ref["range_content_sha256"]
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=ref, schema=schema)
+
+
+def test_range_ref_v2_schema_invalid_sha_pattern_fails(manifest_env):
+    schema_path = Path(__file__).parent.parent / "contracts" / "range-ref.v2.schema.json"
+    with schema_path.open("r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    ref = _build_v2_ref(manifest_env)
+    ref["range_content_sha256"] = "not-a-sha"
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=ref, schema=schema)
+
+
+def test_range_ref_v2_wrong_artifact_hash_raises_error(manifest_env):
+    ref = _build_v2_ref(manifest_env)
+    ref["content_sha256"] = "d" * 64
+
+    with pytest.raises(ValueError, match="Artifact content hash mismatch"):
+        resolve_range_ref(manifest_env["manifest_path"], ref)
+
+
+def test_range_ref_v2_wrong_range_hash_raises_error(manifest_env):
+    ref = _build_v2_ref(manifest_env)
+    ref["range_content_sha256"] = "e" * 64
+
+    with pytest.raises(ValueError, match="Range content hash mismatch"):
+        resolve_range_ref(manifest_env["manifest_path"], ref)
+
 def test_wrong_sha256_raises_error(manifest_env):
     ref = {
         "artifact_role": "canonical_md",
@@ -72,6 +154,23 @@ def test_wrong_sha256_raises_error(manifest_env):
     }
     with pytest.raises(ValueError, match="Hash mismatch"):
         resolve_range_ref(manifest_env["manifest_path"], ref)
+
+
+def test_range_ref_v1_backwards_compatible(manifest_env):
+    ref = {
+        "artifact_role": "canonical_md",
+        "repo_id": "test-repo",
+        "file_path": "code.md",
+        "start_byte": manifest_env["start_byte"],
+        "end_byte": manifest_env["end_byte"],
+        "start_line": 2,
+        "end_line": 2,
+        "content_sha256": manifest_env["expected_sha256"]
+    }
+
+    result = resolve_range_ref(manifest_env["manifest_path"], ref)
+    assert result["text"] == "Line 2\n"
+    assert result["sha256"] == manifest_env["expected_sha256"]
 
 def test_unknown_role_raises_error(manifest_env):
     ref = {

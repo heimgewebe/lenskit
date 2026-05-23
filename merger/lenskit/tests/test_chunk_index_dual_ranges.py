@@ -81,12 +81,29 @@ def dual_range_artifacts(tmp_path):
 
 def test_content_range_ref_legacy_still_present(dual_range_artifacts):
     """Legacy content_range_ref must be emitted for chunks in canonical_md."""
-    _, chunks, _ = dual_range_artifacts
+    _, chunks, canonical_md_bytes = dual_range_artifacts
     assert len(chunks) > 0, "no chunks produced"
     chunks_with_ref = [c for c in chunks if "content_range_ref" in c]
     assert len(chunks_with_ref) > 0, (
         "at least one chunk must have content_range_ref"
     )
+
+    chunks_with_both = [c for c in chunks_with_ref if "canonical_range" in c]
+    assert len(chunks_with_both) > 0, "need at least one chunk with content_range_ref and canonical_range"
+
+    for c in chunks_with_both:
+        crr = c["content_range_ref"]
+        cr = c["canonical_range"]
+
+        assert "range_ref_version" not in crr
+        assert "artifact_path" not in crr
+        assert crr["content_sha256"] == cr["content_sha256"]
+        assert crr["start_byte"] == cr["start_byte"]
+        assert crr["end_byte"] == cr["end_byte"]
+
+        actual_bytes = canonical_md_bytes[crr["start_byte"]:crr["end_byte"]]
+        expected_sha = hashlib.sha256(actual_bytes).hexdigest()
+        assert crr["content_sha256"] == expected_sha
 
 
 def test_chunk_index_emits_canonical_range_from_content_range_ref(dual_range_artifacts):
