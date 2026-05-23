@@ -88,9 +88,9 @@ Validierung, Emission und Registrierung bleiben getrennt:
 ## 6. Validierung
 
 ```
-python3.11 -m pytest merger/lenskit/tests/test_post_emit_health.py merger/lenskit/tests/test_cli_bundle_health.py   # 17 passed
+python3.11 -m pytest merger/lenskit/tests/test_post_emit_health.py merger/lenskit/tests/test_cli_bundle_health.py   # 22 passed
 python3.11 -m pytest merger/lenskit/tests/test_output_health.py merger/lenskit/tests/test_bundle_manifest_integration.py  # 68 passed (keine Regression)
-python3.11 -m pytest --ignore=merger/lenskit/tests/test_webui_payload.py  # 1330 passed, 1 skipped
+python3.11 -m pytest --ignore=merger/lenskit/tests/test_webui_payload.py  # 1335 passed, 1 skipped
 ```
 
 Voller `pytest`-Lauf ist nur durch die Browser-Tests in `test_webui_payload.py`

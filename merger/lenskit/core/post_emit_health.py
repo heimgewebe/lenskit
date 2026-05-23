@@ -37,6 +37,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -59,7 +60,7 @@ VERSION = "1.0"
 _MANIFEST_SUFFIX = ".bundle.manifest.json"
 _POST_HEALTH_SUFFIX = ".bundle_health.post.json"
 _BUNDLE_KIND = "repolens.bundle.manifest"
-_SHA256_LEN = 64
+_SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 
 # Minimum disclaimers the artifact must always carry. These are NOT claim
 # verdicts; they declare what a post-emit pass deliberately does NOT establish.
@@ -152,9 +153,10 @@ def _range_ref_status(
     manifest_path: Path, chunk_index_path: Optional[Path]
 ) -> Tuple[str, str]:
     """
-    Resolve one ``content_range_ref`` from the chunk index against the final
-    bundle manifest. Returns (status, message) where status is one of:
-    ``ok``, ``fail``, ``environment_error``, ``no_range_ref``, ``unavailable``.
+    Resolve one range reference from the chunk index against the final bundle
+    manifest. Prefers the current ``canonical_range`` field and falls back to the
+    legacy ``content_range_ref``. Returns (status, message) where status is one
+    of: ``ok``, ``fail``, ``environment_error``, ``no_range_ref``, ``unavailable``.
     """
     if chunk_index_path is None or not chunk_index_path.exists():
         return "unavailable", "chunk_index not available for range_ref check"
@@ -171,29 +173,31 @@ def _range_ref_status(
                     continue
                 if not isinstance(chunk, dict):
                     continue
-                raw = chunk.get("content_range_ref")
+                raw = chunk.get("canonical_range")
+                if raw is None:
+                    raw = chunk.get("content_range_ref")
                 if raw is None:
                     continue
                 if isinstance(raw, str):
                     try:
                         raw = json.loads(raw)
                     except json.JSONDecodeError as e:
-                        return "fail", f"invalid content_range_ref JSON string: {e}"
+                        return "fail", f"invalid range reference JSON string: {e}"
                 if not isinstance(raw, dict):
-                    return "fail", "content_range_ref must be an object"
+                    return "fail", "range reference must be an object"
                 sample_ref = raw
                 break
     except (OSError, UnicodeError) as e:
         return "unavailable", f"could not read chunk_index: {e}"
 
     if sample_ref is None:
-        return "no_range_ref", "no content_range_ref found; range_ref check skipped"
+        return "no_range_ref", "no range reference found; range_ref check skipped"
 
     try:
         from .range_resolver import resolve_range_ref
 
         resolve_range_ref(manifest_path, sample_ref)
-        return "ok", "content_range_ref resolved against bundle manifest"
+        return "ok", "range reference resolved against bundle manifest"
     except Exception as e:  # noqa: BLE001 - classify below
         if _is_jsonschema_unavailable_error(e):
             return "environment_error", "range_ref validation skipped: jsonschema unavailable"
@@ -205,7 +209,7 @@ def _compute_evidence(
     range_ref_status: str,
     jsonschema_available: bool,
     sqlite_ok: Optional[bool],
-    output_health_present: bool,
+    output_health_valid: bool,
 ) -> Tuple[Optional[str], List[str]]:
     """
     Report achieved evidence levels using the existing vocabulary. Each level
@@ -233,7 +237,7 @@ def _compute_evidence(
     if navigable and _SQLITE_INDEX in valid_roles and bool(sqlite_ok):
         reached.add("searchable")
 
-    if navigable and output_health_present and _DEBUG_ROLES.issubset(valid_roles):
+    if navigable and output_health_valid and _DEBUG_ROLES.issubset(valid_roles):
         reached.add("diagnostic_full")
 
     headline: Optional[str] = None
@@ -434,7 +438,7 @@ def compute_post_emit_health(
         if actual is None:
             errors.append(f"artifact '{role}' could not be read for hashing: {raw_path}")
             continue
-        if isinstance(expected_sha, str) and len(expected_sha) == _SHA256_LEN:
+        if isinstance(expected_sha, str) and _SHA256_RE.fullmatch(expected_sha):
             if actual != expected_sha:
                 hash_mismatch_count += 1
                 errors.append(
@@ -548,13 +552,17 @@ def compute_post_emit_health(
     )
 
     # ── output_health: OBSERVATION ONLY (never gates post-emit status) ───────
+    # Coverage is based on a *validated* artifact, not a bare manifest declaration:
+    # a declared-but-missing/hash-mismatched output_health is not trusted and must
+    # not boost evidence (e.g. diagnostic_full) or supply a verdict.
     output_health_verdict: Optional[str] = None
-    output_health_present = _OUTPUT_HEALTH in by_role
+    output_health_declared = _OUTPUT_HEALTH in by_role
+    output_health_valid = _OUTPUT_HEALTH in valid_roles
     sqlite_ok: Optional[bool] = None
     noise_hygiene: Dict[str, Any] = {"available": False, "excluded_noise_count": None, "source": None}
 
     oh_entry = by_role.get(_OUTPUT_HEALTH)
-    if isinstance(oh_entry, dict) and isinstance(oh_entry.get("path"), str):
+    if output_health_valid and isinstance(oh_entry, dict) and isinstance(oh_entry.get("path"), str):
         try:
             oh_path = resolve_secure_path(manifest_dir, oh_entry["path"])
         except ValueError:
@@ -585,14 +593,18 @@ def compute_post_emit_health(
                         "source": "output_health",
                     }
 
-    checks.append(
-        _check(
-            "output_health_observed",
-            "pass" if output_health_present else "skipped",
+    if output_health_valid:
+        oh_obs_status, oh_obs_detail = "pass", (
             f"output_health.verdict={output_health_verdict!r} (observation only; "
-            "does not imply post_emit_health.status=pass)",
+            "does not imply post_emit_health.status=pass)"
         )
-    )
+    elif output_health_declared:
+        oh_obs_status, oh_obs_detail = "skipped", (
+            "output_health is declared but not hash-validated; verdict not trusted"
+        )
+    else:
+        oh_obs_status, oh_obs_detail = "skipped", "output_health not declared in manifest"
+    checks.append(_check("output_health_observed", oh_obs_status, oh_obs_detail))
 
     # ── evidence level (existing vocabulary; not an understanding verdict) ────
     evidence_level, evidence_levels_reached = _compute_evidence(
@@ -600,7 +612,7 @@ def compute_post_emit_health(
         rr_status,
         jsonschema_available=jsonschema is not None,
         sqlite_ok=sqlite_ok,
-        output_health_present=output_health_present,
+        output_health_valid=output_health_valid,
     )
     checks.append(
         _check(

@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 
 import jsonschema
-import pytest
 
 from merger.lenskit.core.post_emit_health import (
     DOES_NOT_MEAN,
@@ -40,6 +39,7 @@ def _make_bundle(
     redaction: bool = False,
     pack_authority: str = "navigation_index",
     pack_canonicality: str = "derived",
+    range_key: str = "canonical_range",
 ) -> Path:
     """Build a synthetic bundle on disk and return the manifest path."""
     artifacts = []
@@ -51,15 +51,19 @@ def _make_bundle(
         "authority": "canonical_content", "canonicality": "content_source",
     })
 
+    _start = _CANONICAL.index(b"x = 1")
     chunk = {
         "chunk_id": "c0",
         "path": "a.py",
-        "canonical_range": {
+        range_key: {
             "artifact_role": "canonical_md",
+            "repo_id": "demo",
             "file_path": "demo.md",
-            "start_byte": _CANONICAL.index(b"x = 1"),
+            "start_byte": _start,
             "end_byte": len(_CANONICAL),
-            "content_sha256": _sha256(_CANONICAL[_CANONICAL.index(b"x = 1"):]),
+            "start_line": 4,
+            "end_line": 4,
+            "content_sha256": _sha256(_CANONICAL[_start:]),
         },
     }
     chunk_bytes = (json.dumps(chunk) + "\n").encode("utf-8")
@@ -205,9 +209,38 @@ def test_post_emit_health_clean_bundle_passes(tmp_path):
     assert report["status"] == "pass"
     assert report["errors"] == []
     assert report["agent_pack"]["self_role_ok"] is True
+    # A clean bundle whose chunks carry canonical_range resolves a real range path.
+    assert report["range_ref_resolution_status"] == "ok"
     assert "repo_understood" in report["does_not_mean"]
     assert "answer_safe_without_citations" in report["does_not_mean"]
     assert set(DOES_NOT_MEAN).issubset(set(report["does_not_mean"]))
+
+
+def test_post_emit_health_range_ref_legacy_content_range_ref(tmp_path):
+    """Legacy chunks using content_range_ref still resolve via the fallback."""
+    manifest = _make_bundle(tmp_path, range_key="content_range_ref")
+    report = compute_post_emit_health(str(manifest))
+
+    assert report["status"] == "pass"
+    assert report["range_ref_resolution_status"] == "ok"
+
+
+def test_post_emit_health_output_health_must_be_validated_not_declared(tmp_path):
+    """A declared but tampered output_health must not be trusted nor boost coverage."""
+    manifest = _make_bundle(tmp_path)  # includes a declared, hash-valid output_health
+    # Tamper the file after the manifest (and its recorded hash) were written.
+    (tmp_path / "demo.output_health.json").write_bytes(
+        b'{"kind":"lenskit.output_health","verdict":"pass","tampered":true}\n'
+    )
+
+    report = compute_post_emit_health(str(manifest))
+
+    assert report["status"] == "fail"
+    assert report["hash_mismatch_count"] >= 1
+    # The verdict must NOT be read from the hash-mismatched artifact.
+    assert report["output_health_verdict"] is None
+    # A corrupted output_health must not contribute diagnostic coverage.
+    assert "diagnostic_full" not in report["evidence_levels_reached"]
 
 
 def test_post_emit_health_output_validates_against_schema(tmp_path):
