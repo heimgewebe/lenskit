@@ -44,7 +44,7 @@ Other taxonomy enum values exist in schema as forward-compatible vocabulary and 
 
 **Modified file and added functions:**
 
-#### `classify_miss(query_case, expected_paths, is_relevant, found_count, top_results) -> (miss_types: List[str], primary_miss_type: str)`
+#### `classify_miss(query_case, expected_paths, is_relevant, found_count, top_results) -> (miss_types: List[str], primary_miss_type: Optional[str])`
 
 Mechanical classification of retrieval misses:
 

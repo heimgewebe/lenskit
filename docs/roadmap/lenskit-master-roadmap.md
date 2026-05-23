@@ -302,7 +302,7 @@ PR 8 (Milestone B1 — Context Quality Signals): **UMGESETZT**
 - Scope: minimale, additive **diagnostische Projektion** vorhandener Signale; **kein** neuer
   Wahrheitslayer. Beleg: `docs/proofs/context-quality-signals-proof.md`,
   Blueprint `lenskit-anti-hallucination-output-architecture.md` §3 (B1).
-- Neue Dateien:
+- Geänderte/ergänzte Dateien:
   - `merger/lenskit/core/context_quality.py`
   - `merger/lenskit/contracts/context-quality.v1.schema.json`
   - `merger/lenskit/cli/cmd_context_quality.py` (Dispatch in `merger/lenskit/cli/main.py`)
@@ -335,7 +335,7 @@ PR 9 (Milestone B2 — Retrieval Miss Taxonomy, separat): **UMGESETZT**
 - Neue Dateien:
   - `merger/lenskit/retrieval/eval_core.py` erweitert: `classify_miss()`, `build_miss_taxonomy()`
   - `merger/lenskit/contracts/retrieval-eval.v1.schema.json` erweitert um `miss_taxonomy` (optional, backward-compatible)
-  - `merger/lenskit/tests/test_retrieval_eval.py` erweitert: 8 neue B2-Tests
+  - `merger/lenskit/tests/test_retrieval_eval.py` erweitert: 11 neue B2-Tests
   - `docs/proofs/retrieval-miss-taxonomy-proof.md` (diese Proof-Datei)
 - Artefakt: `miss_taxonomy` Feld in `retrieval_eval.json` (`authority: diagnostic_signal`,
   `risk_class: diagnostic`); Klassifizierungen sind **mechanisch**, nicht semantisch.
@@ -360,8 +360,8 @@ PR 9 (Milestone B2 — Retrieval Miss Taxonomy, separat): **UMGESETZT**
   - **keine** Agentenintegration-Gates (später, mit Anti-Hallucination-Lint).
 - Validierung:
   - `ruff check --select=F401,F811 --exclude='**/fixtures/**' .` — PASSED
-  - `python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -v` — 27 PASSED (8 B2 + 19 existing)
-  - `python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -k "miss_taxonomy or classify_miss" -v` — 8 PASSED
+  - `python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -v` — 30 PASSED
+  - `python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -k "miss_taxonomy or classify_miss" -v` — selected tests PASSED
   - Schema validation: `jsonschema.validate(retrieval_eval_output, schema)` — PASSED
 - Backward-Kompatibilität:
   - Old retrieval_eval ohne `miss_taxonomy` validiert noch (Feld ist optional)
