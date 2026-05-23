@@ -87,6 +87,10 @@ def test_content_range_ref_legacy_still_present(dual_range_artifacts):
     assert len(chunks_with_ref) > 0, (
         "at least one chunk must have content_range_ref"
     )
+    for c in chunks_with_ref:
+        crr = c["content_range_ref"]
+        assert "range_ref_version" not in crr
+        assert "artifact_path" not in crr
 
 
 def test_chunk_index_emits_canonical_range_from_content_range_ref(dual_range_artifacts):

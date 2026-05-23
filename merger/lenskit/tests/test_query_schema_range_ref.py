@@ -217,6 +217,51 @@ def test_query_result_schema_still_accepts_v1_range_ref(tmp_path):
     jsonschema.validate(instance=result, schema=schema)
 
 
+def test_query_result_schema_rejects_invalid_v1_hash_pattern(tmp_path):
+    schema_path = "merger/lenskit/contracts/query-result.v1.schema.json"
+    with open(schema_path, "r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    result = {
+        "query": "hello",
+        "k": 1,
+        "engine": "fts5",
+        "query_mode": "fts",
+        "applied_filters": {},
+        "count": 1,
+        "results": [
+            {
+                "chunk_id": "c1",
+                "repo_id": "r1",
+                "path": "src/main.py",
+                "range": "1-1",
+                "score": 0.1,
+                "layer": "core",
+                "type": "code",
+                "sha256": "a" * 64,
+                "why": {
+                    "matched_terms": ["hello"],
+                    "filter_pass": [],
+                    "rank_features": {"bm25": 0.1}
+                },
+                "range_ref": {
+                    "artifact_role": "canonical_md",
+                    "repo_id": "r1",
+                    "file_path": "merged.md",
+                    "start_byte": 0,
+                    "end_byte": 10,
+                    "start_line": 1,
+                    "end_line": 1,
+                    "content_sha256": "not-a-hash"
+                }
+            }
+        ]
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=result, schema=schema)
+
+
 def test_query_result_schema_accepts_v2_chunk_id(tmp_path):
     schema_path = "merger/lenskit/contracts/query-result.v1.schema.json"
     with open(schema_path, "r", encoding="utf-8") as f:
