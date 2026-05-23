@@ -274,12 +274,6 @@ def compute_output_health(
     # Agent reading pack (navigation entry-point). Non-blocking in v1.
     agent_reading_pack_path: Optional[Path] = None,
     agent_reading_pack_expected: bool = False,
-    # DEFERRED (A2): excluded_noise_paths diagnostic is not yet wired to real
-    # traversal data.  scan_repo() silently skips SKIP_DIRS without collecting
-    # the skipped names, so there is currently no call-site that passes real
-    # excluded paths here.  The diagnostic will be added once the traversal
-    # pipeline surfaces skipped-dir counts upstream.  Until then the parameter
-    # is intentionally absent to avoid a dead code path with synthetic-only tests.
 ) -> Dict[str, Any]:
     """
     Compute the output health report.  Does NOT write to disk.

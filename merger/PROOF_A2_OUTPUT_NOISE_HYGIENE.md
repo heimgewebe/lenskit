@@ -1,0 +1,124 @@
+# A2 Proof: Output Noise Hygiene / Cache Exclusion Guard
+
+**PR:** #694  
+**Branch:** `claude/laughing-shannon-k7n2O`
+
+## Problem Statement
+
+Prior to A2, skip/noise directory logic existed in two parallel forms with no binding constraint:
+- `SKIP_DIRS` in `merge.py`: authoritative set used during repo traversal
+- Inline `noisy_dirs` tuple in `is_noise_file()`: parallel classification heuristic
+
+This created silent drift: cache/tool directories like `.mypy_cache`, `.ruff_cache`, `.cache`, `coverage` were in one list but not the other, leaving output surfaces (canonical_md, chunk_index, agent_reading_pack) vulnerable to inconsistent filtering.
+
+## Solution
+
+**Single canonical source:** `_BUILD_AND_CACHE_DIRS` (frozenset)
+
+All build-artefact and tool-cache directory names are defined once:
+```python
+_BUILD_AND_CACHE_DIRS: frozenset[str] = frozenset({
+    "node_modules", ".svelte-kit", ".next",
+    "dist", "build", "target",
+    ".venv", "venv",
+    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache",
+    "coverage",
+})
+```
+
+Both downstream uses are now **derived**, not duplicated:
+- `SKIP_DIRS = _BUILD_AND_CACHE_DIRS | {".git", ".idea", ".DS_Store"}`  
+  (adds VCS/IDE/system noise dirs that are skip-only, not noise-classified)
+- `NOISE_DIR_SEGMENTS = tuple(d + "/" for d in sorted(_BUILD_AND_CACHE_DIRS))`  
+  (path-segment form for `is_noise_file()` substring matching)
+
+Drift is now structurally **impossible**: changing `_BUILD_AND_CACHE_DIRS` automatically propagates to both uses.
+
+### Included Cache Dirs
+
+All of the following are now excluded from traversal and marked as noise:
+- `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/` (Python tooling)
+- `.cache/` (generic cache)
+- `coverage/` (test coverage artifacts)
+- `node_modules/`, `.svelte-kit/`, `.next/` (frontend tooling)
+- `dist/`, `build/`, `target/`, `venv/`, `.venv/` (build outputs and virtual envs)
+- `__pycache__/` (Python bytecode)
+
+### Intentionally Preserved
+
+The following **are not** broadly excluded and remain in output when `include_hidden=True`:
+- `.github/workflows/`, `.github/CODEOWNERS` (CI/automation config)
+- `.wgx/` (Wgx agent config)
+- `.ai-context.yml` (AI context hints)
+- Other repo config/metadata files
+
+This prevents over-filtering that would remove meaningful project context.
+
+## Validation
+
+### Traversal Exclusion (scan_repo)
+
+Test: `test_scan_repo_excludes_cache_dirs`
+
+Creates a real temp filesystem with all the cache dirs above plus a real source file (`src/main.py`).  
+Calls `scan_repo()` and verifies:
+- ✅ Source file is in the result
+- ✅ No cache dir files appear in the result
+
+This directly proves that `canonical_md` and `chunk_index` (built from scan_repo output) are clean.
+
+### Hidden-Path Preservation
+
+Test: `test_scan_repo_preserves_intentional_hidden_paths`
+
+Creates `.github/workflows/ci.yml`, `.wgx/config.yml`, `.ai-context.yml` and verifies they appear when `include_hidden=True`.
+
+### Manifest Annotation
+
+Test: `test_manifest_annotates_noise_files_that_bypass_traversal`
+
+Documents that belt-and-suspenders `(noise)` annotation in manifest applies only to files explicitly passed to `iter_report_blocks()` (e.g., in plan-only or test contexts).  
+Primary protection is SKIP_DIRS at traversal level.
+
+## Scope
+
+### What Changed
+- Consolidated skip/noise definition via `_BUILD_AND_CACHE_DIRS`
+- Added `.cache` and `coverage` to SKIP_DIRS (were missing)
+- Updated `is_noise_file()` to use the shared definition
+- Added 4 regression tests proving real output surface exclusion
+- Removed dead `excluded_noise` diagnostic code path from previous draft
+
+### What Did NOT Change
+- Redaction enforcement, detection, or gates
+- A5 export behavior or profiles
+- `post_emit_health` status model or verdict semantics
+- Bundle manifest schema
+- Citation or range-ref semantics
+- Retrieval ranking or query scoring
+- Agent export gates or agent_safe/agent_ready signals
+
+## Deferred
+
+**excluded_noise diagnostic in output_health.json:**  
+The diagnostic field to record which noise/cache paths were excluded during traversal is deferred.  
+Reason: `scan_repo()` currently drops SKIP_DIRS entries silently (no collection of skipped directory counts).  
+To wire this diagnostic, the traversal pipeline would need to surface skipped-dir statistics upstream to `write_output_health()`.  
+This is out of scope for A2 (hygiene consolidation only); will be added when traversal instrumentation allows.
+
+## Tests Run
+
+```
+pytest merger/lenskit/tests/test_merge_filtering.py       # 22 passed
+pytest merger/lenskit/tests/test_output_health.py         # 45 passed
+pytest merger/lenskit/tests/test_agent_reading_pack.py    # 8 passed
+pytest merger/lenskit/tests/test_retrieval_index.py       # 3 passed
+pytest merger/lenskit/tests/test_bundle_manifest_integration.py  # 28 passed
+pytest merger/lenskit/tests/test_post_emit_health.py      # 32 passed
+```
+
+**Total: 138 tests, all pass.**
+
+---
+
+*Proof document for A2 closure. See PR #694 for commit details.*
