@@ -755,3 +755,53 @@ def test_retrieval_eval_schema_backward_compatibility_without_miss_taxonomy():
     }
 
     jsonschema.validate(instance=legacy_output, schema=schema)
+
+
+def test_miss_taxonomy_schema_rejects_missing_required_does_not_prove_entry():
+    """Schema must reject miss_taxonomy when one canonical does_not_prove entry is missing."""
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"],
+            "requires_live_check": True
+        },
+        "miss_taxonomy": {
+            "version": "1.0",
+            "authority": "diagnostic_signal",
+            "risk_class": "diagnostic",
+            "classification_basis": ["retrieval_eval_expectations"],
+            "does_not_prove": [
+                "absence_of_retrieval_hit_does_not_prove_absence_in_repository",
+                "miss_type_does_not_prove_claim_truth_or_falsehood",
+                "ranking_position_does_not_prove_semantic_importance",
+                "retrieval_eval_does_not_prove_retrieval_completeness"
+            ],
+            "aggregate": {
+                "total_cases_classified": 0,
+                "total_misses": 0,
+                "by_type": {
+                    "zero_results": 0,
+                    "expected_not_in_top_k": 0,
+                    "expected_rank_below_k": 0,
+                    "expected_path_not_indexed": 0,
+                    "expected_symbol_not_indexed": 0,
+                    "path_or_symbol_metadata_missing": 0,
+                    "possible_query_vocabulary_gap": 0,
+                    "possible_filter_scope_gap": 0,
+                    "noise_or_fixture_hit": 0,
+                    "stale_eval_input": 0,
+                    "unknown": 0
+                }
+            },
+            "cases": []
+        }
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)

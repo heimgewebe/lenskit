@@ -332,7 +332,7 @@ PR 9 (Milestone B2 — Retrieval Miss Taxonomy, separat): **UMGESETZT**
 - Scope: additive **diagnostische Klassifizierungsschicht** für Retrieval-Eval-Misses;
   **keine** Wahrheitsbehauptungen, **keine** Repo-Abwesenheitsansprüche, **keine** Ranking-Änderungen.
   Beleg: `docs/proofs/retrieval-miss-taxonomy-proof.md`.
-- Neue Dateien:
+- Geänderte/ergänzte Dateien:
   - `merger/lenskit/retrieval/eval_core.py` erweitert: `classify_miss()`, `build_miss_taxonomy()`
   - `merger/lenskit/contracts/retrieval-eval.v1.schema.json` erweitert um `miss_taxonomy` (optional, backward-compatible)
   - `merger/lenskit/tests/test_retrieval_eval.py` erweitert: 11 neue B2-Tests

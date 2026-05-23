@@ -337,7 +337,34 @@
           "type": "array",
           "description": "Explicit statements of what this taxonomy does NOT prove.",
           "items": {"type": "string"},
-          "minItems": 1
+          "minItems": 1,
+          "allOf": [
+            {
+              "contains": {
+                "const": "absence_of_retrieval_hit_does_not_prove_absence_in_repository"
+              }
+            },
+            {
+              "contains": {
+                "const": "miss_type_does_not_prove_claim_truth_or_falsehood"
+              }
+            },
+            {
+              "contains": {
+                "const": "ranking_position_does_not_prove_semantic_importance"
+              }
+            },
+            {
+              "contains": {
+                "const": "retrieval_eval_does_not_prove_retrieval_completeness"
+              }
+            },
+            {
+              "contains": {
+                "const": "taxonomy_is_diagnostic_not_authoritative"
+              }
+            }
+          ]
         },
         "aggregate": {
           "type": "object",
