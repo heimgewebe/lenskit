@@ -22,8 +22,13 @@ def classify_miss(query_case: Dict[str, Any], expected_paths: List[str], is_rele
     - Do not prove claim truth/falsity
     - Classify based on available mechanical signals only
     """
+    explain = query_case.get("explain", {}) if isinstance(query_case, dict) else {}
+    why = query_case.get("why", {}) if isinstance(query_case, dict) else {}
+    has_query_execution_error = bool(query_case.get("error")) or explain.get("why_fail") == WHY_FAIL_QUERY_EXECUTION or why.get("why_fail") == WHY_FAIL_QUERY_EXECUTION
+    if has_query_execution_error:
+        return ["query_execution_error"], "query_execution_error"
+
     if is_relevant:
-        # Not a miss case
         return [], None
     
     miss_types = []
@@ -48,8 +53,6 @@ def classify_miss(query_case: Dict[str, Any], expected_paths: List[str], is_rele
     # Missing metadata for classification
     elif not expected_paths:
         miss_types.append("path_or_symbol_metadata_missing")
-    else:
-        miss_types.append("unknown")
     
     # Fallback: ensure at least one miss type is always returned for miss cases
     if not miss_types:
@@ -73,7 +76,8 @@ def build_miss_taxonomy(results_detail: List[Dict[str, Any]], is_stale: bool) ->
         "risk_class": "diagnostic",
         "classification_basis": [
             "retrieval_eval_expectations",
-            "returned_hit_paths"
+            "returned_hit_paths",
+            "query_metadata"
         ],
         "does_not_prove": [
             "absence_of_retrieval_hit_does_not_prove_absence_in_repository",
@@ -96,6 +100,7 @@ def build_miss_taxonomy(results_detail: List[Dict[str, Any]], is_stale: bool) ->
                 "possible_filter_scope_gap": 0,
                 "noise_or_fixture_hit": 0,
                 "stale_eval_input": 0,
+                "query_execution_error": 0,
                 "unknown": 0
             }
         },
@@ -108,13 +113,16 @@ def build_miss_taxonomy(results_detail: List[Dict[str, Any]], is_stale: bool) ->
         top_results = detail.get("top_results", [])
         expected = detail.get("expected", [])
         query_text = detail.get("query", "")
+        explain = detail.get("explain", {}) if isinstance(detail, dict) else {}
+        why = detail.get("why", {}) if isinstance(detail, dict) else {}
+        is_query_execution_error = bool(detail.get("error")) or explain.get("why_fail") == WHY_FAIL_QUERY_EXECUTION or why.get("why_fail") == WHY_FAIL_QUERY_EXECUTION
         
         miss_types, primary_miss_type = classify_miss(detail, expected, is_relevant, found_count, top_results)
         
         taxonomy["aggregate"]["total_cases_classified"] += 1
         
         # Only record misses in cases
-        if not is_relevant or found_count == 0:
+        if not is_relevant or is_query_execution_error:
             taxonomy["aggregate"]["total_misses"] += 1
 
             if is_stale and "stale_eval_input" not in miss_types:

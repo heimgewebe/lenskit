@@ -300,7 +300,7 @@
     },
     "miss_taxonomy": {
       "type": "object",
-      "description": "Diagnostic classification of retrieval misses. Conservative, mechanical categorization of why expected targets were not retrieved. Does NOT prove repository absence.",
+      "description": "Diagnostic classification of retrieval misses. Conservative, mechanical categorization of why expected targets were not retrieved. In compare mode this classifies the top-level active eval view in details[] (baseline sub-blocks are not separately classified in v1). Does NOT prove repository absence.",
       "additionalProperties": false,
       "properties": {
         "version": {
@@ -396,8 +396,23 @@
                 "possible_filter_scope_gap": {"type": "integer", "minimum": 0},
                 "noise_or_fixture_hit": {"type": "integer", "minimum": 0},
                 "stale_eval_input": {"type": "integer", "minimum": 0},
+                "query_execution_error": {"type": "integer", "minimum": 0},
                 "unknown": {"type": "integer", "minimum": 0}
-              }
+              },
+              "required": [
+                "zero_results",
+                "expected_not_in_top_k",
+                "expected_rank_below_k",
+                "expected_path_not_indexed",
+                "expected_symbol_not_indexed",
+                "path_or_symbol_metadata_missing",
+                "possible_query_vocabulary_gap",
+                "possible_filter_scope_gap",
+                "noise_or_fixture_hit",
+                "stale_eval_input",
+                "query_execution_error",
+                "unknown"
+              ]
             }
           },
           "required": ["total_cases_classified", "total_misses", "by_type"]
@@ -447,6 +462,7 @@
                     "possible_filter_scope_gap",
                     "noise_or_fixture_hit",
                     "stale_eval_input",
+                    "query_execution_error",
                     "unknown"
                   ]
                 },
@@ -466,6 +482,7 @@
                   "possible_filter_scope_gap",
                   "noise_or_fixture_hit",
                   "stale_eval_input",
+                  "query_execution_error",
                   "unknown"
                 ]
               },
@@ -480,7 +497,7 @@
                 "items": {"type": "string"}
               }
             },
-            "required": ["query_index", "is_relevant", "miss_types", "primary_miss_type"]
+            "required": ["query_index", "is_relevant", "miss_types", "primary_miss_type", "classification_basis"]
           }
         }
       },

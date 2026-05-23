@@ -29,6 +29,7 @@ Current runtime emission in this PR is intentionally conservative and limited to
 - `expected_not_in_top_k`
 - `path_or_symbol_metadata_missing`
 - `stale_eval_input` (as stale diagnostic annotation for miss cases)
+- `query_execution_error`
 - `unknown`
 
 Other taxonomy enum values exist in schema as forward-compatible vocabulary and are not claimed as emitted by this implementation.
@@ -49,6 +50,7 @@ Other taxonomy enum values exist in schema as forward-compatible vocabulary and 
 Mechanical classification of retrieval misses:
 
 - **zero_results:** Query returned no results (found_count == 0)
+- **query_execution_error:** Query execution failed (`error` present or `why_fail == "query execution failed"`)
 - **expected_not_in_top_k:** Eval-declared expected pattern not observed in current returned top-k paths
 - **path_or_symbol_metadata_missing:** No expected paths available for classification
 - **unknown:** Fallback when no conservative classification possible
@@ -68,6 +70,8 @@ Builds the complete miss taxonomy from evaluation results:
 3. Aggregates counts by miss type
 4. Builds case-level detail records
 5. Returns JSON-schema-compatible structure
+
+In compare mode, miss taxonomy classifies the active top-level eval view in `details[]` (semantic/graph-overwritten fields), while nested `detail["baseline"]` is kept as evidence but not separately classified in B2 v1.
 
 **Required `does_not_prove` entries (hardcoded):**
 
@@ -112,12 +116,15 @@ out = {
 | `test_miss_taxonomy_does_not_prove_entries` | ✅ PASS | Required does_not_prove entries |
 | `test_miss_taxonomy_zero_results_classification` | ✅ PASS | zero_results classification |
 | `test_classify_miss_zero_results` | ✅ PASS | Unit test for zero_results |
+| `test_classify_miss_query_execution_error` | ✅ PASS | Unit test for query_execution_error |
 | `test_classify_miss_expected_not_in_top_k` | ✅ PASS | Unit test for expected_not_in_top_k |
 | `test_classify_miss_hit_case` | ✅ PASS | Hit case (not a miss) |
 | `test_classify_miss_missing_metadata` | ✅ PASS | Missing metadata handling |
 | `test_miss_taxonomy_schema_validation_stale_eval` | ✅ PASS | Stale eval stays schema-valid |
 | `test_miss_taxonomy_expected_not_in_top_k_integration` | ✅ PASS | `do_eval()` integration for expected_not_in_top_k |
+| `test_miss_taxonomy_query_execution_error_not_counted_as_zero_results` | ✅ PASS | Error-path classification hygiene |
 | `test_retrieval_eval_schema_backward_compatibility_without_miss_taxonomy` | ✅ PASS | Legacy output still schema-valid |
+| `test_miss_taxonomy_schema_rejects_missing_required_by_type_key` | ✅ PASS | Stable by_type contract shape |
 
 **Test Execution Results:**
 
@@ -134,7 +141,7 @@ All retrieval_eval tests PASS, including the new B2 checks:
 ```
 $ python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -v
 
-======================= 30 passed =======================
+======================= 35 passed =======================
 ```
 
 Stale eval schema-validity is explicitly covered:
@@ -225,7 +232,7 @@ $ ruff check --select=F401,F811 --exclude='**/fixtures/**' merger/lenskit/tests/
 ```bash
 $ python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -v --tb=short
 
-======================= 30 passed =======================
+======================= 35 passed =======================
 
 PASSED: test_parse_gold_queries_basic
 PASSED: test_parse_gold_queries_robustness

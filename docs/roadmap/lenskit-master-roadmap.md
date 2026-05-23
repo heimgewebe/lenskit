@@ -335,7 +335,7 @@ PR 9 (Milestone B2 — Retrieval Miss Taxonomy, separat): **UMGESETZT**
 - Geänderte/ergänzte Dateien:
   - `merger/lenskit/retrieval/eval_core.py` erweitert: `classify_miss()`, `build_miss_taxonomy()`
   - `merger/lenskit/contracts/retrieval-eval.v1.schema.json` erweitert um `miss_taxonomy` (optional, backward-compatible)
-  - `merger/lenskit/tests/test_retrieval_eval.py` erweitert: 11 neue B2-Tests
+  - `merger/lenskit/tests/test_retrieval_eval.py` erweitert: B2-Tests inkl. `query_execution_error` und Contract-Shape-Guards
   - `docs/proofs/retrieval-miss-taxonomy-proof.md` (diese Proof-Datei)
 - Artefakt: `miss_taxonomy` Feld in `retrieval_eval.json` (`authority: diagnostic_signal`,
   `risk_class: diagnostic`); Klassifizierungen sind **mechanisch**, nicht semantisch.
@@ -344,7 +344,10 @@ PR 9 (Milestone B2 — Retrieval Miss Taxonomy, separat): **UMGESETZT**
   - `expected_not_in_top_k` — Eval-declared expected pattern was not observed in returned top-k paths
   - `path_or_symbol_metadata_missing` — Insufficient metadata for classification
   - `stale_eval_input` — Eval run/artifacts were marked stale; diagnostic annotation only
+  - `query_execution_error` — Query execution failed; technical failure, not a retrieval miss hit-signal
   - `unknown` — Fallback when no classification possible
+- Compare-Mode-Scope (B2 v1): klassifiziert wird die top-level aktive Eval-Sicht (`details[]`).
+  Eingebettete `baseline`-Blöcke dienen als Evidenz, werden aber nicht separat als eigene B2-Taxonomie ausgewertet.
 - Erforderliche `does_not_prove` Einträge (hardcoded):
   - `absence_of_retrieval_hit_does_not_prove_absence_in_repository`
   - `miss_type_does_not_prove_claim_truth_or_falsehood`
@@ -361,7 +364,7 @@ PR 9 (Milestone B2 — Retrieval Miss Taxonomy, separat): **UMGESETZT**
   - **keine** Agentenintegration-Gates (später, mit Anti-Hallucination-Lint).
 - Validierung:
   - `ruff check --select=F401,F811 --exclude='**/fixtures/**' .` — PASSED
-  - `python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -v` — 30 PASSED
+  - `python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -v` — 35 PASSED
   - `python3 -m pytest merger/lenskit/tests/test_retrieval_eval.py -k "miss_taxonomy or classify_miss" -v` — selected tests PASSED
   - Schema validation: `jsonschema.validate(retrieval_eval_output, schema)` — PASSED
 - Backward-Kompatibilität:
