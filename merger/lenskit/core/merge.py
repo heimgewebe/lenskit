@@ -293,13 +293,16 @@ ARTIFACT_AUTHORITY_REGISTRY = {
 # Delta Report configuration
 MAX_DELTA_FILES = 10  # Maximum number of files to show in each delta section
 
-# Canonical set of build-artefact and tool-cache directory names.
-# These are both skipped during traversal (SKIP_DIRS) and classified as noise
-# in is_noise_file() (NOISE_DIR_SEGMENTS).  A single source of truth means
-# adding/removing one entry propagates to both uses automatically.
+# Canonical set of build-artefact and tool-cache entry names.
+# These are used in two ways:
+#   - SKIP_DIRS: name-level ignore list applied by both prescan_repo (files and
+#     directories) and scan_repo (directory traversal only).
+#   - NOISE_DIR_SEGMENTS: path-segment form for is_noise_file() classification.
+# A single source of truth here means adding/removing one entry propagates to
+# both uses automatically and cannot drift.
 #
-# Not included here: VCS/IDE dirs (.git, .idea) and system junk (.DS_Store)
-# which are traversal-skip only and have no meaningful is_noise_file semantic.
+# Not included: VCS/IDE dirs (.git, .idea) and system junk (.DS_Store).
+# Those are traversal-skip only and have no meaningful is_noise_file semantic.
 #
 # Intentionally preserved (not noise): .github/, .wgx/, .ai-context.yml and
 # other repo config/CI paths that carry real project context.

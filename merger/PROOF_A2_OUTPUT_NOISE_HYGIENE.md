@@ -27,9 +27,9 @@ _BUILD_AND_CACHE_DIRS: frozenset[str] = frozenset({
 ```
 
 Both downstream uses are now **derived**, not duplicated:
-- `SKIP_DIRS = _BUILD_AND_CACHE_DIRS | {".git", ".idea", ".DS_Store"}`  
+- `SKIP_DIRS: frozenset[str] = _BUILD_AND_CACHE_DIRS | frozenset({".git", ".idea", ".DS_Store"})`  
   (adds VCS/IDE/system noise dirs that are skip-only, not noise-classified)
-- `NOISE_DIR_SEGMENTS = tuple(d + "/" for d in sorted(_BUILD_AND_CACHE_DIRS))`  
+- `NOISE_DIR_SEGMENTS: tuple[str, ...] = tuple(d + "/" for d in sorted(_BUILD_AND_CACHE_DIRS))`  
   (path-segment form for `is_noise_file()` substring matching)
 
 Drift is now structurally **impossible**: changing `_BUILD_AND_CACHE_DIRS` automatically propagates to both uses.
@@ -84,10 +84,10 @@ Primary protection is SKIP_DIRS at traversal level.
 
 ### What Changed
 - Consolidated skip/noise definition via `_BUILD_AND_CACHE_DIRS`
-- Added `.cache` and `coverage` to SKIP_DIRS (were missing)
-- Updated `is_noise_file()` to use the shared definition
+- Added `.cache` and `coverage` to `_BUILD_AND_CACHE_DIRS` / `SKIP_DIRS` (were missing)
+- Updated `is_noise_file()` to use the shared `NOISE_DIR_SEGMENTS` definition
 - Added 4 regression tests proving real output surface exclusion
-- Removed dead `excluded_noise` diagnostic code path from previous draft
+- `excluded_noise` output_health diagnostic: **not implemented in this PR** — traversal does not yet surface skipped-dir counts (see Deferred section)
 
 ### What Did NOT Change
 - Redaction enforcement, detection, or gates
