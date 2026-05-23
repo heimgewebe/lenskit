@@ -16,7 +16,8 @@ The gate additionally requires `post_emit_health` shape/binding validity before 
 - `version == 1.0`
 - valid status enum
 - schema-valid when `jsonschema` is available
-- `bundle_run_id` and `bundle_manifest_path` must match the evaluated bundle when present
+- `bundle_manifest_path` must be present, non-empty, and match the evaluated bundle manifest path
+- for `status=pass`, `bundle_run_id` must match the evaluated manifest `run_id`
 
 Invalid or mismatched post-emit reports block agent-facing export.
 

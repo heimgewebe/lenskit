@@ -262,6 +262,22 @@ def test_agent_facing_post_emit_pass_empty_bundle_manifest_path_is_blocked(tmp_p
     assert report["status"] == "blocked"
 
 
+def test_agent_facing_post_emit_pass_mismatched_bundle_manifest_path_is_blocked(tmp_path):
+    manifest = _write_manifest(tmp_path, redaction=True)
+    post = _write_post_health(tmp_path, "pass")
+    doc = json.loads(post.read_text(encoding="utf-8"))
+    doc["bundle_manifest_path"] = str(tmp_path / "other.bundle.manifest.json")
+    post.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile="agent_minimal",
+        require_redaction=True,
+    )
+
+    assert report["status"] == "blocked"
+
+
 def test_agent_facing_post_emit_pass_missing_bundle_run_id_is_blocked(tmp_path):
     manifest = _write_manifest(tmp_path, redaction=True)
     post = _write_post_health(tmp_path, "pass")
