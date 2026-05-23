@@ -5288,28 +5288,16 @@ def write_reports_v2(
                             can_start_line = d["start_line"]
                             can_end_line = d["end_line"]
 
-                        if canonical_md_bytes is not None:
-                            d["content_range_ref"] = build_explicit_range_ref(
-                                artifact_role=ArtifactRole.CANONICAL_MD.value,
-                                repo_id=fi.root_label,
-                                file_path=md_file_name,
-                                start_byte=abs_start,
-                                end_byte=abs_end,
-                                start_line=can_start_line,
-                                end_line=can_end_line,
-                                content_sha256=can_sha256,
-                            )
-                        else:
-                            d["content_range_ref"] = build_explicit_range_ref(
-                                artifact_role=ArtifactRole.CANONICAL_MD.value,
-                                repo_id=fi.root_label,
-                                file_path=md_file_name,
-                                start_byte=abs_start,
-                                end_byte=abs_end,
-                                start_line=can_start_line,
-                                end_line=can_end_line,
-                                content_sha256=can_sha256,
-                            )
+                        d["content_range_ref"] = build_explicit_range_ref(
+                            artifact_role=ArtifactRole.CANONICAL_MD.value,
+                            repo_id=fi.root_label,
+                            file_path=md_file_name,
+                            start_byte=abs_start,
+                            end_byte=abs_end,
+                            start_line=can_start_line,
+                            end_line=can_end_line,
+                            content_sha256=can_sha256,
+                        )
 
                         if canonical_md_bytes is not None:
                             d["canonical_range"] = {
