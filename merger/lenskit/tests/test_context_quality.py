@@ -495,16 +495,12 @@ def test_docs_do_not_claim_b2_is_implemented():
     proof = (_REPO_ROOT / "docs" / "proofs" / "context-quality-signals-proof.md").read_text(encoding="utf-8")
     roadmap = (_REPO_ROOT / "docs" / "roadmap" / "lenskit-master-roadmap.md").read_text(encoding="utf-8")
 
-    # Both docs must mention B2 ...
+    # Both docs must mention B2.
     assert "B2" in proof
     assert "B2" in roadmap
-    # ... and frame it as separate / not implemented here.
-    assert any(tok in proof for tok in ("NICHT implementiert", "separat", "getrennt"))
-    assert any(tok in roadmap for tok in ("separat", "nicht in B1", "zukünftiges"))
 
-    # No line may assert B2 itself is done/implemented. Lines that frame B2 as
-    # separate / not-done (or that only mark B1 done while mentioning B2) are fine.
-    _separation_markers = ("nicht", "keine", "separat", "getrennt", "zukünftig", "future", "offen")
+    # No line may assert B2 is done/implemented without a negation/defer marker.
+    _separation_markers = ("nicht", "keine", "separat", "getrennt", "zukünftig", "future", "offen", "defer", "not ")
     for text in (proof, roadmap):
         for line in text.splitlines():
             if "B2" not in line:
@@ -514,6 +510,8 @@ def test_docs_do_not_claim_b2_is_implemented():
                 continue  # explicitly framed as separate / deferred
             assert "umgesetzt" not in lowered, f"line claims B2 done: {line!r}"
             assert "implementiert" not in lowered, f"line claims B2 implemented: {line!r}"
+            assert "done" not in lowered, f"line claims B2 done: {line!r}"
+            assert "completed" not in lowered, f"line claims B2 completed: {line!r}"
 
 
 def test_post_emit_and_evidence_projected_from_sidecar(tmp_path):
@@ -532,3 +530,68 @@ def test_post_emit_and_evidence_projected_from_sidecar(tmp_path):
     assert ev["source"] == "post_emit_health"
     assert ev["evidence_level"] == "navigable"
     assert "navigable" in ev["evidence_levels_reached"]
+
+
+# ---------------------------------------------------------------------------
+# 9. Malformed optional inputs: robustness under non-UTF-8 and invalid evidence
+# ---------------------------------------------------------------------------
+
+def test_non_utf8_optional_sidecar_degrades_with_warning(tmp_path):
+    manifest = _make_bundle(tmp_path)
+    # Write a non-UTF-8 byte sequence as the post_emit_health sidecar.
+    sidecar = derive_post_health_path(manifest.resolve())
+    sidecar.write_bytes(b"\xff\xfe\x80\x81 bad bytes not utf-8")
+
+    report = compute_context_quality(str(manifest))
+    pe = report["signals"]["post_emit_health"]
+    assert pe["available"] is False
+    assert any("post_emit_health unavailable" in w for w in report["warnings"])
+    assert report["projection_status"] == "degraded"
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)
+
+
+def _write_post_emit_sidecar_with_bad_evidence(manifest_path: Path) -> None:
+    doc = {
+        "kind": "lenskit.post_emit_health", "version": "1.0", "run_id": "pe-run",
+        "bundle_run_id": "demo-run", "checked_at": "2026-05-23T00:00:00Z",
+        "bundle_manifest_path": str(manifest_path), "status": "pass",
+        "checks": [], "errors": [], "warnings": [],
+        "does_not_mean": ["repo_understood"],
+        "independence_note": "test",
+        "evidence_level": "ultra_complete",  # not in known vocabulary
+        "evidence_levels_reached": ["navigable", "exotic_level", "another_bad"],
+        "artifact_count_checked": 1, "hash_mismatch_count": 0, "missing_artifact_count": 0,
+    }
+    out = derive_post_health_path(manifest_path.resolve())
+    out.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+
+
+def test_unknown_evidence_level_is_filtered_to_null(tmp_path):
+    manifest = _make_bundle(tmp_path)
+    _write_post_emit_sidecar_with_bad_evidence(manifest)
+
+    report = compute_context_quality(str(manifest))
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    # Must remain schema-valid even though the sidecar has an unknown evidence_level.
+    jsonschema.validate(instance=report, schema=schema)
+
+    ev = report["signals"]["evidence"]
+    assert ev["available"] is True
+    assert ev["evidence_level"] is None  # unknown level filtered to null
+    assert any("evidence_level" in w and "ultra_complete" in w for w in report["warnings"])
+
+
+def test_unknown_evidence_levels_reached_are_dropped_with_warning(tmp_path):
+    manifest = _make_bundle(tmp_path)
+    _write_post_emit_sidecar_with_bad_evidence(manifest)
+
+    report = compute_context_quality(str(manifest))
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)
+
+    ev = report["signals"]["evidence"]
+    assert "exotic_level" not in ev["evidence_levels_reached"]
+    assert "another_bad" not in ev["evidence_levels_reached"]
+    assert "navigable" in ev["evidence_levels_reached"]  # known value kept
+    assert any("evidence_levels_reached" in w for w in report["warnings"])

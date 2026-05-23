@@ -80,6 +80,18 @@ _KEY_ROLES = (
     "sqlite_index",
 )
 
+# Evidence-level vocabulary from docs/architecture/artifact-evidence-levels.md.
+# Values outside this set received from optional inputs are filtered to null/dropped.
+_KNOWN_EVIDENCE_LEVELS = frozenset({
+    "readable",
+    "navigable",
+    "citable",
+    "range_strict",
+    "searchable",
+    "diagnostic_full",
+    "forensic_strict",
+})
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -105,7 +117,7 @@ def _load_json(path: Path) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     try:
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
         return None, str(e)
     if not isinstance(data, dict):
         return None, "JSON root must be an object"
@@ -342,15 +354,32 @@ def _project_agent_export_gate(
     }
 
 
-def _project_evidence(post_emit_signal: Dict[str, Any]) -> Dict[str, Any]:
+def _project_evidence(post_emit_signal: Dict[str, Any], warnings: List[str]) -> Dict[str, Any]:
     # Evidence reuses the existing evidence-level vocabulary surfaced by
     # post_emit_health. It never invents new levels and never aggregates a score.
+    # Unknown values from an optional (possibly corrupted) sidecar are filtered
+    # to null/dropped with a warning to keep this report schema-valid.
     if post_emit_signal.get("available"):
+        raw_level = post_emit_signal.get("evidence_level")
+        if raw_level is not None and raw_level not in _KNOWN_EVIDENCE_LEVELS:
+            warnings.append(
+                f"post_emit_health evidence_level {raw_level!r} is not in known vocabulary; set to null"
+            )
+            raw_level = None
+
+        raw_reached = list(post_emit_signal.get("evidence_levels_reached") or [])
+        known_reached = [lvl for lvl in raw_reached if lvl in _KNOWN_EVIDENCE_LEVELS]
+        dropped = [lvl for lvl in raw_reached if lvl not in _KNOWN_EVIDENCE_LEVELS]
+        if dropped:
+            warnings.append(
+                f"post_emit_health evidence_levels_reached contained unknown values (dropped): {dropped!r}"
+            )
+
         return {
             "available": True,
             "source": "post_emit_health",
-            "evidence_level": post_emit_signal.get("evidence_level"),
-            "evidence_levels_reached": list(post_emit_signal.get("evidence_levels_reached") or []),
+            "evidence_level": raw_level,
+            "evidence_levels_reached": known_reached,
         }
     return {
         "available": False,
@@ -510,7 +539,7 @@ def compute_context_quality(
         retrieval_eval_path, by_role, manifest_dir, warnings
     )
     export_gate_signal = _project_agent_export_gate(agent_export_gate_path, warnings)
-    evidence_signal = _project_evidence(post_emit_signal)
+    evidence_signal = _project_evidence(post_emit_signal, warnings)
 
     signals = {
         "manifest": manifest_signal,
