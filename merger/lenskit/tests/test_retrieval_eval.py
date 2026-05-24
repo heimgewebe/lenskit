@@ -535,3 +535,391 @@ def test_run_eval_explain_always_present_on_error(mini_index_for_eval, tmp_path,
     assert detail["error"] == "Mock DB Crash"
     assert "explain" in detail
     assert detail["explain"]["why_fail"] == eval_core.WHY_FAIL_QUERY_EXECUTION
+
+
+# B2 — Retrieval Miss Taxonomy Tests
+
+def test_miss_taxonomy_present_in_output(mini_index_for_eval, tmp_path):
+    """Test that miss_taxonomy is always present in retrieval_eval output."""
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]},
+        {"query": "missing", "expected_patterns": ["nonexistent.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    assert "miss_taxonomy" in out
+    taxonomy = out["miss_taxonomy"]
+    assert taxonomy["version"] == "1.0"
+    assert taxonomy["authority"] == "diagnostic_signal"
+    assert taxonomy["risk_class"] == "diagnostic"
+
+
+def test_miss_taxonomy_schema_validation(mini_index_for_eval, tmp_path):
+    """Test that miss_taxonomy passes JSON schema validation."""
+    import jsonschema
+
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    schema = _load_retrieval_eval_schema()
+    jsonschema.validate(instance=out, schema=schema)
+
+
+def test_miss_taxonomy_schema_validation_stale_eval(mini_index_for_eval, tmp_path):
+    """Stale eval output must still validate against retrieval-eval schema."""
+    import jsonschema
+
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]},
+        {"query": "missing", "expected_patterns": ["nope.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=True
+    )
+
+    schema = _load_retrieval_eval_schema()
+    jsonschema.validate(instance=out, schema=schema)
+
+    taxonomy = out["miss_taxonomy"]
+    assert "stale_eval_input" in taxonomy["aggregate"]["by_type"]
+    assert "stale_eval_marker" not in taxonomy["classification_basis"]
+
+
+def test_miss_taxonomy_does_not_prove_entries(mini_index_for_eval, tmp_path):
+    """Test that does_not_prove entries are present and correct."""
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "missing", "expected_patterns": ["nonexistent.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    taxonomy = out["miss_taxonomy"]
+    does_not_prove = taxonomy["does_not_prove"]
+    
+    # Check that required does_not_prove entries are present
+    assert "absence_of_retrieval_hit_does_not_prove_absence_in_repository" in does_not_prove
+    assert "miss_type_does_not_prove_claim_truth_or_falsehood" in does_not_prove
+    assert "ranking_position_does_not_prove_semantic_importance" in does_not_prove
+    assert "retrieval_eval_does_not_prove_retrieval_completeness" in does_not_prove
+    assert "taxonomy_is_diagnostic_not_authoritative" in does_not_prove
+
+
+def test_miss_taxonomy_zero_results_classification(mini_index_for_eval, tmp_path):
+    """Test that zero_results miss type is correctly classified."""
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "xyzabc9999", "expected_patterns": ["nowhere.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    taxonomy = out["miss_taxonomy"]
+    aggregate = taxonomy["aggregate"]
+    
+    # Should have one miss classified as zero_results
+    assert aggregate["total_misses"] >= 1
+    assert aggregate["by_type"]["zero_results"] >= 1
+
+
+def test_classify_miss_zero_results():
+    """Test the classify_miss function directly for zero_results case."""
+    case = {"query": "test"}
+    miss_types, primary = eval_core.classify_miss(
+        case,
+        expected_paths=["foo.py"],
+        is_relevant=False,
+        found_count=0,
+        top_results=[]
+    )
+    assert "zero_results" in miss_types
+    assert primary == "zero_results"
+
+
+def test_classify_miss_query_execution_error():
+    """Query execution failures must classify as query_execution_error, not zero_results."""
+    case = {
+        "query": "test",
+        "error": "Mock DB Crash",
+        "explain": {"why_fail": eval_core.WHY_FAIL_QUERY_EXECUTION}
+    }
+    miss_types, primary = eval_core.classify_miss(
+        case,
+        expected_paths=["foo.py"],
+        is_relevant=False,
+        found_count=0,
+        top_results=[]
+    )
+    assert miss_types == ["query_execution_error"]
+    assert primary == "query_execution_error"
+
+
+def test_classify_miss_expected_not_in_top_k():
+    """Test the classify_miss function for expected_not_in_top_k case."""
+    case = {"query": "test"}
+    miss_types, primary = eval_core.classify_miss(
+        case,
+        expected_paths=["expected.py"],
+        is_relevant=False,
+        found_count=2,
+        top_results=["other1.py", "other2.py"]
+    )
+    assert "expected_not_in_top_k" in miss_types
+    assert primary == "expected_not_in_top_k"
+
+
+def test_classify_miss_hit_case():
+    """Test that hit cases are not classified as misses."""
+    case = {"query": "test"}
+    miss_types, primary = eval_core.classify_miss(
+        case,
+        expected_paths=["foo.py"],
+        is_relevant=True,
+        found_count=1,
+        top_results=["foo.py"]
+    )
+    assert miss_types == []
+    assert primary is None
+
+
+def test_classify_miss_missing_metadata():
+    """Test classification when expected metadata is missing."""
+    case = {"query": "test"}
+    miss_types, primary = eval_core.classify_miss(
+        case,
+        expected_paths=[],  # No expected paths
+        is_relevant=False,
+        found_count=1,
+        top_results=["something.py"]
+    )
+    assert "path_or_symbol_metadata_missing" in miss_types or primary == "path_or_symbol_metadata_missing"
+
+
+def test_classify_miss_found_expected_pattern_in_results_but_not_relevant():
+    """Regression: is_relevant=False but expected pattern IS found in top results.
+
+    This edge case previously returned ([], "unknown"), violating schema minItems: 1
+    on miss_taxonomy.cases[].miss_types. The fix ensures at least ["unknown"] is returned.
+    """
+    case = {"query": "test"}
+    miss_types, primary = eval_core.classify_miss(
+        case,
+        expected_paths=["expected.py"],
+        is_relevant=False,
+        found_count=1,
+        top_results=["src/expected.py"],  # pattern IS found in results
+    )
+    # Must always return at least one miss type (schema minItems: 1)
+    assert len(miss_types) >= 1
+    assert primary == "unknown"
+    assert miss_types == ["unknown"]
+
+
+def test_miss_taxonomy_expected_not_in_top_k_integration(mini_index_for_eval, tmp_path):
+    """Integration-level check: do_eval emits expected_not_in_top_k on a real miss with returned results."""
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "def", "expected_patterns": ["never_there.py"]}
+    ]), encoding="utf-8")
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    detail = out["details"][0]
+    assert detail["is_relevant"] is False
+    assert detail["found_count"] > 0
+
+    cases = out["miss_taxonomy"]["cases"]
+    assert len(cases) >= 1
+    assert "expected_not_in_top_k" in cases[0]["miss_types"]
+    assert cases[0]["primary_miss_type"] == "expected_not_in_top_k"
+
+
+def test_miss_taxonomy_query_execution_error_not_counted_as_zero_results(mini_index_for_eval, tmp_path, monkeypatch):
+    queries_json = tmp_path / "eval_queries.json"
+    queries_json.write_text(json.dumps([
+        {"query": "login", "expected_patterns": ["login.py"]}
+    ]), encoding="utf-8")
+
+    def mock_execute(*args, **kwargs):
+        raise RuntimeError("Mock DB Crash")
+
+    monkeypatch.setattr(eval_core, "execute_query", mock_execute)
+
+    out = eval_core.do_eval(
+        index_path=Path(mini_index_for_eval),
+        queries_path=queries_json,
+        k=5,
+        is_json_mode=True,
+        is_stale=False
+    )
+
+    assert out is not None
+    aggregate = out["miss_taxonomy"]["aggregate"]["by_type"]
+    case = out["miss_taxonomy"]["cases"][0]
+    assert aggregate["query_execution_error"] == 1
+    assert aggregate["zero_results"] == 0
+    assert case["miss_types"][0] == "query_execution_error"
+    assert case["primary_miss_type"] == "query_execution_error"
+
+
+def test_retrieval_eval_schema_backward_compatibility_without_miss_taxonomy():
+    """Schema remains backward compatible when miss_taxonomy is omitted."""
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+    legacy_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"],
+            "requires_live_check": True
+        }
+    }
+
+    jsonschema.validate(instance=legacy_output, schema=schema)
+
+
+def test_miss_taxonomy_schema_rejects_missing_required_does_not_prove_entry():
+    """Schema must reject miss_taxonomy when one canonical does_not_prove entry is missing."""
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"],
+            "requires_live_check": True
+        },
+        "miss_taxonomy": {
+            "version": "1.0",
+            "authority": "diagnostic_signal",
+            "risk_class": "diagnostic",
+            "classification_basis": ["retrieval_eval_expectations"],
+            "does_not_prove": [
+                "absence_of_retrieval_hit_does_not_prove_absence_in_repository",
+                "miss_type_does_not_prove_claim_truth_or_falsehood",
+                "ranking_position_does_not_prove_semantic_importance",
+                "retrieval_eval_does_not_prove_retrieval_completeness"
+            ],
+            "aggregate": {
+                "total_cases_classified": 0,
+                "total_misses": 0,
+                "by_type": {
+                    "zero_results": 0,
+                    "expected_not_in_top_k": 0,
+                    "expected_rank_below_k": 0,
+                    "expected_path_not_indexed": 0,
+                    "expected_symbol_not_indexed": 0,
+                    "path_or_symbol_metadata_missing": 0,
+                    "possible_query_vocabulary_gap": 0,
+                    "possible_filter_scope_gap": 0,
+                    "noise_or_fixture_hit": 0,
+                    "stale_eval_input": 0,
+                    "query_execution_error": 0,
+                    "unknown": 0
+                }
+            },
+            "cases": []
+        }
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
+
+
+def test_miss_taxonomy_schema_rejects_missing_required_by_type_key():
+    """Schema must reject miss_taxonomy.by_type when a required key is omitted."""
+    import jsonschema
+
+    schema = _load_retrieval_eval_schema()
+    invalid_output = {
+        "metrics": {"total_queries": 1, "hits": 0, "stale_flag": False},
+        "details": [],
+        "claim_boundaries": {
+            "proves": ["x"],
+            "does_not_prove": ["y"],
+            "evidence_basis": ["eval_queries"],
+            "requires_live_check": True
+        },
+        "miss_taxonomy": {
+            "version": "1.0",
+            "authority": "diagnostic_signal",
+            "risk_class": "diagnostic",
+            "classification_basis": ["retrieval_eval_expectations"],
+            "does_not_prove": [
+                "absence_of_retrieval_hit_does_not_prove_absence_in_repository",
+                "miss_type_does_not_prove_claim_truth_or_falsehood",
+                "ranking_position_does_not_prove_semantic_importance",
+                "retrieval_eval_does_not_prove_retrieval_completeness",
+                "taxonomy_is_diagnostic_not_authoritative"
+            ],
+            "aggregate": {
+                "total_cases_classified": 0,
+                "total_misses": 0,
+                "by_type": {
+                    "zero_results": 0,
+                    "expected_not_in_top_k": 0,
+                    "expected_rank_below_k": 0,
+                    "expected_path_not_indexed": 0,
+                    "expected_symbol_not_indexed": 0,
+                    "path_or_symbol_metadata_missing": 0,
+                    "possible_query_vocabulary_gap": 0,
+                    "possible_filter_scope_gap": 0,
+                    "noise_or_fixture_hit": 0,
+                    "stale_eval_input": 0,
+                    "unknown": 0
+                }
+            },
+            "cases": []
+        }
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=invalid_output, schema=schema)
