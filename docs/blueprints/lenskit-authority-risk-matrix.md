@@ -219,8 +219,9 @@ Die folgende Matrix normiert Inferenzgrenzen pro Artefaktklasse. Sie ist
 operationalisierbar: jede Zeile kann in einen CI-Check oder Lint-Kommentar
 übersetzt werden.
 
-**Pflichtlektüre für Produzenten:** Jede Klasse ist bereits im bestehenden System
-vertreten. Diese Matrix normiert die Grenzen explizit.
+**Pflichtlektüre für Produzenten:** Diese Matrix enthält bestehende Artefaktklassen
+und C1-neu normierte bzw. konzeptionelle Klassen. Bestehende Artefakte werden dadurch
+nicht umklassifiziert; die Matrix normiert Inferenzgrenzen explizit.
 
 ---
 
