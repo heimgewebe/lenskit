@@ -145,6 +145,33 @@ Spätere PRs:
 Gate:
 - Ranking-Verbesserung ersetzt keine Belegqualität
 
+## Governance-Track C — Authority / Canonicality / Risk-Class
+
+Dieser Track ist unabhängig von den Milestones A–B und blockiert sie nicht.
+Er normiert die epistemischen Grenzen des Systems als explizite Governance-Schicht.
+
+### C1 — Authority / Risk-Class Matrix (Blueprint)
+
+Status: Blueprint (`docs/blueprints/lenskit-authority-risk-matrix.md`).  
+Scope: Governance- und Contracts-first; kein Runtime-Code, keine neuen Schemas.
+
+- `docs/blueprints/lenskit-authority-risk-matrix.md` — normative Matrix für
+  Authority-Klassen, Canonicality, Risk-Class, allowed/forbidden Inferences,
+  Trust-Surface, Exportability pro Artefaktklasse.
+  Enthält: Contract-Skizzen (`authority-matrix.v1`, `inference-boundary.v1`,
+  `risk-class.v1`), Anti-Hallucination-Lint-Entwürfe, Agent-/RAG-Analyse,
+  Übergangsplan Phase 1–6.
+
+Gate:
+- Blueprint kompatibel mit bestehenden Contracts und B1/B2-Invarianten (geprüft)
+- Keine Runtime-Änderungen in C1
+
+Mögliche Folgearbeiten (separate PRs, nicht Teil von C1):
+- C2: Contract-Normierung (allowed/forbidden inferences als Schema-Felder)
+- C3: Lint-Regeln (L1–L6)
+- C4: Runtime-Annotation
+- C5: Export-Gate-Integration
+
 ## Paralleltrack Atlas
 - Atlas = physische Wahrnehmung / Filesystem-Snapshot
 - Lenskit = Knowledge Compiler / Evidence Runtime
