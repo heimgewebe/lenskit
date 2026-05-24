@@ -173,9 +173,11 @@ Scope: prüft die C1-Kompatibilität bestehender Contracts unter `merger/lenskit
 und bereitet die Contract-Normierung (C2) vor — **ohne** C2 zu implementieren.
 
 - Kein Runtime-Code, keine Schemas, keine Lints, keine Contract-Änderung.
-- Befund: Runtime-Lookups, `retrieval-eval.v1` und `context-quality.v1` sind bereits
-  C1-kompatibel; größte Lücke ist ein systemweit fehlendes `risk_class`. Sicherster nächster
-  Schritt (C2.1) sind additive, optionale `authority`/`risk_class`-Felder für bereits
+- Befund: Die geprüften Runtime-Lookups `artifact-lookup`, `trace-lookup` und `context-lookup`
+  sowie `retrieval-eval.v1` und `context-quality.v1` sind bereits C1-kompatibel; größte Lücke ist
+  ein systemweit fehlendes `risk_class`. `diagnostics-lookup.v1` bleibt separat im Audit
+  eingeordnet (`missing_boundary`: Facade ohne `authority`/`claim_boundaries`). Sicherster
+  nächster Schritt (C2.1) sind additive, optionale `authority`/`risk_class`-Felder für bereits
   disclaimer-tragende Diagnose-Contracts.
 
 Mögliche Folgearbeiten (separate PRs, nicht Teil von C1 oder C2a):

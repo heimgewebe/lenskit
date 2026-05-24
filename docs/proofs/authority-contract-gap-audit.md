@@ -49,10 +49,13 @@ B1/B2/A4/A5-Invarianten. Bestehende rollenspezifische Disclaimer-Sets bleiben un
 
 ### Geprüfte Dateien
 
-Alle `*.schema.json` unter `merger/lenskit/contracts/` wurden erfasst. Der Schwerpunkt liegt
-auf den manifest-, diagnose- und runtime-tragenden Contracts; reine Atlas-/PR-Schau-/
-Repolens-Report-Schemas werden gesammelt als „außerhalb des C1-Kerngeltungsbereichs"
-behandelt (eigene Bundles / eigene Tracks), aber in §5 nicht ignoriert.
+Alle `*.schema.json` unter `merger/lenskit/contracts/` wurden gescannt. Der Audit normiert die
+C1-relevanten manifest-, diagnose- und runtime-tragenden Contracts einzeln (siehe §3); andere
+Schema-Familien (Atlas, PR-Schau, Repolens-Report, Hilfs-/Zwischenartefakte) werden gesammelt
+als „außerhalb des C1-Kerngeltungsbereichs" eingeordnet (eigene Bundles / eigene Tracks), aber
+in §3/§5 nicht ignoriert. Insbesondere ist `diagnostics-lookup.v1.schema.json` als Lookup-Facade
+explizit erfasst und in §3 eigenständig bewertet (es teilt **nicht** die epistemischen
+Selbstdeklarationen der typisierten Runtime-Lookups).
 
 ### Gesuchte Felder
 
@@ -102,6 +105,7 @@ gesetzt); `self` = im Contract selbst deklariert; `–` = nicht vorhanden.
 | `artifact-lookup.v1.schema.json` | runtime artifact lookup facade | `self` const `runtime_observation` | `self` const `observation` | – | `claim_boundaries.does_not_prove` (required), `artifact_shape`, lifecycle-Felder | aligned | low | Voll C1-konform für Runtime-Beobachtung. Nur `risk_class`-Feld fehlt (C1-Mapping: `observation`). |
 | `trace-lookup.v1.schema.json` | `query_trace` lookup facade | `self` const `runtime_observation` | `self` const `observation` | – | `claim_boundaries.does_not_prove` (required bei status ok) | aligned | low | Wie artifact-lookup; `risk_class` als einziges optionales Add. |
 | `context-lookup.v1.schema.json` | `context_bundle` lookup facade | `self` const `runtime_observation` | `self` const `observation` | – | `claim_boundaries.does_not_prove` (required bei status ok) | aligned | low | Wie trace-lookup. |
+| `diagnostics-lookup.v1.schema.json` | diagnostics snapshot lookup facade | – | – | – | – (nur `status`/`snapshot`/`freshness`/`warnings`) | missing_boundary | low | **Nicht** wie die typisierten Lookups: read-only Facade über `diagnostics.snapshot.json` ohne `authority`/`canonicality`/`claim_boundaries`. Darf nicht als aligned gruppiert werden, bis Felder ergänzt sind. Authority-Klasse offen: wrappt eine Diagnose (`diagnostic_signal`?) als read-only Beobachtung (`runtime_observation`?) — Entscheidung gehört in C2, nicht in C2a. `snapshot` ist opak (`additionalProperties:true`), kann eigene Grenzen tragen. |
 | `query-result.v1.schema.json` | query result envelope | – (top-level) | – | – | `claim_boundaries.does_not_prove` | partially_aligned | low | Wrapper für `query-context-bundle`; trägt eigene `claim_boundaries`. |
 | `output-health.v1.schema.json` | `output_health` / pre_emit_health (diagnostic) | bd-man-Rolle gelistet, aber **kein** per-role-const-Zweig; kein `self`-Feld | – | – | `verdict` (pass/warn/fail); keine `does_not_*` | partially_aligned + unsafe_to_migrate_without_consumer_changes | high | Ältester Diagnose-Contract. `verdict==pass` wird von Parity-Gates und Projektoren konsumiert; Naming-Migration `output_health → pre_emit_health` läuft noch (siehe artifact-evidence-levels.md). |
 | `agent-export-gate.v1.schema.json` | `agent_export_gate` (gate result, unregistriert) | – (kein Feld) | – | – | `does_not_mean` (3 Pflicht: repo_understood, answer_safe_without_citations, claims_true) | partially_aligned | low | Gate-Ergebnis; trägt Disclaimer, deklariert keine eigene Authority/Risk-Class. |
@@ -199,6 +203,8 @@ ableitbare Schicht ist `risk_class`.
 Contracts ohne explizites Authority-Feld (weder generisch noch spezialisiert):
 - `post-emit-health.v1`, `agent-export-gate.v1`, `output-health.v1`
 - `query-context-bundle.v1` (top-level; Inventory führt Phase 4 als offen)
+- `diagnostics-lookup.v1` (Lookup-Facade ohne epistemische Selbstdeklaration, anders als die
+  typisierten Runtime-Lookups)
 - `cross-repo-links.v1`, `federation-conflicts.v1`, `federation-trace.v1`, `federation-index.v1`
 - `citation-map.v1` (Authority nur im Manifest erzwungen, nicht im Contract selbst)
 
@@ -219,6 +225,8 @@ Contracts ohne `risk_class` (= fast alle, außer `context-quality.v1` und `miss_
 Contracts ohne `does_not_prove`/`does_not_mean`/`claim_boundaries` oder äquivalente
 maschinenlesbare Grenze:
 - `output-health.v1` (nur `verdict`)
+- `diagnostics-lookup.v1` (nur `status`/`snapshot`/`freshness`/`warnings`; der opake
+  `snapshot` kann eigene Grenzen tragen, die Facade deklariert aber keine)
 - `federation-trace.v1`, `federation-index.v1`
 - `cross-repo-links.v1` / `federation-conflicts.v1` haben nur Const-Felder
   (`confidence: inferred`, `resolution: unresolved`) plus Description-Prosa — partielle,
