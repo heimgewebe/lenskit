@@ -163,5 +163,3 @@ All checks passed!
   bewusst getrennt und nicht Teil von C2.1.
 - C2.2–C5 bleiben offen (siehe Roadmap); insbesondere `bundle-manifest.v1`-Normierung und
   `allowed_inference`/`forbidden_inference` sind ausdrücklich nicht enthalten.
-</content>
-</invoke>
