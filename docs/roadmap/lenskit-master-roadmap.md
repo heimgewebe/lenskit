@@ -155,7 +155,7 @@ Er normiert die epistemischen Grenzen des Systems als explizite Governance-Schic
 Status: Blueprint (`docs/blueprints/lenskit-authority-risk-matrix.md`).  
 Scope: Governance- und Contracts-first; kein Runtime-Code, keine neuen Schemas.
 
-- [ ] `docs/blueprints/lenskit-authority-risk-matrix.md` — normative Matrix für
+- `docs/blueprints/lenskit-authority-risk-matrix.md` — normative Matrix für
   Authority-Klassen, Canonicality, Risk-Class, allowed/forbidden Inferences,
   Trust-Surface, Exportability pro Artefaktklasse.
   Enthält: Contract-Skizzen (`authority-matrix.v1`, `inference-boundary.v1`,
