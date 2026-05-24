@@ -166,7 +166,7 @@ Gate:
 - Blueprint kompatibel mit bestehenden Contracts und B1/B2-Invarianten (geprüft)
 - Keine Runtime-Änderungen in C1
 
-Mögliche Folgearbeiten (nicht geplant, nicht priorisiert):
+Mögliche Folgearbeiten (separate PRs, nicht Teil von C1):
 - C2: Contract-Normierung (allowed/forbidden inferences als Schema-Felder)
 - C3: Lint-Regeln (L1–L6)
 - C4: Runtime-Annotation
