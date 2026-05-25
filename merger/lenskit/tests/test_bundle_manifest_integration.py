@@ -930,37 +930,57 @@ def test_c22_legacy_manifest_without_risk_class_stays_valid():
 
 
 def test_c22_correct_per_role_risk_class_is_valid():
-    # Representative sample of core roles with correct risk_class values.
-    # Full role combination testing is covered by test_producer_emits_authority_metadata_per_role.
+    # Covers all roles for which C2.2 defines a per-role risk_class const.
+    # This is contract-schema validation only; producer emission of risk_class
+    # is deliberately NOT part of C2.2.
     cases = {
-        "canonical_md": "content",
-        "index_sidecar_json": "navigation",
-        "dump_index_json": "navigation",
-        "derived_manifest_json": "navigation",
-        "sqlite_index": "cache",
-        "retrieval_eval_json": "diagnostic",
-        "output_health": "diagnostic",
+        "canonical_md":        ("content",     {}),
+        "index_sidecar_json":  ("navigation",  {"contract": {"id": "x", "version": "v1"},
+                                                "interpretation": {"mode": "contract"}}),
+        "dump_index_json":     ("navigation",  {}),
+        "derived_manifest_json":("navigation", {}),
+        "sqlite_index":        ("cache",       {}),
+        "architecture_summary":("diagnostic",  {"contract": {"id": "x", "version": "v1"},
+                                                "interpretation": {"mode": "contract"}}),
+        "retrieval_eval_json": ("diagnostic",  {"contract": {"id": "x", "version": "v1"},
+                                                "interpretation": {"mode": "contract"}}),
+        "delta_json":          ("diagnostic",  {"contract": {"id": "x", "version": "v1"},
+                                                "interpretation": {"mode": "contract"}}),
+        "citation_map_jsonl":  ("navigation",  {"contract": {"id": "citation-map", "version": "v1"},
+                                                "interpretation": {"mode": "contract"},
+                                                "content_type": "application/x-ndjson",
+                                                "authority": "navigation_index",
+                                                "canonicality": "derived",
+                                                "regenerable": True,
+                                                "staleness_sensitive": True}),
+        "agent_reading_pack":  ("navigation",  {"content_type": "text/markdown",
+                                                "authority": "navigation_index",
+                                                "canonicality": "derived"}),
+        "output_health":       ("diagnostic",  {}),
     }
-    for role, risk in cases.items():
-        artifact = _artifact(role, risk_class=risk)
-        # roles that require a contract+interpretation get them so the unrelated
-        # allOf branches do not fail for reasons other than risk_class.
-        if role in {"index_sidecar_json", "retrieval_eval_json"}:
-            artifact["contract"] = {"id": "x", "version": "v1"}
-            artifact["interpretation"] = {"mode": "contract"}
+    for role, (risk, extra) in cases.items():
+        artifact = _artifact(role, risk_class=risk, **extra)
         _validate(artifact)
 
 
 def test_c22_wrong_per_role_risk_class_is_invalid():
-    bad = {
+    wrong_no_extra = {
         "canonical_md": "navigation",
         "dump_index_json": "diagnostic",
         "sqlite_index": "content",
         "output_health": "navigation",
     }
-    for role, risk in bad.items():
+    for role, risk in wrong_no_extra.items():
         with pytest.raises(jsonschema.ValidationError):
             _validate(_artifact(role, risk_class=risk))
+
+    # Roles that require contract+interpretation: wrong risk_class still invalid.
+    for role in ("architecture_summary", "delta_json"):
+        artifact = _artifact(role, risk_class="navigation",
+                             contract={"id": "x", "version": "v1"},
+                             interpretation={"mode": "contract"})
+        with pytest.raises(jsonschema.ValidationError):
+            _validate(artifact)
 
 
 def test_c22_output_health_correct_authority_canonicality_is_valid():

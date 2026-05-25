@@ -183,11 +183,19 @@ Contracts, `agent-query-session.v2`, Federation-Contracts; keine Lints, keine Ex
 Sechs additive Tests in `test_bundle_manifest_integration.py`:
 
 1. `test_c22_legacy_manifest_without_risk_class_stays_valid` — Backcompat.
-2. `test_c22_correct_per_role_risk_class_is_valid` — korrekte Kombinationen.
-3. `test_c22_wrong_per_role_risk_class_is_invalid` — falsche risk_class pro Rolle abgewiesen.
+2. `test_c22_correct_per_role_risk_class_is_valid` — **alle 11 constrained Rollen** positiv
+   abgedeckt (canonical_md, index_sidecar_json, dump_index_json, derived_manifest_json,
+   sqlite_index, architecture_summary, retrieval_eval_json, delta_json, citation_map_jsonl,
+   agent_reading_pack, output_health). Rollen mit Zusatz-Pflichtfeldern (contract/
+   interpretation/content_type) erhalten diese testlokal. Kein Schema-Constraint gelockert.
+   **Kein Test für Producer-Emission** — C2.2 ist Contract-only.
+3. `test_c22_wrong_per_role_risk_class_is_invalid` — falsche risk_class pro Rolle
+   abgewiesen; inkl. architecture_summary und delta_json als Negativ-Stichproben.
 4. `test_c22_output_health_correct_authority_canonicality_is_valid` — neuer Zweig positiv.
 5. `test_c22_output_health_wrong_authority_is_invalid` — neuer Zweig negativ.
-6. `test_c22_retrieval_index_roles_reject_any_risk_class_until_c1_defines_it` — STOP-Beleg: alle 7 Enum-Werte werden abgewiesen; Abwesenheit validiert.
+6. `test_c22_retrieval_index_roles_reject_any_risk_class_until_c1_defines_it` — STOP-Beleg:
+   alle 7 Enum-Werte werden für chunk_index_jsonl und graph_index_json abgewiesen;
+   Abwesenheit validiert.
 
 Bestehende Tests blieben unverändert; nur additive Testfunktionen kamen hinzu.
 
