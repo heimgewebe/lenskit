@@ -56,7 +56,9 @@ kommen in **keiner** aktuellen manifest-getragenen Rolle vor; sie bleiben unber�
 
 ## 2. Explizite Eigenschaften dieses Patches
 
-- **additive optional fields only** — keine bestehende Property entfernt oder geändert.
+- **additive optional fields only für bisher valide Manifest-Instanzen** — keine bestehende
+  Property entfernt oder geändert; `retrieval_index` erhält bewusst ein aktives Verbot für
+  das neu eingeführte Feld `risk_class`, bis C1 dafür eine eindeutige Klasse definiert.
 - **keine Pflichtfelder** — `risk_class` ist in **keinem** `required`-Array; auch der
   neue `output_health`-Zweig fügt **keine** `required`-Einträge hinzu. Bei
   `citation_map_jsonl`/`agent_reading_pack` wird `risk_class` nur additiv in
