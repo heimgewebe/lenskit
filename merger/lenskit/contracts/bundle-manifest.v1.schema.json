@@ -161,6 +161,19 @@
               "observation"
             ]
           },
+          "risk_class": {
+            "type": "string",
+            "description": "Optional governance risk-class (epistemic misuse risk) per the C1 authority/risk matrix. Optional in v1.0 for backward compatibility; values are constrained per role when present. Roles with authority 'retrieval_index' deliberately carry no per-role risk_class constraint because C1 does not document an unambiguous risk_class for that authority class.",
+            "enum": [
+              "content",
+              "navigation",
+              "diagnostic",
+              "cache",
+              "observation",
+              "derived",
+              "external"
+            ]
+          },
           "regenerable": {
             "type": "boolean",
             "description": "Optional flag: true if the artifact can be deterministically regenerated from its sources, false if it represents a one-time observation."
@@ -294,6 +307,9 @@
                 },
                 "canonicality": {
                   "const": "content_source"
+                },
+                "risk_class": {
+                  "const": "content"
                 }
               }
             }
@@ -316,6 +332,9 @@
                 },
                 "canonicality": {
                   "const": "index_only"
+                },
+                "risk_class": {
+                  "const": "navigation"
                 }
               }
             }
@@ -338,6 +357,9 @@
                 },
                 "canonicality": {
                   "const": "index_only"
+                },
+                "risk_class": {
+                  "const": "navigation"
                 }
               }
             }
@@ -360,6 +382,9 @@
                 },
                 "canonicality": {
                   "const": "derived"
+                },
+                "risk_class": {
+                  "const": "navigation"
                 }
               }
             }
@@ -404,6 +429,9 @@
                 },
                 "canonicality": {
                   "const": "cache"
+                },
+                "risk_class": {
+                  "const": "cache"
                 }
               }
             }
@@ -426,6 +454,9 @@
                 },
                 "canonicality": {
                   "const": "diagnostic"
+                },
+                "risk_class": {
+                  "const": "diagnostic"
                 }
               }
             }
@@ -447,6 +478,9 @@
                   "const": "diagnostic_signal"
                 },
                 "canonicality": {
+                  "const": "diagnostic"
+                },
+                "risk_class": {
                   "const": "diagnostic"
                 }
               }
@@ -491,6 +525,9 @@
                   "const": "diagnostic_signal"
                 },
                 "canonicality": {
+                  "const": "diagnostic"
+                },
+                "risk_class": {
                   "const": "diagnostic"
                 }
               }
@@ -541,6 +578,9 @@
                 "canonicality": {
                   "const": "derived"
                 },
+                "risk_class": {
+                  "const": "navigation"
+                },
                 "regenerable": {
                   "const": true
                 },
@@ -576,6 +616,34 @@
                 },
                 "canonicality": {
                   "const": "derived"
+                },
+                "risk_class": {
+                  "const": "navigation"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "output_health"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_signal"
+                },
+                "canonicality": {
+                  "const": "diagnostic"
+                },
+                "risk_class": {
+                  "const": "diagnostic"
                 }
               }
             }

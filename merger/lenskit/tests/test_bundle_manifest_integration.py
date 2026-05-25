@@ -878,3 +878,115 @@ def test_manifest_coherence_check_marks_unsafe_path_as_hard_error(tmp_path):
     assert coherence.coherent is False
     assert coherence.skip_allowed is False
     assert coherence.reason == "unsafe_range_file_path"
+
+
+# ── C2.2 — per-role risk_class + output_health authority branch ──────────────
+#
+# These tests cover the additive, optional bundle-manifest.v1 normalization:
+#   * legacy manifests without risk_class stay valid,
+#   * correct per-role risk_class consts validate,
+#   * wrong per-role risk_class consts are rejected,
+#   * the output_health role gains an authority/canonicality/risk_class branch,
+#   * retrieval_index roles deliberately carry NO risk_class constraint (STOP).
+
+_BUNDLE_SCHEMA = json.loads(_BUNDLE_MANIFEST_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def _manifest_with(artifact: dict) -> dict:
+    return {
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "c2-2-test",
+        "created_at": "2026-05-25T00:00:00Z",
+        "generator": {"name": "t", "version": "1", "config_sha256": "a" * 64},
+        "artifacts": [artifact],
+        "links": {},
+        "capabilities": {},
+    }
+
+
+def _artifact(role: str, **extra) -> dict:
+    base = {
+        "role": role,
+        "path": f"x.{role}",
+        "content_type": "application/json",
+        "bytes": 1,
+        "sha256": "a" * 64,
+    }
+    base.update(extra)
+    return base
+
+
+def _validate(artifact: dict) -> None:
+    jsonschema.validate(instance=_manifest_with(artifact), schema=_BUNDLE_SCHEMA)
+
+
+def test_c22_legacy_manifest_without_risk_class_stays_valid():
+    # No risk_class on any role: must still validate (additive, optional).
+    _validate(_artifact("canonical_md", authority="canonical_content",
+                        canonicality="content_source"))
+    _validate(_artifact("output_health"))
+    _validate(_artifact("sqlite_index"))
+
+
+def test_c22_correct_per_role_risk_class_is_valid():
+    cases = {
+        "canonical_md": "content",
+        "index_sidecar_json": "navigation",
+        "dump_index_json": "navigation",
+        "derived_manifest_json": "navigation",
+        "sqlite_index": "cache",
+        "retrieval_eval_json": "diagnostic",
+        "output_health": "diagnostic",
+    }
+    for role, risk in cases.items():
+        artifact = _artifact(role, risk_class=risk)
+        # roles that require a contract+interpretation get them so the unrelated
+        # allOf branches do not fail for reasons other than risk_class.
+        if role in {"index_sidecar_json", "retrieval_eval_json"}:
+            artifact["contract"] = {"id": "x", "version": "v1"}
+            artifact["interpretation"] = {"mode": "contract"}
+        _validate(artifact)
+
+
+def test_c22_wrong_per_role_risk_class_is_invalid():
+    bad = {
+        "canonical_md": "navigation",
+        "dump_index_json": "diagnostic",
+        "sqlite_index": "content",
+        "output_health": "navigation",
+    }
+    for role, risk in bad.items():
+        with pytest.raises(jsonschema.ValidationError):
+            _validate(_artifact(role, risk_class=risk))
+
+
+def test_c22_output_health_correct_authority_canonicality_is_valid():
+    _validate(_artifact(
+        "output_health",
+        authority="diagnostic_signal",
+        canonicality="diagnostic",
+        risk_class="diagnostic",
+    ))
+
+
+def test_c22_output_health_wrong_authority_is_invalid():
+    with pytest.raises(jsonschema.ValidationError):
+        _validate(_artifact("output_health", authority="navigation_index"))
+    with pytest.raises(jsonschema.ValidationError):
+        _validate(_artifact("output_health", canonicality="content_source"))
+
+
+def test_c22_retrieval_index_roles_have_no_risk_class_constraint():
+    # STOP rationale: C1 documents no unambiguous risk_class for retrieval_index.
+    # The schema therefore must NOT constrain risk_class for these roles, i.e.
+    # both "navigation" and "derived" (and absence) must validate.
+    for role in ("chunk_index_jsonl", "graph_index_json"):
+        artifact = _artifact(role, authority="retrieval_index",
+                             canonicality="derived")
+        if role == "graph_index_json":
+            artifact["contract"] = {"id": "x", "version": "v1"}
+            artifact["interpretation"] = {"mode": "contract"}
+        _validate(dict(artifact))  # no risk_class
+        _validate({**artifact, "risk_class": "navigation"})
+        _validate({**artifact, "risk_class": "derived"})
