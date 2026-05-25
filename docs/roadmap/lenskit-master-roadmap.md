@@ -198,11 +198,37 @@ Scope: additive, optionale, **const** Felder `authority` (`diagnostic_signal`) u
   75 passed in der Consumer-Regression, ruff `F401,F811` sauber.
 
 Mögliche Folgearbeiten (separate PRs, nicht Teil von C1, C2a oder C2.1):
-- C2.2: `bundle-manifest.v1`-Normierung (per-role `risk_class`, `output_health`-Authority-Zweig) — **offen**
+- C2.2: `bundle-manifest.v1`-Normierung (per-role `risk_class`, `output_health`-Authority-Zweig) — **UMGESETZT** (siehe C2.2-Abschnitt unten)
 - C2.3: `allowed_inference`/`forbidden_inference` als optionale Schema-Felder — **offen**
 - C3 / C2.4: Lint-Regeln (L1–L6) — **offen**
 - C4: Runtime-Annotation — **offen**
 - C5: Export-Gate-Integration — **offen**
+
+### C2.2 — Additive per-role Risk-Class + output_health-Authority im Bundle-Manifest (umgesetzt)
+
+Status: **UMGESETZT** (Contract-only, additiv), Beleg
+`docs/proofs/authority-risk-class-c2-2-manifest-proof.md`.
+Scope: ausschließlich `merger/lenskit/contracts/bundle-manifest.v1.schema.json`:
+(1) additives, optionales, **per-Rolle const** `risk_class` (abgeleitet aus der bereits
+vorhandenen per-Rolle-`authority`: `canonical_content→content`, `navigation_index→navigation`,
+`runtime_cache→cache`, `diagnostic_signal→diagnostic`); (2) neuer `allOf`-Zweig für die
+bisher unbeschränkte Rolle `output_health` (`authority: diagnostic_signal`,
+`canonicality: diagnostic`, `risk_class: diagnostic`), deckungsgleich mit der bereits vom
+Producer emittierten Annotation.
+
+- **Keine** Pflichtfelder, **keine** Lockerung bestehender Constraints; `additionalProperties:
+  false` bleibt auf Manifest- und Artefakt-Item-Ebene erhalten. const greift nur bei
+  Anwesenheit → Legacy-Bundles ohne `risk_class` bleiben valide.
+- **Keine** Producer-/Runtime-/CLI-Emission von `risk_class`, **kein** Lint, **kein**
+  Export-Gate. **Kein** Eingriff in `output-health.v1.schema.json` (nur die Manifest-Rolle).
+- **STOP (scoped, aktiv erzwungen):** `retrieval_index`-Rollen (`chunk_index_jsonl`,
+  `graph_index_json`) erhalten **keinen** risk_class-Wert — und das Schema **verbietet**
+  `risk_class` für sie aktiv (`not: {required: ["risk_class"]}`), weil C1 keinen
+  eindeutigen risk_class für `retrieval_index` dokumentiert (kein §3-Abschnitt). Jeder
+  Enum-Wert wird abgewiesen; ein blosses Weglassen des Constraints würde die Tür für
+  semantische Aufwertungen öffnen (C1 §4 P4 / §3.9).
+- Validierung: 30 passed in der Zielsuite (Manifest + Rollen-Completeness, inkl. 6 additiver
+  C2.2-Tests), 188 passed in der Bundle-/Health-/Parity-Regression, ruff `F401,F811` sauber.
 
 ## Paralleltrack Atlas
 - Atlas = physische Wahrnehmung / Filesystem-Snapshot
