@@ -163,7 +163,7 @@
           },
           "risk_class": {
             "type": "string",
-            "description": "Optional governance risk-class (epistemic misuse risk) per the C1 authority/risk matrix. Optional in v1.0 for backward compatibility; values are constrained per role when present. Roles with authority 'retrieval_index' deliberately carry no per-role risk_class constraint because C1 does not document an unambiguous risk_class for that authority class.",
+            "description": "Optional governance risk-class (epistemic misuse risk) per the C1 authority/risk matrix. Optional in v1.0 for backward compatibility; values are constrained per role when present. Roles with authority 'retrieval_index' actively reject any risk_class until C1 documents an unambiguous risk_class for that authority class.",
             "enum": [
               "content",
               "navigation",

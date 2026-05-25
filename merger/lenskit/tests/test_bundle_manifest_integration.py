@@ -887,7 +887,7 @@ def test_manifest_coherence_check_marks_unsafe_path_as_hard_error(tmp_path):
 #   * correct per-role risk_class consts validate,
 #   * wrong per-role risk_class consts are rejected,
 #   * the output_health role gains an authority/canonicality/risk_class branch,
-#   * retrieval_index roles deliberately carry NO risk_class constraint (STOP).
+#   * retrieval_index roles actively reject any risk_class until C1 defines one (STOP).
 
 _BUNDLE_SCHEMA = json.loads(_BUNDLE_MANIFEST_SCHEMA_PATH.read_text(encoding="utf-8"))
 
@@ -930,6 +930,8 @@ def test_c22_legacy_manifest_without_risk_class_stays_valid():
 
 
 def test_c22_correct_per_role_risk_class_is_valid():
+    # Representative sample of core roles with correct risk_class values.
+    # Full role combination testing is covered by test_producer_emits_authority_metadata_per_role.
     cases = {
         "canonical_md": "content",
         "index_sidecar_json": "navigation",
