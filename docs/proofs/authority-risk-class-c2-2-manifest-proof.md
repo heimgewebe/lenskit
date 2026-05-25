@@ -111,7 +111,7 @@ Pflichtfeldern.
 | Stop-Regel | Ergebnis |
 | :--- | :--- |
 | risk_class würde alte Bundles invalidieren | **Nicht ausgelöst** — optional, const nur bei Anwesenheit, Producer emittiert nichts. |
-| retrieval_index risk_class nicht eindeutig belegbar | **AUSGELÖST (scoped)** — siehe §4; risk_class für `chunk_index_jsonl`/`graph_index_json` wird **bewusst weggelassen**. |
+| retrieval_index risk_class nicht eindeutig belegbar | **AUSGELÖST (scoped)** — siehe §4; für `chunk_index_jsonl`/`graph_index_json` wird **kein `risk_class.const` gesetzt**; stattdessen wird jedes vorhandene `risk_class` per Schema aktiv verboten. |
 | output_health-Canonicality folgt nicht sicher aus Inventory/Manifest | **Nicht ausgelöst** — `diagnostic` ist (a) bereits vom Producer emittiert, (b) C1 §3.2 listet `output_health` als `diagnostic_signal`, (c) Inventory §6: `diagnostic_signal`/`diagnostic` = „warnt, beweist nicht". |
 | Tests mit exakter Property-Menge | **Nicht ausgelöst** — keine vorhanden. |
 
