@@ -49,7 +49,7 @@ Verified acceptance criteria:
 - agent-facing export is blocked without a valid post_emit_health report
 - agent-facing export is blocked when capabilities.redaction is false
 - canonical agent-portable / agent-safe profiles are treated as agent-facing export profiles
-- internal local-search / debug-full / max-private profiles are blocked from agent export
+- internal local-search / debug-full / max-private / forensic-strict profiles are blocked from agent export
 - non-agent-facing profiles do not claim agent-surface certification
 - output_health.verdict=pass is observation only and does not certify agent-safe export
 - the gate does not mutate the manifest
