@@ -707,7 +707,7 @@ function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
         console.warn('Failed to persist reset merge defaults', e);
     }
 
-    showNotification('Merge started; form reset to defaults', 'info');
+    showNotification('Job submitted; form reset to defaults', 'info');
 }
 
 function restoreConfig() {

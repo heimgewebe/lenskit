@@ -2,7 +2,7 @@ import unittest
 import sys
 from pathlib import Path
 
-PYTHONISTA_FRONTEND_DIR = Path("merger/lenskit/frontends/pythonista").resolve()
+PYTHONISTA_FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontends" / "pythonista"
 if str(PYTHONISTA_FRONTEND_DIR) not in sys.path:
     sys.path.insert(0, str(PYTHONISTA_FRONTEND_DIR))
 
@@ -215,6 +215,12 @@ class TestRepoLensResetAfterSuccess(unittest.TestCase):
 
                 self.saved_state = None
                 self.repo_info_updated = False
+                self.profile_hint = DummyField("stale")
+
+            def on_profile_changed(self, _sender):
+                idx = self.seg_detail.selected_index
+                seg = self.seg_detail.segments[idx]
+                self.profile_hint.text = repolens.PROFILE_DESCRIPTIONS.get(seg, "")
 
             def _update_repo_info(self):
                 self.repo_info_updated = True
@@ -247,6 +253,10 @@ class TestRepoLensResetAfterSuccess(unittest.TestCase):
         self.assertEqual(dummy.seg_meta.selected_index, 0)  # auto
         self.assertFalse(dummy.plan_only_switch.value)
         self.assertFalse(dummy.code_only_switch.value)
+        self.assertEqual(
+            dummy.profile_hint.text,
+            repolens.PROFILE_DESCRIPTIONS["max"],
+        )
 
         self.assertTrue(dummy.extras_config.augment_sidecar)
         self.assertTrue(dummy.extras_config.json_sidecar)

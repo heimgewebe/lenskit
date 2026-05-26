@@ -1590,6 +1590,8 @@ class MergerUI(object):
                 self.seg_detail.selected_index = self.seg_detail.segments.index(DEFAULT_LEVEL)
             except Exception:
                 self.seg_detail.selected_index = 0
+            if hasattr(self, "on_profile_changed"):
+                self.on_profile_changed(None)
 
         if getattr(self, "seg_mode", None) is not None:
             self.seg_mode.selected_index = 1 if DEFAULT_MODE == "pro-repo" else 0

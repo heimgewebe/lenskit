@@ -522,7 +522,14 @@ def test_run_merge_does_not_reset_on_job_error(page_with_static: Page):
     )
 
     page_with_static.click("#jobForm button[type='submit']")
-    page_with_static.wait_for_timeout(300)
+    page_with_static.wait_for_function(
+        """
+        () => {
+            const submitBtn = document.querySelector("#jobForm button[type='submit']");
+            return submitBtn && submitBtn.disabled === false && submitBtn.innerText === "Start Job";
+        }
+        """
+    )
 
     assert any("Failed to start job" in m for m in dialog_messages)
     assert page_with_static.is_checked("input[name='repos'][value='repoA']") is True
@@ -582,7 +589,18 @@ def test_run_merge_success_keeps_environment_storage(page_with_static: Page):
     )
 
     page_with_static.click("#jobForm button[type='submit']")
-    page_with_static.wait_for_timeout(300)
+    page_with_static.wait_for_function(
+        """
+        () => {
+            const profileOk = document.querySelector('#profile')?.value === 'max';
+            const reposUnchecked = Array.from(document.querySelectorAll('input[name="repos"]')).every(b => !b.checked);
+            const poolBadgeGone = !document.querySelector('#repoList')?.innerText.includes('POOL');
+            const cfg = JSON.parse(localStorage.getItem('rlens_config') || '{}');
+            const cfgProfileOk = cfg.profile === 'max';
+            return profileOk && reposUnchecked && poolBadgeGone && cfgProfileOk;
+        }
+        """
+    )
 
     token = page_with_static.evaluate("() => localStorage.getItem('rlens_token')")
     state_version = page_with_static.evaluate("() => localStorage.getItem('rlens_state_version')")
