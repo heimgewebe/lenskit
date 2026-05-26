@@ -208,7 +208,7 @@
                 "description": "Confidence level in the diagnosis classification."
               },
               "instrumentation_notes": {
-                "type": "string",
+                "type": ["string", "null"],
                 "description": "Optional notes if diagnosis is inconclusive or requires manual review."
               }
             }

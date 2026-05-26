@@ -57,7 +57,12 @@ Example:
 The calibrator asks five questions in sequence:
 
 ```
-┌─ Is target in the index?
+┌─ Has staleness or ambiguity signals?
+│  └─ Stale → "stale_expected_target"
+│  └─ Ambiguous → "query_target_ambiguous"
+│  └─ None → next
+│
+├─ Is target in the index?
 │  └─ No → "target_missing_from_index"
 │  └─ Yes → next
 │
@@ -69,14 +74,11 @@ The calibrator asks five questions in sequence:
 │  └─ No → "target_missing_from_citation_map"
 │  └─ Yes → next
 │
-├─ Is target in index but outside top-k?
+├─ Is target in index but not observed in top-k?
 │  └─ Yes → "target_exists_not_in_top_k" (not observed in top-k)
 │  └─ No → next
-│
-└─ Has staleness or ambiguity signals?
-   └─ Stale → "stale_expected_target"
-   └─ Ambiguous → "query_target_ambiguous"
-   └─ None → "diagnostic_inconclusive"
+
+└─ Else → "diagnostic_inconclusive"
 ```
 
 ### 3. Output: Diagnostic Report
@@ -114,7 +116,7 @@ The calibrator asks five questions in sequence:
         "target_found_in_index": true,
         "target_found_in_canonical": true,
         "target_found_in_citation_map": true,
-        "rank_in_results": 45,
+        "rank_in_results": null,
         "top_k": 10,
         "query_had_zero_hits": false,
         "canonical_path_check": "exact_match",
@@ -126,6 +128,21 @@ The calibrator asks five questions in sequence:
       }
     }
   ]
+}
+```
+
+Optional overfetch diagnostics example (explicitly separate from default top-k-only diagnostics):
+
+```json
+{
+  "query_id": "q5",
+  "expected_target": "src/auth/setup.py",
+  "primary_diagnosis": "target_exists_not_in_top_k",
+  "diagnosis_details": {
+    "rank_in_results": 45,
+    "top_k": 10,
+    "instrumentation_notes": "rank_in_results available from overfetch diagnostics run (k=100)"
+  }
 }
 ```
 

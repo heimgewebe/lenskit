@@ -148,6 +148,11 @@ class TestIntegrationExtraction:
         with pytest.raises(ValueError):
             _extract_misses_from_eval(eval_results)
 
+    def test_extract_rejects_missing_details_field(self):
+        eval_results = {"metrics": {"total_queries": 1}}
+        with pytest.raises(ValueError, match="Expected retrieval_eval field 'details'\\."):
+            _extract_misses_from_eval(eval_results)
+
 
 class TestRetrievalEvalDiagnosticsCalibrator:
     def test_all_good_hit(self, tmp_artifacts):
@@ -182,6 +187,45 @@ class TestRetrievalEvalDiagnosticsCalibrator:
         )
         assert record.primary_diagnosis == "target_exists_not_in_top_k"
         assert record.diagnosis_details["rank_in_results"] is None
+
+    def test_mixed_expected_path_and_symbol_pattern(self, tmp_artifacts):
+        eval_results = {
+            "metrics": {"total_queries": 1},
+            "details": [
+                {
+                    "query": "merge",
+                    "expected": ["merge.py", "iter_report_blocks"],
+                    "is_relevant": False,
+                    "found_count": 1,
+                    "top_results": ["merger/lenskit/core/chunker.py"],
+                }
+            ],
+        }
+
+        misses = _extract_misses_from_eval(eval_results)
+        assert len(misses) == 2
+
+        calibrator = RetrievalEvalDiagnosticsCalibrator(
+            index_path=tmp_artifacts["index"],
+            canonical_path=tmp_artifacts["canonical"],
+            citation_path=tmp_artifacts["citation"],
+        )
+
+        by_target = {}
+        for miss in misses:
+            rec = calibrator.diagnose_miss(**miss)
+            by_target[miss["expected_target"]] = rec.primary_diagnosis
+
+        assert by_target["merge.py"] in {
+            "target_exists_not_in_top_k",
+            "target_missing_from_citation_map",
+            "target_missing_from_canonical",
+        }
+        assert by_target["iter_report_blocks"] in {
+            "query_target_ambiguous",
+            "diagnostic_inconclusive",
+        }
+        assert by_target["iter_report_blocks"] != "target_missing_from_index"
 
     def test_target_missing_from_index(self, tmp_artifacts):
         calibrator = RetrievalEvalDiagnosticsCalibrator(

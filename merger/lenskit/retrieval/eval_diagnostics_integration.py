@@ -85,7 +85,7 @@ def _extract_misses_from_eval(eval_results: Dict[str, Any]) -> List[Dict[str, An
     if "details" not in eval_results:
         if "results" in eval_results:
             raise ValueError("Expected retrieval_eval field 'details', found unsupported legacy key 'results'.")
-        return misses
+        raise ValueError("Expected retrieval_eval field 'details'.")
 
     details = eval_results.get("details", [])
     if not isinstance(details, list):
