@@ -570,6 +570,13 @@ class RetrievalEvalDiagnosticsCalibrator:
             breakdowns[record.primary_diagnosis] += 1
 
         # Build report
+        total_paths = len(self._index_paths) if self._index_paths else 0
+        total_chunks = (
+            sum(len(ids) for ids in self._path_to_chunk_ids.values())
+            if self._path_to_chunk_ids
+            else 0
+        )
+
         report = {
             "authority": "diagnostic_signal",
             "risk_class": "diagnostic",
@@ -579,8 +586,8 @@ class RetrievalEvalDiagnosticsCalibrator:
                 "total_misses": len(misses),
                 "diagnostic_breakdowns": breakdowns,
                 "index_stats": {
-                    "total_chunks": len(self._index_paths) if self._index_paths else 0,
-                    "total_paths": len(self._index_paths) if self._index_paths else 0,
+                    "total_chunks": total_chunks,
+                    "total_paths": total_paths,
                     "canonical_md_exists": self._canonical_md is not None,
                     "citation_map_exists": self._citation_map is not None,
                 },

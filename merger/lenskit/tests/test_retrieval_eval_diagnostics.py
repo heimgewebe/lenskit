@@ -341,3 +341,20 @@ class TestRetrievalEvalDiagnosticsCalibrator:
             ]
         )
         assert [d["query_id"] for d in report["diagnostics"]] == ["q1", "q3"]
+
+    def test_index_stats_total_chunks_vs_total_paths(self, tmp_path):
+        index_file = tmp_path / "chunks.jsonl"
+        chunks = [
+            {"chunk_id": "c1", "path": "merger/lenskit/core/merge.py", "content": "part 1"},
+            {"chunk_id": "c2", "path": "merger/lenskit/core/merge.py", "content": "part 2"},
+        ]
+        with index_file.open("w", encoding="utf-8") as f:
+            for chunk in chunks:
+                f.write(json.dumps(chunk) + "\n")
+
+        calibrator = RetrievalEvalDiagnosticsCalibrator(index_path=index_file)
+        report = calibrator.generate_report([])
+
+        stats = report["metadata"]["index_stats"]
+        assert stats["total_paths"] == 1
+        assert stats["total_chunks"] == 2

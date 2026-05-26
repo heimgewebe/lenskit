@@ -86,6 +86,8 @@ The calibrator asks five questions in sequence:
 
 ```json
 {
+  "authority": "diagnostic_signal",
+  "risk_class": "diagnostic",
   "metadata": {
     "version": "1.0",
     "timestamp": "2026-05-26T12:00:00Z",
