@@ -460,6 +460,10 @@ def test_run_merge_resets_form_and_pool_after_success(page_with_static: Page):
     """)
     assert pool_after == {}
 
+    page_with_static.wait_for_function("""
+        () => !document.querySelector('#repoList')?.innerText.includes('POOL')
+    """)
+
     assert page_with_static.input_value("#profile") == "max"
     assert page_with_static.input_value("#mode") == "gesamt"
     assert page_with_static.input_value("#splitSize") == "25MB"

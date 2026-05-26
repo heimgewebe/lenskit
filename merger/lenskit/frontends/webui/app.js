@@ -638,11 +638,17 @@ function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
         cb.checked = false;
     });
 
+    const hubPathEl = document.getElementById('hubPath');
+    const mergesPathEl = document.getElementById('mergesPath');
+
     // Clear selection pool without touching unrelated localStorage keys.
     savedPrescanSelections.clear();
     persistSavedPrescanSelections();
     if (typeof renderSelectionPool === 'function') {
         renderSelectionPool();
+    }
+    if (typeof fetchRepos === 'function') {
+        fetchRepos((hubPathEl && hubPathEl.value) || '');
     }
 
     const profileEl = document.getElementById('profile');
@@ -654,8 +660,6 @@ function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
     const extFilterEl = document.getElementById('extFilter');
     const planOnlyEl = document.getElementById('planOnly');
     const codeOnlyEl = document.getElementById('codeOnly');
-    const hubPathEl = document.getElementById('hubPath');
-    const mergesPathEl = document.getElementById('mergesPath');
 
     if (profileEl) profileEl.value = defaults.profile;
     if (modeEl) modeEl.value = defaults.mode;
