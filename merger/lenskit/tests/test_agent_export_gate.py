@@ -437,7 +437,7 @@ def test_agent_facing_fails_when_redaction_required_but_disabled(tmp_path):
     assert report["redaction_enabled"] is False
 
 
-@pytest.mark.parametrize("profile", ["local-search", "debug-full", "max-private"])
+@pytest.mark.parametrize("profile", ["local-search", "debug-full", "max-private", "forensic-strict"])
 def test_internal_profiles_are_blocked_from_agent_export(tmp_path, profile):
     manifest = _write_manifest(tmp_path, redaction=False)
     _write_post_health(tmp_path, "pass")
