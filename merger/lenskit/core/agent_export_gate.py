@@ -222,7 +222,7 @@ def evaluate_agent_export_gate(
             "bundle_manifest_path": str(resolved_manifest),
             "post_emit_health_status": None,
             "output_health_verdict_observed": None,
-            "redaction_required": bool(require_redaction and _is_agent_facing(profile)),
+            "redaction_required": bool(_is_agent_facing(profile)),
             "redaction_enabled": None,
             "errors": [f"cannot read bundle manifest: {manifest_err}"],
             "warnings": [],
@@ -240,7 +240,7 @@ def evaluate_agent_export_gate(
             "bundle_manifest_path": str(resolved_manifest),
             "post_emit_health_status": None,
             "output_health_verdict_observed": None,
-            "redaction_required": bool(require_redaction and _is_agent_facing(profile)),
+            "redaction_required": bool(_is_agent_facing(profile)),
             "redaction_enabled": None,
             "errors": ["manifest is not a repolens.bundle.manifest"],
             "warnings": [],
@@ -255,7 +255,7 @@ def evaluate_agent_export_gate(
     profile_missing = profile is None
     profile_unknown = isinstance(profile, str) and profile not in _KNOWN_PROFILES
     agent_facing = _is_agent_facing(profile)
-    redaction_required = True if agent_facing else False
+    redaction_required = bool(agent_facing)
     profile_non_exportable = isinstance(profile, str) and profile in _NON_EXPORTABLE_PROFILES
 
     capabilities = manifest.get("capabilities") if isinstance(manifest.get("capabilities"), dict) else {}
@@ -305,6 +305,10 @@ def evaluate_agent_export_gate(
         errors.append(f"profile is internal and not agent-exportable: {profile!r}")
 
     if agent_facing:
+        if require_redaction is False:
+            status = "blocked"
+            errors.append("agent-facing export cannot disable redaction requirement")
+
         if not manifest_run_id_valid:
             status = "blocked"
             errors.append("agent-facing export requires non-empty manifest run_id")

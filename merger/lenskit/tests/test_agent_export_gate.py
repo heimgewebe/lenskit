@@ -437,6 +437,34 @@ def test_agent_facing_fails_when_redaction_required_but_disabled(tmp_path):
     assert report["redaction_enabled"] is False
 
 
+def test_agent_facing_cannot_disable_redaction_requirement(tmp_path):
+    manifest = _write_manifest(tmp_path, redaction=False)
+    _write_post_health(tmp_path, "pass")
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile="agent-portable",
+        require_redaction=False,
+    )
+
+    assert report["status"] in {"blocked", "fail"}
+    assert report["redaction_required"] is True
+    assert any("cannot disable redaction requirement" in e for e in report["errors"])
+
+
+def test_agent_facing_early_return_reports_redaction_required_when_disabled(tmp_path):
+    missing_manifest = tmp_path / "missing.bundle.manifest.json"
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(missing_manifest),
+        profile="agent-portable",
+        require_redaction=False,
+    )
+
+    assert report["status"] == "blocked"
+    assert report["redaction_required"] is True
+
+
 @pytest.mark.parametrize("profile", ["local-search", "debug-full", "max-private", "forensic-strict"])
 def test_internal_profiles_are_blocked_from_agent_export(tmp_path, profile):
     manifest = _write_manifest(tmp_path, redaction=False)
