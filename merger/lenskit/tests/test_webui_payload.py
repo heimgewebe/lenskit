@@ -498,7 +498,7 @@ def test_run_merge_respects_saved_defaults_after_success(page_with_static: Page)
         "mode": "pro-repo",
         "splitSize": "8MB",
         "maxBytes": "1024",
-        "metaDensity": "minimal",
+        "metaDensity": "min",
         "pathFilter": "src/util/",
         "extFilter": ".ts,.js",
         "planOnly": False,
@@ -521,7 +521,7 @@ def test_run_merge_respects_saved_defaults_after_success(page_with_static: Page)
 
     # Verify saved defaults were loaded into form
     assert page_with_static.input_value("#profile") == "dev"
-    assert page_with_static.select_option("#mode", "pro-repo") or page_with_static.input_value("#mode") == "pro-repo"
+    assert page_with_static.locator("#mode").evaluate("(el) => el.value") == "pro-repo"
     assert page_with_static.input_value("#splitSize") == "8MB"
     assert page_with_static.input_value("#maxBytes") == "1024"
 
@@ -553,7 +553,6 @@ def test_run_merge_respects_saved_defaults_after_success(page_with_static: Page)
             route.continue_()
 
     page_with_static.route("**/api/jobs", handle_jobs)
-    repo_fetch_count_before_submit = getattr(page_with_static, "_repo_fetch_count", {"count": 0})["count"]
     page_with_static.click("#jobForm button[type='submit']")
 
     start = time.time()
@@ -570,9 +569,12 @@ def test_run_merge_respects_saved_defaults_after_success(page_with_static: Page)
     assert sent["code_only"] is True
 
 
-    # Check that repos are unchecked (transient state reset)
+    # Wait for full reset: repos unchecked AND form restored to saved defaults
     page_with_static.wait_for_function("""
       () => Array.from(document.querySelectorAll('input[name="repos"]')).every(b => b.checked === false)
+        && document.querySelector('#profile')?.value === 'dev'
+        && document.querySelector('#mode')?.value === 'pro-repo'
+        && document.querySelector('#splitSize')?.value === '8MB'
     """, timeout=5000)
 
     # Check pool was cleared
@@ -581,11 +583,24 @@ def test_run_merge_respects_saved_defaults_after_success(page_with_static: Page)
     """)
     assert pool_after == {}
 
-    # Check simple fields reset to saved defaults (not factory)
+    # Check all visible fields reset to saved defaults (not factory defaults)
     assert page_with_static.input_value("#profile") == "dev"
+    assert page_with_static.locator("#mode").evaluate("(el) => el.value") == "pro-repo"
     assert page_with_static.input_value("#splitSize") == "8MB"
+    assert page_with_static.input_value("#maxBytes") == "1024"
+    assert page_with_static.locator("#metaDensity").evaluate("(el) => el.value") == "min"
+    assert page_with_static.input_value("#pathFilter") == "src/util/"
+    assert page_with_static.input_value("#extFilter") == ".ts,.js"
 
-    # Crucially: rlens_config should still contain saved defaults unchanged
+    # Check extras: json_sidecar should be checked; augment_sidecar should not
+    assert page_with_static.evaluate(
+        "() => document.querySelector('input[name=\"extras\"][value=\"json_sidecar\"]')?.checked"
+    ) is True
+    assert page_with_static.evaluate(
+        "() => document.querySelector('input[name=\"extras\"][value=\"augment_sidecar\"]')?.checked"
+    ) is False
+
+    # Crucially: rlens_config must NOT be overwritten — saved defaults remain unchanged
     stored_config = page_with_static.evaluate("""
         () => JSON.parse(localStorage.getItem('rlens_config') || '{}')
     """)
@@ -593,9 +608,11 @@ def test_run_merge_respects_saved_defaults_after_success(page_with_static: Page)
     assert stored_config.get("mode") == "pro-repo"
     assert stored_config.get("splitSize") == "8MB"
     assert stored_config.get("maxBytes") == "1024"
-    assert stored_config.get("metaDensity") == "minimal"
+    assert stored_config.get("metaDensity") == "min"
     assert stored_config.get("pathFilter") == "src/util/"
     assert stored_config.get("extFilter") == ".ts,.js"
+    assert stored_config.get("hubPath") == "/env/hub"
+    assert stored_config.get("mergesPath") == "/env/merges"
 
 
 
