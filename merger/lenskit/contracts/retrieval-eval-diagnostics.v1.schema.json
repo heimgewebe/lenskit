@@ -41,7 +41,7 @@
             "target_exists_not_in_top_k": {
               "type": "integer",
               "minimum": 0,
-              "description": "Target exists in index/canonical but ranked outside top-k."
+              "description": "Target exists in index/canonical but was not observed in top-k results. Absolute rank outside top-k is unknown unless overfetch diagnostics are run."
             },
             "target_missing_from_index": {
               "type": "integer",
@@ -157,12 +157,12 @@
               },
               "target_found_in_citation_map": {
                 "type": "boolean",
-                "description": "Is the target reachable via citation_map_jsonl?"
+                "description": "Is the target reachable via citation_map_jsonl through chunk_index path->chunk_id bridge?"
               },
               "rank_in_results": {
                 "type": ["integer", "null"],
                 "minimum": 1,
-                "description": "If found, rank position in unfiltered results (1-indexed). null if not found."
+                "description": "If observed in returned results, rank position (1-indexed). null when not observed or when no overfetch rank is available."
               },
               "top_k": {
                 "type": ["integer", "null"],

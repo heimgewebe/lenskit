@@ -10,7 +10,7 @@ It only explains why misses occurred.
 
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from .eval_diagnostics import ReturnEvalDiagnosticsCalibrator
+from .eval_diagnostics import RetrievalEvalDiagnosticsCalibrator
 
 
 def integrate_diagnostics_with_eval_results(
@@ -37,7 +37,7 @@ def integrate_diagnostics_with_eval_results(
     Returns:
         Dictionary with original eval results and added diagnostics report.
     """
-    calibrator = ReturnEvalDiagnosticsCalibrator(
+    calibrator = RetrievalEvalDiagnosticsCalibrator(
         index_path=index_path,
         canonical_path=canonical_path,
         citation_path=citation_path,
@@ -70,48 +70,63 @@ def _extract_misses_from_eval(eval_results: Dict[str, Any]) -> List[Dict[str, An
     Expected structure:
     {
         "metrics": {...},
-        "results": [
+        "details": [
             {
-                "query_index": 0,
                 "query": "...",
                 "expected": ["path1", "path2"],
                 "is_relevant": false,  # Miss if false
-                "observed_top_k_count": 0,  # Number of results found
+                "found_count": 0,  # Number of results found
                 ...
             }
         ]
     }
     """
-    misses = []
-    results = eval_results.get("results", [])
+    misses: List[Dict[str, Any]] = []
+    if "details" not in eval_results:
+        if "results" in eval_results:
+            raise ValueError("Expected retrieval_eval field 'details', found unsupported legacy key 'results'.")
+        return misses
 
-    for result in results:
+    details = eval_results.get("details", [])
+    if not isinstance(details, list):
+        raise ValueError("Expected retrieval_eval['details'] to be a list.")
+
+    for detail_idx, detail in enumerate(details):
         # Only process misses (is_relevant=false)
-        if result.get("is_relevant", False):
+        if detail.get("is_relevant", False):
             continue
 
-        query_index = result.get("query_index", 0)
-        query_text = result.get("query", "")
-        expected = result.get("expected", [])
-        found_count = result.get("observed_top_k_count", 0)
-        top_k = result.get("top_k", 10)
+        query_text = detail.get("query", "")
+        expected = detail.get("expected", [])
+        if not isinstance(expected, list):
+            expected = [str(expected)]
+        found_count = detail.get("found_count", 0)
+        if not isinstance(found_count, int):
+            found_count = 0
+
+        top_results = detail.get("top_results", [])
+        if not isinstance(top_results, list):
+            top_results = []
+        top_k = len(top_results) if len(top_results) > 0 else None
 
         # For each expected target, create a miss record
         for expected_target in expected:
+            if not isinstance(expected_target, str):
+                expected_target = str(expected_target)
+
             # Try to determine if target was in results
             found_in_results = False
             rank_in_results = None
 
             # Check if target was found (substring match in results)
-            top_results = result.get("top_results", [])
-            for idx, res_path in enumerate(top_results):
-                if expected_target in res_path or res_path in expected_target:
+            for rank_idx, res_path in enumerate(top_results):
+                if isinstance(res_path, str) and (expected_target in res_path or res_path in expected_target):
                     found_in_results = True
-                    rank_in_results = idx + 1
+                    rank_in_results = rank_idx + 1
                     break
 
             miss = {
-                "query_id": f"q{query_index}",
+                "query_id": f"q{detail_idx}",
                 "query_text": query_text,
                 "expected_target": expected_target,
                 "found_in_results": found_in_results,

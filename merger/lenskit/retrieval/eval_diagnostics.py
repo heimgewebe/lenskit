@@ -21,12 +21,12 @@ from datetime import datetime, timezone
 import re
 
 
-class ReturnEvalDiagnosticsError(Exception):
+class RetrievalEvalDiagnosticsError(Exception):
     """Base exception for diagnostics module."""
     pass
 
 
-class MissingArtifactError(ReturnEvalDiagnosticsError):
+class MissingArtifactError(RetrievalEvalDiagnosticsError):
     """Raised when required diagnostic artifacts are unavailable."""
     pass
 
@@ -97,6 +97,7 @@ class IndexInspector:
         """
         self.index_path = index_path
         self._index_paths_cache: Optional[set] = None
+        self._path_to_chunk_ids_cache: Optional[Dict[str, set]] = None
         self._canonical_md_content: Optional[str] = None
         self._citation_map_cache: Optional[Dict[str, Any]] = None
 
@@ -139,6 +140,53 @@ class IndexInspector:
 
         self._index_paths_cache = paths
         return paths
+
+    def load_path_to_chunk_ids(self, force_reload: bool = False) -> Dict[str, set]:
+        """
+        Load mapping of path -> set(chunk_id) from chunk index JSONL.
+
+        This is required to bridge path-based expectations to citation_map entries,
+        which are keyed by citation_id and reference chunk_id.
+        """
+        if self._path_to_chunk_ids_cache is not None and not force_reload:
+            return self._path_to_chunk_ids_cache
+
+        mapping: Dict[str, set] = {}
+        if self.index_path is None:
+            self._path_to_chunk_ids_cache = mapping
+            return mapping
+
+        if self.index_path.suffix != ".jsonl":
+            self._path_to_chunk_ids_cache = mapping
+            return mapping
+
+        try:
+            with open(self.index_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    path = chunk.get("path")
+                    chunk_id = chunk.get("chunk_id")
+                    if isinstance(path, str) and isinstance(chunk_id, str):
+                        mapping.setdefault(path, set()).add(chunk_id)
+        except (IOError, OSError) as e:
+            raise MissingArtifactError(
+                f"Failed to read chunk index from {self.index_path}: {e}"
+            )
+
+        self._path_to_chunk_ids_cache = mapping
+        return mapping
+
+    @staticmethod
+    def find_matching_paths(expected_target: str, index_paths: set) -> List[str]:
+        """Return index paths that contain the expected target as substring."""
+        if not isinstance(expected_target, str) or not expected_target:
+            return []
+        return sorted([p for p in index_paths if expected_target in p or p in expected_target])
 
     def load_canonical_md(self, canonical_path: Path) -> str:
         """
@@ -235,7 +283,7 @@ class IndexInspector:
         return citation_map
 
 
-class ReturnEvalDiagnosticsCalibrator:
+class RetrievalEvalDiagnosticsCalibrator:
     """
     Diagnostic calibrator for retrieval evaluation misses.
 
@@ -263,16 +311,20 @@ class ReturnEvalDiagnosticsCalibrator:
 
         # Load artifacts once
         self._index_paths: Optional[set] = None
+        self._path_to_chunk_ids: Optional[Dict[str, set]] = None
         self._canonical_md: Optional[str] = None
         self._citation_map: Optional[Dict[str, Any]] = None
+        self._citation_chunk_ids: Optional[set] = None
 
     def _load_artifacts(self) -> None:
         """Load and cache required artifacts."""
         if self.index_path:
             try:
                 self._index_paths = self.inspector.load_index_paths()
+                self._path_to_chunk_ids = self.inspector.load_path_to_chunk_ids()
             except MissingArtifactError:
                 self._index_paths = set()
+                self._path_to_chunk_ids = {}
 
         if self.canonical_path:
             try:
@@ -283,8 +335,14 @@ class ReturnEvalDiagnosticsCalibrator:
         if self.citation_path:
             try:
                 self._citation_map = self.inspector.load_citation_map(self.citation_path)
+                self._citation_chunk_ids = {
+                    rec.get("chunk_id")
+                    for rec in self._citation_map.values()
+                    if isinstance(rec, dict) and isinstance(rec.get("chunk_id"), str)
+                }
             except MissingArtifactError:
                 self._citation_map = None
+                self._citation_chunk_ids = None
 
     def diagnose_miss(
         self,
@@ -341,9 +399,12 @@ class ReturnEvalDiagnosticsCalibrator:
             details["confidence"] = "high"
             return record
 
-        # Check if target is in the index
+        matching_paths: List[str] = []
+
+        # Check if target is in the index by substring match against indexed paths.
         if self._index_paths:
-            details["target_found_in_index"] = expected_target in self._index_paths
+            matching_paths = self.inspector.find_matching_paths(expected_target, self._index_paths)
+            details["target_found_in_index"] = bool(matching_paths)
 
         # Check if target is in canonical_md
         if self._canonical_md:
@@ -355,12 +416,21 @@ class ReturnEvalDiagnosticsCalibrator:
             if variants:
                 details["possible_path_variants"] = variants
 
-        # Check if target is in citation_map
-        if self._citation_map:
-            details["target_found_in_citation_map"] = expected_target in self._citation_map
+        # Check citation linkage via chunk_id bridge: expected_target -> index path(s) -> chunk_id(s) -> citation_map.chunk_id
+        if self._citation_chunk_ids is not None and self._path_to_chunk_ids is not None:
+            chunk_ids_for_target = set()
+            for path in matching_paths:
+                chunk_ids_for_target.update(self._path_to_chunk_ids.get(path, set()))
+            details["target_found_in_citation_map"] = bool(chunk_ids_for_target & self._citation_chunk_ids)
 
         # Now determine primary diagnosis based on what we found
-        primary_diagnosis = self._classify_miss(expected_target, rank_in_results, top_k, details)
+        primary_diagnosis = self._classify_miss(
+            expected_target,
+            found_in_results,
+            rank_in_results,
+            top_k,
+            details,
+        )
 
         # Detect staleness if applicable
         if self._is_stale_indicator(expected_target):
@@ -381,6 +451,7 @@ class ReturnEvalDiagnosticsCalibrator:
     def _classify_miss(
         self,
         expected_target: str,
+        found_in_results: bool,
         rank_in_results: Optional[int],
         top_k: Optional[int],
         details: Dict[str, Any],
@@ -393,7 +464,7 @@ class ReturnEvalDiagnosticsCalibrator:
         2. If target not in index -> target_missing_from_index
         3. If target not in canonical -> target_missing_from_canonical
         4. If target not in citation_map -> target_missing_from_citation_map
-        5. If target in index but outside top-k -> target_exists_not_in_top_k
+        5. If target in index but not observed in top-k -> target_exists_not_in_top_k
         6. Else -> diagnostic_inconclusive
         """
         # Check for staleness indicators first (before index check)
@@ -404,8 +475,12 @@ class ReturnEvalDiagnosticsCalibrator:
         if self._is_ambiguous_target(expected_target):
             return "query_target_ambiguous"
 
-        # Check index
-        if self._index_paths is not None and expected_target not in self._index_paths:
+        # Non path-like targets cannot be proven against path-only index keys.
+        if not self._target_looks_path_like(expected_target):
+            return "query_target_ambiguous"
+
+        # Check index with substring semantics.
+        if self._index_paths is not None and not details["target_found_in_index"]:
             return "target_missing_from_index"
 
         # Check canonical_md
@@ -413,14 +488,13 @@ class ReturnEvalDiagnosticsCalibrator:
             return "target_missing_from_canonical"
 
         # Check citation_map
-        if self._citation_map is not None and not details["target_found_in_citation_map"]:
+        if self._citation_map is not None and details["target_found_in_index"] and not details["target_found_in_citation_map"]:
             return "target_missing_from_citation_map"
 
-        # If target is in index but not in results -> ranking issue
-        if self._index_paths is not None and expected_target in self._index_paths:
-            if rank_in_results is not None and top_k is not None:
-                if rank_in_results > top_k:
-                    return "target_exists_not_in_top_k"
+        # If target exists in index but is not observed in top-k results,
+        # classify as top-k/ranking signal without claiming absolute rank.
+        if details["target_found_in_index"] and not found_in_results:
+            return "target_exists_not_in_top_k"
 
         # Fallback
         return "diagnostic_inconclusive"
@@ -439,6 +513,12 @@ class ReturnEvalDiagnosticsCalibrator:
         # Check for suspicious patterns
         suspicious = [r"^[^a-zA-Z0-9/._-]+$", r"^<.+>$"]
         return any(re.match(pat, target) for pat in suspicious)
+
+    def _target_looks_path_like(self, target: str) -> bool:
+        """Heuristic: expected target behaves like a path/path-substring token."""
+        if not isinstance(target, str) or not target:
+            return False
+        return "/" in target or "." in target
 
     def generate_report(
         self,

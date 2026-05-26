@@ -18,7 +18,7 @@ When a retrieval evaluation miss occurs, the calibrator determines the primary r
 | Category | Meaning |
 |----------|---------|
 | **target_in_top_k** | Expected target found in top-k results (not a miss). |
-| **target_exists_not_in_top_k** | Target exists in the index but is ranked outside top-k. **Problem type:** Ranking/relevance. |
+| **target_exists_not_in_top_k** | Target exists in the index but was not observed in top-k. Without overfetch, absolute outside-top-k rank is unknown. **Problem type:** Ranking/relevance. |
 | **target_missing_from_index** | Target path/identifier not in the chunk index at all. **Problem type:** Index/ingestion. |
 | **target_missing_from_canonical** | Target path not in canonical_md artifact. **Problem type:** Artifact gap or stale reference. |
 | **target_missing_from_citation_map** | Target not reachable via citation_map_jsonl. **Problem type:** Citation gap. |
@@ -38,6 +38,8 @@ A miss occurs when:
 Example:
 ```json
 {
+  "details": [
+    {
   "query_id": "q5",
   "query_text": "how to configure auth",
   "expected_target": "src/auth/setup.py",
@@ -45,6 +47,8 @@ Example:
   "rank_in_results": null,
   "top_k": 10,
   "query_had_zero_hits": false
+    }
+  ]
 }
 ```
 
@@ -66,7 +70,7 @@ The calibrator asks five questions in sequence:
 │  └─ Yes → next
 │
 ├─ Is target in index but outside top-k?
-│  └─ Yes → "target_exists_not_in_top_k"
+│  └─ Yes → "target_exists_not_in_top_k" (not observed in top-k)
 │  └─ No → next
 │
 └─ Has staleness or ambiguity signals?
@@ -130,7 +134,9 @@ The calibrator asks five questions in sequence:
 ### target_exists_not_in_top_k
 
 **Interpretation:**  
-The target exists in the index and canonical artifacts but is ranked outside the top-k results. This is a **ranking problem**, not an indexing or artifact problem.
+The target exists in the index and canonical artifacts but was not observed in the top-k results. This is a **ranking/top-k observation problem**, not an indexing or artifact problem.
+
+Without an additional overfetch diagnostics run (for example top-50/top-100), this signal does not claim an absolute outside-top-k rank.
 
 **Next steps for remediation:**
 - Inspect the query embedding or BM25 scoring
@@ -236,10 +242,10 @@ The miss could not be conclusively classified. This typically occurs when:
 
 ```python
 from pathlib import Path
-from merger.lenskit.retrieval.eval_diagnostics import ReturnEvalDiagnosticsCalibrator
+from merger.lenskit.retrieval.eval_diagnostics import RetrievalEvalDiagnosticsCalibrator
 
 # Initialize with artifact paths
-calibrator = ReturnEvalDiagnosticsCalibrator(
+calibrator = RetrievalEvalDiagnosticsCalibrator(
     index_path=Path("data/chunks.jsonl"),
     canonical_path=Path("data/canonical.md"),
     citation_path=Path("data/citation_map.jsonl"),
@@ -290,6 +296,8 @@ combined = integrate_diagnostics_with_eval_results(
 
 # combined["eval_results"] = original metrics (unchanged)
 # combined["diagnostics_report"] = diagnostic classifications
+
+The integration consumes retrieval eval objects from `details`, not `results`.
 ```
 
 ## Schema Compliance
