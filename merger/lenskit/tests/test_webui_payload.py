@@ -447,7 +447,9 @@ def test_run_merge_resets_form_and_pool_after_success(page_with_static: Page):
     assert sent["extras"] == "health,heatmap"
 
     page_with_static.wait_for_function("""
-        () => Array.from(document.querySelectorAll('input[name="repos"]')).every(b => b.checked === false)
+      () => Array.from(document.querySelectorAll('input[name="repos"]')).length > 0
+        && Array.from(document.querySelectorAll('input[name="repos"]')).every(b => b.checked === false)
+        && document.querySelector('#profile')?.value === 'max'
     """)
 
     checked_count = page_with_static.evaluate("""
