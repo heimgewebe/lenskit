@@ -5,8 +5,18 @@
   "description": "Diagnostic classification of retrieval evaluation misses. Provides per-miss root-cause analysis without modifying existing metrics or ranking behavior. Categorizes why each expected target was not found in top-k results.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["metadata", "diagnostics"],
+  "required": ["authority", "risk_class", "metadata", "diagnostics"],
   "properties": {
+    "authority": {
+      "type": "string",
+      "const": "diagnostic_signal",
+      "description": "Top-level self-declaration of authority class for this diagnostics artifact."
+    },
+    "risk_class": {
+      "type": "string",
+      "const": "diagnostic",
+      "description": "Top-level self-declaration of risk class for this diagnostics artifact."
+    },
     "metadata": {
       "type": "object",
       "description": "Metadata about the diagnostic run.",

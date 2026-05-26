@@ -38,15 +38,16 @@ A miss occurs when:
 Example:
 ```json
 {
+  "metrics": {
+    "total_queries": 1
+  },
   "details": [
     {
-  "query_id": "q5",
-  "query_text": "how to configure auth",
-  "expected_target": "src/auth/setup.py",
-  "found_in_results": false,
-  "rank_in_results": null,
-  "top_k": 10,
-  "query_had_zero_hits": false
+      "query": "merge",
+      "expected": ["merge.py", "iter_report_blocks"],
+      "is_relevant": false,
+      "found_count": 1,
+      "top_results": ["merger/lenskit/core/chunker.py"]
     }
   ]
 }
@@ -313,9 +314,9 @@ combined = integrate_diagnostics_with_eval_results(
 
 # combined["eval_results"] = original metrics (unchanged)
 # combined["diagnostics_report"] = diagnostic classifications
+```
 
 The integration consumes retrieval eval objects from `details`, not `results`.
-```
 
 ## Schema Compliance
 

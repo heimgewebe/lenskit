@@ -571,6 +571,8 @@ class RetrievalEvalDiagnosticsCalibrator:
 
         # Build report
         report = {
+            "authority": "diagnostic_signal",
+            "risk_class": "diagnostic",
             "metadata": {
                 "version": "1.0",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
