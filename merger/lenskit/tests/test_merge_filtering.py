@@ -248,7 +248,7 @@ def test_every_build_and_cache_dir_is_noise_and_skipped(dir_name, tmp_path):
     target.mkdir(parents=True)
     (target / "noise_file.txt").write_text("noise payload")
 
-    result = merge.scan_repo(tmp_path, include_hidden=True)
+    result = merge.scan_repo(tmp_path, include_hidden=True, calculate_md5=False)
     found_paths = {str(fi_.rel_path).replace("\\", "/") for fi_ in result["files"]}
 
     assert "src/main.py" in found_paths, "real source must survive scan_repo"
