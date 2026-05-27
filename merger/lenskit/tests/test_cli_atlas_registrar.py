@@ -4,7 +4,7 @@ handle_atlas_command in cmd_atlas.py).
 Scope:
 - Both lenskit (cli/main.py) and rlens (cli/rlens.py) consume the same
   registrar, so every subcommand only needs to be defined once.
-- These tests verify: registration parity (same subcommands in both parsers),
+- These tests verify: shared registrar shape (stable atlas subcommand set),
   dispatch via lenskit for `machines`, dispatch via rlens for `machines`,
   and the `analyze growth` positional args are wired correctly.
 """
@@ -173,7 +173,7 @@ def test_rlens_dispatches_atlas_analyze_growth(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Registration parity: both entry points expose the same atlas subcommands
+# Shared registrar shape: stable atlas subcommand set
 # ---------------------------------------------------------------------------
 
 def _registered_atlas_subcommands() -> set:
@@ -193,13 +193,12 @@ def _registered_atlas_subcommands() -> set:
     return set(atlas_subs_action.choices.keys())
 
 
-def test_registration_parity_lenskit_and_rlens():
-    """Both entry points produce the same set of atlas subcommands via the shared registrar.
+def test_shared_registrar_subcommand_set_is_stable():
+    """Shared registrar provides a stable, consistent set of atlas subcommands.
 
-    This test verifies that the shared registrar provides a stable, consistent
-    set of atlas subcommands. It does not test the actual lenskit or rlens
-    entry-point parsers, but rather verifies the registrar state directly.
-    Entry-point parity is verified by the dispatch tests below.
+    This test verifies the registrar state directly, not the actual lenskit or
+    rlens entry-point parsers. Entry-point parity is verified by the dispatch
+    tests (test_lenskit_dispatches_* / test_rlens_dispatches_*).
     """
     registered = _registered_atlas_subcommands()
     assert registered == _EXPECTED_ATLAS_SUBCOMMANDS
