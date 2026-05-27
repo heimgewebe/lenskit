@@ -21,7 +21,7 @@ python -m merger.lenskit.cli.main rlens-client --help
 
 `rlens-client` ist die CLI-Client-Oberfläche.
 
-### Optionaler rLens service launcher
+### Optionaler rLens-Service-Launcher
 
 ```bash
 python -m merger.lenskit.cli.rlens --help
@@ -83,7 +83,7 @@ Nicht aus CLI-Help ableitbar.
 
 ## 5. Nicht-Ziele
 
-- keinen `lenskit`-Wrapper anlegen
+- keinen globalen `lenskit`-Wrapper anlegen
 - keine automatische Installation
 - keine Aussage, dass rLens-Service läuft
 - keine Aussage, dass WebUI-Readiness verifiziert ist
