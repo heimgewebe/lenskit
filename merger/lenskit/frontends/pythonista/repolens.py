@@ -2896,19 +2896,19 @@ class MergerUI(object):
     def _run_merge_form_reset_after_success_safe(self) -> None:
         """Safely reset form after success, with error handling and logging."""
         try:
-           self.reset_merge_form_to_defaults_after_success()
+            self.reset_merge_form_to_defaults_after_success()
         except Exception as exc:
-           print(
-               f"[repolens] Warning: failed to reset merge form after success: {exc}",
-               file=sys.stderr,
-           )
+            print(
+                f"[repolens] Warning: failed to reset merge form after success: {exc}",
+                file=sys.stderr,
+            )
 
     def schedule_merge_form_reset_after_success(self) -> None:
         """Schedule form reset on main thread (UI thread) if possible."""
         if ui is not None and hasattr(ui, "delay"):
-           ui.delay(self._run_merge_form_reset_after_success_safe, 0.0)
+            ui.delay(self._run_merge_form_reset_after_success_safe, 0.0)
         else:
-           self._run_merge_form_reset_after_success_safe()
+            self._run_merge_form_reset_after_success_safe()
 
     def reset_merge_form_to_defaults_after_success(self) -> None:
         """Reset only merge-related transient UI state after a successful merge run."""

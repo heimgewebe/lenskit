@@ -7,7 +7,6 @@ needed.
 """
 
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -300,9 +299,11 @@ class TestResetMergeFormAfterSuccess(unittest.TestCase):
 
     def test_schedule_merge_form_reset_after_success_fallback(self) -> None:
         """Test scheduler fallback when ui.delay is not available."""
-        # Simulate no ui.delay by unsetting ui module
-        original_ui = sys.modules.get("ui")
-        sys.modules["ui"] = None
+        import merger.lenskit.frontends.pythonista.repolens as repolens_module
+        
+        # Simulate no ui.delay by patching the module's ui
+        original_ui = repolens_module.ui
+        repolens_module.ui = None
         try:
             # Reset state first
             self.dummy.saved_prescan_selections = {
@@ -320,10 +321,43 @@ class TestResetMergeFormAfterSuccess(unittest.TestCase):
             self.assertTrue(self.dummy._update_repo_info_called)
         finally:
             # Restore original ui module
-            if original_ui is not None:
-                sys.modules["ui"] = original_ui
-            else:
-                sys.modules.pop("ui", None)
+            repolens_module.ui = original_ui
+
+    def test_schedule_merge_form_reset_after_success_uses_ui_delay(self) -> None:
+        """Test scheduler uses ui.delay when available."""
+        import merger.lenskit.frontends.pythonista.repolens as repolens_module
+        
+        # Track calls to ui.delay
+        calls = []
+        
+        class FakeUI:
+            @staticmethod
+            def delay(callback, seconds):
+                calls.append((callback, seconds))
+                callback()
+        
+        original_ui = repolens_module.ui
+        repolens_module.ui = FakeUI
+        try:
+            # Reset state first
+            self.dummy.saved_prescan_selections = {
+                "repo-a": {"raw": ["a.py"], "compressed": ["a.py"]},
+            }
+            self.dummy.tv.selected_rows = [(0, 0)]
+            
+            # Call scheduler
+            MergerUI.schedule_merge_form_reset_after_success(self.dummy)
+            
+            # Verify ui.delay was called with correct args
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][1], 0.0)
+            
+            # Verify reset was executed
+            self.assertEqual(self.dummy.saved_prescan_selections, {})
+            self.assertEqual(self.dummy.tv.selected_rows, [])
+        finally:
+            # Restore original ui module
+            repolens_module.ui = original_ui
 
 
 if __name__ == "__main__":
