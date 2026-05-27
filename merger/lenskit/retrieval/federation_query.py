@@ -132,6 +132,8 @@ def execute_federated_query(
     for b in bundles:
         repo_id = b["repo_id"]
         bundle_path_str = b["bundle_path"]
+        # Per-bundle processing latency, including validation and early exits;
+        # not a pure DB query benchmark.
         bundle_start = time.perf_counter()
 
         try:
