@@ -12,7 +12,7 @@ import argparse
 import sys
 import pytest
 
-from merger.lenskit.cli.cmd_atlas import register_atlas_commands, handle_atlas_command
+from merger.lenskit.cli import cmd_atlas as cmd_atlas_module
 from merger.lenskit.cli.main import main as lenskit_main
 from merger.lenskit.cli.rlens import main as rlens_main
 
@@ -34,7 +34,7 @@ def _build_atlas_parser() -> argparse.ArgumentParser:
     """Build a standalone parser that contains only the atlas subcommand."""
     root = argparse.ArgumentParser()
     subs = root.add_subparsers(dest="command")
-    register_atlas_commands(subs)
+    cmd_atlas_module.register_atlas_commands(subs)
     return root
 
 
@@ -53,8 +53,7 @@ def test_lenskit_registers_same_atlas_subcommands():
     root = argparse.ArgumentParser()
     subs = root.add_subparsers(dest="command")
 
-    from merger.lenskit.cli.cmd_atlas import register_atlas_commands as reg
-    reg(subs)
+    cmd_atlas_module.register_atlas_commands(subs)
     atlas_parser = subs.choices["atlas"]
     atlas_subs_action = next(a for a in atlas_parser._subparsers._group_actions if a.dest == "atlas_cmd")
     registered = set(atlas_subs_action.choices.keys())
@@ -75,8 +74,7 @@ def test_lenskit_dispatches_atlas_machines(monkeypatch):
         assert args.atlas_cmd == "machines"
         return 0
 
-    import merger.lenskit.cli.cmd_atlas
-    monkeypatch.setattr(merger.lenskit.cli.cmd_atlas, "run_atlas_machines", mock_run_machines)
+    monkeypatch.setattr(cmd_atlas_module, "run_atlas_machines", mock_run_machines)
 
     exit_code = lenskit_main(["atlas", "machines"])
     assert exit_code == 0
@@ -93,8 +91,7 @@ def test_lenskit_dispatches_atlas_machine_health(monkeypatch):
         assert args.atlas_cmd == "machine-health"
         return 0
 
-    import merger.lenskit.cli.cmd_atlas
-    monkeypatch.setattr(merger.lenskit.cli.cmd_atlas, "run_atlas_machine_health", mock_handler)
+    monkeypatch.setattr(cmd_atlas_module, "run_atlas_machine_health", mock_handler)
 
     exit_code = lenskit_main(["atlas", "machine-health"])
     assert exit_code == 0
@@ -114,8 +111,7 @@ def test_lenskit_dispatches_atlas_analyze_growth(monkeypatch):
         assert args.target_snapshot == "snap_tgt"
         return 0
 
-    import merger.lenskit.cli.cmd_atlas
-    monkeypatch.setattr(merger.lenskit.cli.cmd_atlas, "run_atlas_analyze", mock_run_analyze)
+    monkeypatch.setattr(cmd_atlas_module, "run_atlas_analyze", mock_run_analyze)
 
     exit_code = lenskit_main(["atlas", "analyze", "growth", "snap_src", "snap_tgt"])
     assert exit_code == 0
@@ -144,8 +140,7 @@ def test_rlens_dispatches_atlas_machines(monkeypatch):
         assert args.atlas_cmd == "machines"
         return 0
 
-    import merger.lenskit.cli.cmd_atlas
-    monkeypatch.setattr(merger.lenskit.cli.cmd_atlas, "run_atlas_machines", mock_run_machines)
+    monkeypatch.setattr(cmd_atlas_module, "run_atlas_machines", mock_run_machines)
 
     code = _run_rlens(monkeypatch, ["rlens", "atlas", "machines"])
     assert code == 0
@@ -162,8 +157,7 @@ def test_rlens_dispatches_atlas_machine_health(monkeypatch):
         assert args.atlas_cmd == "machine-health"
         return 0
 
-    import merger.lenskit.cli.cmd_atlas
-    monkeypatch.setattr(merger.lenskit.cli.cmd_atlas, "run_atlas_machine_health", mock_handler)
+    monkeypatch.setattr(cmd_atlas_module, "run_atlas_machine_health", mock_handler)
 
     code = _run_rlens(monkeypatch, ["rlens", "atlas", "machine-health"])
     assert code == 0
@@ -183,8 +177,7 @@ def test_rlens_dispatches_atlas_analyze_growth(monkeypatch):
         assert args.target_snapshot == "snap_tgt"
         return 0
 
-    import merger.lenskit.cli.cmd_atlas
-    monkeypatch.setattr(merger.lenskit.cli.cmd_atlas, "run_atlas_analyze", mock_run_analyze)
+    monkeypatch.setattr(cmd_atlas_module, "run_atlas_analyze", mock_run_analyze)
 
     code = _run_rlens(monkeypatch, ["rlens", "atlas", "analyze", "growth", "snap_src", "snap_tgt"])
     assert code == 0
@@ -206,7 +199,7 @@ def _subcommands_from_argv(entry_main, argv_prefix: list, monkeypatch) -> set:
     subs = root.add_subparsers(dest="command")
     # Both entry points ultimately call register_atlas_commands; we call
     # it directly here to verify the parser shape is identical.
-    register_atlas_commands(subs)
+    cmd_atlas_module.register_atlas_commands(subs)
     atlas_parser = subs.choices["atlas"]
     atlas_subs_action = next(a for a in atlas_parser._subparsers._group_actions if a.dest == "atlas_cmd")
     return set(atlas_subs_action.choices.keys())
@@ -227,4 +220,4 @@ def test_handle_atlas_command_raises_on_unknown():
     """handle_atlas_command raises RuntimeError for unknown atlas_cmd values."""
     fake_args = argparse.Namespace(atlas_cmd="nonexistent_command_xyz")
     with pytest.raises(RuntimeError, match="Unexpected atlas command dispatch"):
-        handle_atlas_command(fake_args)
+        cmd_atlas_module.handle_atlas_command(fake_args)
