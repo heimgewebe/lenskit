@@ -620,8 +620,8 @@ function saveConfig() {
     setTimeout(() => btn.innerText = oldText, 1000);
 }
 
-async function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
-    const defaults = {
+function getEffectiveMergeFormDefaults() {
+    const factoryDefaults = {
         profile: 'max',
         mode: 'gesamt',
         splitSize: '25MB',
@@ -634,7 +634,34 @@ async function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
         extras: [...DEFAULT_EXTRAS]
     };
 
-    // Clear explicit repo selection only; keep repository list and environment untouched.
+    try {
+        const raw = localStorage.getItem(CONFIG_KEY);
+        const saved = raw ? JSON.parse(raw) : {};
+        if (saved && typeof saved === 'object') {
+            return {
+                ...factoryDefaults,
+                profile: saved.profile ?? factoryDefaults.profile,
+                mode: saved.mode ?? factoryDefaults.mode,
+                splitSize: saved.splitSize ?? factoryDefaults.splitSize,
+                maxBytes: saved.maxBytes ?? factoryDefaults.maxBytes,
+                metaDensity: saved.metaDensity ?? factoryDefaults.metaDensity,
+                pathFilter: saved.pathFilter ?? factoryDefaults.pathFilter,
+                extFilter: saved.extFilter ?? factoryDefaults.extFilter,
+                planOnly: saved.planOnly ?? factoryDefaults.planOnly,
+                codeOnly: saved.codeOnly ?? factoryDefaults.codeOnly,
+                extras: Array.isArray(saved.extras) ? saved.extras : factoryDefaults.extras
+            };
+        }
+    } catch (e) {
+        console.warn('Failed to read saved merge defaults', e);
+    }
+
+    return factoryDefaults;
+}
+
+async function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
+    const defaults = getEffectiveMergeFormDefaults();
+
     document.querySelectorAll('input[name="repos"]').forEach(cb => {
         cb.checked = false;
     });
@@ -642,19 +669,14 @@ async function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
     const hubPathEl = document.getElementById('hubPath');
     const mergesPathEl = document.getElementById('mergesPath');
 
-    // Clear selection pool without touching unrelated localStorage keys.
     savedPrescanSelections.clear();
     persistSavedPrescanSelections();
-    if (typeof renderSelectionPool === 'function') {
-        renderSelectionPool();
-    }
-    if (typeof fetchRepos === 'function') {
-        await fetchRepos((hubPathEl && hubPathEl.value) || '', { preserveSelection: false });
-        // Defensive clear after rerender to keep reset deterministic even under racey UI updates.
-        document.querySelectorAll('input[name="repos"]').forEach(cb => {
-            cb.checked = false;
-        });
-    }
+    renderSelectionPool();
+
+    await fetchRepos((hubPathEl && hubPathEl.value) || '', { preserveSelection: false });
+    document.querySelectorAll('input[name="repos"]').forEach(cb => {
+        cb.checked = false;
+    });
 
     const profileEl = document.getElementById('profile');
     const modeEl = document.getElementById('mode');
@@ -680,37 +702,6 @@ async function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
     document.querySelectorAll('input[name="extras"]').forEach(cb => {
         cb.checked = defaultExtras.has(cb.value);
     });
-
-    // Keep persisted environment fields (hub/merges) and unrelated keys; only refresh merge-form defaults.
-    try {
-        const raw = localStorage.getItem(CONFIG_KEY);
-        const existingConfig = raw ? JSON.parse(raw) : {};
-        const nextConfig = (existingConfig && typeof existingConfig === 'object')
-            ? { ...existingConfig }
-            : {};
-
-        nextConfig.profile = defaults.profile;
-        nextConfig.mode = defaults.mode;
-        nextConfig.splitSize = defaults.splitSize;
-        nextConfig.maxBytes = defaults.maxBytes;
-        nextConfig.planOnly = defaults.planOnly;
-        nextConfig.codeOnly = defaults.codeOnly;
-        nextConfig.metaDensity = defaults.metaDensity;
-        nextConfig.pathFilter = defaults.pathFilter;
-        nextConfig.extFilter = defaults.extFilter;
-        nextConfig.extras = defaults.extras;
-
-        if (nextConfig.hubPath === undefined && hubPathEl) {
-            nextConfig.hubPath = hubPathEl.value;
-        }
-        if (nextConfig.mergesPath === undefined && mergesPathEl) {
-            nextConfig.mergesPath = mergesPathEl.value;
-        }
-
-        localStorage.setItem(CONFIG_KEY, JSON.stringify(nextConfig));
-    } catch (e) {
-        console.warn('Failed to persist reset merge defaults', e);
-    }
 
     showNotification('Job submitted; form reset to defaults', 'info');
 }
