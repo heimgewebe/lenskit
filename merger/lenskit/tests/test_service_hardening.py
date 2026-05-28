@@ -1,5 +1,7 @@
 import pytest
-import importlib
+import subprocess
+import sys
+import os
 from fastapi.testclient import TestClient
 from pathlib import Path
 import tempfile
@@ -318,25 +320,19 @@ def test_get_server_version_logs_debug_on_git_failure(monkeypatch, caplog):
     assert version == "dev"
     assert any("Falling back to dev server version" in rec.message for rec in caplog.records)
 
-def test_app_module_reload_survives_git_failure_during_server_version_init(monkeypatch, caplog):
-    import subprocess
-
-    def fail_check_output(*args, **kwargs):
-        raise RuntimeError("git unavailable during import")
-
-    try:
-        with monkeypatch.context() as m:
-            m.delenv("RLENS_VERSION", raising=False)
-            m.setattr(subprocess, "check_output", fail_check_output)
-            # Reload is required here because SERVER_VERSION is initialized at import time.
-            with caplog.at_level(logging.DEBUG, logger="merger.lenskit.service.app"):
-                reloaded = importlib.reload(service_app)
-
-        assert reloaded.SERVER_VERSION == "dev"
-        assert reloaded.logger.name == "merger.lenskit.service.app"
-        assert any("Falling back to dev server version" in rec.message for rec in caplog.records)
-    finally:
-        importlib.reload(service_app)
+def test_app_module_import_survives_git_failure_during_server_version_init():
+    """SERVER_VERSION falls back to 'dev' when git is unavailable at import time (subprocess-isolated)."""
+    env = {k: v for k, v in os.environ.items() if k != "RLENS_VERSION"}
+    env["PATH"] = "/nonexistent"
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import merger.lenskit.service.app as a; print(a.SERVER_VERSION)"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "dev"
 
 def test_api_fs_list_logs_debug_when_parent_token_generation_fails(monkeypatch, caplog, tmp_path):
     trusted_path = tmp_path / "allowed" / "child"

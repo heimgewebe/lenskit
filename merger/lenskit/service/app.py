@@ -43,7 +43,6 @@ from merger.lenskit.core.merge import get_merges_dir, SPEC_VERSION, prescan_repo
 SERVER_START_TIME = datetime.now(timezone.utc).isoformat()
 
 # Logging setup
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def _get_server_version():
