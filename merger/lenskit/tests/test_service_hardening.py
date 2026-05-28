@@ -1,8 +1,13 @@
 import pytest
+import subprocess
+import sys
+import os
 from fastapi.testclient import TestClient
 from pathlib import Path
 import tempfile
-from merger.lenskit.service.app import app, init_service, state
+import logging
+from types import SimpleNamespace
+import merger.lenskit.service.app as service_app
 from merger.lenskit.service.models import JobRequest, Artifact
 from datetime import datetime, timezone
 import uuid
@@ -19,20 +24,20 @@ def client_and_hub():
         (hub / "repo_safe").mkdir()
         (hub / "repoA").mkdir()
 
-        init_service(hub, token="test-token")
+        service_app.init_service(hub, token="test-token")
 
         # Mock runner to avoid real execution
-        if state.runner:
-            original_submit = state.runner.submit_job
-            state.runner.submit_job = lambda jid: None # Do nothing
+        if service_app.state.runner:
+            original_submit = service_app.state.runner.submit_job
+            service_app.state.runner.submit_job = lambda jid: None # Do nothing
         else:
             original_submit = None
 
-        with TestClient(app) as c:
+        with TestClient(service_app.app) as c:
             yield c, str(hub.resolve())
 
-        if state.runner and original_submit:
-            state.runner.submit_job = original_submit
+        if service_app.state.runner and original_submit:
+            service_app.state.runner.submit_job = original_submit
 
 def test_idempotency_and_decoupling(client_and_hub):
     client, hub_path = client_and_hub
@@ -66,9 +71,9 @@ def test_reuse_finished(client_and_hub):
     job1 = resp1.json()
     job_id = job1["id"]
 
-    job = state.job_store.get_job(job_id)
+    job = service_app.state.job_store.get_job(job_id)
     job.status = "succeeded"
-    state.job_store.update_job(job)
+    service_app.state.job_store.update_job(job)
 
     # 2. Create again -> Should match
     resp2 = client.post("/api/jobs", json=req, headers=headers)
@@ -82,12 +87,12 @@ def test_log_resume(client_and_hub):
     resp = client.post("/api/jobs", json=req, headers=headers)
     job_id = resp.json()["id"]
 
-    state.job_store.append_log_line(job_id, "Line 1")
-    state.job_store.append_log_line(job_id, "Line 2")
+    service_app.state.job_store.append_log_line(job_id, "Line 1")
+    service_app.state.job_store.append_log_line(job_id, "Line 2")
 
-    job = state.job_store.get_job(job_id)
+    job = service_app.state.job_store.get_job(job_id)
     job.status = "succeeded"
-    state.job_store.update_job(job)
+    service_app.state.job_store.update_job(job)
 
     # Resume test (skip 1st line)
     headers["Last-Event-ID"] = "1"
@@ -105,12 +110,12 @@ def test_log_robustness(client_and_hub):
     resp = client.post("/api/jobs", json=req, headers=headers)
     job_id = resp.json()["id"]
 
-    job = state.job_store.get_job(job_id)
+    job = service_app.state.job_store.get_job(job_id)
     job.status = "succeeded"
-    state.job_store.update_job(job)
+    service_app.state.job_store.update_job(job)
 
     # Ensure no file
-    log_p = state.job_store.logs_dir / f"{job_id}.log"
+    log_p = service_app.state.job_store.logs_dir / f"{job_id}.log"
     if log_p.exists():
         log_p.unlink()
 
@@ -138,18 +143,18 @@ def test_gc_artifacts_physical(client_and_hub):
         id=art_id, job_id=job_id, hub=hub_path, repos=["repo1"],
         created_at=datetime.now(timezone.utc).isoformat(), paths={"md": "test_artifact.md"}, params=req_obj
     )
-    state.job_store.add_artifact(art)
+    service_app.state.job_store.add_artifact(art)
 
-    job = state.job_store.get_job(job_id)
+    job = service_app.state.job_store.get_job(job_id)
     job.artifact_ids.append(art_id)
-    state.job_store.update_job(job)
+    service_app.state.job_store.update_job(job)
 
     # GC
-    state.job_store.remove_job(job_id)
+    service_app.state.job_store.remove_job(job_id)
 
     # Verify metadata gone
-    assert state.job_store.get_job(job_id) is None
-    assert state.job_store.get_artifact(art_id) is None
+    assert service_app.state.job_store.get_job(job_id) is None
+    assert service_app.state.job_store.get_artifact(art_id) is None
     # Verify physical file gone
     assert not fpath.exists(), "Physical file should be deleted"
 
@@ -175,12 +180,12 @@ def test_gc_artifacts_physical_safe_join(client_and_hub):
         paths={"md": "../DO_NOT_DELETE.txt"},
         params=req_obj
     )
-    state.job_store.add_artifact(art)
-    job = state.job_store.get_job(job_id)
+    service_app.state.job_store.add_artifact(art)
+    job = service_app.state.job_store.get_job(job_id)
     job.artifact_ids.append(art_id)
-    state.job_store.update_job(job)
+    service_app.state.job_store.update_job(job)
 
-    state.job_store.remove_job(job_id)
+    service_app.state.job_store.remove_job(job_id)
     assert outside.exists(), "Traversal path must not be deleted"
 
 def test_create_job_blocks_dirty_repo_keys(client_and_hub):
@@ -298,3 +303,63 @@ def test_create_job_fresh_hub_no_state_dir(client_and_hub):
     # 5. Verify the directory and jobs.json were created
     assert storage_dir.exists(), "State directory was not recreated"
     assert (storage_dir / "jobs.json").exists(), "jobs.json was not created"
+
+def test_get_server_version_logs_debug_on_git_failure(monkeypatch, caplog):
+    monkeypatch.delenv("RLENS_VERSION", raising=False)
+
+    def fail_check_output(*args, **kwargs):
+        raise RuntimeError("git unavailable")
+
+    monkeypatch.setattr(subprocess, "check_output", fail_check_output)
+
+    with caplog.at_level(logging.DEBUG, logger="merger.lenskit.service.app"):
+        version = service_app._get_server_version()
+
+    assert version == "dev"
+    assert any("Falling back to dev server version" in rec.message for rec in caplog.records)
+
+def test_app_module_import_survives_git_failure_during_server_version_init():
+    """SERVER_VERSION falls back to 'dev' when git is unavailable at import time (subprocess-isolated)."""
+    repo_root = Path(__file__).resolve().parents[3]
+    env = {k: v for k, v in os.environ.items() if k != "RLENS_VERSION"}
+    env["PATH"] = "/nonexistent"
+    existing_pythonpath = os.environ.get("PYTHONPATH", "")
+    pythonpath_parts = [str(repo_root)]
+    if existing_pythonpath:
+        pythonpath_parts.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import merger.lenskit.service.app as a; print(a.SERVER_VERSION)"],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "dev"
+
+def test_api_fs_list_logs_debug_when_parent_token_generation_fails(monkeypatch, caplog, tmp_path):
+    trusted_path = tmp_path / "allowed" / "child"
+    trusted_path.mkdir(parents=True)
+
+    monkeypatch.setattr(
+        service_app,
+        "resolve_fs_path",
+        lambda **kwargs: SimpleNamespace(path=trusted_path),
+    )
+    monkeypatch.setattr(service_app, "_list_dir", lambda path: {"entries": []})
+
+    class FailingSecurityConfig:
+        def validate_path(self, path):
+            raise RuntimeError("parent blocked")
+
+    monkeypatch.setattr(service_app, "get_security_config", lambda: FailingSecurityConfig())
+    monkeypatch.setattr(service_app.state, "hub", tmp_path)
+    monkeypatch.setattr(service_app.state, "merges_dir", tmp_path / "merges", raising=False)
+
+    with caplog.at_level(logging.DEBUG, logger="merger.lenskit.service.app"):
+        payload = service_app.api_fs_list(token="opaque")
+
+    assert "parent_token" not in payload
+    assert any("Skipping parent token generation" in rec.message for rec in caplog.records)

@@ -61,6 +61,7 @@ Rollenamen folgen `bundle-manifest.v1.schema.json`, nicht älteren Blueprint-Beg
 Aktueller PR:
 - [x] `docs/roadmap/lenskit-master-roadmap.md`
 - [x] optionale kleine Korrektur in `docs/architecture/inconsistencies.md` bei belegtem Altbefund (Phase-6-Altbefund `agent_query_session` als resolved/closed dokumentiert)
+- [x] Design-Blueprint für die offene `agent_query_session` v1/v2-Konsolidierungsentscheidung: `docs/blueprints/agent-query-session-v1-v2-consolidation-decision.md`
 Gate:
 - keine widersprüchlichen Rollennamen
 - keine erfundenen Blueprint-Pfade
@@ -477,7 +478,7 @@ PR 10 (Suboptimalitäten-Audit, 2026-05-25): **TEILWEISE UMGESETZT**
   - Test-Lint-Debt (18× F841/E712 in 13 Test-Dateien) bereinigt; `ruff` mit `F401,F811,F841,E711,E712` sauber.
 - Offen (getrackt, bewusst nicht blind geändert):
   - ~~Atlas-CLI-Subparser-Duplikation `cli/main.py` ↔ `cli/rlens.py` zentralisieren.~~ **UMGESETZT** (2026-05-27): `register_atlas_commands` + `handle_atlas_command` in `merger/lenskit/cli/cmd_atlas.py` als Single Source of Truth; beide Entry-Points konsumieren den Registrar. Beleg: `inconsistencies.md` §7 (Status "behoben").
-  - Audit breiter `except Exception: pass`-Blöcke in Kern/Service (defensive Pfade nicht pauschal ändern).
-  - Konsolidierungs-Entscheidung agent_query_session v1/v2 (eine Schema-Form mit Integrity/Environment?).
+  - Audit breiter `except Exception: pass`-Blöcke in Kern/Service (defensive Pfade nicht pauschal ändern). **Teilweise umgesetzt (2026-05-27):** dokumentierter Kern/Service-Slice in `core/merge.py`, `service/app.py` und `service/jobstore.py` auf gezielte `logger.debug`-/`logger.warning`-Pfadklassifikation umgestellt; kein Logging-Rundumschlag, weitere stille Defensivpfade bleiben als separater Sweep offen.
+  - Konsolidierungs-Entscheidung `agent_query_session` v1/v2 (Design-Blueprint: `docs/blueprints/agent-query-session-v1-v2-consolidation-decision.md`).
 - Nicht-Ziele: keine Massen-Stilkorrektur (E701/E402/E741 sind bewusst nicht im CI-Gate),
   keine Schema-/Verhaltensänderung an emittierten Artefakten.
