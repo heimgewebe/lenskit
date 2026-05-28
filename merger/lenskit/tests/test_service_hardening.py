@@ -323,7 +323,11 @@ def test_app_module_import_survives_git_failure_during_server_version_init():
     repo_root = Path(__file__).parent.parent.parent.parent
     env = {k: v for k, v in os.environ.items() if k != "RLENS_VERSION"}
     env["PATH"] = "/nonexistent"
-    env["PYTHONPATH"] = str(repo_root)
+    existing_pythonpath = os.environ.get("PYTHONPATH", "")
+    pythonpath_parts = [str(repo_root)]
+    if existing_pythonpath:
+        pythonpath_parts.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
     result = subprocess.run(
         [sys.executable, "-c",
          "import merger.lenskit.service.app as a; print(a.SERVER_VERSION)"],
