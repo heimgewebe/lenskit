@@ -305,8 +305,6 @@ def test_create_job_fresh_hub_no_state_dir(client_and_hub):
     assert (storage_dir / "jobs.json").exists(), "jobs.json was not created"
 
 def test_get_server_version_logs_debug_on_git_failure(monkeypatch, caplog):
-    import subprocess
-
     monkeypatch.delenv("RLENS_VERSION", raising=False)
 
     def fail_check_output(*args, **kwargs):
@@ -322,14 +320,17 @@ def test_get_server_version_logs_debug_on_git_failure(monkeypatch, caplog):
 
 def test_app_module_import_survives_git_failure_during_server_version_init():
     """SERVER_VERSION falls back to 'dev' when git is unavailable at import time (subprocess-isolated)."""
+    repo_root = Path(__file__).parent.parent.parent.parent
     env = {k: v for k, v in os.environ.items() if k != "RLENS_VERSION"}
     env["PATH"] = "/nonexistent"
+    env["PYTHONPATH"] = str(repo_root)
     result = subprocess.run(
         [sys.executable, "-c",
          "import merger.lenskit.service.app as a; print(a.SERVER_VERSION)"],
         capture_output=True,
         text=True,
         env=env,
+        cwd=str(repo_root),
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "dev"
