@@ -10,6 +10,7 @@ It only explains why misses occurred.
 
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+import re
 from .eval_diagnostics import RetrievalEvalDiagnosticsCalibrator
 
 
@@ -91,6 +92,8 @@ def _extract_misses_from_eval(eval_results: Dict[str, Any]) -> List[Dict[str, An
     if not isinstance(details, list):
         raise ValueError("Expected retrieval_eval['details'] to be a list.")
 
+    configured_top_k = _infer_top_k_from_metrics(eval_results.get("metrics", {}))
+
     for detail_idx, detail in enumerate(details):
         # Only process misses (is_relevant=false)
         if detail.get("is_relevant", False):
@@ -107,7 +110,9 @@ def _extract_misses_from_eval(eval_results: Dict[str, Any]) -> List[Dict[str, An
         top_results = detail.get("top_results", [])
         if not isinstance(top_results, list):
             top_results = []
-        top_k = len(top_results) if len(top_results) > 0 else None
+        # Prefer configured eval k from metrics (e.g., recall@10), because top_results
+        # may be shorter than k for low-hit queries.
+        top_k = configured_top_k if configured_top_k is not None else (len(top_results) if len(top_results) > 0 else None)
 
         # For each expected target, create a miss record
         for expected_target in expected:
@@ -137,3 +142,24 @@ def _extract_misses_from_eval(eval_results: Dict[str, Any]) -> List[Dict[str, An
             misses.append(miss)
 
     return misses
+
+
+def _infer_top_k_from_metrics(metrics: Any) -> Optional[int]:
+    """Infer configured eval k from retrieval_eval metrics keys like recall@10."""
+    if not isinstance(metrics, dict):
+        return None
+
+    pattern = re.compile(r"(?:^|_)recall@(\d+)$")
+    candidates: List[int] = []
+
+    for key in metrics.keys():
+        if not isinstance(key, str):
+            continue
+        match = pattern.search(key)
+        if match:
+            try:
+                candidates.append(int(match.group(1)))
+            except ValueError:
+                continue
+
+    return max(candidates) if candidates else None

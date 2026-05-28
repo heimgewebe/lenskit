@@ -543,7 +543,11 @@ class RetrievalEvalDiagnosticsCalibrator:
         """Heuristic: expected target behaves like a path/path-substring token."""
         if not isinstance(target, str) or not target:
             return False
-        return "/" in target or "." in target
+        if "/" in target:
+            return True
+        # Treat file-basename-like tokens as path-like (e.g., "merge.py").
+        # Keep symbol-like names (e.g., "iter_report_blocks", "Class.method") ambiguous.
+        return bool(re.search(r"\.[A-Za-z0-9]{1,8}$", target))
 
     def generate_report(
         self,

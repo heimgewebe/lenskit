@@ -153,6 +153,81 @@ class TestIntegrationExtraction:
         with pytest.raises(ValueError, match="Expected retrieval_eval field 'details'\\."):
             _extract_misses_from_eval(eval_results)
 
+    def test_extract_do_eval_like_details_object(self):
+        """Extraction must consume do_eval-like details entries, not a legacy results shape."""
+        eval_results = {
+            "metrics": {
+                "recall@10": 50.0,
+                "MRR": 0.5,
+                "total_queries": 2,
+            },
+            "details": [
+                {
+                    "query": "merge",
+                    "category": "core",
+                    "expected": ["merge.py", "iter_report_blocks"],
+                    "is_relevant": False,
+                    "found_count": 1,
+                    "top_results": ["merger/lenskit/core/chunker.py"],
+                    "rr": None,
+                    "why": {"why_fail": "expected path not in top-k"},
+                    "explain": {},
+                },
+                {
+                    "query": "chunk",
+                    "category": "core",
+                    "expected": ["chunker.py"],
+                    "is_relevant": True,
+                    "found_count": 1,
+                    "top_results": ["merger/lenskit/core/chunker.py"],
+                    "rr": 1.0,
+                    "why": {},
+                    "explain": {},
+                },
+            ],
+            "claim_boundaries": {
+                "proves": ["synthetic do_eval-like object"],
+                "does_not_prove": ["anything beyond test scope"],
+                "evidence_basis": ["query_results"],
+                "requires_live_check": True,
+            },
+            "miss_taxonomy": {
+                "version": "1.0",
+                "authority": "diagnostic_signal",
+                "risk_class": "diagnostic",
+                "classification_basis": ["retrieval_eval_expectations"],
+                "does_not_prove": ["taxonomy_is_diagnostic_not_authoritative"],
+                "aggregate": {
+                    "total_cases_classified": 2,
+                    "total_misses": 1,
+                    "by_type": {
+                        "zero_results": 0,
+                        "expected_not_in_top_k": 1,
+                        "expected_rank_below_k": 0,
+                        "expected_path_not_indexed": 0,
+                        "expected_symbol_not_indexed": 0,
+                        "path_or_symbol_metadata_missing": 0,
+                        "possible_query_vocabulary_gap": 0,
+                        "possible_filter_scope_gap": 0,
+                        "noise_or_fixture_hit": 0,
+                        "stale_eval_input": 0,
+                        "query_execution_error": 0,
+                        "unknown": 0,
+                    },
+                },
+                "cases": [],
+            },
+        }
+
+        misses = _extract_misses_from_eval(eval_results)
+        assert len(misses) == 2
+        # top_k is inferred from metrics (recall@10), not from len(top_results)=1
+        assert misses[0]["top_k"] == 10
+        assert misses[1]["top_k"] == 10
+        assert misses[0]["query_had_zero_hits"] is False
+        assert misses[0]["expected_target"] == "merge.py"
+        assert misses[1]["expected_target"] == "iter_report_blocks"
+
 
 class TestRetrievalEvalDiagnosticsCalibrator:
     def test_all_good_hit(self, tmp_artifacts):
