@@ -250,6 +250,115 @@ class TestQueryArtifactStoreDiagnosticsLegacy:
         assert diag["oldest_created_at"] is None
         assert diag["newest_created_at"] is None
 
+    def test_malformed_created_at_is_counted_but_ignored_for_age(self, storage_dir):
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        store_file = storage_dir / "query_artifacts.json"
+        entries = [
+            {
+                "id": "qart-valid",
+                "artifact_type": "query_trace",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "2024-01-01T00:00:00+00:00",
+            },
+            {
+                "id": "qart-bad-time",
+                "artifact_type": "query_trace",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "not-a-date",
+            },
+        ]
+        store_file.write_text(json.dumps(entries), encoding="utf-8")
+
+        store = QueryArtifactStore(storage_dir)
+        diag = store.diagnostics()
+        assert diag["total_artifacts"] == 2
+        assert diag["by_artifact_type"] == {"query_trace": 2}
+        assert diag["oldest_created_at"] == "2024-01-01T00:00:00+00:00"
+        assert diag["newest_created_at"] == "2024-01-01T00:00:00+00:00"
+
+    def test_age_range_uses_only_valid_offset_aware_timestamps(self, storage_dir):
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        store_file = storage_dir / "query_artifacts.json"
+        entries = [
+            {
+                "id": "qart-invalid",
+                "artifact_type": "query_trace",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "not-a-date",
+            },
+            {
+                "id": "qart-zulu",
+                "artifact_type": "context_bundle",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "2024-01-01T00:00:00Z",
+            },
+            {
+                "id": "qart-naive",
+                "artifact_type": "query_trace",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "2024-01-01T01:00:00",
+            },
+            {
+                "id": "qart-aware-late",
+                "artifact_type": "agent_query_session",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "2024-01-01T03:00:00+02:00",
+            },
+            {
+                "id": "qart-aware-early",
+                "artifact_type": "query_trace",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "2023-12-31T23:30:00+00:00",
+            },
+        ]
+        store_file.write_text(json.dumps(entries), encoding="utf-8")
+
+        store = QueryArtifactStore(storage_dir)
+        diag = store.diagnostics()
+        assert diag["total_artifacts"] == 5
+        assert diag["by_artifact_type"] == {
+            "query_trace": 3,
+            "context_bundle": 1,
+            "agent_query_session": 1,
+        }
+        assert diag["oldest_created_at"] == "2023-12-31T23:30:00+00:00"
+        assert diag["newest_created_at"] == "2024-01-01T03:00:00+02:00"
+
+    def test_z_suffix_is_accepted_and_naive_timestamp_is_skipped(self, storage_dir):
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        store_file = storage_dir / "query_artifacts.json"
+        entries = [
+            {
+                "id": "qart-zulu-only-valid",
+                "artifact_type": "query_trace",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "2024-01-01T00:00:00Z",
+            },
+            {
+                "id": "qart-naive-invalid",
+                "artifact_type": "query_trace",
+                "data": {},
+                "provenance": {"source_query": "q", "timestamp": "t"},
+                "created_at": "2024-01-02T00:00:00",
+            },
+        ]
+        store_file.write_text(json.dumps(entries), encoding="utf-8")
+
+        store = QueryArtifactStore(storage_dir)
+        diag = store.diagnostics()
+        assert diag["total_artifacts"] == 2
+        assert diag["by_artifact_type"] == {"query_trace": 2}
+        assert diag["oldest_created_at"] == "2024-01-01T00:00:00Z"
+        assert diag["newest_created_at"] == "2024-01-01T00:00:00Z"
+
     def test_legacy_entry_without_artifact_type_counts_as_unknown(self, storage_dir):
         """Entry missing artifact_type field should be counted under 'unknown'."""
         storage_dir.mkdir(parents=True, exist_ok=True)
