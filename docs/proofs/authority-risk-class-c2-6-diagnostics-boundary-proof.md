@@ -10,10 +10,15 @@ under C1 / L3) but carried **no** machine-readable inference boundary. C2.4
 surfaced this honestly as a non-blocking `deferred` lint finding and named the
 fix as a "separate additive C2.x follow-up". This slice is that follow-up.
 
-It is **additive** and **contract-consistent**: it gives the diagnostics report a
-required root `does_not_prove` boundary, emits it from the existing producer, and
-empties the lint's deferral registry so the contract is governed as a clean
-(blocking) L3 case instead of a tracked deferral.
+It is **boundary-normalizing, producer-compatible, and intentionally
+tightening**: it gives the diagnostics report a required root `does_not_prove`
+boundary, emits it from the existing producer, and empties the lint's deferral
+registry so the contract is governed as a clean (blocking) L3 case instead of a
+tracked deferral. The `required` field is formally stricter for historical
+instances—old reports lacking `does_not_prove` would fail validation—but this is
+locally defensible: the consumer/fixture audit (§3a) found no persisted corpus and
+no external schema-validation consumer, the producer is updated in the same
+change, and the artifact is ephemeral (not a bundle-manifest role).
 
 New / changed files:
 
