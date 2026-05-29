@@ -42,6 +42,10 @@ def main(args: Optional[List[str]] = None) -> int:
     from .cmd_parity import register_parity_commands
     register_parity_commands(subparsers)
 
+    # Governance command (Track C: authority / inference-boundary contract lint)
+    from .cmd_governance import register_governance_commands
+    register_governance_commands(subparsers)
+
     # rLens client command
     from .cmd_rlens_client import register_rlens_client_commands
     register_rlens_client_commands(subparsers)
@@ -207,6 +211,13 @@ def main(args: Optional[List[str]] = None) -> int:
         raise RuntimeError(
             f"Unexpected parity command dispatch: {parsed_args.parity_cmd!r}"
         )
+    elif parsed_args.command == "governance":
+        from .cmd_governance import run_governance_lint
+        if parsed_args.governance_cmd == "lint":
+            return run_governance_lint(parsed_args)
+        else:
+            parser.parse_args(["governance", "--help"])
+            return 0
     elif parsed_args.command == "artifact":
         from . import cmd_artifact
         return cmd_artifact.run_artifact_lookup(parsed_args)

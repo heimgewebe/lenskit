@@ -201,9 +201,9 @@ Scope: additive, optionale, **const** Felder `authority` (`diagnostic_signal`) u
 Mögliche Folgearbeiten (separate PRs, nicht Teil von C1, C2a oder C2.1):
 - C2.2: `bundle-manifest.v1`-Normierung (per-role `risk_class`, `output_health`-Authority-Zweig) — **UMGESETZT** (siehe C2.2-Abschnitt unten)
 - C2.3: `allowed_inferences`/`forbidden_inferences` als optionale Schema-Felder — **UMGESETZT** (contract-only/test-only; siehe C2.3-Abschnitt unten)
-- C3 / C2.4: Lint-Regeln (L1–L6) — **offen**
+- C3 / C2.4: Anti-Hallucination-Contract-Lint (kontraktstatischer L3+L5-Teil) — **UMGESETZT** (siehe C2.4-Abschnitt unten). Die AST-/codepfadbasierten Regeln L1/L2/L4 und der Export-Gate-Teil L6 bleiben **offen**.
 - C4: Runtime-Annotation — **offen**
-- C5: Export-Gate-Integration — **offen**
+- C5: Export-Gate-Integration (inkl. L6) — **offen**
 
 ### C2.2 — Additive per-role Risk-Class + output_health-Authority im Bundle-Manifest (umgesetzt)
 
@@ -272,7 +272,60 @@ Contracts: `post-emit-health.v1`, `agent-export-gate.v1`, `retrieval-eval.v1` un
 - **Nicht angefasst:** `output-health.v1`, Federation-Contracts, `agent-query-session.v2`,
   `bundle-manifest.v1`; keine neuen `authority-matrix.v1`- oder `inference-boundary.v1`-
   Contracts.
-- C2.4/C3 (Lint), C2.5/C5 (Export-Gate) und C4 (Runtime-Annotation) bleiben **offen**.
+- C2.4/C3 (kontraktstatischer Lint) ist mit dem nächsten Abschnitt **UMGESETZT**;
+  die AST-Regeln (L1/L2/L4) und C2.5/C5 (Export-Gate inkl. L6) sowie C4
+  (Runtime-Annotation) bleiben **offen**.
+
+### C2.4 — Anti-Hallucination-Contract-Lint (kontraktstatischer L3+L5-Teil, umgesetzt)
+
+Status: **UMGESETZT** (lint-/test-/CI-only, keine Contract-Änderung), Beleg
+`docs/proofs/authority-risk-class-c2-4-lint-proof.md`.
+Scope: der **mechanisch aus Schemas allein entscheidbare** Teil der C1-Lint-Regeln
+(`docs/blueprints/lenskit-authority-risk-matrix.md` §6), wie vom Gap-Audit
+(`docs/proofs/authority-contract-gap-audit.md` §8) als „Vorbereitung der
+Lint-Regeln als spätere CI-Stufe" vorgesehen. Der Lint ist auf dem aktuellen
+Contract-Stand **grün** und fängt künftige Drift ab, ohne eine vorzeitige
+Contract-Migration zu erzwingen.
+
+- Geänderte/ergänzte Dateien:
+  - `merger/lenskit/core/anti_hallucination_lint.py` (reine Funktionen + IO-Adapter)
+  - `merger/lenskit/cli/cmd_governance.py` (`lenskit governance lint`, Dispatch in `cli/main.py`)
+  - `merger/lenskit/tests/test_anti_hallucination_lint.py` (23 Tests)
+  - `.github/workflows/anti-hallucination-lint.yml` (path-scoped blockierender Gate)
+  - `docs/proofs/authority-risk-class-c2-4-lint-proof.md`
+- Implementiert (blockierend):
+  - **L3 — Missing Inference Boundary:** Contracts, deren **Wurzelobjekt** eine
+    boundary-pflichtige Authority selbst deklariert (`authority`/`session_authority`
+    const ∈ {`diagnostic_signal`, `runtime_observation`, `agent_context_projection`}),
+    müssen ein maschinenlesbares Boundary-Array an der Wurzel tragen
+    (`does_not_prove`/`does_not_mean`/`claim_boundaries`). `bundle-manifest.v1`
+    (per-Rolle-Authority, nested) ist korrekt **nicht** governt.
+  - **L5 — Unsupported Truth Language:** verbotene Wahrheits-/Sicherheits-Feldnamen
+    (`understanding_score`, `agent_safe`, `proven`, `verified`, …) als Property-Keys
+    und verbotene Verdict-Tokens (`proven`, `verified`, `safe`, `green/yellow/red`, …)
+    als `enum`-Werte von Verdict-Feldern (`verdict`/`status`/`*_verdict`). Nur
+    **Exact-Match**, nie Substring; Disclaimer-Array-**Werte** (`does_not_*`,
+    `*_inferences`, `agent_use_constraints`) werden **nie** gescannt.
+- **STOP / Out of Scope (dokumentiert, nicht implementiert):**
+  - **L1/L2/L4** erfordern Python-**AST-/Codepfad**-Analyse (hohe False-Positive-Fläche
+    laut Blueprint §6) → spätere AST-Lint-Stufe.
+  - **L6** (Export-Risk) = Export-Gate-Integration = **C5**.
+  - Die Out-of-Scope-Regeln werden maschinenlesbar im Report (`rules_out_of_scope`)
+    geführt.
+- **Deferral-Registry (getrackt, nicht-blockierend):** genau
+  `retrieval-eval-diagnostics.v1.schema.json` deklariert `authority:
+  diagnostic_signal` ohne Boundary-Array und ist **nicht** in der C2a-Audit-Tabelle
+  erfasst. C2.4 macht diese Lücke ehrlich als `deferred` sichtbar, statt sie still zu
+  ignorieren oder die Contract-Migration zu erzwingen (Gap-Audit §8/§5.D/§7). Das
+  Hinzufügen der Boundary ist additive C2.x-Folgearbeit. `audit_deferral_registry()`
+  + Test verhindern, dass die Deferral-Liste verrottet.
+- **Keine** Contract-Änderung, **keine** Producer-/Runtime-Emission, **keine**
+  Claim-Wahrheitsbewertung. Der Lint-Report ist selbst ein `diagnostic_signal`
+  (`authority`/`risk_class`/`does_not_mean`).
+- Validierung: `governance lint` → PASS (38 gescannt, 0 Fehler, 1 deferred), exit 0;
+  `test_anti_hallucination_lint.py` 23 passed; Regression
+  (contracts/health/quality/eval/cli) ohne Regression; ruff
+  `F401,F811,F841,E711,E712` sauber.
 
 ## Paralleltrack Atlas
 - Atlas = physische Wahrnehmung / Filesystem-Snapshot
