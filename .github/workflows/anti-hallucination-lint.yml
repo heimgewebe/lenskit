@@ -1,0 +1,62 @@
+name: Anti-Hallucination Contract Lint (C2.4)
+
+# Path-scoped blocking gate for the Governance Track C contract-static lint
+# (merger/lenskit/core/anti_hallucination_lint.py + the `lenskit governance lint`
+# CLI). Enforces L3 (inference-boundary presence for self-declared
+# diagnostic_signal/runtime_observation contracts) and L5 (no truth-language
+# property names or verdict values). Runs only when contracts, the lint module,
+# its CLI, or its tests change. This is distinct from the Parity Gate
+# (parity-gate.yml) and the ruff lint (lint.yml).
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - "merger/lenskit/core/anti_hallucination_lint.py"
+      - "merger/lenskit/cli/cmd_governance.py"
+      - "merger/lenskit/cli/main.py"
+      - "merger/lenskit/contracts/**"
+      - "merger/lenskit/tests/test_anti_hallucination_lint.py"
+      - "merger/lenskit/requirements.txt"
+      - "requirements-dev.txt"
+      - ".github/workflows/anti-hallucination-lint.yml"
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - "merger/lenskit/core/anti_hallucination_lint.py"
+      - "merger/lenskit/cli/cmd_governance.py"
+      - "merger/lenskit/cli/main.py"
+      - "merger/lenskit/contracts/**"
+      - "merger/lenskit/tests/test_anti_hallucination_lint.py"
+      - "merger/lenskit/requirements.txt"
+      - "requirements-dev.txt"
+      - ".github/workflows/anti-hallucination-lint.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  anti-hallucination-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Log Python Version
+        run: python --version
+
+      - name: Install Dependencies
+        run: |
+          pip install -r merger/lenskit/requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run Contract Lint (blocking)
+        # Exits non-zero on any L3/L5 error. Tracked deferrals are non-blocking.
+        run: python -m merger.lenskit.cli.main governance lint
+
+      - name: Run Lint Test Suite
+        run: pytest -q merger/lenskit/tests/test_anti_hallucination_lint.py
