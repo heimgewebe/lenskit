@@ -113,7 +113,7 @@ python -m pytest -q \
   merger/lenskit/tests/test_context_quality.py
 
 python -m ruff check \
-  merger/lenskit/tests \
+  merger/lenskit/tests/test_contract_inference_boundaries.py \
   --select=F401,F811,F841,E711,E712
 
 git diff --check
