@@ -188,6 +188,42 @@ def test_l3_passes_with_claim_boundaries():
     assert [f for f in findings if f.rule == "L3"] == []
 
 
+def test_l3_rejects_does_not_mean_boundary_with_wrong_type():
+    schema = {
+        "type": "object",
+        "properties": {
+            "authority": {"type": "string", "const": "diagnostic_signal"},
+            "does_not_mean": {"type": "string"},
+        },
+    }
+    findings = lint_contract_schema(schema, contract_name="bad.schema.json")
+    assert any(f.rule == "L3" and f.severity == "error" for f in findings)
+
+
+def test_l3_rejects_does_not_prove_boundary_with_wrong_type():
+    schema = {
+        "type": "object",
+        "properties": {
+            "authority": {"type": "string", "const": "diagnostic_signal"},
+            "does_not_prove": {"type": "object"},
+        },
+    }
+    findings = lint_contract_schema(schema, contract_name="bad.schema.json")
+    assert any(f.rule == "L3" and f.severity == "error" for f in findings)
+
+
+def test_l3_rejects_claim_boundaries_boundary_with_wrong_type():
+    schema = {
+        "type": "object",
+        "properties": {
+            "authority": {"type": "string", "const": "diagnostic_signal"},
+            "claim_boundaries": {"type": "array", "items": {"type": "string"}},
+        },
+    }
+    findings = lint_contract_schema(schema, contract_name="bad.schema.json")
+    assert any(f.rule == "L3" and f.severity == "error" for f in findings)
+
+
 def test_l3_ignores_non_self_declaring_registry_schema():
     # bundle-manifest style: authority is a per-role nested enum, not a root const
     # self-declaration. Such a registry must NOT be governed by L3.

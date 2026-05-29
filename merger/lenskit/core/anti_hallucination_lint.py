@@ -91,8 +91,14 @@ BOUNDARY_REQUIRING_AUTHORITIES: frozenset[str] = frozenset(
     }
 )
 AUTHORITY_FIELD_NAMES: tuple[str, ...] = ("authority", "session_authority")
-BOUNDARY_PROPERTY_NAMES: frozenset[str] = frozenset(
-    {"does_not_prove", "does_not_mean", "claim_boundaries"}
+BOUNDARY_ARRAY_PROPERTY_NAMES: frozenset[str] = frozenset(
+    {"does_not_prove", "does_not_mean"}
+)
+BOUNDARY_OBJECT_PROPERTY_NAMES: frozenset[str] = frozenset(
+    {"claim_boundaries"}
+)
+BOUNDARY_PROPERTY_NAMES: frozenset[str] = (
+    BOUNDARY_ARRAY_PROPERTY_NAMES | BOUNDARY_OBJECT_PROPERTY_NAMES
 )
 
 # L3 — explicitly deferred contracts: they self-declare a boundary-requiring
@@ -318,9 +324,27 @@ def _self_declared_authority(schema: object) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _schema_declares_type(schema_node: object, expected_type: str) -> bool:
+    if not isinstance(schema_node, dict):
+        return False
+    declared = schema_node.get("type")
+    return declared == expected_type or (
+        isinstance(declared, list) and expected_type in declared
+    )
+
+
 def _has_root_boundary(schema: object) -> bool:
     props = _root_properties(schema)
-    return any(name in props for name in BOUNDARY_PROPERTY_NAMES)
+
+    for name in BOUNDARY_ARRAY_PROPERTY_NAMES:
+        if _schema_declares_type(props.get(name), "array"):
+            return True
+
+    for name in BOUNDARY_OBJECT_PROPERTY_NAMES:
+        if _schema_declares_type(props.get(name), "object"):
+            return True
+
+    return False
 
 
 def _check_l3(schema: object, contract_name: str) -> list[LintFinding]:
@@ -354,9 +378,10 @@ def _check_l3(schema: object, contract_name: str) -> list[LintFinding]:
             location=f"root.{fname}",
             message=(
                 f"self-declares {fname}={const} (boundary-requiring authority) but declares "
-                f"no root boundary array ({boundary_names}). Add a does_not_prove / "
-                f"does_not_mean / claim_boundaries array, or register an explicit deferral "
-                f"with rationale in DEFERRED_BOUNDARY_CONTRACTS."
+                f"no valid root boundary declaration ({boundary_names}). Add a "
+                f"does_not_prove / does_not_mean array or a claim_boundaries object, "
+                f"or register an explicit deferral with rationale in "
+                f"DEFERRED_BOUNDARY_CONTRACTS."
             ),
         )
     ]
