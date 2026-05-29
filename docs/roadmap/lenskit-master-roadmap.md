@@ -303,7 +303,7 @@ Contract-Migration zu erzwingen.
   - **L5 — Unsupported Truth Language:** verbotene Wahrheits-/Sicherheits-Feldnamen
     (`understanding_score`, `agent_safe`, `proven`, `verified`, …) als Property-Keys
     und verbotene Verdict-Tokens (`proven`, `verified`, `safe`, `green/yellow/red`, …)
-    als `enum`-Werte von Verdict-Feldern (`verdict`/`status`/`*_verdict`). Nur
+    als `enum`-/`const`-Werte von Verdict-Feldern (`verdict`/`status`/`*_verdict`). Nur
     **Exact-Match**, nie Substring; Disclaimer-Array-**Werte** (`does_not_*`,
     `*_inferences`, `agent_use_constraints`) werden **nie** gescannt.
 - **STOP / Out of Scope (dokumentiert, nicht implementiert):**

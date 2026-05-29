@@ -46,7 +46,7 @@ or `claim_boundaries`.
   anywhere in a schema (recursively, including `$defs`):
   `understanding_health`, `understanding_score`, `context_score`, `agent_safe`,
   `agent_ready`, `proven`, `supported`, `unsupported`, `verified`, `correct`.
-- **Verdict values:** no forbidden truth token may appear as an `enum` value of a
+- **Verdict values:** no forbidden truth token may appear as an `enum` or `const` value of a
   verdict-like field (`verdict`, `status`, `*_verdict`):
   `proven`, `supported`, `unsupported`, `verified`, `safe`, `unsafe`,
   `green`, `yellow`, `red`.

@@ -22,7 +22,7 @@ Implemented (blocking):
 * **L5 — Unsupported Truth Language**: forbidden truth-asserting *property names*
   (e.g. ``understanding_score``, ``agent_safe``, ``proven``) may not appear as
   schema property keys, and forbidden truth tokens (e.g. ``proven``,
-  ``verified``) may not appear as ``enum`` values of verdict-like fields.
+  ``verified``) may not appear as ``enum`` or ``const`` values of verdict-like fields.
   Exact-match only — never substring — and disclaimer-array *values*
   (``does_not_*`` / ``*_inferences``) are never scanned, because they
   legitimately *name* the forbidden inferences as negatives.
@@ -66,7 +66,7 @@ FORBIDDEN_TRUTH_PROPERTY_NAMES: frozenset[str] = frozenset(
     }
 )
 
-# L5 — forbidden as ``enum`` VALUES of verdict-like fields (exact match). These
+# L5 — forbidden as ``enum``/``const`` VALUES of verdict-like fields (exact match). These
 # verdict tokens would turn a diagnostic field into an implicit truth verdict.
 FORBIDDEN_VERDICT_VALUES: frozenset[str] = frozenset(
     {
@@ -231,6 +231,7 @@ def _check_l5(schema: object, contract_name: str) -> list[LintFinding]:
         props = node.get("properties")
         if not isinstance(props, dict):
             continue
+
         for pname, psub in props.items():
             if pname in FORBIDDEN_TRUTH_PROPERTY_NAMES:
                 findings.append(
@@ -246,37 +247,55 @@ def _check_l5(schema: object, contract_name: str) -> list[LintFinding]:
                         ),
                     )
                 )
+
             if _is_verdict_field(pname) and isinstance(psub, dict):
-                for enum in _enum_value_lists(psub):
-                    for value in enum:
-                        if isinstance(value, str) and value in FORBIDDEN_VERDICT_VALUES:
-                            findings.append(
-                                LintFinding(
-                                    rule="L5",
-                                    severity="error",
-                                    contract=contract_name,
-                                    location=f"properties.{pname}.enum",
-                                    message=(
-                                        f"forbidden verdict value '{value}' in verdict-like "
-                                        f"field '{pname}': turns a diagnostic field into an "
-                                        f"implicit truth verdict (blueprint §6 L5)."
-                                    ),
-                                )
+                for value in _verdict_values(psub):
+                    if value in FORBIDDEN_VERDICT_VALUES:
+                        findings.append(
+                            LintFinding(
+                                rule="L5",
+                                severity="error",
+                                contract=contract_name,
+                                location=f"properties.{pname}",
+                                message=(
+                                    f"forbidden verdict value '{value}' in verdict-like "
+                                    f"field '{pname}': turns a diagnostic field into an "
+                                    f"implicit truth verdict (blueprint §6 L5)."
+                                ),
                             )
+                        )
+
     return findings
 
 
-def _enum_value_lists(field_schema: dict) -> Iterator[list]:
-    """Yield enum value lists from a verdict field schema, covering both a direct
-    ``enum`` and an ``items.enum`` (verdict array)."""
+def _verdict_values(field_schema: dict) -> Iterator[str]:
+    """Yield string verdict values from a verdict field schema.
+
+    Covers direct ``const``, direct ``enum``, and array ``items.const`` /
+    ``items.enum``. Non-string values are ignored because L5 only governs exact
+    forbidden truth-language tokens.
+    """
+    const = field_schema.get("const")
+    if isinstance(const, str):
+        yield const
+
     enum = field_schema.get("enum")
     if isinstance(enum, list):
-        yield enum
+        for value in enum:
+            if isinstance(value, str):
+                yield value
+
     items = field_schema.get("items")
     if isinstance(items, dict):
+        item_const = items.get("const")
+        if isinstance(item_const, str):
+            yield item_const
+
         item_enum = items.get("enum")
         if isinstance(item_enum, list):
-            yield item_enum
+            for value in item_enum:
+                if isinstance(value, str):
+                    yield value
 
 
 # --- L3: Missing Inference Boundary -----------------------------------------

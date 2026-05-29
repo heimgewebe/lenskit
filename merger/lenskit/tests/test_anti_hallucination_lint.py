@@ -119,6 +119,22 @@ def test_l5_does_not_scan_disclaimer_array_values():
     assert [f for f in findings if f.rule == "L5"] == []
 
 
+def test_l5_flags_forbidden_verdict_const_value():
+    schema = _diag_schema(
+        {"status": {"type": "string", "const": "proven"}}
+    )
+    findings = lint_contract_schema(schema, contract_name="x.schema.json")
+    assert any(f.rule == "L5" and "proven" in f.message for f in findings)
+
+
+def test_l5_flags_forbidden_verdict_const_value_in_items():
+    schema = _diag_schema(
+        {"status": {"type": "array", "items": {"const": "verified"}}}
+    )
+    findings = lint_contract_schema(schema, contract_name="x.schema.json")
+    assert any(f.rule == "L5" and "verified" in f.message for f in findings)
+
+
 # --- L3: Missing Inference Boundary ----------------------------------------
 
 
