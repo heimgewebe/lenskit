@@ -61,6 +61,20 @@
       "type": "string",
       "const": "diagnostic"
     },
+    "allowed_inferences": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional C2.3 inference-boundary notes describing permitted uses of this diagnostic artifact. Free strings for now: this is contract-only preparation, not a closed policy vocabulary, truth verdict, lint, or export gate."
+    },
+    "forbidden_inferences": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional C2.3 inference-boundary notes that machine-readably mirror existing does_not_prove/does_not_mean limits. Free strings for now: this is contract-only preparation, not claim evaluation, lint, or export gate."
+    },
     "signals": {
       "type": "object",
       "additionalProperties": false,
