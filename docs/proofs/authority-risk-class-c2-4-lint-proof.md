@@ -91,7 +91,7 @@ a boundary array:
 stale if its contract is absent, no longer self-declares a governed authority, or
 has since gained a boundary. A test asserts the registry is currently non-stale.
 
-> **Update (resolved by C2.6):** this deferral has since been closed. The additive
+> **Update (resolved by C2.6):** this deferral has since been closed. The C2.6
 > follow-up gave `retrieval-eval-diagnostics.v1` a required root `does_not_prove`
 > boundary (with producer emission), so `DEFERRED_BOUNDARY_CONTRACTS` is now empty
 > and the lint reports **0 deferred**. The deferral *mechanism* (and its rot guard)

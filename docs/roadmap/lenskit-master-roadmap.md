@@ -204,7 +204,7 @@ Mögliche Folgearbeiten (separate PRs, nicht Teil von C1, C2a oder C2.1):
 - C3 / C2.4: Anti-Hallucination-Contract-Lint (kontraktstatischer L3+L5-Teil) — **UMGESETZT** (siehe C2.4-Abschnitt unten). Die AST-/codepfadbasierten Regeln L1/L2/L4 bleiben **offen**.
 - C4: Runtime-Annotation — **offen**
 - C2.5 / C5: Export-Gate-Integration für L6-Export-Risk-Inferenzen — **MINIMAL UMGESETZT** (siehe C2.5-Abschnitt unten). Das breitere C5-Governance-Framework bleibt **offen**.
-- C2.6: Auflösung der C2.4-Deferral — additive Root-Boundary (`does_not_prove`) für `retrieval-eval-diagnostics.v1` plus Producer-Emission — **UMGESETZT** (siehe C2.6-Abschnitt unten). Deferral-Registry jetzt leer.
+- C2.6: Auflösung der C2.4-Deferral — required Root-Boundary (`does_not_prove`) für `retrieval-eval-diagnostics.v1` plus Producer-Emission — **UMGESETZT** (siehe C2.6-Abschnitt unten). Deferral-Registry jetzt leer.
 
 ### C2.2 — Additive per-role Risk-Class + output_health-Authority im Bundle-Manifest (umgesetzt)
 
@@ -373,12 +373,12 @@ gehärtet**, nicht ersetzt: es liest jetzt das optionale C2.3-Feld
 
 ### C2.6 — Auflösung der C2.4-Deferral: retrieval-eval-diagnostics.v1 Root-Boundary (umgesetzt)
 
-Status: **UMGESETZT** (additive Contract-Normierung + Producer-Emission),
+Status: **UMGESETZT** (boundary-normalizing Contract-Tightening + Producer-Emission),
 Beleg `docs/proofs/authority-risk-class-c2-6-diagnostics-boundary-proof.md`.
 Scope: löst die einzige von C2.4 getrackte Deferral. `retrieval-eval-diagnostics.v1`
 deklarierte `authority: diagnostic_signal` (boundary-pflichtig unter C1/L3), trug
-aber keine maschinenlesbare Inference-Boundary. C2.6 ergänzt sie additiv und
-emittiert sie aus dem bestehenden Producer.
+aber keine maschinenlesbare Inference-Boundary. C2.6 ergänzt eine required
+Root-Boundary und emittiert sie aus dem bestehenden Producer.
 
 - Geänderte/ergänzte Dateien:
   - `merger/lenskit/contracts/retrieval-eval-diagnostics.v1.schema.json`
