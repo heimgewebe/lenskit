@@ -201,10 +201,11 @@ Scope: additive, optionale, **const** Felder `authority` (`diagnostic_signal`) u
 Mögliche Folgearbeiten (separate PRs, nicht Teil von C1, C2a oder C2.1):
 - C2.2: `bundle-manifest.v1`-Normierung (per-role `risk_class`, `output_health`-Authority-Zweig) — **UMGESETZT** (siehe C2.2-Abschnitt unten)
 - C2.3: `allowed_inferences`/`forbidden_inferences` als optionale Schema-Felder — **UMGESETZT** (contract-only/test-only; siehe C2.3-Abschnitt unten)
-- C3 / C2.4: Anti-Hallucination-Contract-Lint (kontraktstatischer L3+L5-Teil) — **UMGESETZT** (siehe C2.4-Abschnitt unten). Die AST-/codepfadbasierten Regeln L1/L2/L4 bleiben **offen**.
+- C3 / C2.4: Anti-Hallucination-Contract-Lint (kontraktstatischer L3+L5-Teil) — **UMGESETZT** (siehe C2.4-Abschnitt unten). Die AST-/codepfadbasierten Regeln L1/L2/L4 haben mit C2.7 einen **experimentellen, marker-gated, nicht-blockierenden Vorbau**; die vollständigen inferenz-/typbasierten L1/L2/L4 bleiben **offen**.
 - C4: Runtime-Annotation — **offen**
 - C2.5 / C5: Export-Gate-Integration für L6-Export-Risk-Inferenzen — **MINIMAL UMGESETZT** (siehe C2.5-Abschnitt unten). Das breitere C5-Governance-Framework bleibt **offen**.
 - C2.6: Auflösung der C2.4-Deferral — required Root-Boundary (`does_not_prove`) für `retrieval-eval-diagnostics.v1` plus Producer-Emission — **UMGESETZT** (siehe C2.6-Abschnitt unten). Deferral-Registry jetzt leer.
+- C2.7: Experimenteller marker-gated AST-Lint-Vorbau für L1/L2/L4 — **MINIMAL UMGESETZT** (siehe C2.7-Abschnitt unten). Separater, nicht-blockierender Mechanismus; Real-Tree-Lauf 0 Findings. Vollständige inferenzbasierte L1/L2/L4 und C4 bleiben **offen**.
 
 ### C2.2 — Additive per-role Risk-Class + output_health-Authority im Bundle-Manifest (umgesetzt)
 
@@ -412,6 +413,54 @@ Root-Boundary und emittiert sie aus dem bestehenden Producer.
   59 passed; Regression (contracts/health/quality/eval/export-gate/cli) 173 passed,
   keine Regression; Schema-Meta-Validierung (`Draft7Validator.check_schema`) OK; ruff
   `F401,F811,F841,E711,E712` sauber.
+
+### C2.7 — Experimenteller marker-gated AST-Lint-Vorbau für L1/L2/L4 (minimal umgesetzt)
+
+Status: **MINIMAL UMGESETZT** (experimentell, nicht-blockierend, lint-/test-only),
+Beleg `docs/proofs/authority-risk-class-c2-7-ast-lint-proof.md`.
+Scope: der **AST-/codepfadbasierte** Teil der C1-Lint-Regeln **L1/L2/L4**
+(`docs/blueprints/lenskit-authority-risk-matrix.md` §6), den C2.4 wegen hoher
+False-Positive-Fläche ausdrücklich auf eine spätere AST-Stufe verschoben hatte.
+C2.7 baut **nicht** die vollständigen Regeln, sondern den kleinstmöglichen, sicheren
+Vorbau und beweist, dass er auf Realcode keine Massen-False-Positives erzeugt.
+
+- Geänderte/ergänzte Dateien:
+  - `merger/lenskit/core/anti_hallucination_ast_lint.py` (neue Lint-Engine, reine Funktionen)
+  - `merger/lenskit/cli/cmd_governance.py` (`lenskit governance ast-lint`, experimentell)
+  - `merger/lenskit/cli/main.py` (Dispatch für das neue Subkommando)
+  - `merger/lenskit/tests/test_anti_hallucination_ast_lint.py` (24 Tests)
+  - `docs/proofs/authority-risk-class-c2-7-ast-lint-proof.md`
+- **Negativbefund (vor Implementierung verifiziert):** L1/L2/L4 standen in Roadmap,
+  C2.4-/C2.6-Proof, Test-Matrix und `OUT_OF_SCOPE_RULES` als offen; es existierte
+  **keine** AST-/Codepfad-Analyse, die diese Regeln blockierend prüft (die einzigen
+  Python-AST-Nutzungen — `architecture/import_graph.py`, `architecture/entrypoints.py`,
+  Parity-Guard — sind Governance-fremd). C4 (Runtime-Annotation) war und bleibt offen.
+- **Marker-gated / opt-in (bewusst).** Der Lint feuert nur auf Code mit expliziten,
+  lint-only Governance-Markern (`# lenskit:authority=<class>`,
+  `# lenskit:requires-authority=canonical_content`, `@lenskit_requires_canonical`),
+  über `tokenize` aus Kommentaren gelesen (Marker in String-Literalen werden nie
+  getroffen). Da kein Realcode diese Marker trägt, ergibt der Default-Scan
+  **0 Findings** (91 Dateien gescannt) — keine aggressive Real-Code-Blockade, **keine**
+  blockierende CI. Synthetische Fixtures belegen das Feuern je Regel (L1: diagnostic-Gate
+  → Canonical-Sink; L2: runtime/agent/diagnostic-Wert → Sink; L4: navigation/derived-Wert
+  → Sink).
+- **STOP / bewusst nicht enthalten:** **keine** Runtime-Annotation (**C4 bleibt offen**,
+  Marker sind reine Statik-Hinweise, nie Artefaktfelder), **keine** Producer-Emission,
+  **keine** Contract-/Schema-Änderung, **keine** Manifest-Mutation, **keine** Änderung an
+  `canonical_md`, Retrieval/Ranking oder Export-Gate (C5), **keine** Änderung am
+  C2.4-Contract-Lint (separates Modul, klar abgegrenzt), **kein** neuer blockierender
+  CI-Workflow. Ein sauberer Lauf **beweist nicht** Authority-Sicherheit des Codes (nur:
+  kein *deklarierter* Low-Authority-Fluss in einen *deklarierten* Canonical-Sink); der
+  Report ist selbst `diagnostic_signal` (`authority`/`risk_class`/`does_not_mean`,
+  `experimental: true`).
+- Nächster Slice (C2.8+): Adoptions-Pilot an wenigen echten High-Risk-Sinks (weiter
+  non-blocking) → Hebung von marker-gated auf inferenz-/typbasiert (FP-Kalibrierung gegen
+  Blueprint Phase-3-Stop-Kriterium) → erst danach CI-Promotion. C4 ist **kein**
+  Prerequisite dafür.
+- Validierung: `governance ast-lint` → PASS (91 gescannt, 0 skipped, **0 Findings**, exit 0);
+  Zielsuiten (`test_anti_hallucination_lint.py` 33, `test_anti_hallucination_ast_lint.py` 24)
+  57 passed; Regression (contracts/version-guards/eval-diagnostics/cli) 71 passed, keine
+  Regression; ruff `F401,F811,F841,E711,E712` sauber; `git diff --check` sauber.
 
 ## Paralleltrack Atlas
 - Atlas = physische Wahrnehmung / Filesystem-Snapshot
