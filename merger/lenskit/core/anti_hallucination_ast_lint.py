@@ -77,9 +77,6 @@ ESCALATION_LIKE_AUTHORITIES: frozenset[str] = frozenset(
         "external_unverified",
     }
 )
-LOW_AUTHORITY_CLASSES: frozenset[str] = (
-    NAVIGATION_LIKE_AUTHORITIES | ESCALATION_LIKE_AUTHORITIES
-)
 # Only ``diagnostic_signal`` gating an ``if`` → sink is L1 (blueprint §6 L1 example).
 L1_GATING_AUTHORITIES: frozenset[str] = frozenset({"diagnostic_signal"})
 
