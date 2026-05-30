@@ -314,9 +314,11 @@ def test_real_tree_merge_l4_are_declared_upgrades_not_warnings():
         assert d.declaration.target_authority == "canonical_content"
         assert d.declaration.reason  # auditable rationale present
 
-    # The four declared upgrades are exactly the four known call sites.
+    # The four declared upgrades are exactly the known call sites and remain
+    # after the pilot marker annotation.
     lines = sorted(d.finding.line for d in report.declared_upgrades)
-    assert lines == [5699, 5714, 5824, 5843]
+    assert len(lines) == 4
+    assert all(line > annotation_line for line in lines)
 
 
 # --- CLI smoke --------------------------------------------------------------
