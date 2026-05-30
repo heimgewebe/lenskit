@@ -32,8 +32,9 @@ def register_governance_commands(subparsers) -> None:
     ast_lint_parser = gov_subparsers.add_parser(
         "ast-lint",
         help=(
-            "EXPERIMENTAL marker-gated AST lint (C2.7): L1/L2/L4 authority-flow. "
-            "Non-blocking; not wired into CI."
+            "EXPERIMENTAL marker-gated AST lint (C2.7) with C2.9 authority-upgrade "
+            "registry: L1/L2/L4 authority-flow; declared upgrades are surfaced, not "
+            "suppressed. Non-blocking; not wired into CI."
         ),
     )
     ast_lint_parser.add_argument(
@@ -96,7 +97,7 @@ def run_governance_ast_lint(args: argparse.Namespace) -> int:
                 return 2
             if path.is_file():
                 report = AstLintReport(files_scanned=1)
-                report.findings.extend(lint_file(path))
+                report.add_findings(lint_file(path))
             elif path.is_dir():
                 report = lint_tree(path)
             else:
@@ -122,13 +123,14 @@ def run_governance_ast_lint(args: argparse.Namespace) -> int:
 
 def _print_ast_human_report(report) -> None:
     print(
-        "Anti-Hallucination AST Lint (C2.7, EXPERIMENTAL / non-blocking): "
+        "Anti-Hallucination AST Lint (C2.7/C2.9, EXPERIMENTAL / non-blocking): "
         f"{report.status.upper()}"
     )
-    print(f"  files_scanned: {report.files_scanned}")
-    print(f"  files_skipped: {report.files_skipped}")
-    print(f"  rules_covered: {', '.join(report.to_dict()['rules_covered'])}")
-    print(f"  findings:      {report.finding_count}")
+    print(f"  files_scanned:     {report.files_scanned}")
+    print(f"  files_skipped:     {report.files_skipped}")
+    print(f"  rules_covered:     {', '.join(report.to_dict()['rules_covered'])}")
+    print(f"  findings:          {report.finding_count}")
+    print(f"  declared_upgrades: {report.declared_upgrade_count}")
 
     if report.findings:
         print(f"\nFindings ({report.finding_count}):")
@@ -136,11 +138,26 @@ def _print_ast_human_report(report) -> None:
             print(f"  [{f.rule}] {f.file}:{f.line} ({f.symbol})")
             print(f"        {f.message}")
 
+    if report.declared_upgrades:
+        print(
+            f"\nDeclared authority upgrades (allowed via registry, NOT suppressed) "
+            f"({report.declared_upgrade_count}):"
+        )
+        for d in report.declared_upgrades:
+            f = d.finding
+            decl = d.declaration
+            print(
+                f"  [{f.rule}] {f.file}:{f.line} ({f.symbol}) "
+                f"{decl.source_authority} -> {decl.target_authority} @ {decl.sink}"
+            )
+            print(f"        reason: {decl.reason}")
+
     print(
         "\n  NOTE: marker-gated, opt-in AST lint — a clean run does NOT prove the code "
-        "is authority-safe (it only checks *declared* low-authority flows). Experimental "
-        "and NOT wired into CI. L3/L5 are contract-static (C2.4); L6 is the export gate "
-        "(C5); C4 runtime annotation remains open."
+        "is authority-safe (it only checks *declared* low-authority flows). Declared "
+        "upgrades are detected and explicitly allowed (reviewed intent, not suppressed; "
+        "not a runtime-correctness proof). Experimental and NOT wired into CI. L3/L5 are "
+        "contract-static (C2.4); L6 is the export gate (C5); C4 runtime annotation remains open."
     )
 
 

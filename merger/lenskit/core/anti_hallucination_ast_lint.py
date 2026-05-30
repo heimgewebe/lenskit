@@ -1,4 +1,4 @@
-"""Anti-Hallucination AST Lint — Governance Track C, step C2.7 (experimental).
+"""Anti-Hallucination AST Lint — Governance Track C, steps C2.7–C2.9 (experimental).
 
 Minimal, *marker-gated* AST / code-path groundwork for the C1 anti-hallucination
 lint rules **L1 / L2 / L4** (``docs/blueprints/lenskit-authority-risk-matrix.md``
@@ -38,6 +38,16 @@ A clean run does **not** prove the code is authority-safe; it only proves that n
 this from marker-gated detection to real inference is the next slice (see
 ``docs/proofs/authority-risk-class-c2-7-ast-lint-proof.md``). The report is
 itself a ``diagnostic_signal``.
+
+**C2.9 — Authority-Upgrade Registry.** Detection here is registry-blind: this
+module still fires on every declared low-authority → canonical flow. The
+``authority_upgrade_registry`` module declares the *intentional, reviewed*
+upgrades (e.g. ``derived_projection`` ``md_parts`` → ``resolve_canonical_md``,
+which is the canonical-selection step itself). :meth:`AstLintReport.add_findings`
+partitions raw findings into real warnings vs. declared upgrades; declared
+upgrades stay **visible** in the report (``declared_upgrades`` and the full
+``authority_upgrade_registry``) and do not count as warnings. This annotates the
+alarm with a machine-readable reason; it does not switch the detector off.
 """
 from __future__ import annotations
 
@@ -105,6 +115,10 @@ class AstLintFinding:
     ``severity`` is always ``"warning"`` for this stage: the lint is experimental
     and non-blocking. A finding marks a *declared* authority-flow violation, not a
     proven runtime defect.
+
+    ``authority`` (the source authority class of ``symbol``) and ``sink`` (the
+    canonical sink the value flows into) are carried as structured fields so the
+    C2.9 authority-upgrade registry can match findings without parsing ``message``.
     """
 
     rule: str
@@ -113,6 +127,8 @@ class AstLintFinding:
     line: int
     symbol: str
     message: str
+    authority: str = ""
+    sink: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -121,6 +137,8 @@ class AstLintFinding:
             "file": self.file,
             "line": self.line,
             "symbol": self.symbol,
+            "authority": self.authority,
+            "sink": self.sink,
             "message": self.message,
         }
 
@@ -132,26 +150,54 @@ class AstLintReport:
     The report is itself a ``diagnostic_signal``: a clean run does not prove the
     scanned code is authority-safe, only that no *declared* low-authority value
     flows into a *declared* canonical sink.
+
+    ``findings`` are real (un-declared) warnings; ``declared_upgrades`` are
+    detections that matched the C2.9 authority-upgrade registry — allowed,
+    reviewed authority upgrades that are surfaced (not suppressed) but do not count
+    as warnings and do not trip ``status``.
     """
 
     files_scanned: int
     files_skipped: int = 0
     findings: list[AstLintFinding] = field(default_factory=list)
+    declared_upgrades: list = field(default_factory=list)
+
+    def add_findings(self, findings: Iterable[AstLintFinding]) -> None:
+        """Add raw findings, partitioning declared authority upgrades out.
+
+        Real (un-declared) findings go to ``findings``; findings matching the
+        authority-upgrade registry become ``declared_upgrades``. Raises
+        ``ValueError`` if the registry is malformed (never silently accepted).
+        """
+        # Local import keeps the detection layer free of any registry dependency
+        # (the registry imports this module's vocabulary, not vice versa).
+        from .authority_upgrade_registry import classify_findings
+
+        real, declared = classify_findings(findings)
+        self.findings.extend(real)
+        self.declared_upgrades.extend(declared)
 
     @property
     def status(self) -> str:
         # "warn" (not "fail") to signal the non-blocking, experimental nature.
+        # Declared upgrades are allowed and do NOT trip status.
         return "warn" if self.findings else "pass"
 
     @property
     def finding_count(self) -> int:
         return len(self.findings)
 
+    @property
+    def declared_upgrade_count(self) -> int:
+        return len(self.declared_upgrades)
+
     def to_dict(self) -> dict:
+        from .authority_upgrade_registry import AUTHORITY_UPGRADE_REGISTRY
+
         return {
             "kind": "lenskit.anti_hallucination_ast_lint",
-            "version": "0.1",
-            "stage": "C2.7",
+            "version": "0.2",
+            "stage": "C2.9",
             "experimental": True,
             "blocking": False,
             "authority": "diagnostic_signal",
@@ -160,14 +206,20 @@ class AstLintReport:
             "files_scanned": self.files_scanned,
             "files_skipped": self.files_skipped,
             "finding_count": self.finding_count,
+            "declared_upgrade_count": self.declared_upgrade_count,
             "rules_covered": list(RULES_COVERED),
             "rules_out_of_scope": dict(RULES_OUT_OF_SCOPE),
             "findings": [f.to_dict() for f in self.findings],
+            "declared_upgrades": [d.to_dict() for d in self.declared_upgrades],
+            "authority_upgrade_registry": [
+                e.to_dict() for e in AUTHORITY_UPGRADE_REGISTRY
+            ],
             "does_not_mean": [
                 "ast_lint_pass_does_not_prove_code_is_authority_safe",
                 "absence_of_finding_does_not_prove_absence_of_authority_escalation",
                 "marker_gated_ast_lint_is_not_type_inference_or_runtime_annotation",
                 "experimental_ast_lint_is_not_a_blocking_ci_gate",
+                "declared_authority_upgrade_is_reviewed_intent_not_a_runtime_safety_proof",
             ],
         }
 
@@ -347,6 +399,8 @@ def _check_call_arg_flow(
                 file=filename,
                 line=line,
                 symbol=arg.id,
+                authority=cls,
+                sink=sink,
                 message=(
                     f"navigation/derived value '{arg.id}' (authority={cls}) is passed to "
                     f"canonical-authority sink '{sink}'. A navigation/derived artifact must "
@@ -360,6 +414,8 @@ def _check_call_arg_flow(
                 file=filename,
                 line=line,
                 symbol=arg.id,
+                authority=cls,
+                sink=sink,
                 message=(
                     f"low-authority value '{arg.id}' (authority={cls}) is passed to "
                     f"canonical-authority sink '{sink}'. Authority is never inherited; this "
@@ -391,15 +447,18 @@ def _check_if_gate(
             if isinstance(sub, ast.Call) and _is_canonical_sink_call(
                 sub, sinks, requires_by_line
             ):
+                sink = _call_name(sub) or "<call>"
                 yield AstLintFinding(
                     rule="L1",
                     severity="warning",
                     file=filename,
                     line=node.lineno,
                     symbol=gating,
+                    authority="diagnostic_signal",
+                    sink=sink,
                     message=(
                         f"diagnostic_signal value '{gating}' gates a branch that invokes "
-                        f"canonical-authority sink '{_call_name(sub) or '<call>'}'. A "
+                        f"canonical-authority sink '{sink}'. A "
                         f"diagnostic verdict does not prove content truth (blueprint §6 L1)."
                     ),
                 )
@@ -477,7 +536,7 @@ def lint_tree(
     for path in iter_python_files(root, skip_dirs):
         report.files_scanned += 1
         try:
-            report.findings.extend(lint_file(path))
+            report.add_findings(lint_file(path))
         except RecursionError:
             report.files_skipped += 1
     return report

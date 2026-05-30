@@ -207,6 +207,7 @@ Mögliche Folgearbeiten (separate PRs, nicht Teil von C1, C2a oder C2.1):
 - C2.6: Auflösung der C2.4-Deferral — required Root-Boundary (`does_not_prove`) für `retrieval-eval-diagnostics.v1` plus Producer-Emission — **UMGESETZT** (siehe C2.6-Abschnitt unten). Deferral-Registry jetzt leer.
 - C2.7: Experimenteller marker-gated AST-Lint-Vorbau für L1/L2/L4 — **MINIMAL UMGESETZT** (siehe C2.7-Abschnitt unten). Separater, nicht-blockierender Mechanismus; Real-Tree-Lauf 0 Findings. Vollständige inferenzbasierte L1/L2/L4 und C4 bleiben **offen**.
 - C2.8: Adoptions-Pilot — 3 Canonical-Content-Sinks markiert, Lint erstmals gegen Produktivpfade gelaufen — **UMGESETZT** (siehe C2.8-Abschnitt unten). 4 L4-Findings (alle merge.py, `derived_projection`→`resolve_canonical_md`, bewusst-intentional), 0 Findings in citation_map.py/agent_reading_pack.py. FP-Rate 100 % an Upgrade-Stellen → Upgrades-Registry als nächster Schritt identifiziert.
+- C2.9: Authority-Upgrade-Registry / Upgrade-Deklaration v0 — **UMGESETZT** (siehe C2.9-Abschnitt unten). Maschinenlesbare Deklaration der bewusst-intentionalen Upgrades; die 4 merge.py-L4-Fälle zählen nicht mehr als Warn-Findings, erscheinen aber sichtbar als `declared_upgrades` im Report (keine stumme Suppression; Detektion unverändert). Objekt-Intermediär-/Datenfluss-Tracking und vollständige inferenzbasierte L1/L2/L4 bleiben **offen**.
 
 ### C2.2 — Additive per-role Risk-Class + output_health-Authority im Bundle-Manifest (umgesetzt)
 
@@ -493,11 +494,62 @@ Low-Authority-Variablen; Lint erstmals gegen Produktionspfade gelaufen.
   **keine** Runtime-Annotation (C4 bleibt offen), **keine** Producer-/Contract-/Manifest-
   Änderung, **kein** neuer blockierender CI-Workflow.
 - **Nächste Schritte (C2.9+):** (1) Authority-Upgrade-Deklaration für
-  `resolve_canonical_md`-Aufruf-Stellen; (2) Objekt-Intermediär-/Datenfluss-Tracking für
-  `health → PackModel`-Muster; (3) maschinenlesbare Authority-Registry als Prerequisite für
-  inferenz-basierte Hebung. C4 ist **kein** Prerequisite.
+  `resolve_canonical_md`-Aufruf-Stellen — **mit C2.9 UMGESETZT** (Abschnitt unten);
+  (2) Objekt-Intermediär-/Datenfluss-Tracking für `health → PackModel`-Muster — **offen**;
+  (3) maschinenlesbare Authority-Registry als Prerequisite für inferenz-basierte Hebung —
+  **mit C2.9 UMGESETZT**. C4 ist **kein** Prerequisite.
 - Validierung: `governance ast-lint` → WARN (91 gescannt, 0 skipped, **4 Findings**, exit 1,
   non-blocking); Zielsuiten 58 passed; Regression 45 passed, keine Regression; ruff sauber.
+  *Hinweis: Nach C2.9 sind dieselben 4 Fälle `declared_upgrades` (0 Warn-Findings, exit 0),
+  nicht mehr Findings.*
+
+### C2.9 — Authority-Upgrade-Registry / Upgrade-Deklaration v0 (umgesetzt)
+
+Status: **UMGESETZT** (experimentell, nicht-blockierend, lint-/test-only),
+Beleg `docs/proofs/authority-risk-class-c2-9-authority-upgrade-registry-proof.md`.
+Scope: die kleinste **maschinenlesbare Upgrade-Deklaration**, damit der AST-Lint
+einen *intentionalen Authority-Upgrade* von einer *echten* L4-Warnung unterscheidet —
+**ohne** die Detektion abzuschalten ("Registry bauen, nicht Rauchmelder abschalten").
+Schließt Lücke (1) aus C2.8 §9.
+
+- Geänderte/ergänzte Dateien:
+  - `merger/lenskit/core/authority_upgrade_registry.py` (neu — Registry + Validierung + Matching)
+  - `merger/lenskit/core/anti_hallucination_ast_lint.py` (Finding trägt `authority`/`sink`;
+    Report trägt `declared_upgrades`/`declared_upgrade_count` + volle Registry-Sicht; stage `C2.9`)
+  - `merger/lenskit/cli/cmd_governance.py` (Human-Report zeigt declared upgrades)
+  - `merger/lenskit/tests/test_anti_hallucination_ast_lint.py` (25 → 39 Tests)
+  - `docs/proofs/authority-risk-class-c2-9-authority-upgrade-registry-proof.md`
+- **Registry-Eintrag (v0, genau einer):** `AuthorityUpgrade(rule=L4,
+  source_authority=derived_projection, target_authority=canonical_content,
+  sink=resolve_canonical_md, file_suffix=merger/lenskit/core/merge.py, reason=…)`. File- und Sink-scoped (kein `symbol`): nur in
+  `merge.py` wird `derived_projection` per Contract in `resolve_canonical_md` als
+  Canonical-Selektion deklariert. Gleichnamige Sinks in anderen Dateien bleiben Warnungen. Optionales `symbol`-Feld engt bei Bedarf auf einen Namen ein.
+- **Detektion unverändert (registry-blind).** `lint_source` feuert weiter auf jeden
+  deklarierten Low-Authority→Canonical-Fluss; das Rohfinding entsteht weiterhin. Die
+  Registry wird erst bei Report-Assembly angewandt (`AstLintReport.add_findings` →
+  `classify_findings`): un-deklarierte Findings bleiben Warnungen (`findings`),
+  deklarierte werden zu `declared_upgrades` — **sichtbar** im Report (inkl. Grund +
+  voller Registry), **nicht** stumm verschluckt. `finding_count` zählt nur echte
+  Warnungen; `status=warn` nur bei ≥1 echtem Finding.
+- **Nicht still nachgiebig.** `validate_registry()` weist unbekannte Rule, unmögliche
+  `(rule, source)`-Paare, Nicht-`canonical_content`-Target, leeren Sink/leeres Symbol und
+  fehlende/Token-`reason` (< 12 Zeichen) zurück; `match_upgrade`/`classify_findings`
+  **werfen `ValueError`** bei defekter Registry (CLI → exit 2), statt sie stumm zu akzeptieren.
+- **STOP / bewusst nicht enthalten:** **keine** neuen Lint-Regeln, **keine** Typ-Inferenz,
+  **keine** Datenfluss-/Alias-Analyse (indirekter `health → PackModel`-Fluss bleibt offen),
+  **keine** Runtime-Annotation (C4 bleibt offen), **keine** Producer-/Contract-/Schema-/
+  Manifest-Änderung, **kein** neuer blockierender CI-Workflow, **keine** stumme Suppression.
+  Ein `declared_upgrade` ist *reviewter Intent*, **kein** Runtime-Korrektheitsbeweis
+  (im `does_not_mean` festgehalten).
+- Validierung: `governance lint` → PASS (unverändert, exit 0); `governance ast-lint` → PASS
+  (92 gescannt, 0 skipped, **0 Findings, 4 declared_upgrades**, exit 0, non-blocking);
+  Zielsuiten (`test_anti_hallucination_lint.py` 33, `test_anti_hallucination_ast_lint.py` 39)
+  72 passed; Regression (contracts/version-guards/cli) 45 passed, keine Regression;
+  ruff `F401,F811,F841,E711,E712` (und repoweit `F401,F811`) sauber; `git diff --check` sauber.
+  *(Dateizahl 92 = 91 + neues Registry-Modul, das selbst 0 Findings ergibt.)*
+- **Nächster Slice (C2.10+):** (1) Objekt-Intermediär-/Datenfluss-Tracking (`health →
+  PackModel`); (2) Hebung marker-gated → inferenzbasiert mit gemessener FP-Rate vor jeder
+  CI-Promotion; (3) CI-Promotion erst nach niedriger FP-Rate. C4 bleibt separat offen.
 
 ## Paralleltrack Atlas
 - Atlas = physische Wahrnehmung / Filesystem-Snapshot
