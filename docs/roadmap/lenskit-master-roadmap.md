@@ -367,7 +367,7 @@ gehärtet**, nicht ersetzt: es liest jetzt das optionale C2.3-Feld
   (Runtime-Annotation) und das breitere C5-Governance-Framework bleiben **offen**.
 - Validierung: Zieltrio (`test_agent_export_gate.py`,
   `test_contract_inference_boundaries.py`, `test_anti_hallucination_lint.py`) →
-  **107 passed** (`test_agent_export_gate.py` 47, davon 11 neue C2.5-Fälle);
+  **107 passed** (`test_agent_export_gate.py` 47, davon 12 neue C2.5-pytest-Fälle);
   Regression (health/quality/eval/contract-guards/cli) 97 passed, keine
   Regression; ruff `F401,F811,F841,E711,E712` sauber; `git diff --check` sauber.
 
