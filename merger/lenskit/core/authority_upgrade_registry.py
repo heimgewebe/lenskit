@@ -73,15 +73,16 @@ class AuthorityUpgrade:
     """One declared, allowed authority upgrade.
 
     A finding is treated as a declared upgrade (not a warning) when its rule,
-    source authority and sink match this entry. ``symbol`` is optional: ``None``
-    matches any variable name, a concrete value narrows the declaration to that
-    single name.
+    source authority, sink, and file suffix match this entry. ``symbol`` is
+    optional: ``None`` matches any variable name, a concrete value narrows the
+    declaration to that single name.
     """
 
     rule: str
     source_authority: str
     target_authority: str
     sink: str
+    file_suffix: str
     reason: str
     symbol: str | None = None
 
@@ -110,6 +111,9 @@ class AuthorityUpgrade:
         if not self.sink or not self.sink.strip():
             errors.append("sink must be a non-empty canonical-sink name")
 
+        if not self.file_suffix or not self.file_suffix.strip():
+            errors.append("file_suffix must be a non-empty file constraint")
+
         if self.symbol is not None and not self.symbol.strip():
             errors.append(
                 "symbol, when set, must be a non-empty name (use None to match any)"
@@ -129,6 +133,7 @@ class AuthorityUpgrade:
             self.rule == finding.rule
             and self.source_authority == finding.authority
             and self.sink == finding.sink
+            and finding.file.endswith(self.file_suffix)
             and (self.symbol is None or self.symbol == finding.symbol)
         )
 
@@ -138,6 +143,7 @@ class AuthorityUpgrade:
             "source_authority": self.source_authority,
             "target_authority": self.target_authority,
             "sink": self.sink,
+            "file_suffix": self.file_suffix,
             "symbol": self.symbol,
             "reason": self.reason,
         }
@@ -182,14 +188,15 @@ class DeclaredUpgrade:
 # ``resolve_canonical_md()`` is the canonical-selection function in the bundle
 # pipeline; passing the derived_projection list of generated markdown paths into
 # it IS the deliberate derived -> canonical upgrade, not an accidental escalation.
-# Sink-scoped (no ``symbol``): every derived_projection that flows into
-# resolve_canonical_md is, by that function's contract, a canonical selection.
+# File-scoped + sink-scoped (no ``symbol``): this declaration applies only to
+# merge.py call sites where derived_projection flows into resolve_canonical_md.
 AUTHORITY_UPGRADE_REGISTRY: tuple[AuthorityUpgrade, ...] = (
     AuthorityUpgrade(
         rule="L4",
         source_authority="derived_projection",
         target_authority=CANONICAL_AUTHORITY,
         sink="resolve_canonical_md",
+        file_suffix="merger/lenskit/core/merge.py",
         reason=(
             "resolve_canonical_md() is the canonical-selection step: by bundle "
             "contract it selects md_parts[0] as the single canonical markdown "
@@ -212,6 +219,12 @@ def validate_registry(
     """Return all validation errors across ``registry`` (empty == all valid)."""
     errors: list[str] = []
     for index, entry in enumerate(registry):
+        if not isinstance(entry, AuthorityUpgrade):
+            errors.append(
+                f"registry[{index}] ({type(entry).__name__}): "
+                "entry must be an AuthorityUpgrade"
+            )
+            continue
         for problem in entry.validation_errors():
             errors.append(f"registry[{index}] ({entry.sink!r}): {problem}")
     return errors

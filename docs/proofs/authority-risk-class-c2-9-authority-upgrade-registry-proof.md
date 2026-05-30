@@ -53,6 +53,7 @@ A declared upgrade is one frozen `AuthorityUpgrade` record
 | `source_authority` | the low-authority class of the flowing value (e.g. `derived_projection`) |
 | `target_authority` | the sink's required authority — `canonical_content` (the only sink authority the AST lint models in v0) |
 | `sink` | the canonical-sink name the value flows into |
+| `file_suffix` | file-level scope constraint for the declared upgrade |
 | `reason` | mandatory, substantive rationale (audit trail) |
 | `symbol` *(optional)* | narrows the declaration to a single variable name; `None` = any |
 
@@ -64,6 +65,7 @@ AuthorityUpgrade(
     source_authority="derived_projection",
     target_authority="canonical_content",
     sink="resolve_canonical_md",
+    file_suffix="merger/lenskit/core/merge.py",
     reason="resolve_canonical_md() is the canonical-selection step: by bundle "
            "contract it selects md_parts[0] as the single canonical markdown "
            "source of truth. Passing the derived_projection list … into it IS "
@@ -72,11 +74,11 @@ AuthorityUpgrade(
 )
 ```
 
-It is **sink-scoped** (no `symbol`): by `resolve_canonical_md`'s contract, *every*
-`derived_projection` that flows into it is a canonical selection, so the
-declaration matches all four call sites (5699/5714/5824/5843) without pinning the
-incidental variable name. The optional `symbol` field exists for cases where an
-upgrade should be narrowed to one name (proven by test).
+It is **file-scoped + sink-scoped** (no `symbol`): the declaration binds the
+upgrade to `merger/lenskit/core/merge.py` and `resolve_canonical_md`, so same-name
+sinks in other files are not treated as declared upgrades. The optional `symbol`
+field exists for cases where an upgrade should be narrowed to one name (proven by
+test).
 
 The registry is a **lint-only static-analysis artifact**, exactly like the C2.7
 markers: it is never emitted into any bundle artifact, mutates no contract/schema,
@@ -207,7 +209,6 @@ python3 -m ruff check --select=F401,F811,F841,E711,E712 --exclude='**/fixtures/*
   merger/lenskit/tests/test_anti_hallucination_ast_lint.py
 
 git diff --check
-```
 
 ## 9. Results (local run)
 

@@ -380,6 +380,7 @@ def _valid_upgrade(**overrides) -> AuthorityUpgrade:
         source_authority="derived_projection",
         target_authority="canonical_content",
         sink="resolve_canonical_md",
+        file_suffix="t.py",
         reason="declared canonical-selection upgrade for the registry tests",
     )
     base.update(overrides)
@@ -393,7 +394,7 @@ def test_declared_upgrade_is_detected_then_allowed_not_suppressed():
         "md_parts = collect()  # lenskit:authority=derived_projection\n"
         "resolve_canonical_md(md_parts)  # lenskit:requires-authority=canonical_content\n"
     )
-    findings = lint_source(src, filename="t.py")
+    findings = lint_source(src, filename="merger/lenskit/core/merge.py")
     assert _rules(findings) == ["L4"]
     assert findings[0].sink == "resolve_canonical_md"
     assert findings[0].authority == "derived_projection"
@@ -448,6 +449,7 @@ def test_shipped_registry_is_valid_and_declares_the_merge_upgrade():
         and e.source_authority == "derived_projection"
         and e.target_authority == "canonical_content"
         and e.sink == "resolve_canonical_md"
+        and e.file_suffix == "merger/lenskit/core/merge.py"
         for e in AUTHORITY_UPGRADE_REGISTRY
     )
 
@@ -483,6 +485,18 @@ def test_match_upgrade_returns_none_for_unrelated_finding():
     assert match_upgrade(finding) is None
 
 
+def test_same_sink_outside_merge_file_is_not_declared_upgrade():
+    src = (
+        "md_parts = collect()  # lenskit:authority=derived_projection\n"
+        "resolve_canonical_md(md_parts)  # lenskit:requires-authority=canonical_content\n"
+    )
+    report = AstLintReport(files_scanned=1)
+    report.add_findings(lint_source(src, filename="some/other.py"))
+    assert _rules(report.findings) == ["L4"]
+    assert report.declared_upgrades == []
+    assert report.status == "warn"
+
+
 @pytest.mark.parametrize(
     "overrides, expect_problem",
     [
@@ -492,6 +506,7 @@ def test_match_upgrade_returns_none_for_unrelated_finding():
         ({"source_authority": "diagnostic_signal"}, "L4"),  # cannot produce L4
         ({"target_authority": "navigation_index"}, "target_authority"),
         ({"sink": "   "}, "sink"),
+        ({"file_suffix": "   "}, "file_suffix"),
         ({"symbol": "  "}, "symbol"),
     ],
 )
@@ -520,3 +535,12 @@ def test_invalid_registry_entry_is_rejected_not_silently_accepted(overrides, exp
 def test_valid_custom_registry_entry_passes_validation():
     assert _valid_upgrade().validation_errors() == []
     assert validate_registry([_valid_upgrade()]) == []
+
+
+def test_validate_registry_rejects_non_authority_upgrade_entry_type():
+    errors = validate_registry([{}])  # type: ignore[list-item]
+    assert errors
+    assert any("entry must be an AuthorityUpgrade" in e for e in errors)
+
+    with pytest.raises(ValueError):
+        classify_findings([], registry=[{}])  # type: ignore[list-item]
