@@ -521,9 +521,9 @@ Schließt Lücke (1) aus C2.8 §9.
   - `docs/proofs/authority-risk-class-c2-9-authority-upgrade-registry-proof.md`
 - **Registry-Eintrag (v0, genau einer):** `AuthorityUpgrade(rule=L4,
   source_authority=derived_projection, target_authority=canonical_content,
-  sink=resolve_canonical_md, reason=…)`. Sink-scoped (kein `symbol`): jeder
-  `derived_projection`, der per Contract in `resolve_canonical_md` fließt, IST eine
-  Canonical-Selektion. Optionales `symbol`-Feld engt bei Bedarf auf einen Namen ein.
+  sink=resolve_canonical_md, file_suffix=merger/lenskit/core/merge.py, reason=…)`. File- und Sink-scoped (kein `symbol`): nur in
+  `merge.py` wird `derived_projection` per Contract in `resolve_canonical_md` als
+  Canonical-Selektion deklariert. Gleichnamige Sinks in anderen Dateien bleiben Warnungen. Optionales `symbol`-Feld engt bei Bedarf auf einen Namen ein.
 - **Detektion unverändert (registry-blind).** `lint_source` feuert weiter auf jeden
   deklarierten Low-Authority→Canonical-Fluss; das Rohfinding entsteht weiterhin. Die
   Registry wird erst bei Report-Assembly angewandt (`AstLintReport.add_findings` →

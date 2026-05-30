@@ -209,6 +209,7 @@ python3 -m ruff check --select=F401,F811,F841,E711,E712 --exclude='**/fixtures/*
   merger/lenskit/tests/test_anti_hallucination_ast_lint.py
 
 git diff --check
+```
 
 ## 9. Results (local run)
 
@@ -240,4 +241,3 @@ C2.9 closes gap (1) from C2.8 §9. Still open, in increasing risk order:
 3. **CI promotion:** only after a measured low FP rate, a path-scoped blocking gate.
 4. **C4 (runtime annotation)** remains a separate, still-open track and is **not**
    a prerequisite for the above.
-```
