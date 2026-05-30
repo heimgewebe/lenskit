@@ -91,11 +91,20 @@ def run_governance_ast_lint(args: argparse.Namespace) -> int:
             report = lint_default_tree()
         else:
             path = Path(scan_path)
+            if not path.exists():
+                print(f"Error: AST lint path does not exist: {path}", file=sys.stderr)
+                return 2
             if path.is_file():
                 report = AstLintReport(files_scanned=1)
                 report.findings.extend(lint_file(path))
-            else:
+            elif path.is_dir():
                 report = lint_tree(path)
+            else:
+                print(
+                    f"Error: AST lint path is neither file nor directory: {path}",
+                    file=sys.stderr,
+                )
+                return 2
     except (ValueError, OSError) as exc:
         print(f"Error: unable to run AST lint: {exc}", file=sys.stderr)
         return 2

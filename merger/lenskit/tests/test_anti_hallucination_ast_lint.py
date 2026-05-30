@@ -15,6 +15,7 @@ lint-only governance markers. It performs no type inference and is not a runtime
 annotation (C4 remains open). Non-blocking; not wired into CI gates.
 """
 import json
+from pathlib import Path
 
 from merger.lenskit.core.anti_hallucination_ast_lint import (
     RULES_COVERED,
@@ -27,6 +28,14 @@ from merger.lenskit.core.anti_hallucination_ast_lint import (
 
 def _rules(findings):
     return [f.rule for f in findings]
+
+
+def _pilot_merge_annotation_line() -> int:
+    merge_py = Path(__file__).resolve().parents[1] / "core" / "merge.py"
+    for line_no, line in enumerate(merge_py.read_text().splitlines(), start=1):
+        if "md_parts =" in line and "lenskit:authority=derived_projection" in line:
+            return line_no
+    raise AssertionError("expected md_parts pilot authority marker in core/merge.py")
 
 
 # --- L1: forbidden semantic upgrade (diagnostic gate -> canonical sink) -----
@@ -277,7 +286,7 @@ def test_real_tree_c2_8_pilot_findings_match_expected():
     # All L4 findings are md_parts → resolve_canonical_md (intentional boundary crossing).
     assert len(l4_merge) == 4
     assert all(f.symbol == "md_parts" for f in l4_merge)
-    assert {f.line for f in l4_merge} == {5699, 5714, 5824, 5843}
+    assert all(f.line > _pilot_merge_annotation_line() for f in l4_merge)
 
 
 # --- CLI smoke --------------------------------------------------------------
@@ -303,3 +312,12 @@ def test_cli_governance_ast_lint_json_is_valid(capsys):
     assert payload["authority"] == "diagnostic_signal"
     assert payload["finding_count"] == 4
     assert payload["rules_covered"] == list(RULES_COVERED)
+
+
+def test_cli_governance_ast_lint_rejects_nonexistent_path(capsys, tmp_path):
+    from merger.lenskit.cli.main import main
+
+    missing = tmp_path / "does-not-exist"
+    rc = main(["governance", "ast-lint", "--path", str(missing)])
+    assert rc == 2
+    assert "does not exist" in capsys.readouterr().err
