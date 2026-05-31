@@ -51,7 +51,7 @@ deklarierte Fälle werden **sichtbar** gemacht, nicht stumm unterdrückt).
 | `merger/lenskit/cli/cmd_doc_freshness.py` | `lenskit doc-freshness inspect` / `update` |
 | `docs/_generated/doc-freshness.md` | **Generierte** Statusansicht (aus der Registry regeneriert, nicht handgepflegt) |
 | `.github/workflows/doc-freshness.yml` | **Nicht-blockierender** Diagnose-Gate + Test-Suite |
-| `merger/lenskit/tests/test_doc_freshness.py` | 27 Tests (synthetische Fixtures + reale Registry) |
+| `merger/lenskit/tests/test_doc_freshness.py` | 29 Tests (synthetische Fixtures + reale Registry) |
 
 ### Evidence-Arten (mechanisch prüfbar)
 
@@ -72,7 +72,10 @@ Pro Eintrag wird `declared status` gegen die verifizierten Belege gestellt:
   deklarierte, reproduzierbare Drift (wie C2.9 `declared_upgrades`).
 - `stale_resolved` (warn) — deklariertes `stale`, aber der Marker ist weg →
   Registry-Eintrag auf `done` heben.
-- `regressed` / `dangling` (error) — zitierter Beleg fehlt / `done` ohne Beleg.
+- `partial_maybe_resolved` (warn) — `partial`-Eintrag mit `open`-Beleg, dessen Marker
+  verschwunden ist (Hinweis: vielleicht ist die Arbeit erledigt, Registry update prüfen).
+- `regressed` / `dangling_doc` (error) — zitierter Beleg fehlt / Registry-Eintrag's
+  Doc-Datei existiert nicht.
 
 ## 3. Pilot: `repoLens-spec.md` Super-Merger / Extras
 
@@ -123,7 +126,7 @@ Zerlegung dessen, was sicher automatisierbar ist:
   stale-Drift).
 - `… doc-freshness update` → idempotent (zweiter Lauf: „up to date"; 0
   last_verified-Änderungen).
-- `pytest -q merger/lenskit/tests/test_doc_freshness.py` → **27 passed**.
+- `pytest -q merger/lenskit/tests/test_doc_freshness.py` → **29 passed**.
 - `ruff check --select=F401,F811,F841,E711,E712` → sauber.
 - Bestehende CLI unberührt: `governance lint` → exit 0.
 

@@ -507,7 +507,6 @@ def verify(data: dict, repo_root: Path, strict: bool = False) -> DocFreshnessRep
                 evidence=[],
             )
             report.results.append(dangling_result)
-            report.findings.append(dangling_result)
             report.entries_scanned += 1
             continue
 
