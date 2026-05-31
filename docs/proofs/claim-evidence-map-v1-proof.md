@@ -46,11 +46,16 @@ Neuer Producer: `merger/lenskit/core/claim_evidence_map.py`
 - `produce_claim_evidence_map(...)` lädt/validiert die Registry via bestehender
   `doc_freshness`-Logik, berechnet `registry_sha256` und schreibt deterministisch
   (`indent=2`, `sort_keys=True`, abschließendes Newline).
+- `source.generated_at` ist deterministisch aus der Registry abgeleitet
+  (`max(last_verified) + T00:00:00Z`) wenn nicht explizit übergeben.
 
 ## 6. Bundle-/Manifest-Integration
 
 Die Merge-Pipeline erzeugt optional `.claim_evidence_map.json` aus der Registry
 und trägt es als `claim_evidence_map_json` ins Bundle-Manifest ein.
+
+Wenn die Registry vorhanden ist und der Producer fehlschlägt, bricht die
+Pipeline mit Fehler ab (kein stilles Wegfallen nur per Log-Warnung).
 
 Manifest-Metadaten:
 
@@ -94,8 +99,18 @@ Wenn `claim_evidence_map_json` fehlt oder nicht verifizierbar:
 
 ## 10. Results
 
-Siehe Test-/Lint-Läufe im PR-Log. Zielzustand ist erreicht, wenn alle
-Akzeptanzkriterien und oben genannte Verifikationen grün sind.
+- `python -m pytest -q merger/lenskit/tests/test_claim_evidence_map.py merger/lenskit/tests/test_agent_reading_pack.py merger/lenskit/tests/test_bundle_manifest_schema.py merger/lenskit/tests/test_bundle_manifest_integration.py merger/lenskit/tests/test_doc_freshness.py`
+  - Ergebnis: `157 passed`
+- `python -m pytest -q merger/lenskit/tests/test_role_completeness.py`
+  - Ergebnis: `1 passed`
+- `python -m merger.lenskit.cli.main doc-freshness inspect`
+  - Ergebnis: `PASS`
+- `python -m merger.lenskit.cli.main doc-freshness update --write`
+  - Ergebnis: generated view aktualisiert, Registry konsistent
+- `python -m ruff check --select=F401,F811,F841,E711,E712 --exclude='**/fixtures/**' merger/lenskit/core merger/lenskit/tests`
+  - Ergebnis: `All checks passed`
+- `git diff --check`
+  - Ergebnis: keine Whitespace-/Patch-Fehler
 
 ## 11. Next Slice
 

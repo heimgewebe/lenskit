@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,8 +40,28 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _default_generated_at() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def _default_generated_at_from_registry(registry: dict[str, Any]) -> str:
+    """Derive a deterministic timestamp from registry content.
+
+    We use max(last_verified) across entries (YYYY-MM-DD) and normalize to
+    00:00:00Z. This keeps output bytes stable for unchanged registry content.
+    """
+    entries = registry.get("entries")
+    if not isinstance(entries, list):
+        return "1970-01-01T00:00:00Z"
+
+    last_verified_values = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        value = entry.get("last_verified")
+        if isinstance(value, str) and len(value) == 10:
+            last_verified_values.append(value)
+
+    if not last_verified_values:
+        return "1970-01-01T00:00:00Z"
+
+    return max(last_verified_values) + "T00:00:00Z"
 
 
 def _effective_implies(evidence_ref: dict[str, Any]) -> str | None:
@@ -145,7 +164,7 @@ def produce_claim_evidence_map(
     claim_evidence_map = build_claim_evidence_map(
         registry,
         registry_sha256=_sha256_file(registry_path),
-        generated_at=generated_at or _default_generated_at(),
+        generated_at=generated_at or _default_generated_at_from_registry(registry),
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

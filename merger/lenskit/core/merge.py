@@ -6144,8 +6144,9 @@ def write_reports_v2(
                 claim_evidence_map_path,
             )
         except Exception as exc:
-            logger.warning("Cannot produce claim_evidence_map_json: %s", exc)
-            claim_evidence_map_path = None
+            raise RuntimeError(
+                "Failed to produce claim_evidence_map_json: " + str(exc)
+            ) from exc
         else:
             out_paths.append(claim_evidence_map_path)
             if claim_evidence_map_path not in other_paths:
