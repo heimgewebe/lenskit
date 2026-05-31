@@ -26,7 +26,9 @@ Alle anderen Artefakte (Index, Citation-Map, Agent Reading Pack, Health) sind
 
 ## 2. Voraussetzungen
 
-- Python 3.12
+- Python 3.12 empfohlen / CI-verifiziert; lokale Aufrufe erfolgen über `python3`
+  (ältere 3.x-Versionen können funktionieren, werden aber nicht systematisch
+  getestet; kein `requires-python`-Pin im Projekt)
 - Kern-Pipeline läuft ohne Drittpakete. Für Validierung/Service/Tests:
 
 ```bash
