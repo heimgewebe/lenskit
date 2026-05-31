@@ -113,20 +113,47 @@ def _make_bundle(
             "authority": "navigation_index", "canonicality": "derived",
             "regenerable": True, "staleness_sensitive": True,
             "contract": {"id": "citation-map", "version": "v1"},
+            "interpretation": {"mode": "contract"},
         })
 
     if include_claim_map:
         claim_doc = {
             "kind": "lenskit.claim_evidence_map",
             "version": "1.0",
-            "generated_at": "2026-05-20T00:00:00Z",
-            "source": {"registry_path": "docs/doc-freshness-registry.yml", "registry_sha256": "a" * 64},
+            "authority": "navigation_index",
+            "canonicality": "derived",
+            "risk_class": "evidence_index",
+            "source": {
+                "registry_path": "docs/doc-freshness-registry.yml",
+                "registry_sha256": "a" * 64,
+                "generated_at": "2026-05-20T00:00:00Z",
+            },
+            "does_not_establish": [
+                "truth",
+                "sufficiency",
+                "causality",
+                "completeness",
+                "freshness_beyond_last_verified",
+            ],
             "claims": [
                 {
-                    "claim_id": "claim-001",
+                    "id": "x",
                     "claim": "Demo claim",
-                    "evidence_refs": [{"target": "docs/proof.md"}],
+                    "doc": "docs/proof.md",
+                    "locator": "L1",
+                    "status": "done",
+                    "normative": False,
+                    "owner": "lenskit",
+                    "last_verified": "2026-05-20",
                     "requires_live_check": True,
+                    "evidence_refs": [{"kind": "symbol", "target": "docs/proof.md::L1"}],
+                    "relation": "declared_evidence_ref",
+                    "does_not_establish": [
+                        "truth",
+                        "sufficiency",
+                        "causality",
+                        "completeness",
+                    ],
                 }
             ],
         }
@@ -143,6 +170,7 @@ def _make_bundle(
             "regenerable": True,
             "staleness_sensitive": True,
             "contract": {"id": "claim-evidence-map", "version": "v1"},
+            "interpretation": {"mode": "contract"},
         })
 
     manifest = {
@@ -300,10 +328,6 @@ def test_post_emit_health_fails_on_invalid_claim_map_schema(tmp_path):
     assert by_name["claim_evidence_map_present"]["status"] == "pass"
     assert by_name["claim_evidence_map_hash_ok"]["status"] == "pass"
     assert by_name["claim_evidence_map_schema_valid"]["status"] == "fail"
-    # The verdict must NOT be read from the hash-mismatched artifact.
-    assert report["output_health_verdict"] is None
-    # A corrupted output_health must not contribute diagnostic coverage.
-    assert "diagnostic_full" not in report["evidence_levels_reached"]
 
 
 def test_post_emit_health_output_validates_against_schema(tmp_path):

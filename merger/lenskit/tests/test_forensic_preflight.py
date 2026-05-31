@@ -74,6 +74,7 @@ def _make_bundle(
                 "regenerable": True,
                 "staleness_sensitive": True,
                 "contract": {"id": "citation-map", "version": "v1"},
+                "interpretation": {"mode": "contract"},
             }
         )
 
@@ -81,14 +82,40 @@ def _make_bundle(
         claim_doc = {
             "kind": "lenskit.claim_evidence_map",
             "version": "1.0",
-            "generated_at": "2026-05-20T00:00:00Z",
-            "source": {"registry_path": "docs/doc-freshness-registry.yml", "registry_sha256": "a" * 64},
+            "authority": "navigation_index",
+            "canonicality": "derived",
+            "risk_class": "evidence_index",
+            "source": {
+                "registry_path": "docs/doc-freshness-registry.yml",
+                "registry_sha256": "a" * 64,
+                "generated_at": "2026-05-20T00:00:00Z",
+            },
+            "does_not_establish": [
+                "truth",
+                "sufficiency",
+                "causality",
+                "completeness",
+                "freshness_beyond_last_verified",
+            ],
             "claims": [
                 {
-                    "claim_id": "claim-001",
+                    "id": "claim-001",
                     "claim": "x = 1",
-                    "evidence_refs": [{"target": "a.py"}],
+                    "doc": "a.py",
+                    "locator": "line:4",
+                    "status": "done",
+                    "normative": False,
+                    "owner": "lenskit",
+                    "last_verified": "2026-05-20",
                     "requires_live_check": True,
+                    "evidence_refs": [{"kind": "symbol", "target": "a.py::line-4"}],
+                    "relation": "declared_evidence_ref",
+                    "does_not_establish": [
+                        "truth",
+                        "sufficiency",
+                        "causality",
+                        "completeness",
+                    ],
                 }
             ],
         }
@@ -106,6 +133,7 @@ def _make_bundle(
                 "regenerable": True,
                 "staleness_sensitive": True,
                 "contract": {"id": "claim-evidence-map", "version": "v1"},
+                "interpretation": {"mode": "contract"},
             }
         )
 
