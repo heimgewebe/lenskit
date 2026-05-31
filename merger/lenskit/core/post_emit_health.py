@@ -90,6 +90,7 @@ _CORE_LADDER = ("readable", "navigable", "citable", "range_strict")
 _CANONICAL_MD = ArtifactRole.CANONICAL_MD.value
 _CHUNK_INDEX = ArtifactRole.CHUNK_INDEX_JSONL.value
 _CITATION_MAP = ArtifactRole.CITATION_MAP_JSONL.value
+_CLAIM_EVIDENCE_MAP = ArtifactRole.CLAIM_EVIDENCE_MAP_JSON.value
 _SQLITE_INDEX = ArtifactRole.SQLITE_INDEX.value
 _OUTPUT_HEALTH = ArtifactRole.OUTPUT_HEALTH.value
 _AGENT_PACK = ArtifactRole.AGENT_READING_PACK.value
@@ -214,8 +215,7 @@ def _compute_evidence(
     """
     Report achieved evidence levels using the existing vocabulary. Each level
     encodes its own prerequisites, so this never overstates what was reached.
-    ``forensic_strict`` requires ``claim_evidence_map`` (which does not exist) and
-    is therefore never reached.
+    ``forensic_strict`` is evaluated by dedicated forensic preflight, not here.
     """
     reached: set[str] = set()
 
@@ -249,6 +249,26 @@ def _compute_evidence(
 
     ordered = [lvl for lvl in _EVIDENCE_ORDER if lvl in reached]
     return headline, ordered
+
+
+def _validate_claim_evidence_map_schema(doc: Dict[str, Any]) -> Tuple[str, str]:
+    """Returns (status, message): pass | fail | environment_error."""
+    if jsonschema is None:
+        return "environment_error", "claim_evidence_map schema validation skipped: jsonschema unavailable"
+
+    schema_path = Path(__file__).parent.parent / "contracts" / "claim-evidence-map.v1.schema.json"
+    if not schema_path.exists():
+        return "environment_error", f"claim_evidence_map schema not found: {schema_path.name}"
+
+    try:
+        with schema_path.open("r", encoding="utf-8") as f:
+            schema = json.load(f)
+        jsonschema.validate(instance=doc, schema=schema)
+        return "pass", "claim_evidence_map validates against claim-evidence-map.v1"
+    except jsonschema.ValidationError as e:  # type: ignore[union-attr]
+        return "fail", f"claim_evidence_map schema validation failed: {e.message}"
+    except (OSError, json.JSONDecodeError) as e:
+        return "environment_error", f"could not load claim_evidence_map schema: {e}"
 
 
 def _assemble(
@@ -534,6 +554,64 @@ def compute_post_emit_health(
         warnings.append(rr_msg)
     else:  # no_range_ref / unavailable — nothing to certify, non-blocking
         checks.append(_check("range_ref_resolution", "skipped", rr_msg))
+
+    # ── claim_evidence_map: optional globally, required for forensic_strict preflight ──
+    claim_entry = by_role.get(_CLAIM_EVIDENCE_MAP)
+    if claim_entry is None:
+        checks.append(
+            _check(
+                "claim_evidence_map_present",
+                "skipped",
+                "claim_evidence_map_json absent; forensic_strict preflight would block",
+            )
+        )
+        checks.append(_check("claim_evidence_map_hash_ok", "skipped", "claim_evidence_map_json absent"))
+        checks.append(_check("claim_evidence_map_schema_valid", "skipped", "claim_evidence_map_json absent"))
+    else:
+        checks.append(_check("claim_evidence_map_present", "pass"))
+        claim_hash_ok = _CLAIM_EVIDENCE_MAP in valid_roles
+        if not claim_hash_ok:
+            checks.append(
+                _check(
+                    "claim_evidence_map_hash_ok",
+                    "fail",
+                    "claim_evidence_map_json is declared but hash is missing/invalid",
+                )
+            )
+            checks.append(
+                _check(
+                    "claim_evidence_map_schema_valid",
+                    "skipped",
+                    "schema validation skipped because claim_evidence_map_json hash is unverified",
+                )
+            )
+            errors.append("claim_evidence_map_json is declared but hash is missing/invalid")
+        else:
+            checks.append(_check("claim_evidence_map_hash_ok", "pass"))
+            claim_path_raw = claim_entry.get("path")
+            if not isinstance(claim_path_raw, str) or not claim_path_raw:
+                checks.append(_check("claim_evidence_map_schema_valid", "fail", "claim_evidence_map_json path missing"))
+                errors.append("claim_evidence_map_json path missing")
+            else:
+                try:
+                    claim_path = resolve_secure_path(manifest_dir, claim_path_raw)
+                    with claim_path.open("r", encoding="utf-8") as f:
+                        claim_doc = json.load(f)
+                    if not isinstance(claim_doc, dict):
+                        raise ValueError("claim_evidence_map_json root must be an object")
+                except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as e:
+                    checks.append(_check("claim_evidence_map_schema_valid", "fail", f"cannot parse claim_evidence_map_json: {e}"))
+                    errors.append(f"cannot parse claim_evidence_map_json: {e}")
+                else:
+                    claim_schema_status, claim_schema_msg = _validate_claim_evidence_map_schema(claim_doc)
+                    if claim_schema_status == "pass":
+                        checks.append(_check("claim_evidence_map_schema_valid", "pass"))
+                    elif claim_schema_status == "fail":
+                        checks.append(_check("claim_evidence_map_schema_valid", "fail", claim_schema_msg))
+                        errors.append(claim_schema_msg)
+                    else:
+                        checks.append(_check("claim_evidence_map_schema_valid", "skipped", claim_schema_msg))
+                        warnings.append(claim_schema_msg)
 
     # ── redaction: reported, never enforced (enforcement is PR A5) ───────────
     capabilities = manifest.get("capabilities") if isinstance(manifest.get("capabilities"), dict) else {}

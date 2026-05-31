@@ -1,7 +1,7 @@
 # Claim-Evidence-Map v1 Proof
 
 > Erstellt am 2026-05-31.
-> Scope: Lenskit F1a - referenz-only claim_evidence_map als Bundle-Artefakt.
+> Scope: Lenskit F1a + F1b/F2 - referenz-only claim_evidence_map als Bundle-Artefakt mit Surface-/Preflight-Diagnostik.
 
 ## 1. Scope
 
@@ -9,13 +9,13 @@ Dieser Slice erzeugt ein neues abgeleitetes Artefakt `.claim_evidence_map.json`,
 das deklarierte Claims aus `docs/doc-freshness-registry.yml` mit ihren
 deklarierten Evidence-Refs verbindet.
 
-## 2. Negative Finding (vorher)
+## 2. Negative Finding (historisch)
 
 Vor der Umsetzung war `claim_evidence_map` nicht produziert:
 
 - `docs/doc-freshness-registry.yml` führte `agent-reading-pack-v2-claim-evidence-map` als `partial`.
-- `merger/lenskit/core/agent_reading_pack.py` enthielt die Absent-Note
-  `` `claim_evidence_map` is not yet produced ... ``.
+- `merger/lenskit/core/agent_reading_pack.py` signalisierte die epistemische
+  Leerstelle für fehlende Claim-Map.
 - Im Bundle-Manifest gab es keine Rolle für die Claim-Evidence-Map.
 
 ## 3. Warum referenz-only, kein Verdict
@@ -78,7 +78,21 @@ Wenn `claim_evidence_map_json` fehlt oder nicht verifizierbar:
 
 - epistemische Leerstelle bleibt sichtbar.
 
-## 8. Non-Changes
+## 8. Post-Emit-/Forensic-Diagnostik (F1b/F2)
+
+- `post_emit_health` prüft `claim_evidence_map_json` explizit auf
+  Presence/Hash/Schema (`claim_evidence_map_present`,
+  `claim_evidence_map_hash_ok`, `claim_evidence_map_schema_valid`).
+- Fehlende Claim-Map bleibt im normalen Post-Emit-Flow sichtbar als
+  diagnostischer Skip-Hinweis; `forensic_strict` wird dadurch nicht still
+  hochgestuft.
+- Neuer Governance-CLI-Check:
+  `python3 -m merger.lenskit.cli.main governance forensic-preflight --manifest <bundle.manifest.json>`
+  liefert `pass|warn|blocked|fail` für `forensic_strict`-Voraussetzungen.
+- Preflight `pass` bedeutet ausschließlich: alle formalen Voraussetzungen sind
+  erfüllt; es ist kein Wahrheitsurteil über Claims.
+
+## 9. Non-Changes
 
 - Keine freie Claim-Extraktion.
 - Keine LLM-Bewertung.
@@ -88,16 +102,17 @@ Wenn `claim_evidence_map_json` fehlt oder nicht verifizierbar:
 - Keine CI-Promotion zu `forensic_strict`.
 - Kein Ersatz für Citation Map.
 
-## 9. Verification Commands
+## 10. Verification Commands
 
 - `python3 -m pytest -q merger/lenskit/tests/test_claim_evidence_map.py`
-- `python3 -m pytest -q merger/lenskit/tests/test_agent_reading_pack.py merger/lenskit/tests/test_bundle_manifest_schema.py merger/lenskit/tests/test_bundle_manifest_integration.py merger/lenskit/tests/test_doc_freshness.py`
+- `python3 -m pytest -q merger/lenskit/tests/test_agent_reading_pack.py merger/lenskit/tests/test_bundle_manifest_schema.py merger/lenskit/tests/test_bundle_manifest_integration.py merger/lenskit/tests/test_post_emit_health.py merger/lenskit/tests/test_forensic_preflight.py merger/lenskit/tests/test_doc_freshness.py`
+- `python3 -m merger.lenskit.cli.main governance forensic-preflight --manifest <bundle.manifest.json>`
 - `python3 -m merger.lenskit.cli.main doc-freshness inspect`
 - `python3 -m merger.lenskit.cli.main doc-freshness update --write`
 - `python3 -m ruff check --select=F401,F811,F841,E711,E712 --exclude='**/fixtures/**' merger/lenskit/core merger/lenskit/tests`
 - `git diff --check`
 
-## 10. Results
+## 11. Results
 
 - `python -m pytest -q merger/lenskit/tests/test_claim_evidence_map.py merger/lenskit/tests/test_agent_reading_pack.py merger/lenskit/tests/test_bundle_manifest_schema.py merger/lenskit/tests/test_bundle_manifest_integration.py merger/lenskit/tests/test_doc_freshness.py`
   - Ergebnis: `157 passed`
@@ -112,8 +127,8 @@ Wenn `claim_evidence_map_json` fehlt oder nicht verifizierbar:
 - `git diff --check`
   - Ergebnis: keine Whitespace-/Patch-Fehler
 
-## 11. Next Slice
+## 12. Next Slice
 
-Nächster sinnvoller Slice ist die Nutzung der Claim-Evidence-Map in
-forensischen Diagnose-Workflows (ohne Wahrheitsschicht), inklusive
-Policy-Anbindung für `forensic_strict` sobald die Capability freigeschaltet wird.
+Nächster sinnvoller Slice ist die optionale CI-Promotion von
+`forensic_strict`, sobald die diagnostische Preflight-Qualität über reale
+Bundle-Läufe stabil belegt ist.

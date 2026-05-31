@@ -53,6 +53,28 @@ def register_governance_commands(subparsers) -> None:
         help="Emit the machine-readable JSON lint report to stdout",
     )
 
+    forensic_preflight_parser = gov_subparsers.add_parser(
+        "forensic-preflight",
+        help="Diagnostic forensic_strict readiness preflight (non-blocking for CI)",
+    )
+    forensic_preflight_parser.add_argument(
+        "--manifest",
+        required=True,
+        help="Path to the bundle manifest JSON",
+    )
+    forensic_preflight_parser.add_argument(
+        "--post-health",
+        dest="post_health_path",
+        default=None,
+        help="Optional explicit path to post_emit_health JSON report",
+    )
+    forensic_preflight_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="emit_json",
+        help="Emit the machine-readable JSON report to stdout",
+    )
+
 
 def run_governance_lint(args: argparse.Namespace) -> int:
     from pathlib import Path
@@ -121,6 +143,33 @@ def run_governance_ast_lint(args: argparse.Namespace) -> int:
     return 0 if report.status == "pass" else 1
 
 
+def run_governance_forensic_preflight(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.forensic_preflight import compute_forensic_preflight
+
+    try:
+        report = compute_forensic_preflight(
+            manifest_path=args.manifest,
+            post_health_path=getattr(args, "post_health_path", None),
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error: unable to run forensic preflight: {exc}", file=sys.stderr)
+        return 2
+
+    if getattr(args, "emit_json", False):
+        print(json.dumps(report, indent=2))
+    else:
+        _print_forensic_preflight_human(report)
+
+    status = report.get("status")
+    if status == "pass":
+        return 0
+    if status == "warn":
+        return 1
+    if status in {"blocked", "fail"}:
+        return 2
+    return 2
+
+
 def _print_ast_human_report(report) -> None:
     print(
         "Anti-Hallucination AST Lint (C2.7/C2.9, EXPERIMENTAL / non-blocking): "
@@ -185,3 +234,34 @@ def _print_human_report(report) -> None:
         "truthful, complete, or runtime-safe. L1/L2/L4 (AST) and L6 (export gate) "
         "are out of scope for C2.4."
     )
+
+
+def _print_forensic_preflight_human(report: dict) -> None:
+    print(f"Forensic Preflight: {report.get('status', 'blocked').upper()}")
+    print(f"  bundle_manifest_path: {report.get('bundle_manifest_path')}")
+    print(f"  post_emit_health_path: {report.get('post_emit_health_path')}")
+    print(f"  run_id: {report.get('run_id')}")
+    print(f"  does_not_mean: {', '.join(report.get('does_not_mean') or [])}")
+
+    checks = report.get("checks") or []
+    if checks:
+        print("\nChecks:")
+        for item in checks:
+            if not isinstance(item, dict):
+                continue
+            print(
+                f"  - {item.get('name')}: {item.get('status')} "
+                f"({item.get('detail', '')})"
+            )
+
+    warnings = report.get("warnings") or []
+    if warnings:
+        print(f"\nWarnings ({len(warnings)}):")
+        for warning in warnings:
+            print(f"  [warn] {warning}")
+
+    errors = report.get("errors") or []
+    if errors:
+        print(f"\nErrors ({len(errors)}):")
+        for err in errors:
+            print(f"  [error] {err}")

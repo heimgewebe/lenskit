@@ -534,7 +534,7 @@ def test_claim_evidence_map_summary_present_when_artifact_is_available(tmp_path)
     assert "- evidence_refs: 2" in body
     assert "- requires_live_check: 1" in body
     assert "navigation/evidence index, not truth" in body
-    assert "`claim_evidence_map` is not yet produced" not in body
+    assert "`claim_evidence_map` is absent in this bundle" not in body
 
 
 def test_claim_evidence_map_absence_keeps_epistemic_note(tmp_path):
@@ -544,7 +544,7 @@ def test_claim_evidence_map_absence_keeps_epistemic_note(tmp_path):
 
     body = Path(report["output_path"]).read_text(encoding="utf-8")
     assert "`claim_evidence_map_json` is absent" in body
-    assert "`claim_evidence_map` is not yet produced" in body
+    assert "`claim_evidence_map` is absent in this bundle" in body
 
 
 # ---------------------------------------------------------------------------
