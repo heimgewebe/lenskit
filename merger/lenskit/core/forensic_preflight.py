@@ -325,10 +325,10 @@ def compute_forensic_preflight(
         errors.append("redaction capability not explicitly set")
 
     statuses = {check["status"] for check in checks}
-    if "blocked" in statuses:
-        status = "blocked"
-    elif "fail" in statuses:
+    if "fail" in statuses:
         status = "fail"
+    elif "blocked" in statuses:
+        status = "blocked"
     elif "warn" in statuses or warnings:
         status = "warn"
     else:

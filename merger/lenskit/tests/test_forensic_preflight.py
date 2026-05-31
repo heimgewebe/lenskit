@@ -192,6 +192,18 @@ def test_forensic_strict_blocked_without_post_emit_health(tmp_path):
     assert by_name["post_emit_health_present"]["status"] == "blocked"
 
 
+def test_forensic_strict_fail_outranks_blocked(tmp_path):
+    manifest = _make_bundle(tmp_path, include_claim_map=True)
+    (tmp_path / "demo.claim_evidence_map.json").write_text('{"tampered":true}\n', encoding="utf-8")
+
+    report = compute_forensic_preflight(str(manifest))
+
+    by_name = {item["name"]: item for item in report["checks"]}
+    assert by_name["claim_evidence_map_hash_ok"]["status"] == "fail"
+    assert by_name["post_emit_health_present"]["status"] == "blocked"
+    assert report["status"] == "fail"
+
+
 def test_forensic_strict_preflight_passes_with_all_prerequisites(tmp_path):
     manifest = _make_bundle(tmp_path, include_claim_map=True)
     _write_post_health(manifest)

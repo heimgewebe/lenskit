@@ -297,6 +297,8 @@ def test_post_emit_health_output_health_must_be_validated_not_declared(tmp_path)
 
     assert report["status"] == "fail"
     assert report["hash_mismatch_count"] >= 1
+    assert report["output_health_verdict"] is None
+    assert "diagnostic_full" not in report["evidence_levels_reached"]
 
 
 def test_post_emit_health_checks_claim_evidence_map_when_present(tmp_path):
