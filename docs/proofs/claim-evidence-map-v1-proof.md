@@ -129,6 +129,11 @@ Wenn `claim_evidence_map_json` fehlt oder nicht verifizierbar:
 
 ## 12. Next Slice
 
-Nächster sinnvoller Slice ist die optionale CI-Promotion von
-`forensic_strict`, sobald die diagnostische Preflight-Qualität über reale
-Bundle-Läufe stabil belegt ist.
+F2c ist umgesetzt: `docs/proofs/forensic-preflight-calibration-proof.md` und
+`scripts/proofs/forensic_preflight_calibration.sh` kalibrieren
+`governance forensic-preflight` gegen lokal erzeugte echte Bundles mit einem
+Positivfall und negativen Fällen für fehlende Claim-Map, stale
+`post_emit_health` und Hash-Drift.
+
+Die optionale CI-Promotion von `forensic_strict` bleibt ein separater PR und
+setzt weitere stabile Real-Bundle-Läufe voraus.
