@@ -54,6 +54,22 @@ Neuer Producer: `merger/lenskit/core/claim_evidence_map.py`
 Die Merge-Pipeline erzeugt optional `.claim_evidence_map.json` aus der Registry
 und trägt es als `claim_evidence_map_json` ins Bundle-Manifest ein.
 
+**Registry-Pfad-Auflösung (Surface-Parity-Fix, 2026-06-01):**
+Der Registry-Pfad wird aus dem **realen Quellrepo-Kontext** abgeleitet, nicht
+aus dem Package-Installationspfad. Für Single-Repo-Bundles:
+
+```
+<repo_summaries[0]["root"]> / "docs" / "doc-freshness-registry.yml"
+```
+
+Das Validierungsschema (`doc-freshness-registry.v1.schema.json`) ist Teil des
+lenskit-Pakets und wird aus dem Package-Pfad (`claim_evidence_map.py`) abgeleitet,
+nicht aus dem gescannten Repo.
+
+Multi-Repo-Aggregation ist explizit out of scope: bei mehreren Repos in einem
+Bundle wird kein Claim-Evidence-Map erzeugt; die epistemische Leerstelle bleibt
+sichtbar.
+
 Wenn die Registry vorhanden ist und der Producer fehlschlägt, bricht die
 Pipeline mit Fehler ab (kein stilles Wegfallen nur per Log-Warnung).
 
@@ -127,7 +143,34 @@ Wenn `claim_evidence_map_json` fehlt oder nicht verifizierbar:
 - `git diff --check`
   - Ergebnis: keine Whitespace-/Patch-Fehler
 
-## 12. Next Slice
+## 12. Surface-Parity-Fix (2026-06-01)
+
+**Diagnose:**
+Producer und Contract existierten bereits. Aber der Registry-Pfad in
+`merge.py` verwendete `Path(__file__).resolve().parents[3]`, was nur
+beim Ausführen aus dem lenskit-Source-Tree funktioniert. Bei installierten
+Paketen oder beim Scannen anderer Repos zeigte der Pfad auf das falsche
+`docs/`-Verzeichnis oder fand gar keine Registry.
+
+**Fix:**
+- `merge.py`: Registry-Pfad wird aus `repo_summaries[0]["root"]` abgeleitet
+  (Single-Repo-Bundles). Multi-Repo: explizit out of scope, Leerstelle
+  bleibt sichtbar.
+- `claim_evidence_map.py`: Validierungsschema wird aus dem Package-Pfad
+  (`Path(__file__).parent.parent / "contracts"`) abgeleitet, nicht aus
+  dem gescannten Repo.
+
+**Beweis (Tests):**
+- `test_claim_evidence_map_surface_single_repo_with_registry`: Single-Repo
+  mit Registry → `claim_evidence_map_json` im Manifest, Schema-validiert.
+- `test_claim_evidence_map_surface_agent_reading_pack_shows_summary`: Agent
+  Reading Pack zeigt Summary statt EPISTEMIC_EMPTINESS.
+- `test_claim_evidence_map_surface_no_registry_leaves_epistemic_gap`: Ohne
+  Registry → keine Map, Leerstelle sichtbar.
+- `test_claim_evidence_map_surface_invalid_registry_raises`: Ungültige
+  Registry → RuntimeError (kein stilles Skippen).
+
+## 13. Next Slice
 
 F2c ist umgesetzt: `docs/proofs/forensic-preflight-calibration-proof.md` und
 `scripts/proofs/forensic_preflight_calibration.sh` kalibrieren
