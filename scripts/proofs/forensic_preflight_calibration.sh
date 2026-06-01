@@ -127,9 +127,15 @@ def _write_manifest(path: Path, doc: dict) -> None:
 
 def _artifact_path(manifest: Path, role: str) -> Path:
     doc = _load_manifest(manifest)
-    for artifact in doc.get("artifacts", []):
-        if artifact.get("role") == role:
-            return (manifest.parent / artifact["path"]).resolve()
+    artifacts = doc.get("artifacts", [])
+    if not isinstance(artifacts, list):
+        raise AssertionError("manifest artifacts must be a list")
+    for artifact in artifacts:
+        if isinstance(artifact, dict) and artifact.get("role") == role:
+            raw_path = artifact.get("path")
+            if not isinstance(raw_path, str) or not raw_path:
+                raise AssertionError(f"{role} artifact path missing from manifest")
+            return (manifest.parent / raw_path).resolve()
     raise AssertionError(f"{role} missing from manifest")
 
 
