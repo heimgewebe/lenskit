@@ -10,7 +10,7 @@ Zweck: Sichtbar machen, welche Laufzeit welche Prüffähigkeit besitzt und welch
 | sqlite_fts5_available | optional | likely | likely | likely | required for search tests | searchable | searchable nicht erreichbar; fallback auf chunk navigation | sqlite capability tests |
 | post_emit_validation_available | required for strict agent profile | required | recommended | recommended | required | diagnostic_full / strict profile conformance | nur pre-health möglich, post-status degradiert | planned post-health tests |
 | citation_map_validation_available | required for citable | required | recommended | recommended | required | citable | citable nur mit warn/degradation | citation validator tests |
-| claim_evidence_map_available | future | future | future | future | future | forensic_strict | forensic_strict blockiert | none yet |
+| claim_evidence_map_available | available (derived) | available (derived) | available (derived) | available (derived) | available (derived) | forensic_strict | forensic_strict preflight `blocked` when missing/invalid | claim-evidence + post-emit + forensic-preflight tests |
 | secure_path_resolution_available | sandboxed | required | required | required | required | range_strict (operational) | range/get eingeschränkt; potential warn/fail depending profile | path security + range tests |
 | redaction_enabled | optional | optional | optional | optional | conditional required (if requested) | forensic/secure export policies | sensitive export warn/fail when requested | policy tests pending |
 | local_filesystem_access | sandbox-limited | yes | yes | yes | yes | local-search/debug-full operability | limited artifact emissions depending runtime | runtime matrix docs + integration tests |

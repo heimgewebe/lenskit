@@ -23,7 +23,7 @@ Zweck: Konsumentenlage je Artefaktrolle sichtbar machen, um stille Legacy-Brüch
 | index_sidecar_json | sidecar producer | legacy readers/reports | diagnostics | debug/legacy | debug-full | local-search | yes | unknown consumers unresolved | agent_reading_pack + manifest | sidecar/report parsing tests |
 | architecture_summary | summary producer | humans, debugging | CI/reporting docs | debug/ci | debug-full | local-search | maybe | unknown downstream tooling | canonical + manifest docs | (to add) |
 | retrieval_eval_json | eval producer | CI, diagnostics | parity expected-flag gates | ci/debug | debug-full (when expected) | local-search | maybe | contract tests + CI checks | omit unless expected | retrieval eval + parity tests |
-| claim_evidence_map | future producer | forensic/audit workflows | strict evidence gates | future | forensic-strict | none | no | not implemented yet | none | none yet |
+| claim_evidence_map_json | merger pipeline (derived from doc-freshness registry) | agent_reading_pack summary, forensic/audit workflows | strict evidence preflight gate | all bundle runtimes | forensic-strict preflight | none | no | required for forensic_strict preflight pass | explicit blocked preflight status | `test_claim_evidence_map.py`, `test_agent_reading_pack.py`, `test_post_emit_health.py`, `test_forensic_preflight.py` |
 
 ## Regeln
 

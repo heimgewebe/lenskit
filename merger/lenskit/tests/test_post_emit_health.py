@@ -41,6 +41,7 @@ def _make_bundle(
     pack_authority: str = "navigation_index",
     pack_canonicality: str = "derived",
     range_key: str = "canonical_range",
+    include_claim_map: bool = False,
 ) -> Path:
     """Build a synthetic bundle on disk and return the manifest path."""
     artifacts = []
@@ -112,6 +113,64 @@ def _make_bundle(
             "authority": "navigation_index", "canonicality": "derived",
             "regenerable": True, "staleness_sensitive": True,
             "contract": {"id": "citation-map", "version": "v1"},
+            "interpretation": {"mode": "contract"},
+        })
+
+    if include_claim_map:
+        claim_doc = {
+            "kind": "lenskit.claim_evidence_map",
+            "version": "1.0",
+            "authority": "navigation_index",
+            "canonicality": "derived",
+            "risk_class": "evidence_index",
+            "source": {
+                "registry_path": "docs/doc-freshness-registry.yml",
+                "registry_sha256": "a" * 64,
+                "generated_at": "2026-05-20T00:00:00Z",
+            },
+            "does_not_establish": [
+                "truth",
+                "sufficiency",
+                "causality",
+                "completeness",
+                "freshness_beyond_last_verified",
+            ],
+            "claims": [
+                {
+                    "id": "x",
+                    "claim": "Demo claim",
+                    "doc": "docs/proof.md",
+                    "locator": "L1",
+                    "status": "done",
+                    "normative": False,
+                    "owner": "lenskit",
+                    "last_verified": "2026-05-20",
+                    "requires_live_check": True,
+                    "evidence_refs": [{"kind": "symbol", "target": "docs/proof.md::L1"}],
+                    "relation": "declared_evidence_ref",
+                    "does_not_establish": [
+                        "truth",
+                        "sufficiency",
+                        "causality",
+                        "completeness",
+                    ],
+                }
+            ],
+        }
+        claim_bytes = json.dumps(claim_doc, indent=2).encode("utf-8")
+        (tmp_path / "demo.claim_evidence_map.json").write_bytes(claim_bytes)
+        artifacts.append({
+            "role": "claim_evidence_map_json",
+            "path": "demo.claim_evidence_map.json",
+            "content_type": "application/json",
+            "bytes": len(claim_bytes),
+            "sha256": _sha256(claim_bytes),
+            "authority": "navigation_index",
+            "canonicality": "derived",
+            "regenerable": True,
+            "staleness_sensitive": True,
+            "contract": {"id": "claim-evidence-map", "version": "v1"},
+            "interpretation": {"mode": "contract"},
         })
 
     manifest = {
@@ -238,10 +297,39 @@ def test_post_emit_health_output_health_must_be_validated_not_declared(tmp_path)
 
     assert report["status"] == "fail"
     assert report["hash_mismatch_count"] >= 1
-    # The verdict must NOT be read from the hash-mismatched artifact.
     assert report["output_health_verdict"] is None
-    # A corrupted output_health must not contribute diagnostic coverage.
     assert "diagnostic_full" not in report["evidence_levels_reached"]
+
+
+def test_post_emit_health_checks_claim_evidence_map_when_present(tmp_path):
+    manifest = _make_bundle(tmp_path, include_claim_map=True, include_citation=True)
+    report = compute_post_emit_health(str(manifest))
+
+    assert report["status"] == "pass"
+    by_name = {item["name"]: item for item in report["checks"]}
+    assert by_name["claim_evidence_map_present"]["status"] == "pass"
+    assert by_name["claim_evidence_map_hash_ok"]["status"] == "pass"
+    assert by_name["claim_evidence_map_schema_valid"]["status"] == "pass"
+
+
+def test_post_emit_health_fails_on_invalid_claim_map_schema(tmp_path):
+    manifest = _make_bundle(tmp_path, include_claim_map=True, include_citation=True)
+    bad_payload = b'{"kind":"wrong"}\n'
+    (tmp_path / "demo.claim_evidence_map.json").write_bytes(bad_payload)
+    manifest_doc = json.loads(manifest.read_text(encoding="utf-8"))
+    for art in manifest_doc["artifacts"]:
+        if art.get("role") == "claim_evidence_map_json":
+            art["bytes"] = len(bad_payload)
+            art["sha256"] = _sha256(bad_payload)
+            break
+    manifest.write_text(json.dumps(manifest_doc, indent=2), encoding="utf-8")
+    report = compute_post_emit_health(str(manifest))
+
+    assert report["status"] == "fail"
+    by_name = {item["name"]: item for item in report["checks"]}
+    assert by_name["claim_evidence_map_present"]["status"] == "pass"
+    assert by_name["claim_evidence_map_hash_ok"]["status"] == "pass"
+    assert by_name["claim_evidence_map_schema_valid"]["status"] == "fail"
 
 
 def test_post_emit_health_output_validates_against_schema(tmp_path):

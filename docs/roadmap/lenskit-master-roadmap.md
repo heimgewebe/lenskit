@@ -127,6 +127,10 @@ Gate:
 Spätere PRs:
 - Agent Profiles, Query Sessions, Evidence Packs, MCP nach Query/Trace/Citation-Grundlagen
 - Agent nutzt Evidence, erzeugt aber keine Citation-Wahrheit
+- Claim-Evidence-Map Surface Guard: `claim_evidence_map_json` muss im Bundle manifestiert,
+  contractuell gebunden und vom Agent Reading Pack als Navigation (nicht Wahrheit) konsumierbar sein
+- `governance forensic-preflight` bewertet `forensic_strict` rein diagnostisch
+  (`pass|warn|blocked|fail`) und bleibt bewusst ohne CI-Promotion
 Gate:
 - Evidence refs validierbar
 - Unsicherheit und Provenance sichtbar

@@ -914,7 +914,7 @@ def produce_agent_reading_pack(  # lenskit:requires-authority=canonical_content
             "`claim_evidence_map_json` is absent: claim→evidence navigation index not available."
         )
         absent_notes.append(
-            "`claim_evidence_map` is not yet produced (planned: output-optimierung Arbeitspaket F)."
+            "`claim_evidence_map` is absent in this bundle; claim→evidence navigation remains explicitly unavailable."
         )
     elif _CLAIM_EVIDENCE_MAP not in verified_soft_paths:
         absent_notes.append(
