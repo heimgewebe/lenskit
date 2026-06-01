@@ -36,7 +36,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .citation_map import byte_range_to_line_range, normalize_canonical_range
-from .constants import ArtifactRole
+from .constants import (
+    ArtifactRole,
+    CLAIM_EVIDENCE_MAP_ABSENCE_REASON_LINK_KEY,
+    CLAIM_EVIDENCE_MAP_ABSENCE_REASONS,
+)
 from .path_security import resolve_secure_path
 
 PRODUCED_BY = "agent_reading_pack_producer/v1"
@@ -59,6 +63,12 @@ _OUTPUT_HEALTH = ArtifactRole.OUTPUT_HEALTH.value
 _CITATION_MAP = ArtifactRole.CITATION_MAP_JSONL.value
 _CLAIM_EVIDENCE_MAP = ArtifactRole.CLAIM_EVIDENCE_MAP_JSON.value
 _SELF_ROLE = ArtifactRole.AGENT_READING_PACK.value
+
+_CLAIM_ABSENCE_REASON_MESSAGES = {
+    "no_registry": "registry missing (docs/doc-freshness-registry.yml not found in source repo)",
+    "multi_repo_out_of_scope": "multi-repo aggregation is out of scope",
+    "unexpected_missing_with_registry": "registry existed but claim_evidence_map emission unexpectedly missing",
+}
 
 
 class AgentReadingPackError(Exception):
@@ -670,6 +680,16 @@ def _verify_referenced_artifact(
     return abs_path, actual
 
 
+def _claim_absence_reason_from_manifest(manifest: Dict[str, Any]) -> Optional[str]:
+    links = manifest.get("links")
+    if not isinstance(links, dict):
+        return None
+    raw = links.get(CLAIM_EVIDENCE_MAP_ABSENCE_REASON_LINK_KEY)
+    if isinstance(raw, str) and raw in CLAIM_EVIDENCE_MAP_ABSENCE_REASONS:
+        return raw
+    return None
+
+
 def produce_agent_reading_pack(  # lenskit:requires-authority=canonical_content
     manifest_path_str: str,
     output_path_str: Optional[str] = None,
@@ -874,6 +894,7 @@ def produce_agent_reading_pack(  # lenskit:requires-authority=canonical_content
     repo_ids: List[str] = []
     indexed_chunk_count = 0
     absent_notes: List[str] = []
+    claim_absence_reason = _claim_absence_reason_from_manifest(manifest)
 
     if canonical_md_path is not None and chunk_index_path is not None:
         try:
@@ -910,8 +931,18 @@ def produce_agent_reading_pack(  # lenskit:requires-authority=canonical_content
             "`citation_map_jsonl` is present but failed verification; citation guidance suppressed."
         )
     if _CLAIM_EVIDENCE_MAP not in by_role:
+        reason_detail = _CLAIM_ABSENCE_REASON_MESSAGES.get(
+            claim_absence_reason,
+            "reason unavailable",
+        )
+        reason_suffix = (
+            f" reason={claim_absence_reason} ({reason_detail})."
+            if claim_absence_reason is not None
+            else ""
+        )
         absent_notes.append(
             "`claim_evidence_map_json` is absent: claim→evidence navigation index not available."
+            + reason_suffix
         )
         absent_notes.append(
             "`claim_evidence_map` is absent in this bundle; claim→evidence navigation remains explicitly unavailable."

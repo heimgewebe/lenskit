@@ -43,7 +43,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .clock import now_utc
-from .constants import ArtifactRole
+from .constants import (
+    ArtifactRole,
+    CLAIM_EVIDENCE_MAP_ABSENCE_REASON_LINK_KEY,
+    CLAIM_EVIDENCE_MAP_ABSENCE_REASONS,
+)
 from .output_health import _is_jsonschema_unavailable_error
 from .path_security import resolve_secure_path
 
@@ -103,6 +107,12 @@ _DEBUG_ROLES = frozenset(
     }
 )
 
+_CLAIM_ABSENCE_REASON_MESSAGES = {
+    "no_registry": "registry missing (docs/doc-freshness-registry.yml not found in source repo)",
+    "multi_repo_out_of_scope": "multi-repo aggregation is out of scope",
+    "unexpected_missing_with_registry": "registry existed but claim_evidence_map emission unexpectedly missing",
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -138,6 +148,16 @@ def _resolve_manifest_path(manifest_path_str: str) -> Path:
     if not p.is_absolute():
         p = Path.cwd() / p
     return p.resolve()
+
+
+def _claim_absence_reason_from_manifest(manifest: Dict[str, Any]) -> Optional[str]:
+    links = manifest.get("links") if isinstance(manifest.get("links"), dict) else None
+    if links is None:
+        return None
+    raw = links.get(CLAIM_EVIDENCE_MAP_ABSENCE_REASON_LINK_KEY)
+    if isinstance(raw, str) and raw in CLAIM_EVIDENCE_MAP_ABSENCE_REASONS:
+        return raw
+    return None
 
 
 def derive_post_health_path(manifest_path: Path) -> Path:
@@ -558,15 +578,38 @@ def compute_post_emit_health(
     # ── claim_evidence_map: optional globally, required for forensic_strict preflight ──
     claim_entry = by_role.get(_CLAIM_EVIDENCE_MAP)
     if claim_entry is None:
+        claim_absence_reason = _claim_absence_reason_from_manifest(manifest)
+        reason_detail = _CLAIM_ABSENCE_REASON_MESSAGES.get(
+            claim_absence_reason,
+            "reason unavailable",
+        )
+        reason_suffix = (
+            f" reason={claim_absence_reason} ({reason_detail})"
+            if claim_absence_reason is not None
+            else ""
+        )
         checks.append(
             _check(
                 "claim_evidence_map_present",
                 "skipped",
-                "claim_evidence_map_json absent; forensic_strict preflight would block",
+                "claim_evidence_map_json absent; forensic_strict preflight would block"
+                + reason_suffix,
             )
         )
-        checks.append(_check("claim_evidence_map_hash_ok", "skipped", "claim_evidence_map_json absent"))
-        checks.append(_check("claim_evidence_map_schema_valid", "skipped", "claim_evidence_map_json absent"))
+        checks.append(
+            _check(
+                "claim_evidence_map_hash_ok",
+                "skipped",
+                "claim_evidence_map_json absent" + reason_suffix,
+            )
+        )
+        checks.append(
+            _check(
+                "claim_evidence_map_schema_valid",
+                "skipped",
+                "claim_evidence_map_json absent" + reason_suffix,
+            )
+        )
     else:
         checks.append(_check("claim_evidence_map_present", "pass"))
         claim_hash_ok = _CLAIM_EVIDENCE_MAP in valid_roles

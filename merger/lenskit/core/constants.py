@@ -21,3 +21,11 @@ class ArtifactRole(str, Enum):
     CITATION_MAP_JSONL = "citation_map_jsonl"
     CLAIM_EVIDENCE_MAP_JSON = "claim_evidence_map_json"
     AGENT_READING_PACK = "agent_reading_pack"
+
+
+CLAIM_EVIDENCE_MAP_ABSENCE_REASON_LINK_KEY = "claim_evidence_map_absence_reason"
+CLAIM_EVIDENCE_MAP_ABSENCE_REASONS = (
+    "no_registry",
+    "multi_repo_out_of_scope",
+    "unexpected_missing_with_registry",
+)
