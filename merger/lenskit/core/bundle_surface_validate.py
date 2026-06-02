@@ -14,11 +14,14 @@ its internal coherence:
 
 - claim-evidence-map surface: the map is present XOR a machine-readable absence
   reason is set — never silently absent;
-- agent reading pack consistency: the pack's claim-map section agrees with the
-  manifest (a present map is summarized, not announced as absent), and the
-  legacy "not yet produced" placeholder is treated as drift;
-- post-emit health persistence: a persisted ``post_emit_health`` sidecar exists
-  so ``output_health=pass`` cannot be mistaken for forensic-readiness;
+- agent reading pack consistency: a present claim map MUST be summarized in the
+  pack (with its artifact line), never announced as absent, and the legacy
+  "not yet produced" placeholder is treated as drift;
+- post-emit health: a persisted ``post_emit_health`` sidecar exists (so
+  ``output_health=pass`` cannot be mistaken for forensic-readiness) AND its
+  ``status`` is propagated — a present-but-failed post_emit_health drags the
+  surface down rather than passing on mere presence;
+- surface link coherence: recorded ``links`` pointers resolve to real sidecars;
 - generator provenance: ``name`` / ``version`` / ``config_sha256`` are present
   and the ``runtime`` block is available so runtime/service drift is diagnosable.
 
@@ -209,12 +212,19 @@ def _pack_consistency_check(
     has_summary_artifact = _PACK_SUMMARY_HEADER in pack_text and "- artifact:" in pack_text
     has_absent_placeholder = _PACK_ABSENT_PLACEHOLDER in pack_text
     if claim_present:
-        if has_absent_placeholder and not has_summary_artifact:
+        # A present claim map MUST be visible in the pack as a summary with an
+        # artifact line. Anything else — the absent placeholder, or no summary at
+        # all — is drift between the manifest and the navigation surface.
+        if not has_summary_artifact:
+            reason = (
+                "announces it as absent"
+                if has_absent_placeholder
+                else "does not summarize it (no CLAIM_EVIDENCE_MAP_SUMMARY artifact line)"
+            )
             return _check(
                 "agent_reading_pack_consistency",
                 "fail",
-                "claim_evidence_map_json present in manifest but agent_reading_pack "
-                "still announces it as absent",
+                f"claim_evidence_map_json present in manifest but agent_reading_pack {reason}",
             )
         return _check(
             "agent_reading_pack_consistency",
@@ -237,38 +247,94 @@ def _pack_consistency_check(
     )
 
 
-def _post_emit_health_check(
-    *, manifest_path: Path, require: bool
-) -> Tuple[Dict[str, str], Optional[str]]:
+# post_emit_health.status → surface-check status. A present-but-failed
+# post_emit_health must NOT pass: persistence ("is present") is separated from
+# the verdict ("says green"). Unknown/invalid status is treated conservatively.
+_POST_STATUS_TO_CHECK = {"pass": "pass", "warn": "warn", "fail": "fail", "blocked": "blocked"}
+
+
+def _post_emit_health_checks(*, manifest_path: Path, require: bool) -> List[Dict[str, str]]:
+    """Two checks: persistence (presence) and status (the verdict, propagated)."""
     sidecar = derive_post_health_path(manifest_path)
     if not sidecar.is_file():
         detail = (
             f"post_emit_health sidecar not persisted at {sidecar.name}; "
             "output_health alone (pre-emit) is not a forensic-ready signal"
         )
-        status = "warn" if require else "skipped"
-        return _check("post_emit_health_persisted", status, detail), None
-    post_status: Optional[str] = None
+        persisted = "warn" if require else "skipped"
+        return [_check("post_emit_health_persisted", persisted, detail)]
+
     try:
         doc = json.loads(sidecar.read_text(encoding="utf-8"))
-        if isinstance(doc, dict) and isinstance(doc.get("status"), str):
-            post_status = doc["status"]
     except (OSError, UnicodeError, json.JSONDecodeError):
-        return (
+        return [
             _check(
                 "post_emit_health_persisted",
                 "warn",
                 f"post_emit_health sidecar present at {sidecar.name} but unreadable",
-            ),
-            None,
+            )
+        ]
+
+    persisted_check = _check(
+        "post_emit_health_persisted", "pass", f"post_emit_health persisted at {sidecar.name}"
+    )
+    post_status = doc.get("status") if isinstance(doc, dict) else None
+    if not isinstance(post_status, str) or post_status not in _POST_STATUS_TO_CHECK:
+        status_check = _check(
+            "post_emit_health_status",
+            "warn",
+            f"post_emit_health persisted but status is missing/invalid ({post_status!r})",
         )
-    return (
-        _check(
-            "post_emit_health_persisted",
-            "pass",
-            f"post_emit_health persisted at {sidecar.name} (status={post_status})",
-        ),
-        post_status,
+    else:
+        # Propagate the verdict: a present post_emit_health that itself failed
+        # must drag the surface down, not pass on mere existence.
+        status_check = _check(
+            "post_emit_health_status",
+            _POST_STATUS_TO_CHECK[post_status],
+            f"post_emit_health.status={post_status}",
+        )
+    return [persisted_check, status_check]
+
+
+def _links_coherence_check(manifest: Dict[str, Any], manifest_dir: Path) -> Dict[str, str]:
+    """Validate that the machine-readable surface links resolve to real sidecars.
+
+    When the generator records ``post_emit_health_path`` /
+    ``bundle_surface_validation_path`` in ``links``, those must point at existing
+    files — a dangling link is incoherent machine-readable truth. Absent links
+    (a pre-emit validation pass, where links are not set yet, or a legacy
+    manifest) are skipped, not failed. The link/sidecar *status* equality is
+    guaranteed by construction at emit time and is intentionally not re-derived
+    here (a self-check must not re-validate its own verdict)."""
+    links = manifest.get("links") if isinstance(manifest.get("links"), dict) else {}
+    referenced = {
+        "post_emit_health_path": links.get("post_emit_health_path"),
+        "bundle_surface_validation_path": links.get("bundle_surface_validation_path"),
+    }
+    if all(v is None for v in referenced.values()):
+        return _check(
+            "surface_links_coherent",
+            "skipped",
+            "no surface links recorded (pre-emit run or legacy manifest)",
+        )
+    problems: List[str] = []
+    for key, raw in referenced.items():
+        if raw is None:
+            continue
+        if not isinstance(raw, str) or not raw:
+            problems.append(f"{key} is not a usable path")
+            continue
+        try:
+            target = resolve_secure_path(manifest_dir, raw)
+        except ValueError as e:
+            problems.append(f"{key} rejected: {e}")
+            continue
+        if not target.is_file():
+            problems.append(f"{key} '{raw}' does not resolve to an existing file")
+    if problems:
+        return _check("surface_links_coherent", "fail", "; ".join(problems))
+    return _check(
+        "surface_links_coherent", "pass", "recorded surface links resolve to existing sidecars"
     )
 
 
@@ -387,11 +453,13 @@ def validate_bundle_surface(
         )
     )
 
-    # ── post-emit health persistence ─────────────────────────────────────────
-    post_check, _post_status = _post_emit_health_check(
-        manifest_path=mp, require=require_claim_evidence_map
+    # ── post-emit health: persistence AND propagated status ──────────────────
+    checks.extend(
+        _post_emit_health_checks(manifest_path=mp, require=require_claim_evidence_map)
     )
-    checks.append(post_check)
+
+    # ── surface link coherence (recorded links must resolve) ─────────────────
+    checks.append(_links_coherence_check(manifest, mp.parent))
 
     # ── output_health is not a forensic-ready signal (made explicit) ─────────
     if _OUTPUT_HEALTH_ROLE in by_role:

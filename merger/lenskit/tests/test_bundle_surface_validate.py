@@ -17,11 +17,17 @@ from merger.lenskit.core.bundle_surface_validate import (
 )
 from merger.lenskit.core.constants import ArtifactRole
 from merger.lenskit.core.merge import scan_repo, write_reports_v2
-from merger.lenskit.core.post_emit_health import (
-    derive_post_health_path,
-    write_post_emit_health,
-)
+from merger.lenskit.core.post_emit_health import derive_post_health_path
 from merger.lenskit.tests._test_constants import make_generator_info
+
+
+def _write_post_health(manifest_path, status="pass"):
+    """Write a controlled post_emit_health sidecar with a known status, decoupled
+    from the full post_emit_health computation so surface tests are deterministic."""
+    derive_post_health_path(manifest_path).write_text(
+        json.dumps({"kind": "lenskit.post_emit_health", "version": "1.0", "status": status}),
+        encoding="utf-8",
+    )
 
 
 _PACK_SUMMARY_PRESENT = (
@@ -52,6 +58,7 @@ def _make_manifest(
     include_pack=True,
     include_runtime=True,
     include_post_health=True,
+    post_health_status="pass",
     include_output_health=True,
 ):
     """Write a synthetic but structurally valid bundle manifest + referenced files."""
@@ -106,8 +113,8 @@ def _make_manifest(
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     if include_post_health:
-        # A persisted (unregistered) post_emit_health sidecar at the derived path.
-        write_post_emit_health(str(manifest_path), agent_pack_required=include_pack)
+        # A persisted (unregistered) post_emit_health sidecar with a known status.
+        _write_post_health(manifest_path, status=post_health_status)
     return manifest_path
 
 
@@ -184,6 +191,46 @@ def test_pack_legacy_placeholder_is_drift(tmp_path):
     assert "legacy" in pack["detail"]
 
 
+def test_pack_missing_summary_while_map_present_fails(tmp_path):
+    # Map present in manifest but pack has no CLAIM_EVIDENCE_MAP_SUMMARY at all.
+    mp = _make_manifest(
+        tmp_path, claim_present=True, pack_text="## SOME_OTHER_SECTION\nnothing here\n"
+    )
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    assert report["status"] == "fail"
+    assert _check(report, "agent_reading_pack_consistency")["status"] == "fail"
+
+
+# ── surface link coherence ──────────────────────────────────────────────────
+
+def test_links_absent_skipped(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True)
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    assert _check(report, "surface_links_coherent")["status"] == "skipped"
+
+
+def test_links_resolve_passes(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True)
+    # Record links pointing at the persisted post_emit_health + a real surface sidecar.
+    write_bundle_surface_validation(str(mp), require_claim_evidence_map=True)
+    data = json.loads(mp.read_text(encoding="utf-8"))
+    data["links"]["post_emit_health_path"] = derive_post_health_path(mp).name
+    data["links"]["bundle_surface_validation_path"] = derive_surface_validation_path(mp).name
+    mp.write_text(json.dumps(data), encoding="utf-8")
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    assert _check(report, "surface_links_coherent")["status"] == "pass"
+
+
+def test_dangling_link_fails(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True)
+    data = json.loads(mp.read_text(encoding="utf-8"))
+    data["links"]["post_emit_health_path"] = "does-not-exist.bundle_health.post.json"
+    mp.write_text(json.dumps(data), encoding="utf-8")
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    assert _check(report, "surface_links_coherent")["status"] == "fail"
+    assert report["status"] == "fail"
+
+
 # ── post-emit health persistence ────────────────────────────────────────────
 
 def test_post_emit_health_missing_warns_when_required(tmp_path):
@@ -196,10 +243,42 @@ def test_post_emit_health_missing_warns_when_required(tmp_path):
     assert report["status"] in {"warn", "blocked"}
 
 
-def test_post_emit_health_present_passes(tmp_path):
-    mp = _make_manifest(tmp_path, claim_present=True, include_post_health=True)
+def test_post_emit_health_present_and_pass_passes(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True, post_health_status="pass")
     report = validate_bundle_surface(mp, require_claim_evidence_map=True)
     assert _check(report, "post_emit_health_persisted")["status"] == "pass"
+    assert _check(report, "post_emit_health_status")["status"] == "pass"
+    assert report["status"] == "pass"
+
+
+def test_post_emit_health_fail_propagates_to_surface_fail(tmp_path):
+    # A present-but-FAILED post_emit_health must NOT pass on mere persistence.
+    mp = _make_manifest(tmp_path, claim_present=True, include_post_health=False)
+    derive_post_health_path(mp).write_text(
+        json.dumps({"kind": "lenskit.post_emit_health", "status": "fail"}),
+        encoding="utf-8",
+    )
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    assert _check(report, "post_emit_health_persisted")["status"] == "pass"
+    assert _check(report, "post_emit_health_status")["status"] == "fail"
+    assert report["status"] == "fail"
+
+
+def test_post_emit_health_blocked_propagates_to_surface_blocked(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True, post_health_status="blocked")
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    assert _check(report, "post_emit_health_status")["status"] == "blocked"
+    assert report["status"] == "blocked"
+
+
+def test_post_emit_health_invalid_status_warns(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True, include_post_health=False)
+    derive_post_health_path(mp).write_text(
+        json.dumps({"kind": "lenskit.post_emit_health", "status": "nonsense"}),
+        encoding="utf-8",
+    )
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    assert _check(report, "post_emit_health_status")["status"] == "warn"
 
 
 # ── generator provenance ────────────────────────────────────────────────────
@@ -330,3 +409,73 @@ def test_validate_does_not_mutate_manifest(tmp_path, require):
     before = mp.read_text(encoding="utf-8")
     validate_bundle_surface(mp, require_claim_evidence_map=require)
     assert mp.read_text(encoding="utf-8") == before
+
+
+# ── contract: bundle-surface-validation.v1 ──────────────────────────────────
+
+import jsonschema  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+_SURFACE_SCHEMA = json.loads(
+    (
+        Path(__file__).resolve().parents[1]
+        / "contracts"
+        / "bundle-surface-validation.v1.schema.json"
+    ).read_text(encoding="utf-8")
+)
+
+
+def test_bundle_surface_validation_schema_accepts_real_report(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True)
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    jsonschema.validate(instance=report, schema=_SURFACE_SCHEMA)
+
+
+def test_bundle_surface_validation_schema_accepts_each_status(tmp_path):
+    # Drive the validator into pass / blocked / fail and validate each report.
+    def _dir(name):
+        d = tmp_path / name
+        d.mkdir()
+        return d
+
+    reports = [
+        validate_bundle_surface(
+            _make_manifest(_dir("p"), claim_present=True),
+            require_claim_evidence_map=True,
+        ),
+        validate_bundle_surface(
+            _make_manifest(_dir("b"), claim_present=False, absence_reason="no_registry",
+                           pack_text=_PACK_ABSENT_WITH_REASON),
+            require_claim_evidence_map=True,
+        ),
+        validate_bundle_surface(
+            _make_manifest(_dir("f"), claim_present=False, pack_text=_PACK_ABSENT),
+            require_claim_evidence_map=True,
+        ),
+    ]
+    assert {r["status"] for r in reports} == {"pass", "blocked", "fail"}
+    for r in reports:
+        jsonschema.validate(instance=r, schema=_SURFACE_SCHEMA)
+
+
+def test_bundle_surface_validation_schema_rejects_unknown_status():
+    bad = {
+        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
+        "run_id": "r", "bundle_run_id": None, "checked_at": "2026-06-02T00:00:00Z",
+        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
+        "status": "green",  # not an allowed verdict
+        "checks": [], "does_not_mean": ["claims_true", "forensic_ready"],
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=bad, schema=_SURFACE_SCHEMA)
+
+
+def test_bundle_surface_validation_schema_requires_headline_fields():
+    incomplete = {
+        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
+        "status": "pass", "checks": [],
+        # missing run_id / bundle_run_id / checked_at / bundle_manifest_path /
+        # require_claim_evidence_map / does_not_mean
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=incomplete, schema=_SURFACE_SCHEMA)

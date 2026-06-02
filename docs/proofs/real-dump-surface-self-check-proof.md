@@ -72,12 +72,25 @@ Die **repo-fixbaren** Lücken (unabhängig von der fremden Runtime):
 
 ## 3. Umsetzung (additiv)
 
-1. **`merger/lenskit/core/bundle_surface_validate.py`** — `validate_bundle_surface(manifest, *, require_claim_evidence_map=False)`:
-   prüft Claim-Map-Surface (vorhanden XOR Absenzgrund), Agent-Pack-Konsistenz
-   (inkl. Legacy-Placeholder-Drift), `post_emit_health`-Persistenz und
-   Generator-Provenance. Rein, schreibt nicht. Statusmodell `fail > blocked > warn > pass`.
-   `write_bundle_surface_validation` persistiert `<stem>.bundle_surface_validation.json`
-   (unregistriert — ein Self-Check verifiziert nie den eigenen Hash).
+1. **`merger/lenskit/core/bundle_surface_validate.py`** — `validate_bundle_surface(manifest, *, require_claim_evidence_map=False)`.
+   Checks (Statusmodell `fail > blocked > warn > pass`):
+   - `claim_evidence_map_surface` — vorhanden XOR maschinenlesbarer Absenzgrund;
+   - `agent_reading_pack_consistency` — vorhandene Claim-Map **muss** im Pack als
+     Summary mit `- artifact:`-Zeile sichtbar sein (fehlende Summary = `fail`),
+     Legacy-`claim_evidence_map is not yet produced` = Drift = `fail`;
+   - `post_emit_health_persisted` **und** `post_emit_health_status` — getrennt:
+     Persistenz (liegt vor) **und** propagierter Verdikt; ein vorhandenes, aber
+     `fail`/`blocked` `post_emit_health` zieht den Surface-Status mit nach unten
+     (kein „pass nur weil die Datei existiert");
+   - `surface_links_coherent` — die in `links` eingetragenen Sidecar-Pfade müssen
+     auflösen (Dangling-Link = `fail`);
+   - `output_health_not_forensic_ready` — macht explizit, dass `output_health` ein
+     pre-emit-Signal ist;
+   - `generator_provenance` — `name`/`version`/`config_sha256` vorhanden, `runtime`
+     verfügbar (fehlend = `warn`).
+   Rein, schreibt nicht. `write_bundle_surface_validation` persistiert
+   `<stem>.bundle_surface_validation.json` (unregistriert — ein Self-Check verifiziert
+   nie den eigenen Hash), Contract `bundle-surface-validation.v1.schema.json`.
 2. **`merger/lenskit/cli/cmd_bundle_surface.py`** + Dispatch in `cli/main.py`:
    `lenskit bundle-surface validate --manifest <m> [--require claim-evidence-map] [--json] [--emit-artifact]`.
    Exit-Codes `0=pass/warn`, `1=fail`, `2=blocked` (konsistent mit `bundle-health`).
@@ -92,13 +105,20 @@ Die **repo-fixbaren** Lücken (unabhängig von der fremden Runtime):
      und wird als `<stem>.bundle_surface_validation.json` persistiert.
    - `links` tragen maschinenlesbar `post_emit_health_path`,
      `bundle_surface_validation_path`, `bundle_surface_validation_status`.
-   - **Hartes Gate:** Ist die Claim-Map-Surface gefordert (Single-Repo **und** Registry
-     vorhanden) und der Surface-Status `fail` (stille Absenz / Widerspruch /
-     Legacy-Pack / fehlende Provenance-Pflichtfelder), bricht der Lauf mit `RuntimeError`.
-     Ein **deklarierter** Gap (`status=blocked`, z. B. `unexpected_missing_with_registry`)
-     wird aufgezeichnet, bricht aber nicht — die Absenz ist ehrlich und maschinenlesbar.
-5. **Contract**: `bundle-manifest.v1.schema.json` erweitert um optionales
-   `generator.runtime` und die drei neuen `links`-Schlüssel.
+   - **Hartes Gate (eng auf die Claim-Map-Invariante geschnitten):** Ist die
+     Claim-Map-Surface gefordert (Single-Repo **und** Registry vorhanden) und ist
+     ein **Claim-Map-Invariantencheck** (`claim_evidence_map_surface` oder
+     `agent_reading_pack_consistency`) `fail` (stille Absenz / Widerspruch /
+     Legacy-Pack / Pack ohne Summary), bricht der Lauf mit `RuntimeError`.
+     Ein **deklarierter** Gap (`claim_evidence_map_surface=blocked`, z. B.
+     `unexpected_missing_with_registry`) bricht **nicht**. Andere Surface-Befunde
+     (z. B. `post_emit_health.status=fail`) werden **laut** über den persistierten
+     Sidecar + `links.bundle_surface_validation_status` festgehalten, brechen aber
+     nicht den ganzen Dump ab — das Gate bleibt auf seinem Auftrag (Claim-Map).
+5. **Contracts**: neuer `bundle-surface-validation.v1.schema.json` für das Sidecar
+   (`kind=lenskit.bundle_surface_validation`, `status`-Enum, `checks[].status`-Enum,
+   `does_not_mean`, lint-konform als `diagnostic_signal`); `bundle-manifest.v1.schema.json`
+   erweitert um optionales `generator.runtime` und die drei neuen `links`-Schlüssel.
 
 ### 3.1 Welche der drei Zielzustände gelten jetzt
 
@@ -145,7 +165,10 @@ Drift-Gegenproben (synthetische Manifeste, `--require claim-evidence-map`):
 | Claim-Map fehlt, `absence_reason=no_registry` | blocked / Exit 2 (kein stiller Pass) | ✓ |
 | Claim-Map fehlt, **kein** Grund | fail / Exit 1 | ✓ |
 | Claim-Map vorhanden **und** `absence_reason` gesetzt | fail (Widerspruch) | ✓ |
+| Claim-Map vorhanden, Pack **ohne** Summary | fail (Pack-Drift) | ✓ |
 | Pack trägt Legacy `claim_evidence_map is not yet produced` | fail (Drift) | ✓ |
+| `post_emit_health` vorhanden, aber `status=fail` | fail (Verdikt propagiert, kein „pass nur weil persistiert") | ✓ |
+| `links` zeigt auf nicht vorhandenes Sidecar | fail (Dangling-Link) | ✓ |
 | Generator ohne `runtime` | warn (Drift nicht diagnostizierbar) | ✓ |
 
 ## 5. Abgrenzung
@@ -166,10 +189,13 @@ Drift-Gegenproben (synthetische Manifeste, `--require claim-evidence-map`):
 python3 -m pytest -q \
   merger/lenskit/tests/test_bundle_surface_validate.py \
   merger/lenskit/tests/test_cli_bundle_surface.py \
-  merger/lenskit/tests/test_runtime_provenance.py        # 28 passed
+  merger/lenskit/tests/test_runtime_provenance.py        # 39 passed
+
+python3 -m pytest -q merger/lenskit/tests/test_anti_hallucination_lint.py   # 33 passed
+# governance lint (real tree): 41 contracts scanned, 0 errors, 0 deferred
 
 python3 -m pytest -q --ignore=merger/lenskit/tests/test_webui_payload.py merger/lenskit/tests/
-                                                          # 1740 passed, 1 skipped
+                                                          # 1751 passed, 1 skipped
 
 python3 -m ruff check merger/lenskit/core/bundle_surface_validate.py \
   merger/lenskit/core/runtime_provenance.py merger/lenskit/cli/cmd_bundle_surface.py \

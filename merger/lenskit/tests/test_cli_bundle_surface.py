@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from merger.lenskit.cli.main import main
-from merger.lenskit.core.post_emit_health import write_post_emit_health
+from merger.lenskit.core.post_emit_health import derive_post_health_path
 
 
 _DUMMY_SHA = "0" * 64
@@ -52,9 +52,12 @@ def _make_bundle(tmp_path: Path, *, claim_present: bool, absence_reason=None) ->
     }
     mp = tmp_path / "x.bundle.manifest.json"
     mp.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    # Persist a post_emit_health sidecar so the surface is fully coherent
-    # (the surface validator only checks the sidecar's presence, not its status).
-    write_post_emit_health(str(mp))
+    # Persist a controlled post_emit_health sidecar (status=pass) so the surface
+    # is fully coherent; status propagation is unit-tested separately.
+    derive_post_health_path(mp).write_text(
+        json.dumps({"kind": "lenskit.post_emit_health", "version": "1.0", "status": "pass"}),
+        encoding="utf-8",
+    )
     return mp
 
 

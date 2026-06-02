@@ -6263,16 +6263,21 @@ def write_reports_v2(
     _write_text_atomic(bundle_manifest_path, json.dumps(bundle_manifest, indent=2))
 
     # Hard, visible gate: when the claim-map surface is required, an active
-    # surface DEFECT (silent absence, present/announced-absent contradiction,
-    # stale pack placeholder, or missing generator provenance) blocks the run.
-    # A *declared* gap (status=blocked, e.g. unexpected_missing_with_registry) is
-    # recorded but does not raise — the absence is honest and machine-readable.
-    if require_claim_surface and surface_report["status"] == "fail":
-        failed = "; ".join(
-            f"{c['name']}: {c.get('detail', '')}"
-            for c in surface_report.get("checks", [])
-            if c.get("status") == "fail"
-        )
+    # DEFECT of the claim-map invariant — a silently absent claim map (no reason),
+    # a present/announced-absent contradiction, or a stale pack placeholder —
+    # blocks the run. The gate is deliberately scoped to the claim-map invariant
+    # checks: a *declared* gap (claim_evidence_map_surface=blocked, e.g.
+    # unexpected_missing_with_registry) is recorded but does not raise, and other
+    # surface concerns (e.g. a failed post_emit_health) are recorded loudly via
+    # the persisted sidecar + links.bundle_surface_validation_status rather than
+    # aborting the whole dump.
+    _invariant_checks = ("claim_evidence_map_surface", "agent_reading_pack_consistency")
+    _blocking = [
+        c for c in surface_report.get("checks", [])
+        if c.get("name") in _invariant_checks and c.get("status") == "fail"
+    ]
+    if require_claim_surface and _blocking:
+        failed = "; ".join(f"{c['name']}: {c.get('detail', '')}" for c in _blocking)
         raise RuntimeError(
             "Bundle surface self-check failed for a single-repo dump with a "
             "doc-freshness registry (claim-evidence-map surface required): "
