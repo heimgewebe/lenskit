@@ -1456,8 +1456,10 @@ def test_claim_evidence_map_unexpected_missing_with_registry(tmp_path, monkeypat
     # Monkeypatch the module where it is imported. merge.py imports produce_claim_evidence_map inside _add_artifact
     # We patch the underlying module to return successfully but silently not write the file.
     import merger.lenskit.core.claim_evidence_map as cem
+
     def fake_produce(*args, **kwargs):
-        pass # do not write the file, simulate silent failure
+        pass  # do not write the file, simulate silent failure
+
     monkeypatch.setattr(cem, "produce_claim_evidence_map", fake_produce)
 
     summary = scan_repo(src_dir)

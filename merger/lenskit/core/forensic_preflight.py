@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from .clock import now_utc
-from .claim_evidence_diagnostics import claim_absence_reason_from_manifest, claim_absence_reason_detail
+from .claim_evidence_diagnostics import (
+    claim_absence_reason_detail,
+    claim_absence_reason_from_manifest,
+)
 from .path_security import resolve_secure_path
 from .post_emit_health import derive_post_health_path
 
