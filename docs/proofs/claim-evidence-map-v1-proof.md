@@ -215,7 +215,11 @@ Forensic-Ready-Signal fehlinterpretiert wird.
 Zusätzlich zum CI-Guard kann der Surface Guard manuell wie folgt validiert werden:
 
 ```bash
-python3 -m merger.lenskit.cli.rlens . --level max --split-size 20MB --meta-density full
+python3 -m merger.lenskit.frontends.pythonista.repolens . \
+  --level max \
+  --split-size 20MB \
+  --meta-density full \
+  --output-mode dual
 ```
 
 Danach im Output-Manifest prüfen:
