@@ -205,3 +205,55 @@ python3 -m ruff check merger/lenskit/core/bundle_surface_validate.py \
 ```
 
 `test_webui_payload.py` (Playwright) bleibt unabhängig von dieser PR ausgeschlossen.
+
+## 7. Wiederherstellung & Standard-Dump-Hook-Integrationsabdeckung
+
+> Nachtrag 2026-06-03.
+
+Diese Surface-Selbstprüfung wurde ursprünglich in Commit `fe6723d`
+(„feat: real-dump bundle surface validation and runtime provenance") implementiert,
+danach jedoch **still zurückgesetzt**: Der Folge-Commit `ae48fa3`
+(„feat: foundational planning registration guard") trug `fe6723d` als Parent, sein
+Baum stammte aber von der Planning-Registration-Linie (`e24ca94`, **ohne** die
+Surface-Dateien). Dadurch löschte `ae48fa3` faktisch alle sieben Surface-Dateien
+(Validator, Runtime-Provenance, CLI, Schema, drei Testdateien); über `59b7356`
+(PR #736) gelangte dieser Zustand auf `main`. Netto trug HEAD die Planning-Arbeit,
+**nicht** die Surface-Arbeit — exakt das gemeldete Symptom blieb bestehen.
+
+Wiederherstellung in diesem Slice:
+
+1. **`fe6723d` per Cherry-Pick restauriert.** Die Planning-Registration-Arbeit
+   (`e24ca94`→HEAD) berührte **keine** der `fe6723d`-Dateien (Schnittmenge leer),
+   daher konfliktfrei. Alle Abhängigkeiten (`claim_evidence_diagnostics`,
+   `ArtifactRole`, `derive_post_health_path`, `resolve_secure_path`, `now_utc`)
+   und alle von der `merge.py`-Verdrahtung referenzierten `write_reports_v2`-Locals
+   (`claim_evidence_registry_exists`, `repo_summaries`, `redact_secrets`,
+   `generator_info`, `config_sha256`, `links`, `out_paths`, `other_paths`) sind
+   in HEAD vorhanden und verifiziert.
+2. **Realer Smoke nachgezogen.** Ein echter Single-Repo-Max-Dump des Repos
+   (mit `docs/doc-freshness-registry.yml`) erzeugt jetzt `claim_evidence_map.json`,
+   `…bundle_health.post.json` und `…bundle_surface_validation.json`; Manifest-`links`
+   tragen die drei Surface-Schlüssel, `generator.runtime` ist gesetzt,
+   `bundle_surface_validation_status=pass`, Agent-Pack ohne Legacy-Zeile.
+
+Zusätzlich geschlossen: der **Standard-Dump-Hook** war zuvor nur über die
+Sidecar-Suffix-Klassifizierung in `test_per_repo_cohesion.py` (Multi-Repo) berührt.
+Neu in `merger/lenskit/tests/test_bundle_manifest_integration.py` (Single-Repo +
+Registry über `write_reports_v2`):
+
+- `test_real_dump_surface_hook_emits_runtime_and_surface_links` — `generator.runtime`
+  vorhanden; `links.{post_emit_health_path,bundle_surface_validation_path,
+  bundle_surface_validation_status}` gesetzt; beide Sidecars liegen auf Platte;
+  Sidecar-`status` == Link-`status`; `require_claim_evidence_map=True`; Surface `pass`;
+  Claim-Map-Rolle vorhanden; Pack ohne Legacy-Zeile (Kriterien A–G).
+- `test_real_dump_surface_sidecars_are_unregistered` — die beiden Sidecars sind
+  **nicht** als Manifest-Artefakte registriert (Self-Hash-/Zirkularitätsfalle).
+- `test_real_dump_surface_validation_sidecar_schema_valid` — der persistierte Sidecar
+  validiert gegen `bundle-surface-validation.v1.schema.json`.
+
+Aktueller Lauf (vollständige Lenskit-Suite, ohne Playwright-`test_webui_payload.py`):
+
+```
+python3 -m pytest -q --ignore=merger/lenskit/tests/test_webui_payload.py merger/lenskit/tests/
+                                                          # 1754 passed, 1 skipped
+```
