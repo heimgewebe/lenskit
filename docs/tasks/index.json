@@ -1,0 +1,20 @@
+{
+  "tasks": [
+    {
+      "id": "TASK-CTL-004",
+      "title": "Planning Registration Guard",
+      "status": "partial",
+      "description": "Introduce a foundational guard that checks whether active planning artifacts (blueprints, roadmap docs, planning specs, status reports) are registered in task-control or roadmap. CI runs report-only; blocking/ratchet remains deliberately deferred.",
+      "evidence": [
+        "scripts/docmeta/check_planning_registration.py",
+        "scripts/docmeta/tests/test_check_planning_registration.py",
+        ".github/workflows/task-index.yml"
+      ],
+      "missing_evidence": [
+        "Ratchet/Baseline-Modus für neue Findings fehlt noch.",
+        "Frontmatter-Ausnahmefluss ist noch nicht schema-/contract-stabil.",
+        "CI ist report-only angebunden; blocking/ratchet bleibt bewusst ausstehend."
+      ]
+    }
+  ]
+}
