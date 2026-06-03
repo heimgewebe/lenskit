@@ -1539,6 +1539,14 @@ def test_real_dump_surface_hook_emits_runtime_and_surface_links(tmp_path):
     assert report["require_claim_evidence_map"] is True
     assert status == "pass", f"expected a coherent surface, got {status}: {report['checks']}"
 
+    # surface_links_coherent must resolve to pass in the two-phase finalization
+    # (the second validation pass sees the manifest with surface links already set)
+    checks_by_name = {c["name"]: c for c in report["checks"]}
+    assert checks_by_name["surface_links_coherent"]["status"] == "pass", (
+        f"surface_links_coherent must be pass after two-phase finalization, "
+        f"got: {checks_by_name['surface_links_coherent']}"
+    )
+
     # claim map present (criterion E) and pack free of the legacy placeholder (F)
     roles = {e["role"] for e in data["artifacts"]}
     assert ArtifactRole.CLAIM_EVIDENCE_MAP_JSON.value in roles

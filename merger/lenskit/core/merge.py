@@ -6234,6 +6234,13 @@ def write_reports_v2(
     # forensic-readiness. Persist post_emit_health and run a surface self-check
     # against the FINAL manifest so a stale runtime cannot silently emit a bundle
     # that lacks the claim-evidence-map surface while still looking healthy.
+    #
+    # Two-phase finalization: surface_links_coherent requires that the manifest
+    # already carries the surface link pointers when the validator runs. We
+    # therefore write an initial sidecar (links absent → surface_links_coherent
+    # skipped), stamp the links into the manifest, then run a second validation
+    # pass against the link-bearing manifest so the final persisted sidecar
+    # actually validates the truly finished artifact.
     from .post_emit_health import write_post_emit_health
     from .bundle_surface_validate import write_bundle_surface_validation
 
@@ -6245,7 +6252,9 @@ def write_reports_v2(
     # A coherent claim-evidence-map surface is REQUIRED exactly when the bundle
     # is a single-repo dump whose source repo ships docs/doc-freshness-registry.yml.
     require_claim_surface = len(repo_summaries) == 1 and claim_evidence_registry_exists
-    surface_path, surface_report = write_bundle_surface_validation(
+
+    # ── Phase 1: initial surface validation (links not yet in manifest) ───────
+    surface_path, surface_report_initial = write_bundle_surface_validation(
         str(bundle_manifest_path),
         require_claim_evidence_map=require_claim_surface,
     )
@@ -6253,14 +6262,30 @@ def write_reports_v2(
     if surface_path not in other_paths:
         other_paths.append(surface_path)
 
-    # Record machine-readable pointers + verdict in links. The sidecars are
-    # intentionally UNregistered as artifacts: a self-check must not verify its
-    # own hash, and post_emit_health must not create manifest hash circularity.
+    # Record machine-readable pointers + initial verdict in links. The sidecars
+    # are intentionally UNregistered as artifacts: a self-check must not verify
+    # its own hash, and post_emit_health must not create manifest hash circularity.
     links["post_emit_health_path"] = post_health_path.name
     links["bundle_surface_validation_path"] = surface_path.name
-    links["bundle_surface_validation_status"] = surface_report["status"]
+    links["bundle_surface_validation_status"] = surface_report_initial["status"]
     bundle_manifest["links"] = links
     _write_text_atomic(bundle_manifest_path, json.dumps(bundle_manifest, indent=2))
+
+    # ── Phase 2: final surface validation (links now present in manifest) ─────
+    # The second pass runs against the link-bearing manifest, enabling
+    # surface_links_coherent to resolve. Overwrite the sidecar in-place.
+    _, surface_report = write_bundle_surface_validation(
+        str(bundle_manifest_path),
+        output_path=surface_path,
+        require_claim_evidence_map=require_claim_surface,
+    )
+
+    # If the final status differs from the initial stamp, update the link so the
+    # manifest accurately reflects the sidecar written to disk.
+    if surface_report["status"] != surface_report_initial["status"]:
+        links["bundle_surface_validation_status"] = surface_report["status"]
+        bundle_manifest["links"] = links
+        _write_text_atomic(bundle_manifest_path, json.dumps(bundle_manifest, indent=2))
 
     # Hard, visible gate: when the claim-map surface is required, an active
     # DEFECT of the claim-map invariant — a silently absent claim map (no reason),
