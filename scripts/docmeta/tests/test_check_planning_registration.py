@@ -78,13 +78,15 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         findings = check_plan.run_checks()
         self.assertEqual([f for f in findings if f["code"] == "UNREGISTERED_PLANNING_ARTIFACT"], [])
 
-    def test_missing_evidence_with_backticks_and_trailing_comma(self):
+    def test_missing_evidence_does_not_register(self):
         self.write_file("docs/tasks/index.json", json.dumps({
             "tasks": [{"id": "T1", "missing_evidence": ["still open: `docs/blueprints/planned.md`, then ratchet"]}]
         }))
         self.write_file("docs/blueprints/planned.md", "---\nstatus: active\n---\nBody")
         findings = check_plan.run_checks()
-        self.assertEqual([f for f in findings if f["code"] == "UNREGISTERED_PLANNING_ARTIFACT"], [])
+        unregistered = [f for f in findings if f["code"] == "UNREGISTERED_PLANNING_ARTIFACT"]
+        self.assertEqual(len(unregistered), 1)
+        self.assertEqual(unregistered[0]["path"], "docs/blueprints/planned.md")
 
     def test_scripts_path_extraction_supported(self):
         self.write_file("docs/tasks/board.md", "scripts/docmeta/check_planning_registration.py")

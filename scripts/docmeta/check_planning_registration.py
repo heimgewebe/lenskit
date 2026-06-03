@@ -89,8 +89,6 @@ def get_registered_paths():
                     ref = _normalize_ref(path)
                     if ref:
                         registered.add(ref)
-                for item in task.get("missing_evidence", []) or []:
-                    registered.update(_extract_path_refs(str(item)))
         except json.JSONDecodeError as e:
             findings.append({
                 "code": "CONTROL_FILE_PARSE_ERROR",
