@@ -3,7 +3,8 @@
 #
 # Controlled canary for `governance forensic-preflight`. It builds a small,
 # hermetic, registry-bearing fixture bundle through the standard merge pipeline,
-# persists post_emit_health, runs the forensic preflight CLI, persists the
+# verifies that write_reports_v2 emitted post_emit_health and bundle_surface_validation
+# as required sidecars, runs the forensic preflight CLI, persists the
 # machine-readable JSON report and asserts a strict PASS.
 #
 # A PASS means the *formal* forensic_strict prerequisites are present (manifest,
@@ -52,12 +53,16 @@ echo "ARTIFACT_DIR=${ARTIFACT_DIR}"
 echo "WORKDIR=${WORKDIR}"
 
 # 1. Build a hermetic, registry-bearing fixture bundle through the standard
-#    merge pipeline and persist post_emit_health. The fixture ships its own
-#    docs/doc-freshness-registry.yml so claim_evidence_map_json is produced
-#    deterministically: single-repo bundles derive the claim map from the
-#    scanned repo's registry (merge.py), and without one the map is correctly
-#    absent and preflight would block. max_bytes=100_000 yields the strict
-#    navigation artifacts (chunk_index + citation_map) the preflight requires.
+#    merge pipeline. write_reports_v2 writes post_emit_health and
+#    bundle_surface_validation sidecars internally (merge.py §post-emit gate)
+#    and records their paths in manifest.links. The canary verifies those links
+#    and the sidecars exist + are pass; it does NOT produce them itself.
+#    The fixture ships its own docs/doc-freshness-registry.yml so
+#    claim_evidence_map_json is produced deterministically: single-repo bundles
+#    derive the claim map from the scanned repo's registry (merge.py), and
+#    without one the map is correctly absent and preflight would block.
+#    max_bytes=100_000 yields the strict navigation artifacts (chunk_index +
+#    citation_map) the preflight requires.
 python3 - "${WORKDIR}" "${MANIFEST_REF}" <<'PY'
 from __future__ import annotations
 
@@ -67,10 +72,6 @@ import sys
 from pathlib import Path
 
 from merger.lenskit.core.merge import ExtrasConfig, scan_repo, write_reports_v2
-from merger.lenskit.core.post_emit_health import (
-    derive_post_health_path,
-    write_post_emit_health,
-)
 
 workdir = Path(sys.argv[1]).resolve()
 manifest_ref = Path(sys.argv[2])
@@ -165,14 +166,53 @@ missing = sorted(REQUIRED_ROLES - roles)
 if missing:
     raise SystemExit(f"FAILED: canary bundle missing required roles: {missing}")
 
-write_post_emit_health(str(manifest))
-post_path = derive_post_health_path(manifest)
+# Verify that write_reports_v2 produced the required sidecars and linked them.
+# The canary does NOT generate these itself: generating would mask a regression
+# where write_reports_v2 fails to persist a sidecar but still sets the link.
+links = doc.get("links", {})
+manifest_run_id = doc.get("run_id")
+
+post_rel = links.get("post_emit_health_path")
+if not post_rel:
+    raise SystemExit("FAILED: manifest missing links.post_emit_health_path — write_reports_v2 did not emit post_emit_health")
+
+post_path = manifest.parent / post_rel
 if not post_path.is_file():
-    raise SystemExit("FAILED: post_emit_health was not persisted next to the manifest")
+    raise SystemExit(f"FAILED: linked post_emit_health sidecar not on disk: {post_path}")
+
+post = json.loads(post_path.read_text(encoding="utf-8"))
+if post.get("status") != "pass":
+    raise SystemExit(f"FAILED: post_emit_health status is not pass: {post.get('status')!r}")
+
+if manifest_run_id and post.get("bundle_run_id") not in {None, manifest_run_id}:
+    raise SystemExit(
+        f"FAILED: post_emit_health bundle_run_id {post.get('bundle_run_id')!r} "
+        f"does not match manifest run_id {manifest_run_id!r}"
+    )
+
+surface_rel = links.get("bundle_surface_validation_path")
+if not surface_rel:
+    raise SystemExit("FAILED: manifest missing links.bundle_surface_validation_path — write_reports_v2 did not emit bundle_surface_validation")
+
+surface_path = manifest.parent / surface_rel
+if not surface_path.is_file():
+    raise SystemExit(f"FAILED: linked bundle_surface_validation sidecar not on disk: {surface_path}")
+
+surface = json.loads(surface_path.read_text(encoding="utf-8"))
+if surface.get("status") != links.get("bundle_surface_validation_status"):
+    raise SystemExit(
+        f"FAILED: bundle_surface_validation sidecar status {surface.get('status')!r} "
+        f"does not match manifest link {links.get('bundle_surface_validation_status')!r}"
+    )
+
+if surface.get("status") != "pass":
+    raise SystemExit(f"FAILED: bundle_surface_validation status is not pass: {surface.get('status')!r}")
 
 manifest_ref.write_text(str(manifest) + "\n", encoding="utf-8")
 print(f"canary_manifest={manifest}")
 print(f"canary_roles={sorted(roles)}")
+print(f"canary_post_emit_health=pass (run_id bound)")
+print(f"canary_bundle_surface_validation=pass")
 PY
 
 MANIFEST="$(cat "${MANIFEST_REF}")"

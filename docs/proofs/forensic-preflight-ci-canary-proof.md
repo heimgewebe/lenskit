@@ -55,13 +55,17 @@ deterministisch `claim_evidence_map_json`.
 ## 4. Umsetzung
 
 - `.github/workflows/forensic-preflight-canary.yml` — path-scoped Canary
-  (PR + push auf `main`/`master`), `permissions: contents: read`, Python 3.12,
+  (PR + push auf `main`/`master`), `permissions: contents: read`, Python **3.10**
+  (entspricht dem realen Service-Host 3.10.12),
   installiert `merger/lenskit/requirements.txt` (liefert **jsonschema**) und
   `requirements-dev.txt`.
 - `scripts/proofs/forensic_preflight_ci_canary.sh` — fokussierter Canary:
   baut über den Standard-Merge-Pfad (`scan_repo` + `write_reports_v2`,
   `max_bytes=100_000`) ein kleines, hermetisches, registry-tragendes
-  Fixture-Bundle, schreibt `post_emit_health`, führt
+  Fixture-Bundle; prüft dann **manifest-seitig**, dass `write_reports_v2`
+  `post_emit_health` und `bundle_surface_validation` bereits als Sidecars
+  emittiert und in `links` verlinkt hat (der Canary erzeugt diese Sidecars
+  **nicht selbst** — Selbstreparatur würde eine Regression maskieren); führt
   `governance forensic-preflight --manifest <manifest> --json` aus,
   persistiert den JSON-Report und erzwingt **strikt** `status=pass`.
 - `scripts/proofs/forensic_preflight_calibration.sh` — Fixture-Fix (s. §3);
@@ -106,7 +110,7 @@ Lokal (Python 3.11, `jsonschema`/`pytest`/`PyYAML` installiert) ausgeführt:
 | :--- | :--- |
 | `pytest -q merger/lenskit/tests/test_forensic_preflight.py` | grün |
 | `bash -n scripts/proofs/forensic_preflight_ci_canary.sh` | OK |
-| `bash scripts/proofs/forensic_preflight_ci_canary.sh` | `status=pass`, 13/13 Checks `pass`, Artefakt geschrieben |
+| `bash scripts/proofs/forensic_preflight_ci_canary.sh` | `status=pass`, 13/13 Checks `pass`, `post_emit_health=pass` und `bundle_surface_validation=pass` von `write_reports_v2` verifiziert, Artefakt geschrieben |
 | `bash scripts/proofs/forensic_preflight_calibration.sh` | positive=`pass`, missing_claim_map=`blocked`, stale_post_emit_health=`fail`, hash_drift=`fail` |
 
 Der Canary-Report trägt `does_not_mean = [claims_true, repo_understood,

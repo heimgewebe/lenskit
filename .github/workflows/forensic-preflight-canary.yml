@@ -66,7 +66,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          # Match the real service Python version (3.10.12 on the production host)
+          # so the canary exercises the same runtime the actual dumps are produced on.
+          python-version: '3.10'
 
       - name: Log Python Version
         run: python --version
