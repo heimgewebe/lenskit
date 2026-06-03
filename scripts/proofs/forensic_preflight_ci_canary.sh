@@ -256,6 +256,14 @@ data = json.loads(raw)
 status = data.get("status") or data.get("verdict")
 print(f"forensic_preflight_status={status!r}")
 
+# JSON status and process exit must agree: a status=pass report that exited
+# non-zero means a CLI-wrapper error was masked by the JSON payload.
+if status == "pass" and cli_exit != "0":
+    raise SystemExit(
+        f"FAILED: forensic preflight reported status=pass but exited with {cli_exit}; "
+        "CLI exit code and JSON status must agree."
+    )
+
 non_pass = [
     (c.get("name"), c.get("status"))
     for c in data.get("checks", [])
