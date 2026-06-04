@@ -292,8 +292,7 @@ while plan-only is active.
    Each apply re-verifies HEAD against the plan (`head_changed` guard) before its
    single `merge --ff-only`.
 
-This guarantees that a hard failure on one repo can never leave another repo
-half-fast-forwarded.
+This guarantees that a plan-phase hard failure on one repo cannot leave another repo HEAD or working tree fast-forwarded, because no apply step is started until all plans are free of hard failures. Apply-phase failures are still reported as hard failures; each apply re-verifies HEAD (`head_changed`) and uses only `merge --ff-only`, but the apply phase is not a rollback transaction if an earlier repo was already fast-forwarded.
 
 **Semantics (per selected repo):**
 
