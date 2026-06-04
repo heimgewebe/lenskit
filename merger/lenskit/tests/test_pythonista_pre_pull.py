@@ -30,7 +30,7 @@ def test_run_pre_pull_two_phase_plan_hard_fail_skips_apply(monkeypatch):
     monkeypatch.setattr(
         repolens, "apply_pre_pull_plans", lambda plans, *a, **k: applied.append(plans) or []
     )
-    with pytest.raises(ValueError, match="no repos were modified"):
+    with pytest.raises(ValueError, match="no repo HEADs or working trees were fast-forwarded"):
         repolens.run_pre_pull_two_phase([Path("/hub/a")], log=lambda m: None)
     assert applied == [], "apply must not run when a plan hard-fails"
 
@@ -46,7 +46,7 @@ def test_run_pre_pull_two_phase_multi_repo_no_partial_apply(monkeypatch):
     monkeypatch.setattr(
         repolens, "apply_pre_pull_plans", lambda p, *a, **k: applied.append(p) or []
     )
-    with pytest.raises(ValueError, match="no repos were modified"):
+    with pytest.raises(ValueError, match="no repo HEADs or working trees were fast-forwarded"):
         repolens.run_pre_pull_two_phase([Path("/hub/ff"), Path("/hub/dirty")], log=lambda m: None)
     assert applied == []
 

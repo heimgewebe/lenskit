@@ -213,7 +213,9 @@ class JobRunner:
                     # Abort BEFORE applying any fast-forward, so no repo is left
                     # partially updated when another repo cannot be synced.
                     detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
-                    raise ValueError(f"Pre-pull plan failed (no repos were modified): {detail}")
+                    raise ValueError(
+                        f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}"
+                    )
 
                 log("Pre-pull plan OK: applying fast-forwards...")
                 results = apply_pre_pull_plans(plans)

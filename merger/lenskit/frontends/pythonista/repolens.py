@@ -309,7 +309,9 @@ def run_pre_pull_two_phase(sources, log=print, warn=None):
 
     if hard_failures:
         detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
-        raise ValueError(f"Pre-pull plan failed (no repos were modified): {detail}")
+        raise ValueError(
+            f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}"
+        )
 
     log("Pre-pull plan OK: applying fast-forwards...")
     results = apply_pre_pull_plans(plans)
@@ -1512,6 +1514,7 @@ class MergerUI(object):
             if profile is not None:
                 data["detail_profile"] = profile
 
+            pre_pull_switch = getattr(self, "pre_pull_switch", None)
             data.update(
                 {
                     "ext_filter": self.ext_field.text or "",
@@ -1521,7 +1524,7 @@ class MergerUI(object):
                     "meta_density_index": self.seg_meta.selected_index,
                     "plan_only": bool(self.plan_only_switch.value),
                     "code_only": bool(getattr(self, "code_only_switch", False) and self.code_only_switch.value),
-                    "pre_pull": bool(getattr(self, "pre_pull_switch", True) and self.pre_pull_switch.value),
+                    "pre_pull": True if pre_pull_switch is None else bool(pre_pull_switch.value),
                     "selected_repos": self._get_selected_repos(explicit_only=True),
                     "extras": {
                         "health": self.extras_config.health,

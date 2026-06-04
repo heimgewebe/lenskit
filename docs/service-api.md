@@ -313,7 +313,7 @@ half-fast-forwarded.
 | `up_to_date`, `fast_forwarded` | success | Scan proceeds |
 | `planned_fast_forward` | plan-only intermediate | Becomes `fast_forwarded` in apply (never a final status) |
 | `skipped_not_git`, `skipped_no_upstream`, `local_ahead` | warning | Logged + added to `job.warnings`; scan proceeds |
-| `dirty`, `diverged`, `fetch_failed`, `merge_failed`, `head_changed`, `error` | hard fail | Job fails before any scan; on a multi-repo plan failure, no repo is modified |
+| `dirty`, `diverged`, `fetch_failed`, `merge_failed`, `head_changed`, `error` | hard fail | Job fails before any scan; on a multi-repo plan failure, no repo HEADs or working trees were fast-forwarded |
 
 Notes:
 - A dirty **tracked** working tree blocks; **untracked** files do not block and

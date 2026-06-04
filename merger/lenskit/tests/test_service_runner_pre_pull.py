@@ -169,7 +169,7 @@ def test_pre_pull_plan_hard_fail_prevents_apply_and_scan(mock_job_store, temp_hu
         scan.assert_not_called()
         assert job.status == "failed"
         assert "Pre-pull plan failed" in (job.error or "")
-        assert "no repos were modified" in (job.error or "")
+        assert "no repo HEADs or working trees were fast-forwarded" in (job.error or "")
 
 
 def test_pre_pull_warn_status_allows_apply_for_other_repo(mock_job_store, temp_hub):
