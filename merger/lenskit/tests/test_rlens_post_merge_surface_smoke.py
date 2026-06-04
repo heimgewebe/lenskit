@@ -47,6 +47,12 @@ def _write_bundle(tmp_path: Path):
     return merges, artifacts
 
 
+def _post_emit_health_path(artifacts) -> Path:
+    manifest = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
+    rel = manifest["links"]["post_emit_health_path"]
+    return artifacts.bundle_manifest.parent / rel
+
+
 def _run_smoke(merges: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", str(SCRIPT), str(merges)],
@@ -104,3 +110,48 @@ def test_rlens_surface_smoke_fails_structured_sidecar_file_index_leak(tmp_path):
     combined = result.stdout + result.stderr
     assert "scratch noise leaked as structured path" in combined
     assert "index_sidecar_json" in combined
+
+
+def test_rlens_surface_smoke_fails_when_output_health_noise_unavailable_with_zero_count(tmp_path):
+    merges, artifacts = _write_bundle(tmp_path)
+
+    output_health = json.loads(artifacts.output_health.read_text(encoding="utf-8"))
+    output_health["checks"]["excluded_noise"]["count"] = 0
+    output_health["checks"]["noise_hygiene"]["available"] = False
+    artifacts.output_health.write_text(json.dumps(output_health, indent=2), encoding="utf-8")
+
+    result = _run_smoke(merges)
+
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "output_health noise_hygiene.available is not true" in combined
+
+
+def test_rlens_surface_smoke_fails_when_post_emit_noise_unavailable(tmp_path):
+    merges, artifacts = _write_bundle(tmp_path)
+
+    post_path = _post_emit_health_path(artifacts)
+    post_emit = json.loads(post_path.read_text(encoding="utf-8"))
+    post_emit["noise_hygiene"]["available"] = False
+    post_path.write_text(json.dumps(post_emit, indent=2), encoding="utf-8")
+
+    result = _run_smoke(merges)
+
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "post_emit_health.noise_hygiene.available is not true" in combined
+
+
+def test_rlens_surface_smoke_fails_structured_dump_index_path_leak(tmp_path):
+    merges, artifacts = _write_bundle(tmp_path)
+
+    dump_index = json.loads(artifacts.dump_index.read_text(encoding="utf-8"))
+    dump_index["artifacts"]["canonical_md"]["path"] = SCRATCH_PATH
+    artifacts.dump_index.write_text(json.dumps(dump_index, indent=2), encoding="utf-8")
+
+    result = _run_smoke(merges)
+
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "scratch noise leaked as structured path" in combined
+    assert "dump_index_json" in combined
