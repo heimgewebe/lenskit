@@ -249,6 +249,30 @@ except ImportError:
     )
     from lenskit.core.pr_schau_bundle import load_pr_schau_bundle, BUNDLE_FILENAME
 
+try:
+    from merger.lenskit.service.repo_sync import (
+        pre_pull_repo,
+        is_self_repo,
+        HARD_FAIL_STATUSES,
+        WARN_STATUSES,
+        SELF_REPO_NOTICE_STATUSES,
+    )
+except ImportError:
+    try:
+        from lenskit.service.repo_sync import (
+            pre_pull_repo,
+            is_self_repo,
+            HARD_FAIL_STATUSES,
+            WARN_STATUSES,
+            SELF_REPO_NOTICE_STATUSES,
+        )
+    except ImportError:
+        pre_pull_repo = None
+        is_self_repo = lambda p: False
+        HARD_FAIL_STATUSES = []
+        WARN_STATUSES = []
+        SELF_REPO_NOTICE_STATUSES = []
+
 PROFILE_DESCRIPTIONS = {
     # Kurzbeschreibung der Profile für den UI-Hint
     "overview": (
@@ -911,6 +935,23 @@ class MergerUI(object):
 
         cy += 36
 
+        # --- Pre-pull Switch ---
+        pre_pull_label = ui.Label()
+        pre_pull_label.text = "Pre-pull:"
+        pre_pull_label.text_color = "white"
+        pre_pull_label.background_color = "#111111"
+        pre_pull_label.frame = (10, cy, 120, 22)
+        bottom_container.add_subview(pre_pull_label)
+
+        pre_pull_switch = ui.Switch()
+        pre_pull_switch.frame = (130, cy - 2, 60, 32)
+        pre_pull_switch.flex = "W"
+        pre_pull_switch.value = True
+        bottom_container.add_subview(pre_pull_switch)
+        self.pre_pull_switch = pre_pull_switch
+
+        cy += 36
+
         info_label = ui.Label()
         info_label.text_color = "white"
         info_label.background_color = "#111111"
@@ -1423,6 +1464,7 @@ class MergerUI(object):
                     "meta_density_index": self.seg_meta.selected_index,
                     "plan_only": bool(self.plan_only_switch.value),
                     "code_only": bool(getattr(self, "code_only_switch", False) and self.code_only_switch.value),
+                    "pre_pull": bool(getattr(self, "pre_pull_switch", True) and self.pre_pull_switch.value),
                     "selected_repos": self._get_selected_repos(explicit_only=True),
                     "extras": {
                         "health": self.extras_config.health,
@@ -1481,6 +1523,8 @@ class MergerUI(object):
         self.plan_only_switch.value = bool(data.get("plan_only", False))
         if getattr(self, "code_only_switch", None) is not None:
             self.code_only_switch.value = bool(data.get("code_only", False))
+        if getattr(self, "pre_pull_switch", None) is not None:
+            self.pre_pull_switch.value = bool(data.get("pre_pull", True))
 
         self.ignored_repos = set(data.get("ignored_repos", []))
 
@@ -2972,6 +3016,8 @@ class MergerUI(object):
             self.plan_only_switch.value = False
         if getattr(self, "code_only_switch", None) is not None:
             self.code_only_switch.value = False
+        if getattr(self, "pre_pull_switch", None) is not None:
+            self.pre_pull_switch.value = True
 
         extras_defaults, _ = ExtrasConfig.from_csv(DEFAULT_EXTRAS)
         self.extras_config = extras_defaults
@@ -2993,6 +3039,7 @@ class MergerUI(object):
         self._pending_plan_only = self.plan_only_switch.value
         # Use getattr for code_only just in case (legacy robustness)
         self._pending_code_only = bool(getattr(self, "code_only_switch", None) and self.code_only_switch.value)
+        self._pending_pre_pull = bool(getattr(self, "pre_pull_switch", None) and self.pre_pull_switch.value)
 
         try:
             import ui as _ui
@@ -3030,6 +3077,8 @@ class MergerUI(object):
                 del self._pending_plan_only
             if hasattr(self, "_pending_code_only"):
                 del self._pending_code_only
+            if hasattr(self, "_pending_pre_pull"):
+                del self._pending_pre_pull
 
     def _run_merge_inner(self) -> None:
         # 1. Determine Selection Strategy (Explicit vs Pool vs All)
@@ -3116,6 +3165,12 @@ class MergerUI(object):
             code_switch = getattr(self, "code_only_switch", None)
             code_only = bool(code_switch and code_switch.value)
 
+        if hasattr(self, "_pending_pre_pull"):
+            pre_pull = self._pending_pre_pull
+        else:
+            pre_pull_switch = getattr(self, "pre_pull_switch", None)
+            pre_pull = bool(pre_pull_switch is None or pre_pull_switch.value)
+
         # Mutual exclusion: plan_only wins to avoid ambiguous semantics.
         if plan_only and code_only:
             code_only = False
@@ -3189,6 +3244,34 @@ class MergerUI(object):
                 root = self.hub / name
                 if not root.is_dir():
                     continue
+
+                if pre_pull and pre_pull_repo is not None:
+                    if console:
+                        try:
+                            console.hud_alert(f"Pre-pull {name}...", duration=0.6)
+                        except Exception:
+                            pass
+                    else:
+                        print(f"Pre-pull {name}: updating repository (fast-forward only)...")
+
+                    result = pre_pull_repo(root)
+
+                    msg = f"Pre-pull {name}: {result.status} - {result.message}"
+                    print(msg)
+                    if result.stderr:
+                        print(f"Pre-pull {name} detail:\n{result.stderr.strip()}")
+
+                    if is_self_repo(root) and result.status in SELF_REPO_NOTICE_STATUSES:
+                        restart_warn = (
+                            f"Warning: pre_pull updated or checked the running code repository '{name}'. "
+                            "Please restart any active service after completion."
+                        )
+                        print(restart_warn, file=sys.stderr)
+
+                    if result.status in HARD_FAIL_STATUSES:
+                        raise ValueError(f"Pre-pull failed for {name}: {result.status} - {result.message}")
+                    if result.status in WARN_STATUSES:
+                        print(f"Warning: {result.status} - {result.message}", file=sys.stderr)
 
                 # Feedback
                 if console:
@@ -3373,6 +3456,20 @@ def main_cli():
     parser.add_argument("--code-only", action="store_true", help="Include only code/test/config/contract categories")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--headless", action="store_true", help="Force headless (no Pythonista UI/editor)")
+    pre_pull_group = parser.add_mutually_exclusive_group()
+    pre_pull_group.add_argument(
+        "--pre-pull",
+        dest="pre_pull",
+        action="store_true",
+        default=True,
+        help="Fast-forward-only update of each selected repo before scanning (default: enabled)",
+    )
+    pre_pull_group.add_argument(
+        "--no-pre-pull",
+        dest="pre_pull",
+        action="store_false",
+        help="Disable the fast-forward-only pre-pull; scan the current on-disk state as-is",
+    )
     parser.add_argument(
         "--extras",
         help="Comma-separated list of extras (health,organism_index,fleet_panorama,delta_reports,augment_sidecar,json_sidecar,heatmap; alias: ai_heatmap) or 'none'",
@@ -3415,6 +3512,24 @@ def main_cli():
 
     print(f"Hub: {hub}")
     print(f"Sources: {[s.name for s in sources]}")
+
+    if getattr(args, "pre_pull", True) and pre_pull_repo is not None:
+        print("Pre-pull enabled: updating selected repositories (fast-forward only)...")
+        for src in sources:
+            result = pre_pull_repo(src)
+            print(f"Pre-pull {src.name}: {result.status} - {result.message}")
+            if result.stderr:
+                print(f"Pre-pull {src.name} detail:\n{result.stderr.strip()}")
+            if is_self_repo(src) and result.status in SELF_REPO_NOTICE_STATUSES:
+                print(
+                    f"Warning: pre_pull updated or checked the running code repository '{src.name}'. "
+                    "Please restart any active service after completion.",
+                    file=sys.stderr,
+                )
+            if result.status in HARD_FAIL_STATUSES:
+                raise ValueError(f"Pre-pull failed for {src.name}: {result.status} - {result.message}")
+            if result.status in WARN_STATUSES:
+                print(f"Warning: {result.status} - {result.message}", file=sys.stderr)
 
     max_bytes = parse_human_size(str(args.max_bytes))
     if max_bytes < 0:

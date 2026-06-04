@@ -82,6 +82,12 @@ FEATURES = {
         "html_id": "pathFilter",
         "js_key": "path_filter",
         "repolens_usage": "args.path_filter"
+    },
+    "pre_pull": {
+        "cli_arg": "--pre-pull",
+        "html_id": "prePull",
+        "js_key": "pre_pull",
+        "repolens_usage": "args.pre_pull"
     }
 }
 

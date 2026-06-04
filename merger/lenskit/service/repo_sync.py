@@ -173,11 +173,15 @@ def is_self_repo(repo_path: Path) -> bool:
     try:
         candidates.append(Path(__file__).resolve())
     except OSError:
-        pass
+        # Best-effort only: if the module path cannot be resolved in this runtime
+        # context, skip this candidate and continue self-repo detection.
+        logger.debug("Unable to resolve __file__ for self-repo detection.", exc_info=True)
     try:
         candidates.append(Path.cwd().resolve())
     except OSError:
-        pass
+        # Best-effort only: if resolving CWD fails, skip this candidate and continue
+        # evaluating other paths for self-repo detection.
+        logger.debug("Unable to resolve cwd for self-repo detection.", exc_info=True)
 
     for candidate in candidates:
         if candidate == resolved or resolved in candidate.parents:
