@@ -369,8 +369,8 @@ def register_rlens_client_commands(subparsers: argparse._SubParsersAction) -> No
         "--pre-pull",
         dest="pre_pull",
         action="store_true",
-        default=True,
-        help="Fast-forward-only update of each selected repo before scanning (default: enabled)",
+        default=None,
+        help="Fast-forward-only update before scanning (default: enabled unless --plan-only)",
     )
     pre_pull_group.add_argument(
         "--no-pre-pull",
@@ -585,6 +585,13 @@ def _cmd_job(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    # plan_only never mutates local repos; an explicit --pre-pull contradicts it.
+    # Reject before any network/config work so no HTTP request is made.
+    if args.plan_only and args.pre_pull is True:
+        return _exit_config_error(
+            args, "--plan-only and --pre-pull are mutually exclusive (plan_only never mutates local repos)."
+        )
+
     try:
         _ensure_profile_config_valid_if_present(args)
         token = _resolve_token(args)
@@ -606,8 +613,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
         payload["force_new"] = True
     if args.plan_only:
         payload["plan_only"] = True
+    # Effective pre_pull: explicit flag wins; otherwise default true unless plan_only.
     # Always sent explicitly so behavior is unambiguous and easy to assert in tests.
-    payload["pre_pull"] = args.pre_pull
+    effective_pre_pull = args.pre_pull
+    if effective_pre_pull is None:
+        effective_pre_pull = not args.plan_only
+    payload["pre_pull"] = effective_pre_pull
 
     url = f"{base_url}/api/jobs"
     data, error_code = _post_json_with_errors(args, url, token, payload)

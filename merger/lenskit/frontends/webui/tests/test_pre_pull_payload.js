@@ -180,6 +180,28 @@ async function run() {
     defaults = context.getEffectiveMergeFormDefaults();
     assert(defaults.prePull === true, 'factory default prePull is true when no config stored');
 
+    // 6. plan-only forces effective pre_pull === false even if checkbox is checked.
+    captured.body = null;
+    els.planOnly.checked = true;
+    els.prePull.checked = true;
+    await context.startJob(submitEvent());
+    assert(captured.body && captured.body.pre_pull === false, 'plan-only forces pre_pull === false in payload');
+    els.planOnly.checked = false;
+
+    // 7. UI coupling: syncPrePullWithPlanOnly disables the checkbox under plan-only.
+    if (typeof context.syncPrePullWithPlanOnly === 'function') {
+        els.prePull.disabled = false;
+        els.planOnly.checked = true;
+        context.syncPrePullWithPlanOnly();
+        assert(els.prePull.disabled === true, 'plan-only disables the pre_pull checkbox');
+
+        els.planOnly.checked = false;
+        context.syncPrePullWithPlanOnly();
+        assert(els.prePull.disabled === false, 'clearing plan-only re-enables the pre_pull checkbox');
+    } else {
+        assert(false, 'syncPrePullWithPlanOnly should be defined');
+    }
+
     if (failed > 0) {
         console.error(`\n${failed} test(s) failed!`);
         process.exit(1);

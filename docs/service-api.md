@@ -270,6 +270,31 @@ This is classified as a **`bounded repo-sync mutation`** (see *Mutation Boundary
 Classification* above), implemented in `merger/lenskit/service/repo_sync.py` and
 invoked by the runner *before* `scan_repo()` — never in `core/merge.py`.
 
+**One contract, every surface.** The effective pre-pull is the same everywhere
+(rLens service runner, WebUI, rLens-client, repoLens UI + headless):
+
+```
+effective_pre_pull = requested_pre_pull and not plan_only
+```
+
+`plan_only=true` therefore **never** mutates local repos — no fetch, no merge, no
+apply. Requesting both at once is rejected by the CLIs (`--plan-only --pre-pull`
+is an error) and the WebUI forces `pre_pull=false` (and disables the checkbox)
+while plan-only is active.
+
+**Two-phase (multi-repo safe).** Pre-pull is split into a *plan* phase and an
+*apply* phase:
+
+1. **Plan** every selected repo: read HEAD, check the tracked tree, `fetch --prune`,
+   and analyze fast-forwardability. The plan phase **never** mutates the working
+   tree.
+2. Only if **no** repo's plan hard-failed, **apply** the planned fast-forwards.
+   Each apply re-verifies HEAD against the plan (`head_changed` guard) before its
+   single `merge --ff-only`.
+
+This guarantees that a hard failure on one repo can never leave another repo
+half-fast-forwarded.
+
 **Semantics (per selected repo):**
 
 - `fetch --prune` of the existing remote, then a **fast-forward-only** merge of
@@ -279,25 +304,31 @@ invoked by the runner *before* `scan_repo()` — never in `core/merge.py`.
   `reset`, `rebase`, `stash`, `checkout`, `switch`, or `clean`, and it never
   deletes untracked files or discards local changes.
 - Runs non-interactively (`GIT_TERMINAL_PROMPT=0`); auth-required fetches fail
-  fast rather than hanging.
+  fast rather than hanging. Clone of missing repos is **out of scope**.
 
 **Per-repo outcomes** (`PrePullStatus`):
 
 | Status | Class | Effect on job |
 |---|---|---|
 | `up_to_date`, `fast_forwarded` | success | Scan proceeds |
+| `planned_fast_forward` | plan-only intermediate | Becomes `fast_forwarded` in apply (never a final status) |
 | `skipped_not_git`, `skipped_no_upstream`, `local_ahead` | warning | Logged + added to `job.warnings`; scan proceeds |
-| `dirty`, `diverged`, `fetch_failed`, `merge_failed`, `error` | hard fail | Job fails before any scan |
+| `dirty`, `diverged`, `fetch_failed`, `merge_failed`, `head_changed`, `error` | hard fail | Job fails before any scan; on a multi-repo plan failure, no repo is modified |
 
 Notes:
 - A dirty **tracked** working tree blocks; **untracked** files do not block and
   are preserved across a fast-forward.
-- `pre_pull` participates in the job content hash: a `pre_pull=true` job and a
-  `pre_pull=false` job are distinct and never reuse each other's cached result.
+- **Job reuse:** `pre_pull` participates in the job content hash. A succeeded job
+  is **not** reused when the new request has an effective pre-pull
+  (`pre_pull=true and not plan_only`) — the user explicitly wants a fresh
+  repo-sync check. A `pre_pull=false` (or `plan_only`) request may reuse a
+  succeeded job, and an identical **active** job is always reusable.
 - **Self-repo caveat:** if the selected repo is the running rLens code itself
-  (typically `repos/lenskit`), a fast-forward updates files on disk but the live
-  Python process keeps its already-loaded modules. The job emits a visible
-  restart warning (logs + `job.warnings`) and **never** auto-restarts the
-  service. Restart `rlens.service` manually after updating lenskit.
-- CLI: `lenskit rlens-client run` sends `pre_pull` explicitly; disable with
-  `--no-pre-pull`.
+  (typically `repos/lenskit`), an actual fast-forward updates files on disk but
+  the live Python process keeps its already-loaded modules. The job emits a
+  visible restart warning (logs + `job.warnings`) **only on an actual
+  `fast_forwarded`** and **never** auto-restarts the service. Restart
+  `rlens.service` manually after updating lenskit.
+- CLI: `lenskit rlens-client run` (and repoLens headless) send `pre_pull`
+  explicitly; disable with `--no-pre-pull`. `--plan-only` implies
+  `pre_pull=false`.

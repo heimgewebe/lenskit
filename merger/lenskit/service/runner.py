@@ -10,11 +10,12 @@ from typing import List
 from .models import Artifact
 from .jobstore import JobStore
 from .repo_sync import (
-    pre_pull_repo,
+    plan_pre_pull_repos,
+    apply_pre_pull_plans,
     is_self_repo,
+    PrePullStatus,
     HARD_FAIL_STATUSES,
     WARN_STATUSES,
-    SELF_REPO_NOTICE_STATUSES,
 )
 from ..adapters.security import validate_source_dir, get_security_config, SecurityViolationError
 
@@ -176,46 +177,72 @@ class JobRunner:
 
             # 2b. Pre-pull preflight (bounded repo-sync mutation).
             # Runs AFTER source resolution/validation and BEFORE any scan so the
-            # dump reflects the current upstream state instead of a stale checkout.
+            # dump reflects current upstream state instead of a stale checkout.
             # Intentionally NOT in core/merge.py: merge-core reads repo content and
             # writes artifacts; fast-forwarding a working tree is a local mutation
-            # and belongs in service preparation. It is strictly fast-forward-only
+            # and belongs in service preparation.
+            # effective_pre_pull couples the request to plan_only: a plan-only job
+            # MUST NOT mutate local repos (no fetch, no merge, no apply).
+            # Two-phase (plan all → apply all) guarantees no repo is fast-forwarded
+            # when another repo's plan hard-fails. Strictly fast-forward-only
             # (see service/repo_sync.py) — no shell, pull, reset, rebase, stash,
             # checkout, switch or clean.
-            if req.pre_pull:
-                log("Pre-pull enabled: updating selected repositories (fast-forward only)...")
+            effective_pre_pull = req.pre_pull and not req.plan_only
+            if effective_pre_pull:
+                log("Pre-pull enabled: planning updates for all repositories (fast-forward only)...")
+                plans = plan_pre_pull_repos(sources)
+
+                hard_failures = []
                 prepull_warned = False
-                for src in sources:
-                    result = pre_pull_repo(src)
-                    log(f"Pre-pull {src.name}: {result.status} - {result.message}")
-                    if result.stderr:
+                for plan in plans:
+                    log(f"Pre-pull plan {plan.repo}: {plan.status} - {plan.message}")
+                    if plan.stderr:
                         # stderr is already credential-redacted by repo_sync.
-                        log(f"Pre-pull {src.name} detail: {result.stderr.strip()}")
-
-                    # Updating the running rLens code repo does not reload the live
-                    # Python process. Surface a restart reminder; never auto-restart
-                    # (that would kill this very job) and never run systemctl here.
-                    if is_self_repo(src) and result.status in SELF_REPO_NOTICE_STATUSES:
-                        restart_warn = (
-                            f"WARN pre_pull updated or checked the running rLens code repository "
-                            f"'{src.name}' (status: {result.status}). Restart rlens.service after "
-                            f"updating lenskit; a running Python service does not reload modules "
-                            f"automatically."
-                        )
-                        log(restart_warn)
-                        job.warnings.append(restart_warn)
-                        prepull_warned = True
-
-                    if result.status in HARD_FAIL_STATUSES:
-                        raise ValueError(f"Pre-pull failed for {src.name}: {result.status} - {result.message}")
-
-                    if result.status in WARN_STATUSES:
-                        warn = f"Pre-pull {src.name}: {result.status} - {result.message}"
+                        log(f"Pre-pull plan {plan.repo} detail: {plan.stderr.strip()}")
+                    if plan.status in WARN_STATUSES:
+                        warn = f"Pre-pull {plan.repo}: {plan.status} - {plan.message}"
                         job.warnings.append(warn)
                         prepull_warned = True
+                    if plan.status in HARD_FAIL_STATUSES:
+                        hard_failures.append(plan)
 
                 if prepull_warned:
                     self.job_store.update_job(job)
+
+                if hard_failures:
+                    # Abort BEFORE applying any fast-forward, so no repo is left
+                    # partially updated when another repo cannot be synced.
+                    detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
+                    raise ValueError(f"Pre-pull plan failed (no repos were modified): {detail}")
+
+                log("Pre-pull plan OK: applying fast-forwards...")
+                results = apply_pre_pull_plans(plans)
+                results_warned = False
+                for result in results:
+                    log(f"Pre-pull apply {result.repo}: {result.status} - {result.message}")
+                    if result.stderr:
+                        log(f"Pre-pull apply {result.repo} detail: {result.stderr.strip()}")
+
+                    if result.status in HARD_FAIL_STATUSES:
+                        raise ValueError(f"Pre-pull apply failed for {result.repo}: {result.status} - {result.message}")
+
+                    # Only an ACTUAL fast-forward of the running code repo warrants a
+                    # restart reminder (files changed but the live process keeps old
+                    # modules). Never auto-restart — that would kill this very job.
+                    if result.status == PrePullStatus.FAST_FORWARDED and is_self_repo(Path(result.path)):
+                        restart_warn = (
+                            f"WARN pre_pull fast-forwarded the running rLens code repository "
+                            f"'{result.repo}'. Restart rlens.service after updating lenskit; a "
+                            f"running Python service does not reload modules automatically."
+                        )
+                        log(restart_warn)
+                        job.warnings.append(restart_warn)
+                        results_warned = True
+
+                if results_warned:
+                    self.job_store.update_job(job)
+            elif req.pre_pull and req.plan_only:
+                log("Pre-pull skipped because plan_only=True.")
             else:
                 log("Pre-pull disabled by request.")
 

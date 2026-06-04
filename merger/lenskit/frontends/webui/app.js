@@ -708,7 +708,27 @@ async function resetMergeFormToDefaultsAfterSuccessfulSubmit() {
         cb.checked = defaultExtras.has(cb.value);
     });
 
+    syncPrePullWithPlanOnly();
+
     showNotification('Job submitted; form reset to defaults', 'info');
+}
+
+// Couple the pre-pull checkbox to plan-only: plan-only never mutates local repos,
+// so the checkbox is disabled (and a note shown) while plan-only is active. The
+// checkbox's own value is preserved so it returns to the user's choice afterwards.
+function syncPrePullWithPlanOnly() {
+    const planOnlyEl = document.getElementById('planOnly');
+    const prePullEl = document.getElementById('prePull');
+    if (!planOnlyEl || !prePullEl) return;
+    const planOnly = !!planOnlyEl.checked;
+
+    prePullEl.disabled = planOnly;
+
+    const label = (typeof prePullEl.closest === 'function') ? prePullEl.closest('label') : null;
+    if (label && label.classList) label.classList.toggle('opacity-50', planOnly);
+
+    const note = document.getElementById('prePullPlanOnlyNote');
+    if (note && note.classList) note.classList.toggle('hidden', !planOnly);
 }
 
 function restoreConfig() {
@@ -1141,6 +1161,9 @@ async function startJob(e) {
 
     const planOnlyChecked = document.getElementById('planOnly').checked;
     const prePullEl = document.getElementById('prePull');
+    const rawPrePull = prePullEl ? prePullEl.checked : true;
+    // effective pre_pull: plan-only never mutates local repos, so it forces false.
+    const effectivePrePull = planOnlyChecked ? false : rawPrePull;
     const commonPayload = {
         hub: document.getElementById('hubPath').value,
         merges_dir: document.getElementById('mergesPath').value || null,
@@ -1156,8 +1179,9 @@ async function startJob(e) {
         extensions: extensions,
         extras: extrasCsv,
         // Bounded repo-sync mutation: fast-forward-only update before scan.
-        // Default ON; inherited by per-repo and combined payloads via ...commonPayload.
-        pre_pull: prePullEl ? prePullEl.checked : true
+        // Default ON; forced false by plan-only; inherited by per-repo and
+        // combined payloads via ...commonPayload.
+        pre_pull: effectivePrePull
     };
 
     if (!planOnlyChecked) {
@@ -1343,6 +1367,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderSets();
     renderSelectionPool(); // New
     restoreConfig();
+
+    // Keep the pre-pull checkbox coupled to plan-only (disabled while plan-only).
+    const planOnlyToggleEl = document.getElementById('planOnly');
+    if (planOnlyToggleEl) planOnlyToggleEl.addEventListener('change', syncPrePullWithPlanOnly);
+    syncPrePullWithPlanOnly();
 
     // Optional: accept token from URL once, then scrub it from the address bar.
     // Enables local wrapper to open UI already authenticated.

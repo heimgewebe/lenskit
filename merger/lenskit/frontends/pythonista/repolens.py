@@ -251,8 +251,11 @@ except ImportError:
 
 try:
     from merger.lenskit.service.repo_sync import (
+        plan_pre_pull_repos,
+        apply_pre_pull_plans,
         pre_pull_repo,
         is_self_repo,
+        PrePullStatus,
         HARD_FAIL_STATUSES,
         WARN_STATUSES,
         SELF_REPO_NOTICE_STATUSES,
@@ -260,18 +263,78 @@ try:
 except ImportError:
     try:
         from lenskit.service.repo_sync import (
+            plan_pre_pull_repos,
+            apply_pre_pull_plans,
             pre_pull_repo,
             is_self_repo,
+            PrePullStatus,
             HARD_FAIL_STATUSES,
             WARN_STATUSES,
             SELF_REPO_NOTICE_STATUSES,
         )
     except ImportError:
+        plan_pre_pull_repos = None
+        apply_pre_pull_plans = None
         pre_pull_repo = None
         is_self_repo = lambda p: False
+        PrePullStatus = None
         HARD_FAIL_STATUSES = []
         WARN_STATUSES = []
         SELF_REPO_NOTICE_STATUSES = []
+
+
+def run_pre_pull_two_phase(sources, log=print, warn=None):
+    """Two-phase fast-forward-only pre-pull across all sources (shared by UI + headless).
+
+    Callers invoke this only when effective pre-pull is True (pre_pull and not
+    plan_only). It raises RuntimeError if pre-pull is requested but the repo_sync
+    module is unavailable (never a silent skip), and ValueError on any hard-fail.
+    Planning happens for ALL repos before ANY apply, so no repo is fast-forwarded
+    when another repo's plan hard-fails. The running code repo gets a restart
+    reminder only on an actual fast-forward; never auto-restart.
+    """
+    if warn is None:
+        def warn(message):
+            print(message, file=sys.stderr)
+
+    if plan_pre_pull_repos is None or apply_pre_pull_plans is None:
+        raise RuntimeError("Pre-pull requested but repo_sync module is unavailable.")
+
+    log("Pre-pull enabled: planning updates for all repositories (fast-forward only)...")
+    plans = plan_pre_pull_repos(sources)
+
+    hard_failures = []
+    for plan in plans:
+        log(f"Pre-pull plan {plan.repo}: {plan.status} - {plan.message}")
+        if plan.stderr:
+            log(f"Pre-pull plan {plan.repo} detail: {plan.stderr.strip()}")
+        if plan.status in WARN_STATUSES:
+            warn(f"Warning: {plan.repo}: {plan.status} - {plan.message}")
+        if plan.status in HARD_FAIL_STATUSES:
+            hard_failures.append(plan)
+
+    if hard_failures:
+        detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
+        raise ValueError(f"Pre-pull plan failed (no repos were modified): {detail}")
+
+    log("Pre-pull plan OK: applying fast-forwards...")
+    results = apply_pre_pull_plans(plans)
+    for result in results:
+        log(f"Pre-pull apply {result.repo}: {result.status} - {result.message}")
+        if result.stderr:
+            log(f"Pre-pull apply {result.repo} detail: {result.stderr.strip()}")
+        if result.status in HARD_FAIL_STATUSES:
+            raise ValueError(f"Pre-pull apply failed for {result.repo}: {result.status} - {result.message}")
+        if (
+            PrePullStatus is not None
+            and result.status == PrePullStatus.FAST_FORWARDED
+            and is_self_repo(Path(result.path))
+        ):
+            warn(
+                f"Warning: pre_pull fast-forwarded the running code repository '{result.repo}'. "
+                "Please restart any active service after completion."
+            )
+    return results
 
 PROFILE_DESCRIPTIONS = {
     # Kurzbeschreibung der Profile für den UI-Hint
@@ -3220,6 +3283,25 @@ class MergerUI(object):
         merges_dir = get_merges_dir(self.hub)
         all_out_paths = []
 
+        # Pre-pull (bounded repo-sync mutation), two-phase across ALL selected repos
+        # BEFORE any scan, so no repo is fast-forwarded if another cannot be synced.
+        # plan_only never mutates local repos, so it forces pre-pull off.
+        effective_pre_pull = pre_pull and not plan_only
+        if effective_pre_pull:
+            pre_pull_sources = [self.hub / name for name in selected_repos if (self.hub / name).is_dir()]
+            try:
+                run_pre_pull_two_phase(pre_pull_sources, log=print)
+            except Exception as e:
+                if console:
+                    try:
+                        console.hud_alert(f"Pre-pull failed: {e}", "error", 2.0)
+                    except Exception:
+                        pass
+                print(f"Pre-pull failed: {e}", file=sys.stderr)
+                raise
+        elif pre_pull and plan_only:
+            print("Pre-pull skipped because plan_only=True.")
+
         # Execution Strategy
         # If restrictive pool entries exist, we must split execution per repo to ensure
         # correct include_paths are respected and not mixed with global filters.
@@ -3245,33 +3327,7 @@ class MergerUI(object):
                 if not root.is_dir():
                     continue
 
-                if pre_pull and pre_pull_repo is not None:
-                    if console:
-                        try:
-                            console.hud_alert(f"Pre-pull {name}...", duration=0.6)
-                        except Exception:
-                            pass
-                    else:
-                        print(f"Pre-pull {name}: updating repository (fast-forward only)...")
-
-                    result = pre_pull_repo(root)
-
-                    msg = f"Pre-pull {name}: {result.status} - {result.message}"
-                    print(msg)
-                    if result.stderr:
-                        print(f"Pre-pull {name} detail:\n{result.stderr.strip()}")
-
-                    if is_self_repo(root) and result.status in SELF_REPO_NOTICE_STATUSES:
-                        restart_warn = (
-                            f"Warning: pre_pull updated or checked the running code repository '{name}'. "
-                            "Please restart any active service after completion."
-                        )
-                        print(restart_warn, file=sys.stderr)
-
-                    if result.status in HARD_FAIL_STATUSES:
-                        raise ValueError(f"Pre-pull failed for {name}: {result.status} - {result.message}")
-                    if result.status in WARN_STATUSES:
-                        print(f"Warning: {result.status} - {result.message}", file=sys.stderr)
+                # Pre-pull already handled once (two-phase) before this loop.
 
                 # Feedback
                 if console:
@@ -3461,8 +3517,8 @@ def main_cli():
         "--pre-pull",
         dest="pre_pull",
         action="store_true",
-        default=True,
-        help="Fast-forward-only update of each selected repo before scanning (default: enabled)",
+        default=None,
+        help="Fast-forward-only update before scanning (default: enabled unless --plan-only)",
     )
     pre_pull_group.add_argument(
         "--no-pre-pull",
@@ -3483,6 +3539,15 @@ def main_cli():
     parser.add_argument("--redact-secrets", action="store_true", help="Enable heuristic secret redaction")
 
     args = parser.parse_args()
+
+    # plan_only never mutates local repos; an explicit --pre-pull contradicts it.
+    if getattr(args, "plan_only", False) and getattr(args, "pre_pull", None) is True:
+        print(
+            "Error: --plan-only and --pre-pull are mutually exclusive "
+            "(plan_only never mutates local repos).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     try:
         hub = detect_hub_dir(SCRIPT_PATH, args.hub)
@@ -3513,23 +3578,22 @@ def main_cli():
     print(f"Hub: {hub}")
     print(f"Sources: {[s.name for s in sources]}")
 
-    if getattr(args, "pre_pull", True) and pre_pull_repo is not None:
-        print("Pre-pull enabled: updating selected repositories (fast-forward only)...")
-        for src in sources:
-            result = pre_pull_repo(src)
-            print(f"Pre-pull {src.name}: {result.status} - {result.message}")
-            if result.stderr:
-                print(f"Pre-pull {src.name} detail:\n{result.stderr.strip()}")
-            if is_self_repo(src) and result.status in SELF_REPO_NOTICE_STATUSES:
-                print(
-                    f"Warning: pre_pull updated or checked the running code repository '{src.name}'. "
-                    "Please restart any active service after completion.",
-                    file=sys.stderr,
-                )
-            if result.status in HARD_FAIL_STATUSES:
-                raise ValueError(f"Pre-pull failed for {src.name}: {result.status} - {result.message}")
-            if result.status in WARN_STATUSES:
-                print(f"Warning: {result.status} - {result.message}", file=sys.stderr)
+    # Effective pre-pull: explicit flag wins; otherwise default on unless plan_only.
+    # plan_only never mutates local repos. Two-phase (plan all → apply all).
+    requested_pre_pull = getattr(args, "pre_pull", None)
+    if requested_pre_pull is None:
+        requested_pre_pull = not args.plan_only
+    effective_pre_pull = requested_pre_pull and not args.plan_only
+    if effective_pre_pull:
+        try:
+            run_pre_pull_two_phase(sources, log=print)
+        except Exception as e:
+            # Includes the "repo_sync unavailable" case: never silently skip a
+            # requested pre-pull — fail loudly and do not scan.
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+    elif requested_pre_pull and args.plan_only:
+        print("Pre-pull skipped because plan_only=True.")
 
     max_bytes = parse_human_size(str(args.max_bytes))
     if max_bytes < 0:

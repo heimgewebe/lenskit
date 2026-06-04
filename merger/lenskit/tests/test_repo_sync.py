@@ -14,7 +14,13 @@ from pathlib import Path
 import pytest
 
 from merger.lenskit.service import repo_sync
-from merger.lenskit.service.repo_sync import PrePullStatus, pre_pull_repo
+from merger.lenskit.service.repo_sync import (
+    PrePullStatus,
+    pre_pull_repo,
+    plan_pre_pull_repo,
+    apply_pre_pull_plan,
+    plan_pre_pull_repos,
+)
 
 
 # --- git helpers (hermetic identity / config) ------------------------------
@@ -248,3 +254,152 @@ def test_pre_pull_uses_non_interactive_env(tmp_path: Path, monkeypatch: pytest.M
     forbidden = {"pull", "reset", "rebase", "stash", "checkout", "switch", "clean"}
     for cmd in seen_cmds:
         assert forbidden.isdisjoint(set(cmd)), f"forbidden git op in {cmd}"
+
+
+# --- two-phase plan / apply ------------------------------------------------
+
+def test_plan_pre_pull_repo_returns_planned_fast_forward_without_merging(repos):
+    source, local = repos["source"], repos["local"]
+    before = _head(local)
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+
+    plan = plan_pre_pull_repo(local)
+
+    assert plan.status == PrePullStatus.PLANNED_FAST_FORWARD
+    assert plan.needs_apply is True
+    assert plan.before_head == before
+    # The plan phase must NOT mutate the working tree (no merge yet).
+    assert _head(local) == before
+    assert (local / "file.txt").read_text(encoding="utf-8") == "v1\n"
+
+
+def test_apply_pre_pull_plan_fast_forwards(repos):
+    source, local = repos["source"], repos["local"]
+    before = _head(local)
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+    expected = _head(source)
+
+    plan = plan_pre_pull_repo(local)
+    result = apply_pre_pull_plan(plan)
+
+    assert result.status == PrePullStatus.FAST_FORWARDED
+    assert result.changed is True
+    assert result.before_head == before
+    assert result.after_head == expected
+    assert _head(local) == expected
+
+
+def test_apply_pre_pull_plan_detects_head_race(repos):
+    source, local = repos["source"], repos["local"]
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+
+    plan = plan_pre_pull_repo(local)
+    assert plan.status == PrePullStatus.PLANNED_FAST_FORWARD
+
+    # HEAD moves locally between plan and apply (concurrent commit) → race.
+    _commit_file(local, "local.txt", "race\n", "local race commit")
+    raced_head = _head(local)
+
+    result = apply_pre_pull_plan(plan)
+
+    assert result.status == PrePullStatus.HEAD_CHANGED
+    assert result.changed is False
+    # The planned fast-forward was refused; local HEAD is the racing commit, untouched.
+    assert _head(local) == raced_head
+
+
+def test_plan_pre_pull_dirty_returns_hard_fail_without_mutation(repos):
+    local = repos["local"]
+    (local / "file.txt").write_text("dirty\n", encoding="utf-8")
+    before = _head(local)
+
+    plan = plan_pre_pull_repo(local)
+
+    assert plan.status == PrePullStatus.DIRTY
+    assert plan.needs_apply is False
+    assert _head(local) == before
+    assert (local / "file.txt").read_text(encoding="utf-8") == "dirty\n"
+
+
+def test_pre_pull_repo_single_repo_still_fast_forwards(repos):
+    """The single-repo convenience wrapper still plans+applies in one call."""
+    source, local = repos["source"], repos["local"]
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+    expected = _head(source)
+
+    result = pre_pull_repo(local)
+
+    assert result.status == PrePullStatus.FAST_FORWARDED
+    assert _head(local) == expected
+
+
+def test_batch_plan_no_apply_when_any_repo_hard_fails(repos, tmp_path: Path):
+    """Planning a batch never mutates: a hard-failing repo leaves the others unapplied."""
+    source = repos["source"]
+    remote = repos["remote"]
+    ff_repo = repos["local"]  # will be strictly behind → PLANNED_FAST_FORWARD
+
+    # A second clone that we make dirty (hard-fail).
+    dirty_repo = tmp_path / "dirty"
+    _git("clone", "-b", "main", str(remote), str(dirty_repo), cwd=tmp_path)
+    (dirty_repo / "file.txt").write_text("dirty\n", encoding="utf-8")
+
+    # Advance upstream so ff_repo is behind.
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+    ff_before = _head(ff_repo)
+
+    plans = plan_pre_pull_repos([ff_repo, dirty_repo])
+    statuses = {p.repo: p.status for p in plans}
+
+    assert statuses[ff_repo.name] == PrePullStatus.PLANNED_FAST_FORWARD
+    assert statuses[dirty_repo.name] == PrePullStatus.DIRTY
+    # Critically: planning the batch did NOT fast-forward ff_repo. The caller is
+    # responsible for refusing apply when any plan hard-fails; here we prove the
+    # plan phase itself is side-effect-free.
+    assert _head(ff_repo) == ff_before
+
+
+def test_untracked_files_do_not_block_plan_or_apply(repos):
+    source, local = repos["source"], repos["local"]
+    (local / "scratch.tmp").write_text("untracked\n", encoding="utf-8")
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+
+    plan = plan_pre_pull_repo(local)
+    assert plan.status == PrePullStatus.PLANNED_FAST_FORWARD
+    result = apply_pre_pull_plan(plan)
+    assert result.status == PrePullStatus.FAST_FORWARDED
+    assert (local / "scratch.tmp").read_text(encoding="utf-8") == "untracked\n"
+
+
+def test_no_forbidden_git_operations(repos, monkeypatch: pytest.MonkeyPatch):
+    """Across a real plan+apply fast-forward, no forbidden git op is ever issued."""
+    source, local = repos["source"], repos["local"]
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+
+    seen_cmds = []
+    real_run = subprocess.run
+
+    def recording_run(cmd, *args, **kwargs):
+        seen_cmds.append(list(cmd))
+        assert kwargs.get("shell", False) is False
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(repo_sync.subprocess, "run", recording_run)
+
+    result = pre_pull_repo(local)
+    assert result.status == PrePullStatus.FAST_FORWARDED
+
+    forbidden = {"pull", "reset", "rebase", "stash", "checkout", "switch", "clean"}
+    for cmd in seen_cmds:
+        assert forbidden.isdisjoint(set(cmd)), f"forbidden git op in {cmd}"
+    # The only mutation is exactly one fast-forward-only merge.
+    merges = [c for c in seen_cmds if "merge" in c]
+    assert all("--ff-only" in c for c in merges), f"non-ff merge issued: {merges}"
+    assert len(merges) == 1

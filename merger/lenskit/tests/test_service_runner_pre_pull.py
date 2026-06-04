@@ -1,9 +1,10 @@
-"""Runner integration for the pre-pull preflight.
+"""Runner integration for the two-phase pre-pull preflight.
 
-``pre_pull_repo`` is patched out (its own git semantics are covered by
-test_repo_sync.py); these tests verify that the runner *orchestrates* it
-correctly: ordering before scan, hard-fail vs warn-and-continue, and the
-self-repo restart warning (without any auto-restart).
+The git semantics live in test_repo_sync.py; here ``plan_pre_pull_repos`` and
+``apply_pre_pull_plans`` are patched so we can assert the runner's *orchestration*:
+effective-pre-pull (plan_only gate), plan-before-apply-before-scan ordering,
+plan hard-fail aborting before any apply, warn-and-continue, and the self-repo
+restart warning firing only on an actual fast-forward (never auto-restart).
 """
 from __future__ import annotations
 
@@ -16,11 +17,10 @@ from unittest.mock import MagicMock, patch
 from merger.lenskit.service.runner import JobRunner, ARTIFACT_PATH_FIELDS
 from merger.lenskit.service.jobstore import JobStore
 from merger.lenskit.service.models import JobRequest, Job
-from merger.lenskit.service.repo_sync import PrePullResult, PrePullStatus
+from merger.lenskit.service.repo_sync import PrePullPlan, PrePullResult, PrePullStatus
 
 
 def _fake_artifacts() -> MagicMock:
-    """A write_reports_v2 return value that lets the runner finish cleanly."""
     art = MagicMock()
     art.get_all_paths.return_value = []
     art.get_primary_path.return_value = None
@@ -31,6 +31,14 @@ def _fake_artifacts() -> MagicMock:
     for attr in ARTIFACT_PATH_FIELDS:
         setattr(art, attr, None)
     return art
+
+
+def _plan(name: str, status: str, **kw) -> PrePullPlan:
+    return PrePullPlan(repo=name, path=str(Path("/hub") / name), status=status, message=status, **kw)
+
+
+def _result(name: str, status: str, **kw) -> PrePullResult:
+    return PrePullResult(repo=name, path=str(Path("/hub") / name), status=status, message=status, **kw)
 
 
 @pytest.fixture
@@ -58,41 +66,31 @@ def _make_job(temp_hub: Path, repos, **req_kwargs) -> Job:
     return job
 
 
-def _ok(name: str) -> PrePullResult:
-    return PrePullResult(repo=name, path=name, status=PrePullStatus.UP_TO_DATE, message="ok")
+def _patched(*, plan=None, apply=None, self_repo=False):
+    """Context managers for scan/write/validate + plan/apply/is_self_repo."""
+    cms = {
+        "scan": patch("merger.lenskit.service.runner.scan_repo"),
+        "write": patch("merger.lenskit.service.runner.write_reports_v2"),
+        "validate": patch("merger.lenskit.service.runner.validate_source_dir"),
+        "plan": patch("merger.lenskit.service.runner.plan_pre_pull_repos"),
+        "apply": patch("merger.lenskit.service.runner.apply_pre_pull_plans"),
+        "self": patch("merger.lenskit.service.runner.is_self_repo", return_value=self_repo),
+    }
+    return cms
 
 
-def _patches():
-    """Common runner patches; scan/write are stubbed, validation is a no-op."""
-    p_scan = patch("merger.lenskit.service.runner.scan_repo")
-    p_write = patch("merger.lenskit.service.runner.write_reports_v2")
-    p_validate = patch("merger.lenskit.service.runner.validate_source_dir")
-    return p_scan, p_write, p_validate
-
-
-def test_pre_pull_true_calls_pre_pull_before_scan(mock_job_store, temp_hub):
+def test_plan_only_skips_pre_pull_even_if_requested(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
-    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True, plan_only=True)
     mock_job_store.get_job.return_value = job
-
-    p_scan, p_write, p_validate = _patches()
-    with p_scan as mock_scan, p_write as mock_write, p_validate, \
-         patch("merger.lenskit.service.runner.pre_pull_repo") as mock_pre, \
-         patch("merger.lenskit.service.runner.is_self_repo", return_value=False):
-
-        mock_write.return_value = _fake_artifacts()
-
-        # Each pre_pull_repo call must happen before any scan_repo call.
-        def _pre(src):
-            assert mock_scan.call_count == 0, "pre_pull must run before scan"
-            return _ok(src.name)
-
-        mock_pre.side_effect = _pre
-
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
         runner._run_job(job.id)
-
-        assert mock_pre.call_count == 2
-        assert mock_scan.call_count == 2
+        plan.assert_not_called()
+        apply.assert_not_called()
+        assert scan.call_count == 1
         assert job.status == "succeeded"
 
 
@@ -100,116 +98,141 @@ def test_pre_pull_false_skips_pre_pull(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
     job = _make_job(temp_hub, ["repoA"], pre_pull=False)
     mock_job_store.get_job.return_value = job
-
-    p_scan, p_write, p_validate = _patches()
-    with p_scan as mock_scan, p_write as mock_write, p_validate, \
-         patch("merger.lenskit.service.runner.pre_pull_repo") as mock_pre:
-
-        mock_write.return_value = _fake_artifacts()
-
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
         runner._run_job(job.id)
-
-        mock_pre.assert_not_called()
-        assert mock_scan.call_count == 1
+        plan.assert_not_called()
+        apply.assert_not_called()
+        assert scan.call_count == 1
         assert job.status == "succeeded"
 
 
-def test_pre_pull_hard_fail_prevents_scan(mock_job_store, temp_hub):
+def test_pre_pull_plan_runs_before_scan(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
+
+        def _plan_fn(sources, *a, **k):
+            assert scan.call_count == 0, "plan must run before scan"
+            return [_plan("repoA", PrePullStatus.UP_TO_DATE), _plan("repoB", PrePullStatus.UP_TO_DATE)]
+
+        plan.side_effect = _plan_fn
+        apply.return_value = [_result("repoA", PrePullStatus.UP_TO_DATE), _result("repoB", PrePullStatus.UP_TO_DATE)]
+
+        runner._run_job(job.id)
+        assert plan.call_count == 1
+        assert scan.call_count == 2
+        assert job.status == "succeeded"
+
+
+def test_pre_pull_apply_runs_before_scan(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
     job = _make_job(temp_hub, ["repoA"], pre_pull=True)
     mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
+        plan.return_value = [_plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True)]
 
-    p_scan, p_write, p_validate = _patches()
-    with p_scan as mock_scan, p_write, p_validate, \
-         patch("merger.lenskit.service.runner.pre_pull_repo") as mock_pre, \
-         patch("merger.lenskit.service.runner.is_self_repo", return_value=False):
+        def _apply_fn(plans, *a, **k):
+            assert scan.call_count == 0, "apply must run before scan"
+            return [_result("repoA", PrePullStatus.FAST_FORWARDED, changed=True)]
 
-        mock_pre.return_value = PrePullResult(
-            repo="repoA", path="repoA", status=PrePullStatus.DIRTY,
-            message="has uncommitted tracked changes",
-        )
-
+        apply.side_effect = _apply_fn
         runner._run_job(job.id)
+        assert apply.call_count == 1
+        assert scan.call_count == 1
+        assert job.status == "succeeded"
 
-        mock_scan.assert_not_called()
+
+def test_pre_pull_plan_hard_fail_prevents_apply_and_scan(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"], cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        # repoA could fast-forward, but repoB is dirty → abort before ANY apply.
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
+            _plan("repoB", PrePullStatus.DIRTY),
+        ]
+        runner._run_job(job.id)
+        apply.assert_not_called()
+        scan.assert_not_called()
         assert job.status == "failed"
-        assert "Pre-pull failed" in (job.error or "")
-        assert "dirty" in (job.error or "")
+        assert "Pre-pull plan failed" in (job.error or "")
+        assert "no repos were modified" in (job.error or "")
 
 
-def test_pre_pull_diverged_hard_fail(mock_job_store, temp_hub):
+def test_pre_pull_warn_status_allows_apply_for_other_repo(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
-    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
     mock_job_store.get_job.return_value = job
-
-    p_scan, p_write, p_validate = _patches()
-    with p_scan as mock_scan, p_write, p_validate, \
-         patch("merger.lenskit.service.runner.pre_pull_repo") as mock_pre, \
-         patch("merger.lenskit.service.runner.is_self_repo", return_value=False):
-
-        mock_pre.return_value = PrePullResult(
-            repo="repoA", path="repoA", status=PrePullStatus.DIVERGED, message="diverged",
-        )
-
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.SKIPPED_NO_UPSTREAM),
+            _plan("repoB", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
+        ]
+        apply.return_value = [
+            _result("repoA", PrePullStatus.SKIPPED_NO_UPSTREAM),
+            _result("repoB", PrePullStatus.FAST_FORWARDED, changed=True),
+        ]
         runner._run_job(job.id)
-
-        mock_scan.assert_not_called()
-        assert job.status == "failed"
-
-
-def test_pre_pull_warn_status_continues_scan(mock_job_store, temp_hub):
-    runner = JobRunner(mock_job_store)
-    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
-    mock_job_store.get_job.return_value = job
-
-    p_scan, p_write, p_validate = _patches()
-    with p_scan as mock_scan, p_write as mock_write, p_validate, \
-         patch("merger.lenskit.service.runner.pre_pull_repo") as mock_pre, \
-         patch("merger.lenskit.service.runner.is_self_repo", return_value=False):
-
-        mock_write.return_value = _fake_artifacts()
-        mock_pre.return_value = PrePullResult(
-            repo="repoA", path="repoA", status=PrePullStatus.SKIPPED_NO_UPSTREAM,
-            message="no upstream tracking branch",
-        )
-
-        runner._run_job(job.id)
-
-        # Warn-and-continue: scan still runs, job succeeds, warning recorded.
-        assert mock_scan.call_count == 1
+        apply.assert_called_once()
+        assert scan.call_count == 2
         assert job.status == "succeeded"
         assert any("skipped_no_upstream" in w for w in job.warnings)
 
 
-def test_pre_pull_self_repo_emits_restart_warning_no_autorestart(mock_job_store, temp_hub):
+def test_self_repo_fast_forwarded_emits_restart_warning(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
     job = _make_job(temp_hub, ["repoA"], pre_pull=True)
     mock_job_store.get_job.return_value = job
-
-    p_scan, p_write, p_validate = _patches()
-    with p_scan as mock_scan, p_write as mock_write, p_validate, \
-         patch("merger.lenskit.service.runner.pre_pull_repo") as mock_pre, \
-         patch("merger.lenskit.service.runner.is_self_repo", return_value=True), \
-         patch("subprocess.run") as mock_subprocess, \
-         patch("os.system") as mock_os_system:
-
-        mock_write.return_value = _fake_artifacts()
-        mock_pre.return_value = PrePullResult(
-            repo="repoA", path="repoA", status=PrePullStatus.FAST_FORWARDED,
-            changed=True, message="fast-forwarded",
-        )
+    cms = _patched(self_repo=True)
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("subprocess.run") as subproc, patch("os.system") as ossystem:
+        write.return_value = _fake_artifacts()
+        plan.return_value = [_plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True)]
+        apply.return_value = [_result("repoA", PrePullStatus.FAST_FORWARDED, changed=True)]
 
         runner._run_job(job.id)
 
-        # Job continues (no auto-restart that would kill it).
         assert job.status == "succeeded"
-        assert mock_scan.call_count == 1
-        # A visible restart warning lands in job.warnings.
-        restart_warnings = [w for w in job.warnings if "Restart" in w and "rlens.service" in w]
-        assert restart_warnings, f"expected restart warning, got {job.warnings}"
-        assert "does not reload modules automatically" in restart_warnings[0]
-        # No service automation was invoked.
-        mock_os_system.assert_not_called()
-        for call in mock_subprocess.call_args_list:
-            args = " ".join(str(a) for a in call.args) + " ".join(str(v) for v in call.kwargs.values())
-            assert "systemctl" not in args
+        assert scan.call_count == 1
+        restart = [w for w in job.warnings if "Restart" in w and "rlens.service" in w]
+        assert restart, f"expected restart warning, got {job.warnings}"
+        assert "does not reload modules automatically" in restart[0]
+        ossystem.assert_not_called()
+        for call in subproc.call_args_list:
+            blob = " ".join(str(a) for a in call.args) + " ".join(str(v) for v in call.kwargs.values())
+            assert "systemctl" not in blob
+
+
+def test_self_repo_up_to_date_does_not_emit_restart_warning(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched(self_repo=True)
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
+        plan.return_value = [_plan("repoA", PrePullStatus.UP_TO_DATE)]
+        apply.return_value = [_result("repoA", PrePullStatus.UP_TO_DATE)]
+
+        runner._run_job(job.id)
+
+        assert job.status == "succeeded"
+        assert scan.call_count == 1
+        assert not any("Restart" in w for w in job.warnings), f"unexpected restart warning: {job.warnings}"

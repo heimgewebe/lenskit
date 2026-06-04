@@ -42,6 +42,11 @@ class PrePullStatus:
     SKIPPED_NO_UPSTREAM = "skipped_no_upstream"
     LOCAL_AHEAD = "local_ahead"
 
+    # Plan-phase only: a fast-forward is possible but has NOT been applied yet.
+    # Never a final success — it must be turned into FAST_FORWARDED by the apply
+    # phase (or HEAD_CHANGED / MERGE_FAILED if the apply is no longer safe).
+    PLANNED_FAST_FORWARD = "planned_fast_forward"
+
     # Success (scan proceeds)
     UP_TO_DATE = "up_to_date"
     FAST_FORWARDED = "fast_forwarded"
@@ -51,17 +56,22 @@ class PrePullStatus:
     DIVERGED = "diverged"
     FETCH_FAILED = "fetch_failed"
     MERGE_FAILED = "merge_failed"
+    # HEAD moved between plan and apply (a concurrent local commit/checkout):
+    # the planned fast-forward is no longer valid, so we refuse rather than guess.
+    HEAD_CHANGED = "head_changed"
     ERROR = "error"
 
 
 # Statuses that must abort the job. Scanning would otherwise either lose local
 # work (dirty/diverged) or silently dump a stale tree (fetch/merge failure).
+# HEAD_CHANGED aborts because a concurrent local change invalidated the plan.
 HARD_FAIL_STATUSES = frozenset(
     {
         PrePullStatus.DIRTY,
         PrePullStatus.DIVERGED,
         PrePullStatus.FETCH_FAILED,
         PrePullStatus.MERGE_FAILED,
+        PrePullStatus.HEAD_CHANGED,
         PrePullStatus.ERROR,
     }
 )
@@ -83,14 +93,20 @@ SUCCESS_STATUSES = frozenset(
     }
 )
 
-# When the *running rLens code repo itself* is in one of these states, the
+# Plan statuses whose plans still need an apply phase to reach a final status.
+PLAN_APPLY_STATUSES = frozenset(
+    {
+        PrePullStatus.PLANNED_FAST_FORWARD,
+    }
+)
+
+# When the *running rLens code repo itself* reaches one of these states, the
 # operator must be reminded to restart the service: a live Python process does
-# not reload modules just because files on disk changed.
+# not reload modules just because files on disk changed. Only an *actual*
+# fast-forward (files changed) warrants the reminder — not up_to_date/local_ahead.
 SELF_REPO_NOTICE_STATUSES = frozenset(
     {
         PrePullStatus.FAST_FORWARDED,
-        PrePullStatus.UP_TO_DATE,
-        PrePullStatus.LOCAL_AHEAD,
     }
 )
 
@@ -108,6 +124,28 @@ class PrePullResult:
     upstream: Optional[str] = None
     message: str = ""
     stderr: Optional[str] = None
+
+
+@dataclass
+class PrePullPlan:
+    """Outcome of the *plan* phase (read + fetch + analyze, no working-tree merge).
+
+    A plan with ``needs_apply=True`` (status ``PLANNED_FAST_FORWARD``) describes a
+    fast-forward that is safe *now* but has not been executed. The apply phase
+    re-verifies HEAD before merging. Plans with hard-fail/warn/up-to-date statuses
+    are terminal and carry through unchanged.
+    """
+
+    repo: str
+    path: str
+    status: str
+    changed: bool = False
+    before_head: Optional[str] = None
+    after_head: Optional[str] = None
+    upstream: Optional[str] = None
+    message: str = ""
+    stderr: Optional[str] = None
+    needs_apply: bool = False
 
 
 # Mask credentials that git can echo in remote URLs (e.g. https://user:token@host).
@@ -189,18 +227,20 @@ def is_self_repo(repo_path: Path) -> bool:
     return False
 
 
-def pre_pull_repo(repo_path: Path, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> PrePullResult:
-    """Fast-forward-only update of a single local git repo.
+def plan_pre_pull_repo(repo_path: Path, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> PrePullPlan:
+    """Plan phase: read + fetch + fast-forward analysis. Never merges/mutates HEAD.
 
-    Returns a :class:`PrePullResult`; never raises for ordinary git states. See
-    module docstring for the (deliberately narrow) set of git operations used.
+    Returns a :class:`PrePullPlan`. A ``PLANNED_FAST_FORWARD`` plan (``needs_apply``)
+    means a clean fast-forward is possible; call :func:`apply_pre_pull_plan` to
+    execute it. All other statuses are terminal. Never raises for ordinary git
+    states. See module docstring for the (deliberately narrow) git operations used.
     """
     repo_path = Path(repo_path)
     repo_name = repo_path.name
     path_str = str(repo_path)
 
-    def make(status: str, message: str = "", **kwargs) -> PrePullResult:
-        return PrePullResult(repo=repo_name, path=path_str, status=status, message=message, **kwargs)
+    def make(status: str, message: str = "", **kwargs) -> PrePullPlan:
+        return PrePullPlan(repo=repo_name, path=path_str, status=status, message=message, **kwargs)
 
     # 1. Is git available at all?
     version = _run_git(["--version"], timeout=timeout_seconds)
@@ -322,14 +362,75 @@ def pre_pull_repo(repo_path: Path, timeout_seconds: int = DEFAULT_TIMEOUT_SECOND
             upstream=upstream,
         )
 
-    # head_is_ancestor and not upstream_is_ancestor → strictly behind → fast-forward.
+    # head_is_ancestor and not upstream_is_ancestor → strictly behind → a clean
+    # fast-forward is possible. Plan it; the apply phase performs the merge after
+    # re-verifying HEAD. No working-tree mutation happens here.
+    return make(
+        PrePullStatus.PLANNED_FAST_FORWARD,
+        f"{repo_name} can fast-forward to {upstream}",
+        before_head=before_head,
+        upstream=upstream,
+        needs_apply=True,
+    )
+
+
+def _plan_to_result(plan: PrePullPlan) -> PrePullResult:
+    """Project a terminal (non-apply) plan onto a PrePullResult unchanged."""
+    return PrePullResult(
+        repo=plan.repo,
+        path=plan.path,
+        status=plan.status,
+        changed=plan.changed,
+        before_head=plan.before_head,
+        after_head=plan.after_head,
+        upstream=plan.upstream,
+        message=plan.message,
+        stderr=plan.stderr,
+    )
+
+
+def apply_pre_pull_plan(plan: PrePullPlan, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> PrePullResult:
+    """Apply phase: execute a planned fast-forward (the only mutation in this module).
+
+    Plans that do not need applying carry through unchanged. For a planned
+    fast-forward, HEAD is re-verified against ``plan.before_head`` (race guard)
+    before a single ``merge --ff-only`` is run.
+    """
+    if plan.status not in PLAN_APPLY_STATUSES or not plan.needs_apply:
+        # up_to_date / local_ahead / skipped / warn / hard-fail plans: nothing to do.
+        return _plan_to_result(plan)
+
+    repo_path = Path(plan.path)
+    repo_name = plan.repo
+
+    def make(status: str, message: str = "", **kwargs) -> PrePullResult:
+        kwargs.setdefault("before_head", plan.before_head)
+        kwargs.setdefault("upstream", plan.upstream)
+        return PrePullResult(repo=repo_name, path=str(repo_path), status=status, message=message, **kwargs)
+
+    # Race guard: HEAD must still be exactly what we planned against. A concurrent
+    # local commit/checkout invalidates the fast-forward, so we refuse it.
+    head = _run_git(["rev-parse", "HEAD"], repo_path=repo_path, timeout=timeout_seconds)
+    current_head = head.stdout.strip() if head.returncode == 0 else None
+    if head.returncode != 0:
+        return make(
+            PrePullStatus.ERROR,
+            f"could not re-read HEAD for {repo_name} before apply",
+            stderr=_redact(head.stderr),
+        )
+    if current_head != plan.before_head:
+        return make(
+            PrePullStatus.HEAD_CHANGED,
+            f"{repo_name} HEAD changed between plan and apply "
+            f"({plan.before_head} -> {current_head}); refusing fast-forward",
+            after_head=current_head,
+        )
+
     merge = _run_git(["merge", "--ff-only", "@{u}"], repo_path=repo_path, timeout=timeout_seconds)
     if merge.returncode != 0:
         return make(
             PrePullStatus.MERGE_FAILED,
             f"fast-forward merge failed for {repo_name}",
-            before_head=before_head,
-            upstream=upstream,
             stderr=_redact(merge.stderr),
         )
 
@@ -337,9 +438,37 @@ def pre_pull_repo(repo_path: Path, timeout_seconds: int = DEFAULT_TIMEOUT_SECOND
     after_head = after.stdout.strip() if after.returncode == 0 else None
     return make(
         PrePullStatus.FAST_FORWARDED,
-        f"{repo_name} fast-forwarded to {upstream}",
+        f"{repo_name} fast-forwarded to {plan.upstream}",
         changed=True,
-        before_head=before_head,
         after_head=after_head,
-        upstream=upstream,
     )
+
+
+def pre_pull_repo(repo_path: Path, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> PrePullResult:
+    """Plan + apply a fast-forward-only update of a single local git repo.
+
+    Convenience wrapper preserving the original single-repo entry point. For
+    multi-repo jobs prefer :func:`plan_pre_pull_repos` + :func:`apply_pre_pull_plans`
+    so that no repo is fast-forwarded when another repo's plan hard-fails.
+    """
+    plan = plan_pre_pull_repo(repo_path, timeout_seconds)
+    if plan.status in HARD_FAIL_STATUSES:
+        return _plan_to_result(plan)
+    if plan.needs_apply:
+        return apply_pre_pull_plan(plan, timeout_seconds)
+    return _plan_to_result(plan)
+
+
+def plan_pre_pull_repos(sources: Sequence[Path], timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> List[PrePullPlan]:
+    """Plan (read + fetch + analyze) every source. No working tree is mutated."""
+    return [plan_pre_pull_repo(Path(src), timeout_seconds) for src in sources]
+
+
+def apply_pre_pull_plans(plans: Sequence[PrePullPlan], timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> List[PrePullResult]:
+    """Apply every plan. Callers MUST ensure no plan is a hard-fail before calling.
+
+    Applying is all-or-nothing at the *decision* level: the runner refuses to call
+    this when any plan hard-failed, so a later failure never leaves an earlier repo
+    half-fast-forwarded.
+    """
+    return [apply_pre_pull_plan(plan, timeout_seconds) for plan in plans]
