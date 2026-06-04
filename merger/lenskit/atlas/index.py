@@ -25,13 +25,14 @@ follows (see ADR-009):
    opt into historical search via ``all_snapshots=True`` or an explicit
    ``snapshot_id``.
 
-Content search note: to preserve the exact (substring + first-match snippet)
-semantics of the prior implementation while still gaining FTS scalability, the
-FTS ``content`` column is used to *narrow* the candidate set (token MATCH) and
-the live file is then read to confirm the contiguous substring match and build
-the snippet. Snapshots scanned without content enrichment have no indexed
-content; for those, content queries fall back to scanning the (already
-metadata-narrowed) candidates against the live filesystem.
+Content search note: the FTS ``content`` column is populated as prepared
+structure but is not used as a hard filter in the current search path. Content
+queries use SQLite metadata filtering (``ext``, ``size_bytes``, ``mtime_epoch``,
+scope) and then always reach ``_content_match`` for live-file confirmation.
+This avoids false negatives from freshness gaps (live files mutated after
+indexing) while preserving exact substring semantics (case-insensitive,
+first-match snippet, 200 chars). Snapshots without content enrichment receive
+the same treatment: all metadata-filtered candidates are live-scanned.
 """
 
 import json
@@ -480,19 +481,23 @@ class AtlasFTSIndex:
     def fts_content_candidates(self, snapshot_ids: Iterable[str], content_query: str) -> Optional[List[int]]:
         """Conservatively narrow content-search candidates via FTS.
 
-        Return semantics (load-bearing — see ADR-009 invariant):
+        CURRENTLY UNUSED by AtlasSearch because live-file freshness can diverge
+        from indexed content (files mutate after indexing). Kept as a primitive
+        for potential future immutable-snapshot or write-once-mode work where
+        content staleness cannot occur.
 
-        * ``None``  -> the query cannot be safely narrowed; the caller MUST
-          live-scan every metadata-filtered candidate. This is the safe default
-          for subtoken substrings (``oob`` ⊂ ``foobar``), Unicode queries, and
-          punctuation/operator-like queries whose FTS tokenisation is not a
-          guaranteed superset of the legacy substring match.
-        * ``[]``    -> provably no match: the query *is* safely narrowable and
-          no document contains the required prefix token(s).
-        * ``[uid…]``-> a guaranteed superset of the true matches; the caller
-          still confirms each via the live substring check in ``_content_match``.
+        Return semantics (informational — see ADR-009):
 
-        FTS5 may only *accelerate*; the truth remains the live confirmation.
+        * ``None``  -> the query cannot be safely narrowed (subtoken substrings
+          like ``oob`` ⊂ ``foobar``, Unicode queries, punctuation/operator-like
+          queries). If this primitive were used, the caller would need to
+          live-scan all candidates.
+        * ``[]``    -> the query *is* safely narrowable and no document contains
+          the required prefix tokens.
+        * ``[uid…]``-> a conservative superset of the true matches.
+
+        The live confirmation in ``_content_match`` would always be the truth
+        source if this primitive were used as a filter gate.
         """
         snapshot_ids = list(snapshot_ids)
         if not snapshot_ids:

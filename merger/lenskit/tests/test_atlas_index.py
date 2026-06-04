@@ -408,3 +408,28 @@ def test_content_live_mutation_after_index_does_not_create_false_negative(tmp_pa
     assert _content_keys(via_linear) == [("s1", "a.txt")]
     assert _content_keys(via_index) == _content_keys(via_linear)
 
+
+def test_index_path_does_not_fall_back_when_index_is_covered(tmp_path, monkeypatch):
+    """The index path must actually be used when the index fully covers all snapshots.
+
+    This is a diagnosis gate to catch silent fallback to linear search due to
+    bugs in the index path (e.g. undefined variables, exceptions). If the index
+    is marked complete for all snapshots, the index path must be taken and
+    succeed; if it fails, the caller should see an exception, not a silent
+    fallback.
+    """
+    registry_path = _build_search_fixture(tmp_path)
+    searcher = AtlasSearch(registry_path)
+
+    def fail_linear(*args, **kwargs):
+        raise AssertionError("linear fallback was used — index path did not actually run")
+
+    monkeypatch.setattr(searcher, "_search_linear", fail_linear)
+
+    # Query that should work via index. If index path fails, linear will be called
+    # and this assertion will raise.
+    res = searcher.search(use_index=True, query="c.txt")
+
+    assert len(res) == 1
+    assert res[0]["name"] == "c.txt"
+

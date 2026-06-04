@@ -189,7 +189,6 @@ class AtlasSearch:
                 rows = idx.query_metadata(
                     snapshot_ids, ext=ext, min_size=min_size, max_size=max_size,
                     after_epoch=after_epoch, before_epoch=before_epoch,
-                    restrict_uids=restrict_uids,
                 )
         except Exception as e:
             print(f"[atlas-search] warning: index search failed, falling back to linear scan: {e}", file=sys.stderr)
