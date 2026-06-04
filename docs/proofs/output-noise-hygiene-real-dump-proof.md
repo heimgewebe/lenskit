@@ -236,5 +236,7 @@ needed for this task.
 - No claim-map contract changes were made.
 - No broad dotdir exclusion was added; `.github/` and `.wgx/` remain dumpable
   repository context.
-- This proof is intentionally marked as environment-limited until a real
-  operator-host `rlens.service` dump is produced after restart.
+- The former environment limitation is closed by the operator-host proof in
+  `Operator Target Proof — PASS`: after `systemctl --user restart rlens`, a
+  fresh real dump passed `scripts/rlens-post-merge-surface-smoke.sh` against
+  `/home/alex/repos/merges`.
