@@ -540,31 +540,46 @@ class AtlasFTSIndex:
     ) -> List[sqlite3.Row]:
         """Fetch candidate file rows for the given snapshots using indexed SQL filters.
 
-        Results are returned in a stable, deterministic order: ``snapshot_id``
-        descending (newest snapshot first), then ``file_uid`` ascending within
-        each snapshot. The order is an explicit contract so that callers and CLI
-        output are reproducible across runs, vacuums, and SQLite versions.
+        Results are returned newest-snapshot-first, mirroring the registry's
+        ``created_at DESC`` semantics used by the legacy linear search path:
+        ``indexed_snapshots.created_at DESC``, with ``snapshot_id DESC`` as a
+        deterministic tie-breaker (for equal/absent timestamps), then
+        ``file_uid ASC`` within each snapshot.
+
+        NOTE: ordering is by ``created_at``, NOT by lexicographic
+        ``snapshot_id``. Snapshot ids have the form
+        ``snap_{machine}__{root}__{timestamp}__{hash}`` — the timestamp is in
+        the middle, so lexicographic order would sort by machine/root first, not
+        chronologically. The ``created_at`` join makes "newest first" correct
+        and keeps the output a reproducible contract across runs, vacuums, and
+        SQLite versions.
         """
         if not snapshot_ids:
             return []
         placeholders = ",".join("?" for _ in snapshot_ids)
-        sql = f"SELECT * FROM files WHERE snapshot_id IN ({placeholders})"
+        # Join indexed_snapshots so we can order by created_at; select only the
+        # files columns so the returned row shape is unchanged for callers.
+        sql = (
+            f"SELECT f.* FROM files f "
+            f"JOIN indexed_snapshots s ON s.snapshot_id = f.snapshot_id "
+            f"WHERE f.snapshot_id IN ({placeholders})"
+        )
         params: List[Any] = list(snapshot_ids)
 
         if ext:
-            sql += " AND ext = ?"
+            sql += " AND f.ext = ?"
             params.append(ext)
         if min_size is not None:
-            sql += " AND size_bytes >= ?"
+            sql += " AND f.size_bytes >= ?"
             params.append(min_size)
         if max_size is not None:
-            sql += " AND size_bytes <= ?"
+            sql += " AND f.size_bytes <= ?"
             params.append(max_size)
         if after_epoch is not None:
-            sql += " AND mtime_epoch IS NOT NULL AND mtime_epoch >= ?"
+            sql += " AND f.mtime_epoch IS NOT NULL AND f.mtime_epoch >= ?"
             params.append(after_epoch)
         if before_epoch is not None:
-            sql += " AND mtime_epoch IS NOT NULL AND mtime_epoch <= ?"
+            sql += " AND f.mtime_epoch IS NOT NULL AND f.mtime_epoch <= ?"
             params.append(before_epoch)
 
         restrict_list = None if restrict_uids is None else list(restrict_uids)
@@ -572,10 +587,10 @@ class AtlasFTSIndex:
             if not restrict_list:
                 return []
             uid_placeholders = ",".join("?" for _ in restrict_list)
-            sql += f" AND file_uid IN ({uid_placeholders})"
+            sql += f" AND f.file_uid IN ({uid_placeholders})"
             params.extend(restrict_list)
 
-        sql += " ORDER BY snapshot_id DESC, file_uid ASC"
+        sql += " ORDER BY s.created_at DESC, f.snapshot_id DESC, f.file_uid ASC"
         return self.conn.execute(sql, params).fetchall()
 
     def stats(self) -> Dict[str, Any]:

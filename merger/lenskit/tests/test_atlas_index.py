@@ -440,7 +440,7 @@ def test_query_metadata_result_order_is_deterministic(tmp_path):
     Without ORDER BY, SQLite returns rows in arbitrary heap order, which makes
     search results non-deterministic across runs. This test checks that
     repeated calls to query_metadata return rows in the same order and that
-    the order follows the expected (snapshot_id, file_uid ASC) contract.
+    within a single snapshot rows are ordered by file_uid ascending.
     """
     registry_path = _build_search_fixture(tmp_path)
     index_path = resolve_index_db_path(registry_path)
@@ -455,10 +455,63 @@ def test_query_metadata_result_order_is_deterministic(tmp_path):
         # Within a single snapshot, file_uid should be ascending.
         assert first_uids == sorted(first_uids), "rows not in file_uid ASC order"
 
-    # Multi-snapshot: s1 rows come after s2 rows if s2 > s1 lexically, or
-    # before if s1 < s2. Either way, the order must be stable across calls.
+    # Multi-snapshot calls must be stable across repeated invocations.
     with AtlasFTSIndex(index_path) as idx:
         a = [r["file_uid"] for r in idx.query_metadata(["s1", "s2"])]
         b = [r["file_uid"] for r in idx.query_metadata(["s1", "s2"])]
         assert a == b, "multi-snapshot query_metadata is not deterministic"
+
+
+def test_query_metadata_orders_newest_snapshot_first_by_created_at(tmp_path):
+    """Cross-snapshot ordering must be chronological (newest created_at first),
+    NOT lexicographic by snapshot_id.
+
+    snapshot_id is `snap_{machine}__{root}__{timestamp}__{hash}` — the timestamp
+    is in the middle, so lexicographic order is machine/root-first, not
+    time-first. This test deliberately makes lexicographic and chronological
+    order diverge: `z_old` is lexicographically greater than `a_new` but
+    chronologically older. The newer snapshot (`a_new`) must come first,
+    matching the registry's `created_at DESC` semantics used by the linear path.
+    """
+    registry_path = _make_registry(tmp_path)
+    registry = AtlasRegistry(registry_path)
+    registry.register_machine("m1", "host1")
+    registry.register_root("r1", "m1", "abs_path", "/tmp/r1")
+
+    inv_old = tmp_path / "inv_old.jsonl"
+    _write_inv(inv_old, [
+        {"rel_path": "old.txt", "name": "old.txt", "ext": ".txt", "size_bytes": 10, "mtime": "2023-01-01T00:00:00Z"},
+    ])
+    inv_new = tmp_path / "inv_new.jsonl"
+    _write_inv(inv_new, [
+        {"rel_path": "new.txt", "name": "new.txt", "ext": ".txt", "size_bytes": 20, "mtime": "2023-01-03T00:00:00Z"},
+    ])
+
+    # z_old: lexicographically LARGER snapshot_id, but OLDER created_at.
+    registry.create_snapshot("z_old", "m1", "r1", "hash_old", "complete")
+    registry.conn.execute("UPDATE snapshots SET created_at = '2023-01-01T00:00:00Z' WHERE snapshot_id = 'z_old'")
+    registry.update_snapshot_artifacts("z_old", {"inventory": str(inv_old)})
+
+    # a_new: lexicographically SMALLER snapshot_id, but NEWER created_at.
+    registry.create_snapshot("a_new", "m1", "r1", "hash_new", "complete")
+    registry.conn.execute("UPDATE snapshots SET created_at = '2023-01-03T00:00:00Z' WHERE snapshot_id = 'a_new'")
+    registry.update_snapshot_artifacts("a_new", {"inventory": str(inv_new)})
+
+    atlas_base = resolve_atlas_base_dir(registry_path)
+    index_path = resolve_index_db_path(registry_path)
+    with AtlasFTSIndex(index_path) as idx:
+        for sid in ("z_old", "a_new"):
+            idx.index_snapshot(registry.get_snapshot(sid), atlas_base)
+    registry.close()
+
+    with AtlasFTSIndex(index_path) as idx:
+        rows = idx.query_metadata(["z_old", "a_new"])
+        snap_order = [r["snapshot_id"] for r in rows]
+
+    # Newest created_at first: a_new (2023-01-03) before z_old (2023-01-01),
+    # despite "z_old" > "a_new" lexicographically.
+    assert snap_order == ["a_new", "z_old"], (
+        f"expected newest-first by created_at, got {snap_order}"
+    )
+
 
