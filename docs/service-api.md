@@ -315,10 +315,14 @@ This guarantees that a plan-phase hard failure on one repo cannot leave another 
 | `dirty`, `diverged`, `fetch_failed`, `merge_failed`, `head_changed`, `untracked_would_be_overwritten`, `error` | hard fail | Job fails before any scan; on a multi-repo plan failure, no repo HEADs or working trees were fast-forwarded |
 
 Notes:
-- A dirty **tracked** working tree blocks; harmless **untracked** files do not block
-  and are preserved across a fast-forward. Untracked files that share a path with
-  files the upstream fast-forward would write are detected in the plan phase and
-  produce `untracked_would_be_overwritten` (hard fail), preventing any apply.
+- A dirty **tracked** working tree blocks. Harmless non-colliding **untracked**
+  files do not block and are preserved across a fast-forward. Untracked files —
+  **including ignored ones** — that would be overwritten by, or path-collide
+  (file-vs-file or file-vs-directory) with, the upstream fast-forward are
+  detected during the plan phase and produce `untracked_would_be_overwritten`
+  (hard fail), preventing any apply. The plan-phase check reads paths
+  NUL-terminated; if it cannot complete, the repo hard-fails with `error` rather
+  than fast-forwarding.
 - **Job reuse:** the effective pre-pull (`pre_pull and not plan_only`) participates in the job content hash. A succeeded job
   is **not** reused when the new request has an effective pre-pull
   (`pre_pull=true and not plan_only`) — the user explicitly wants a fresh

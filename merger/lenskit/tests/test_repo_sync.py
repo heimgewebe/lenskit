@@ -470,6 +470,104 @@ def test_batch_plan_hard_fails_on_untracked_overwrite_prevents_other_apply(repos
     assert (collision_repo / "new_remote.txt").read_text(encoding="utf-8") == "local untracked\n"
 
 
+def test_plan_hard_fails_untracked_collision_with_special_path_chars(repos):
+    """Paths with spaces/unicode must be matched correctly (NUL-terminated -z output)."""
+    source, local = repos["source"], repos["local"]
+    before = _head(local)
+    special = "böse datei.txt"
+
+    _commit_file(source, special, "upstream content\n", "add special path")
+    _git("push", "origin", "main", cwd=source)
+
+    (local / special).write_text("local untracked\n", encoding="utf-8")
+
+    plan = plan_pre_pull_repo(local)
+
+    assert plan.status == PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN
+    assert plan.needs_apply is False
+    # The *raw* (unquoted) path appears in the message — only true when -z disables
+    # git's path quoting. Without -z the message would carry the quoted octal form.
+    assert special in plan.message
+    assert _head(local) == before
+    assert (local / special).read_text(encoding="utf-8") == "local untracked\n"
+
+
+def test_plan_hard_fails_when_ignored_untracked_would_be_overwritten(repos):
+    """Ignored untracked files are still protected (no --exclude-standard)."""
+    source, local = repos["source"], repos["local"]
+    before = _head(local)
+
+    # Locally ignore 'ignored.txt' via .git/info/exclude (no commit → local stays
+    # strictly behind), then create it as an ignored untracked file.
+    (local / ".git" / "info" / "exclude").write_text("ignored.txt\n", encoding="utf-8")
+    (local / "ignored.txt").write_text("precious local\n", encoding="utf-8")
+
+    # Upstream introduces 'ignored.txt' as a tracked file.
+    _commit_file(source, "ignored.txt", "upstream content\n", "add ignored.txt")
+    _git("push", "origin", "main", cwd=source)
+
+    plan = plan_pre_pull_repo(local)
+
+    assert plan.status == PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN
+    assert plan.needs_apply is False
+    assert "ignored.txt" in plan.message
+    assert _head(local) == before
+    assert (local / "ignored.txt").read_text(encoding="utf-8") == "precious local\n"
+
+
+def test_plan_hard_fails_on_untracked_file_directory_collision(repos):
+    """An untracked file collides with an upstream path nested under that name."""
+    source, local = repos["source"], repos["local"]
+    before = _head(local)
+
+    # Upstream adds tracked 'collision/file.txt' (a directory named 'collision').
+    (source / "collision").mkdir()
+    (source / "collision" / "file.txt").write_text("upstream\n", encoding="utf-8")
+    _git("add", "collision/file.txt", cwd=source)
+    _git("commit", "-m", "add collision/file.txt", cwd=source)
+    _git("push", "origin", "main", cwd=source)
+
+    # Local has an untracked FILE literally named 'collision'.
+    (local / "collision").write_text("local untracked file\n", encoding="utf-8")
+
+    plan = plan_pre_pull_repo(local)
+
+    assert plan.status == PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN
+    assert plan.needs_apply is False
+    assert _head(local) == before
+    assert (local / "collision").read_text(encoding="utf-8") == "local untracked file\n"
+
+
+def test_plan_hard_fails_when_untracked_safety_check_fails(repos, monkeypatch: pytest.MonkeyPatch):
+    """If the safety check (diff/ls-files) errors, refuse with ERROR — never fast-forward."""
+    source, local = repos["source"], repos["local"]
+    before = _head(local)
+    _commit_file(source, "file.txt", "v2\n", "second")
+    _git("push", "origin", "main", cwd=source)
+
+    real_run_git = repo_sync._run_git
+
+    def failing_run_git(args, *a, **kw):
+        # Force exactly the untracked-overwrite safety check to fail; let the rest
+        # of the plan (version/status/fetch/ancestry) run for real.
+        if "diff" in args and "--name-only" in args:
+            return subprocess.CompletedProcess(
+                list(args), 128, stdout="", stderr="fatal: simulated diff failure\n"
+            )
+        return real_run_git(args, *a, **kw)
+
+    monkeypatch.setattr(repo_sync, "_run_git", failing_run_git)
+
+    plan = plan_pre_pull_repo(local)
+
+    assert plan.status == PrePullStatus.ERROR
+    assert plan.status in HARD_FAIL_STATUSES
+    assert plan.needs_apply is False
+    assert "untracked overwrite safety check failed" in plan.message
+    # HEAD untouched; we never reached PLANNED_FAST_FORWARD.
+    assert _head(local) == before
+
+
 def test_no_forbidden_git_operations(repos, monkeypatch: pytest.MonkeyPatch):
     """Across a real plan+apply fast-forward, no forbidden git op is ever issued."""
     source, local = repos["source"], repos["local"]

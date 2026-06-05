@@ -234,6 +234,28 @@ def is_self_repo(repo_path: Path) -> bool:
     return False
 
 
+def _split_git_z(stdout: str) -> List[str]:
+    """Split NUL-separated git output (``-z``) into a list, dropping empties.
+
+    Using ``-z`` (and this splitter) avoids git's path quoting/escaping for paths
+    with spaces, unicode, or special characters, which ``--name-only`` without
+    ``-z`` would otherwise mangle.
+    """
+    if not stdout:
+        return []
+    return [part for part in stdout.split("\0") if part]
+
+
+def _path_collides(a: str, b: str) -> bool:
+    """True if two repo-relative paths conflict as file-vs-file or file-vs-dir.
+
+    A fast-forward that writes ``b`` overwrites a local untracked ``a`` when the
+    paths are equal, or when one is a directory prefix of the other (e.g. local
+    untracked ``foo`` vs upstream ``foo/bar``, or vice versa).
+    """
+    return a == b or a.startswith(b + "/") or b.startswith(a + "/")
+
+
 def plan_pre_pull_repo(repo_path: Path, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> PrePullPlan:
     """Plan phase: read + fetch + fast-forward analysis. Never merges/mutates HEAD.
 
@@ -375,31 +397,51 @@ def plan_pre_pull_repo(repo_path: Path, timeout_seconds: int = DEFAULT_TIMEOUT_S
     # by the fast-forward. git merge --ff-only would reject these in the apply
     # phase, but catching them here prevents any other repo from being applied
     # first in a multi-repo batch.
+    #
+    # NUL-terminated (`-z`) output avoids path quoting for spaces/unicode. We do
+    # NOT pass `--exclude-standard`: ignored untracked files are still local data
+    # that a bounded fast-forward must never clobber, so they participate in the
+    # collision check too.
     upstream_files_proc = _run_git(
-        ["diff", "--name-only", f"HEAD..{upstream}"],
+        ["diff", "--name-only", "-z", f"HEAD..{upstream}"],
         repo_path=repo_path,
         timeout=timeout_seconds,
     )
     untracked_proc = _run_git(
-        ["ls-files", "--others", "--exclude-standard"],
+        ["ls-files", "--others", "-z"],
         repo_path=repo_path,
         timeout=timeout_seconds,
     )
-    if upstream_files_proc.returncode == 0 and untracked_proc.returncode == 0:
-        upstream_files = set(upstream_files_proc.stdout.splitlines())
-        untracked_files = set(untracked_proc.stdout.splitlines())
-        collision = sorted(upstream_files & untracked_files)
-        if collision:
-            shown = collision[:10]
-            suffix = f" (and {len(collision) - 10} more)" if len(collision) > 10 else ""
-            paths_str = ", ".join(shown) + suffix
-            return make(
-                PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN,
-                f"{repo_name} has untracked files that would be overwritten by fast-forward: "
-                f"{paths_str}; refusing pre-pull",
-                before_head=before_head,
-                upstream=upstream,
-            )
+    # A failed safety check must NOT degrade to a fast-forward: if we cannot
+    # prove the working tree is safe, we refuse (hard fail) rather than guess.
+    if upstream_files_proc.returncode != 0 or untracked_proc.returncode != 0:
+        bad = upstream_files_proc if upstream_files_proc.returncode != 0 else untracked_proc
+        return make(
+            PrePullStatus.ERROR,
+            f"untracked overwrite safety check failed for {repo_name}; refusing pre-pull",
+            before_head=before_head,
+            upstream=upstream,
+            stderr=_redact(bad.stderr),
+        )
+
+    upstream_files = set(_split_git_z(upstream_files_proc.stdout))
+    untracked_files = set(_split_git_z(untracked_proc.stdout))
+    collisions = sorted(
+        untracked
+        for untracked in untracked_files
+        if any(_path_collides(untracked, upstream_path) for upstream_path in upstream_files)
+    )
+    if collisions:
+        shown = collisions[:10]
+        suffix = f" (and {len(collisions) - 10} more)" if len(collisions) > 10 else ""
+        paths_str = ", ".join(shown) + suffix
+        return make(
+            PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN,
+            f"{repo_name} has untracked files that would be overwritten by fast-forward: "
+            f"{paths_str}; refusing pre-pull",
+            before_head=before_head,
+            upstream=upstream,
+        )
 
     return make(
         PrePullStatus.PLANNED_FAST_FORWARD,

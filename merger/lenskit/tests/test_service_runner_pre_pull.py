@@ -172,6 +172,25 @@ def test_pre_pull_plan_hard_fail_prevents_apply_and_scan(mock_job_store, temp_hu
         assert "no repo HEADs or working trees were fast-forwarded" in (job.error or "")
 
 
+def test_pre_pull_untracked_overwrite_prevents_apply_and_scan(mock_job_store, temp_hub):
+    """An untracked-overwrite plan hard-fail aborts before any apply or scan."""
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"], cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
+            _plan("repoB", PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN),
+        ]
+        runner._run_job(job.id)
+        apply.assert_not_called()
+        scan.assert_not_called()
+        assert job.status == "failed"
+        assert "Pre-pull plan failed" in (job.error or "")
+
+
 def test_pre_pull_warn_status_allows_apply_for_other_repo(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
     job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
