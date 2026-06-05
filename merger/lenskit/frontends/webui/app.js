@@ -175,13 +175,13 @@ function selectionEnsureSetForMutation() {
     if (prescanSelection !== null) {
         return true; // Already a Set
     }
-    
+
     // Need to materialize ALL state
     if (prescanCurrentTree && prescanCurrentTree.tree) {
         prescanSelection = getAllPathsInTree(prescanCurrentTree.tree);
         return true;
     }
-    
+
     // Unable to materialize - log warning and keep ALL state
     console.warn('prescanCurrentTree is not available; cannot materialize ALL state for mutation. Keeping ALL state.');
     return false;
@@ -289,14 +289,14 @@ function showNotification(message, type = 'info') {
     }`;
     notification.textContent = message;
     notification.style.opacity = '0';
-    
+
     document.body.appendChild(notification);
-    
+
     // Fade in
     setTimeout(() => {
         notification.style.opacity = '1';
     }, 10);
-    
+
     // Fade out and remove after 3 seconds
     setTimeout(() => {
         notification.style.opacity = '0';
@@ -2371,11 +2371,11 @@ async function removePrescanSelection() {
     savedPrescanSelections.delete(repo);
     persistSavedPrescanSelections();
     closePrescan();
-    
+
     // Update UI (Selection Pool + Badges)
     renderSelectionPool();
     await fetchRepos(document.getElementById('hubPath').value);
-    
+
     // Show feedback
     showNotification(`Removed selection pool for ${repo}`, 'info');
 }
@@ -2457,7 +2457,7 @@ async function storePrescanSelectionInternal(append) {
                          // Create a new Set to avoid mutations to previous selection.
                          mergedRaw = new Set(prev.raw);
                      }
-                     
+
                      // If both prev.raw and prescanSelection are falsy, mergedRaw would remain null,
                      // while mergedCompressed may still contain paths. To avoid losing the raw
                      // representation (and causing UI inconsistencies on reload), fall back to
@@ -2502,7 +2502,7 @@ async function storePrescanSelectionInternal(append) {
     // Update UI (Selection Pool + Badges)
     renderSelectionPool();
     await fetchRepos(document.getElementById('hubPath').value);
-    
+
     // Show feedback
     const mode = append ? 'appended to' : 'replaced';
     showNotification(`Selection ${mode} pool for ${repo}`, 'success');

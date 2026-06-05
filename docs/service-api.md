@@ -194,7 +194,7 @@ Typed read-only facade over stored `query_trace` artifacts. Returns the trace pa
 
 When `/api/query` or `/api/federation/query` is called with `trace=true` and a `context_bundle` is present in the result, the response wrapper includes an `agent_query_session` field. This includes context bundles produced by an `output_profile` as well as cases where `build_context_bundle=true`.
 
-**Provenance classification:**  
+**Provenance classification:**
 The `agent_query_session` is always classified as `session_authority: "agent_context_projection"`. This means:
 - It is a projection built from query results and runtime artifact references — **not** canonical repository content.
 - `artifact_refs.query_trace_id` carries the stable artifact store ID for the `query_trace` artifact (`null` for `/api/federation/query`, which does not produce a standalone query_trace).

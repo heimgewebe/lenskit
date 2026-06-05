@@ -90,7 +90,9 @@ def test_plan_only_skips_pre_pull_even_if_requested(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
         runner._run_job(job.id)
         plan.assert_not_called()
@@ -105,7 +107,9 @@ def test_pre_pull_false_skips_pre_pull(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
         runner._run_job(job.id)
         plan.assert_not_called()
@@ -120,7 +124,9 @@ def test_pre_pull_plan_runs_before_scan(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
 
         def _plan_fn(sources, *a, **k):
@@ -142,7 +148,9 @@ def test_pre_pull_apply_runs_before_scan(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
         plan.return_value = [_plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True)]
 
@@ -163,7 +171,9 @@ def test_pre_pull_plan_hard_fail_prevents_apply_and_scan(mock_job_store, temp_hu
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"], cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         # repoA could fast-forward, but repoB is dirty → abort before ANY apply.
         plan.return_value = [
             _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
@@ -184,7 +194,9 @@ def test_pre_pull_untracked_overwrite_prevents_apply_and_scan(mock_job_store, te
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"], cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         plan.return_value = [
             _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
             _plan("repoB", PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN),
@@ -202,7 +214,9 @@ def test_pre_pull_warn_status_allows_apply_for_other_repo(mock_job_store, temp_h
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
         plan.return_value = [
             _plan("repoA", PrePullStatus.SKIPPED_NO_UPSTREAM),
@@ -254,7 +268,9 @@ def test_self_repo_up_to_date_does_not_emit_restart_warning(mock_job_store, temp
     mock_job_store.get_job.return_value = job
     cms = _patched(self_repo=True)
     with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
         plan.return_value = [_plan("repoA", PrePullStatus.UP_TO_DATE)]
         apply.return_value = [_result("repoA", PrePullStatus.UP_TO_DATE)]
@@ -271,7 +287,9 @@ def test_pre_pull_report_written_on_success(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"], cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
 
         plan.return_value = [
@@ -313,7 +331,9 @@ def test_pre_pull_report_written_on_plan_hard_fail(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"], cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         plan.return_value = [
             _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
             _plan("repoB", PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN, message="local untracked path would be overwritten by upstream"),
@@ -342,7 +362,9 @@ def test_pre_pull_report_registered_when_scan_fails_after_success(mock_job_store
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"] as scan, cms["write"], cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         plan.return_value = [_plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True)]
         apply.return_value = [_result("repoA", PrePullStatus.FAST_FORWARDED, changed=True)]
 
@@ -367,7 +389,9 @@ def test_pre_pull_report_redacts_credentials(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"], cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
 
         raw_secret = "secret-token-123"
@@ -400,7 +424,9 @@ def test_pre_pull_report_skipped_for_plan_only(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"], cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
 
         runner._run_job(job.id)
@@ -419,7 +445,9 @@ def test_pre_pull_report_skipped_for_disabled(mock_job_store, temp_hub):
     mock_job_store.get_job.return_value = job
     cms = _patched()
     with cms["scan"], cms["write"] as write, cms["validate"], \
-         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
         write.return_value = _fake_artifacts()
 
         runner._run_job(job.id)
@@ -483,3 +511,32 @@ def test_pre_pull_report_write_failure_aborts_job(mock_job_store, temp_hub):
 
         added_artifacts = mock_job_store.add_artifact.call_args_list
         assert len(added_artifacts) == 0
+
+
+def test_pre_pull_report_uses_relative_merges_dir(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+    job.request.merges_dir = "custom-merges"
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"], cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
+        write.return_value = _fake_artifacts()
+
+        plan.return_value = [_plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True)]
+        apply.return_value = [_result("repoA", PrePullStatus.FAST_FORWARDED, changed=True)]
+
+        runner._run_job(job.id)
+
+        assert job.status == "succeeded"
+
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        assert "pre_pull_report" in art.paths
+        assert art.merges_dir == str((temp_hub / "custom-merges").resolve())
+
+        report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
+        assert report_file.exists()

@@ -3,6 +3,7 @@ import sys
 import os
 import uuid
 import logging
+import json
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import List
@@ -220,10 +221,20 @@ class JobRunner:
             # (see service/repo_sync.py) — no shell, pull, reset, rebase, stash,
             # checkout, switch or clean.
             effective_pre_pull = req.pre_pull and not req.plan_only
-            
+
             # Helper to write report and log digest
             def _write_pre_pull_report(phase: str, plans: list = None, results: list = None) -> Path | None:
-                import json
+                nonlocal merges_dir
+
+                if merges_dir is None:
+                    from .jobstore import get_merges_dir
+                    merges_dir = get_merges_dir(hub)
+                    merges_dir.mkdir(parents=True, exist_ok=True)
+
+                def _json_status(value):
+                    if value is None:
+                        return None
+                    return getattr(value, "value", value)
 
                 def _safe_stderr(value: str | None) -> str | None:
                     redacted = _redact_git_stderr(value)
@@ -239,14 +250,14 @@ class JobRunner:
                     "warnings": 0,
                     "hard_failures": 0
                 }
-                
+
                 repo_map = {}
                 for p in (plans or []):
                     # Exclude needs_apply
                     repo_map[p.repo] = {
                         "repo": p.repo,
                         "path": str(p.path),
-                        "plan_status": p.status,
+                        "plan_status": _json_status(p.status),
                         "apply_status": None,
                         "changed": p.changed,
                         "before_head": p.before_head,
@@ -259,7 +270,7 @@ class JobRunner:
                 for r in (results or []):
                     if r.repo in repo_map:
                         rm = repo_map[r.repo]
-                        rm["apply_status"] = r.status
+                        rm["apply_status"] = _json_status(r.status)
                         rm["changed"] = rm["changed"] or r.changed
                         rm["before_head"] = r.before_head or rm["before_head"]
                         rm["after_head"] = r.after_head or rm["after_head"]
@@ -280,7 +291,7 @@ class JobRunner:
                         summary["warnings"] += 1
                     elif final_status in HARD_FAIL_STATUSES:
                         summary["hard_failures"] += 1
-                
+
                 report = {
                   "schema": "lenskit.pre_pull_report.v1",
                   "job_id": job.id,
@@ -293,7 +304,7 @@ class JobRunner:
                   "summary": summary,
                   "repos": repos_list
                 }
-                
+
                 # Write to merges_dir
                 report_path = merges_dir / f"rlens-job-{job.id}_pre_pull_report.json"
                 try:
@@ -302,11 +313,11 @@ class JobRunner:
                 except Exception as exc:
                     log(f"ERROR: Failed to write pre_pull_report: {exc}")
                     raise RuntimeError(f"failed to write pre_pull_report: {exc}") from exc
-                
+
                 # Live-Log Digest
                 log(f"Pre-pull report: effective={str(effective_pre_pull).lower()}, repos={summary['repos_total']}, fast_forwarded={summary['fast_forwarded']}, up_to_date={summary['up_to_date']}, warnings={summary['warnings']}, hard_failures={summary['hard_failures']}")
                 log(f"Pre-pull report artifact: {report_path.name}")
-                
+
                 # Print hard failures explicitly, max 3
                 hf_repos = [rm for rm in repos_list if (rm["apply_status"] or rm["plan_status"]) in HARD_FAIL_STATUSES]
                 for i, hf in enumerate(hf_repos):
@@ -317,7 +328,7 @@ class JobRunner:
                     elif i == 3:
                         log(f"... and {len(hf_repos) - 3} more hard failures; see {report_path.name}")
                         break
-                        
+
                 return report_path
             if effective_pre_pull:
                 log("Pre-pull enabled: planning updates for all repositories (fast-forward only)...")
@@ -367,13 +378,13 @@ class JobRunner:
 
                 if results_warned:
                     self.job_store.update_job(job)
-                    
+
                 apply_hard_failures = [r for r in results if r.status in HARD_FAIL_STATUSES]
                 if apply_hard_failures:
                     pre_pull_report_path = _write_pre_pull_report("apply_failed", plans, results)
                     detail = "; ".join(f"{r.repo}: {r.status} - {r.message}" for r in apply_hard_failures)
                     raise ValueError(f"Pre-pull apply failed: {detail}")
-                
+
                 pre_pull_report_path = _write_pre_pull_report("completed", plans, results)
             else:
                 if req.pre_pull and req.plan_only:
