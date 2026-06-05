@@ -338,5 +338,17 @@ Notes:
   explicitly; disable with `--no-pre-pull`. `--plan-only` implies
   `pre_pull=false`.
 
-**Pre-Pull Report Artifact:**
-Every job where `effective_pre_pull=true` (including hard-fail aborts) produces a structured `pre_pull_report` JSON artifact. This artifact contains structured per-repo status, phase metadata, HEAD/upstream information, messages, and credential-redacted standard error. The live job log contains only a concise digest summary of this report. No `pre_pull_report` artifact is produced when effective pre-pull is false (`plan_only=true` or `pre_pull=false`).
+**Pre-Pull Report Artifact (Early Diagnostic):**
+Every job where `effective_pre_pull=true` (including hard-fail aborts) produces
+a structured `pre_pull_report` JSON artifact. This artifact contains structured
+per-repo status, phase metadata, HEAD/upstream information, messages, and
+credential-redacted standard error. The live job log contains only a concise
+digest summary of this report.
+
+- **Early Registration:** The report is written and registered immediately after
+  the pre-pull plan/apply phases. This ensures that subsequent cancellations, scan failures,
+  or write failures do not lose the structured pre-pull evidence.
+- **Exception Phases:** If unexpected errors crash the plan or apply phases before completion,
+  the report captures the failure with `phase="plan_exception"` or `phase="apply_exception"`.
+- **Skip:** No `pre_pull_report` artifact is produced when effective pre-pull is false
+  (`plan_only=true` or `pre_pull=false`).

@@ -16,6 +16,7 @@ from .repo_sync import (
     is_self_repo,
     PrePullStatus,
     PrePullPlan,
+    PrePullResult,
     HARD_FAIL_STATUSES,
     WARN_STATUSES,
     _redact as _redact_git_stderr,
@@ -146,6 +147,10 @@ class JobRunner:
             # To avoid excessive writes, we DON'T call update_job for every log line anymore.
             pass
 
+        # Define dummy function before try to avoid UnboundLocalError in exception handler
+        def _register_pre_pull_report_artifact_once(path: Path | None) -> None:
+            pass
+
         try:
             req = job.request
             repo_names: list[str] = []
@@ -245,6 +250,10 @@ class JobRunner:
                     self.job_store.add_artifact(art)
                     job.artifact_ids.append(artifact_id)
                     pre_pull_report_artifact_registered = True
+                    try:
+                        self.job_store.update_job(job)
+                    except Exception as update_error:
+                        logger.warning("Job %s: failed to persist job state after pre-pull artifact registration: %s", job_id, update_error)
                 except Exception as artifact_error:
                     logger.warning(
                         "Job %s: failed to register pre-pull report artifact: %s",
@@ -394,7 +403,29 @@ class JobRunner:
                     detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
                     raise ValueError(f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}")
 
-                results = apply_pre_pull_plans(plans)
+                try:
+                    results = apply_pre_pull_plans(plans)
+                except Exception as apply_exc:
+                    plans.append(
+                        PrePullPlan(
+                            repo="__pre_pull__",
+                            path=str(hub),
+                            status=PrePullStatus.ERROR,
+                            needs_apply=False,
+                            message=f"pre-pull apply crashed before per-repo results were available: {apply_exc}",
+                            stderr=_redact_git_stderr(str(apply_exc))
+                        )
+                    )
+                    synthetic_results = [
+                        PrePullResult(
+                            repo="__pre_pull__",
+                            path=str(hub),
+                            status=PrePullStatus.ERROR,
+                            changed=False,
+                        )
+                    ]
+                    pre_pull_report_path = _write_pre_pull_report("apply_exception", plans, synthetic_results)
+                    raise
                 results_warned = False
                 for result in results:
                     if result.status == PrePullStatus.FAST_FORWARDED and is_self_repo(Path(result.path)):

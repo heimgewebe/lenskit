@@ -489,7 +489,7 @@ def test_pre_pull_report_written_on_plan_exception(mock_job_store, temp_hub):
         assert report["phase"] == "plan_exception"
         assert report["effective_pre_pull"] is True
         assert report["repos"][0]["repo"] == "__pre_pull__"
-        assert report["repos"][0]["plan_status"] == "error"
+        assert report["repos"][-1]["plan_status"] == "error"
 
 
 def test_pre_pull_report_write_failure_aborts_job(mock_job_store, temp_hub):
@@ -609,3 +609,53 @@ def test_pre_pull_report_registered_when_canceled_at_pre_write(mock_job_store, t
         assert len(added_artifacts) == 1
         art = added_artifacts[0][0][0]
         assert "pre_pull_report" in art.paths
+
+def test_pre_pull_report_early_failure_before_registrar_definition(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    # create a job without hub_resolved to trigger early failure before try: block
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+    job.hub_resolved = None
+    mock_job_store.get_job.return_value = job
+
+    cms = _patched()
+    with cms["scan"], cms["write"], cms["validate"], \
+         cms["plan"], cms["apply"], cms["self"]:
+
+        runner._run_job(job.id)
+
+        assert job.status == "failed"
+        assert "Internal: hub_resolved missing on job" in job.error
+        # add_artifact should NOT be called
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 0
+
+def test_pre_pull_report_written_on_apply_exception(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"], cms["write"], cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
+        ]
+        apply.side_effect = RuntimeError("apply boom")
+
+        runner._run_job(job.id)
+
+        assert job.status == "failed"
+        assert "apply boom" in (job.error or "")
+
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        assert "pre_pull_report" in art.paths
+
+        report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
+        with open(report_file) as f:
+            report = json.load(f)
+        assert report["phase"] == "apply_exception"
+        assert report["repos"][-1]["plan_status"] == "error"
