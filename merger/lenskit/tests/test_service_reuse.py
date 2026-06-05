@@ -206,3 +206,19 @@ def test_whitespace_only_global_include_paths_collapsed_to_none(service_client):
 
     # Should reuse the exact same job since both normalize to None
     assert job1_id == job2_id
+
+
+def test_plan_only_pre_pull_uses_effective_hash():
+    """plan_only never mutates repos, so raw pre_pull must not split the job hash."""
+    from merger.lenskit.service.models import JobRequest, calculate_job_hash
+
+    hub = "/tmp/lenskit-test-hub"
+    version = "test-version"
+
+    plan_pre = JobRequest(repos=["repo-test"], level="summary", plan_only=True, pre_pull=True)
+    plan_no_pre = JobRequest(repos=["repo-test"], level="summary", plan_only=True, pre_pull=False)
+    real_pre = JobRequest(repos=["repo-test"], level="summary", plan_only=False, pre_pull=True)
+    real_no_pre = JobRequest(repos=["repo-test"], level="summary", plan_only=False, pre_pull=False)
+
+    assert calculate_job_hash(plan_pre, hub, version) == calculate_job_hash(plan_no_pre, hub, version)
+    assert calculate_job_hash(real_pre, hub, version) != calculate_job_hash(real_no_pre, hub, version)

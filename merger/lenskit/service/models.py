@@ -73,10 +73,10 @@ def calculate_job_hash(req: "JobRequest", hub_resolved: str, version: str) -> st
         "output_mode": req.output_mode,
         "redact_secrets": req.redact_secrets,
         "include_hidden": req.include_hidden,
-        # Pre-pull changes the meaning of a job: a fast-forwarded tree can produce
-        # a different dump than the stale one. A pre_pull=True job must not reuse a
-        # cached pre_pull=False result (and vice versa).
-        "pre_pull": req.pre_pull,
+        # Effective pre-pull changes the meaning of a job: a fast-forwarded tree
+        # can produce a different dump than the stale one. plan_only never mutates
+        # repos, so plan_only/pre_pull=True hashes like plan_only/pre_pull=False.
+        "pre_pull": req.pre_pull and not req.plan_only,
         # Merges dir excluded from content hash:
         # Same content, different output path = same logical job.
         # Client must check returned artifact for actual path.

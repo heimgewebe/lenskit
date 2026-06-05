@@ -467,8 +467,9 @@ def plan_pre_pull_repos(sources: Sequence[Path], timeout_seconds: int = DEFAULT_
 def apply_pre_pull_plans(plans: Sequence[PrePullPlan], timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> List[PrePullResult]:
     """Apply every plan. Callers MUST ensure no plan is a hard-fail before calling.
 
-    Applying is all-or-nothing at the *decision* level: the runner refuses to call
-    this when any plan hard-failed, so a later failure never leaves an earlier repo
-    half-fast-forwarded.
+    Applying is all-or-nothing only at the plan-decision level: callers must not
+    call this when any plan hard-failed. This function does not provide rollback
+    after an earlier apply succeeds; a later apply failure is returned as a hard
+    failure to the caller.
     """
     return [apply_pre_pull_plan(plan, timeout_seconds) for plan in plans]
