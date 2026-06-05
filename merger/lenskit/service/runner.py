@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import List
 
-from .models import Artifact
+from .models import Artifact, Job
 from .jobstore import JobStore
 from .repo_sync import (
     plan_pre_pull_repos,
@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 # We can try absolute import first.
 
 from ..core.merge import (
-    get_merges_dir,
     scan_repo,
     write_reports_v2,
     _normalize_ext_list,
@@ -103,6 +102,56 @@ ARTIFACT_PATH_FIELDS = {
     "bundle_manifest": "bundle_manifest",
 }
 
+def _register_pre_pull_report_artifact_once(
+    *,
+    job_store: JobStore,
+    job: Job,
+    report_path: Path | None,
+    already_registered: bool,
+) -> bool:
+    if report_path is None or not report_path.exists():
+        return False
+    if already_registered:
+        return True
+
+    try:
+        artifact_id = str(uuid.uuid4())
+        art = Artifact(
+            id=artifact_id,
+            job_id=job.id,
+            hub=job.hub_resolved or "",
+            repos=job.request.repos or [],
+            created_at=datetime.now(timezone.utc).isoformat(),
+            paths={"pre_pull_report": report_path.name},
+            params=job.request,
+            merges_dir=str(report_path.parent.resolve())
+        )
+        job_store.add_artifact(art)
+        job.artifact_ids.append(artifact_id)
+        job_store.update_job(job)
+        return True
+    except Exception as artifact_error:
+        logger.warning(
+            "Job %s: failed to register pre-pull report artifact: %s",
+            job.id,
+            artifact_error,
+            exc_info=True,
+        )
+        return False
+
+def _json_status(value: object | None) -> object | None:
+    if value is None:
+        return None
+    return getattr(value, "value", value)
+
+def _safe_text(value: object | None) -> str | None:
+    if value is None:
+        return None
+    redacted = _redact_git_stderr(str(value))
+    if len(redacted) > 4000:
+        return redacted[:4000] + " (truncated)"
+    return redacted
+
 class JobRunner:
     def __init__(self, job_store: JobStore, max_workers: int = 1):
         self.job_store = job_store
@@ -145,10 +194,6 @@ class JobRunner:
             # For simplicity, we update job here to keep 'logs' tail sync, but strictly we could skip it.
             # self.job_store.update_job(job)
             # To avoid excessive writes, we DON'T call update_job for every log line anymore.
-            pass
-
-        # Define dummy function before try to avoid UnboundLocalError in exception handler
-        def _register_pre_pull_report_artifact_once(path: Path | None) -> None:
             pass
 
         try:
@@ -210,7 +255,9 @@ class JobRunner:
                     log(f"Security Warning: merges_dir '{merges_dir}' validation failed: {e}")
                     raise ValueError(f"SECURITY: merges_dir not allowed: {e}")
             else:
+                from .jobstore import get_merges_dir
                 merges_dir = get_merges_dir(hub)
+                merges_dir.mkdir(parents=True, exist_ok=True)
 
             # Log the effective output directory
             log(f"Writing reports to: {merges_dir.resolve()}")
@@ -229,58 +276,10 @@ class JobRunner:
             # checkout, switch or clean.
             effective_pre_pull = req.pre_pull and not req.plan_only
 
-            def _register_pre_pull_report_artifact_once(path: Path | None) -> None:
-                nonlocal pre_pull_report_artifact_registered
-                if path is None or not path.exists():
-                    return
-                if pre_pull_report_artifact_registered:
-                    return
-                try:
-                    artifact_id = str(uuid.uuid4())
-                    art = Artifact(
-                        id=artifact_id,
-                        job_id=job_id,
-                        hub=str(hub),
-                        repos=repo_names,
-                        created_at=datetime.now(timezone.utc).isoformat(),
-                        paths={"pre_pull_report": path.name},
-                        params=req,
-                        merges_dir=str(merges_dir.resolve()) if merges_dir is not None else ""
-                    )
-                    self.job_store.add_artifact(art)
-                    job.artifact_ids.append(artifact_id)
-                    pre_pull_report_artifact_registered = True
-                    try:
-                        self.job_store.update_job(job)
-                    except Exception as update_error:
-                        logger.warning("Job %s: failed to persist job state after pre-pull artifact registration: %s", job_id, update_error)
-                except Exception as artifact_error:
-                    logger.warning(
-                        "Job %s: failed to register pre-pull report artifact: %s",
-                        job_id,
-                        artifact_error,
-                        exc_info=True,
-                    )
+            effective_pre_pull = req.pre_pull and not req.plan_only
 
             # Helper to write report and log digest
             def _write_pre_pull_report(phase: str, plans: list = None, results: list = None) -> Path | None:
-                nonlocal merges_dir
-
-                if merges_dir is None:
-                    from .jobstore import get_merges_dir
-                    merges_dir = get_merges_dir(hub)
-                    merges_dir.mkdir(parents=True, exist_ok=True)
-
-                def _json_status(value):
-                    if value is None:
-                        return None
-                    return getattr(value, "value", value)
-
-                def _safe_stderr(value: str | None) -> str | None:
-                    redacted = _redact_git_stderr(value)
-                    if redacted and len(redacted) > 4000:
-                        return redacted[:4000] + " (truncated)"
-                    return redacted
                 summary = {
                     "repos_total": len(sources),
                     "planned": len(plans) if plans else 0,
@@ -302,9 +301,9 @@ class JobRunner:
                         "changed": p.changed,
                         "before_head": p.before_head,
                         "after_head": p.after_head,
-                        "upstream": p.upstream,
-                        "message": p.message,
-                        "stderr": _safe_stderr(p.stderr)
+                        "upstream": _safe_text(p.upstream),
+                        "message": _safe_text(p.message),
+                        "stderr": _safe_text(p.stderr)
                     }
 
                 for r in (results or []):
@@ -314,10 +313,10 @@ class JobRunner:
                         rm["changed"] = rm["changed"] or r.changed
                         rm["before_head"] = r.before_head or rm["before_head"]
                         rm["after_head"] = r.after_head or rm["after_head"]
-                        rm["upstream"] = r.upstream or rm["upstream"]
-                        rm["message"] = r.message or rm["message"]
+                        rm["upstream"] = _safe_text(r.upstream) or rm["upstream"]
+                        rm["message"] = _safe_text(r.message) or rm["message"]
                         if r.stderr:
-                            rm["stderr"] = _safe_stderr(r.stderr)
+                            rm["stderr"] = _safe_text(r.stderr)
 
                 repos_list = list(repo_map.values())
 
@@ -349,7 +348,7 @@ class JobRunner:
                 report_path = merges_dir / f"rlens-job-{job.id}_pre_pull_report.json"
                 try:
                     with open(report_path, "w", encoding="utf-8") as f:
-                        json.dump(report, f, indent=2)
+                        json.dump(report, f, indent=2, ensure_ascii=False, default=str)
                 except Exception as exc:
                     log(f"ERROR: Failed to write pre_pull_report: {exc}")
                     raise RuntimeError(f"failed to write pre_pull_report: {exc}") from exc
@@ -382,10 +381,16 @@ class JobRunner:
                             status=PrePullStatus.ERROR,
                             message=f"pre-pull plan crashed before per-repo results were available: {plan_exc}",
                             needs_apply=False,
-                            stderr=_redact_git_stderr(str(plan_exc))
+                            stderr=_safe_text(str(plan_exc))
                         )
                     ]
                     pre_pull_report_path = _write_pre_pull_report("plan_exception", plans, None)
+                    pre_pull_report_artifact_registered = _register_pre_pull_report_artifact_once(
+                        job_store=self.job_store,
+                        job=job,
+                        report_path=pre_pull_report_path,
+                        already_registered=pre_pull_report_artifact_registered,
+                    )
                     raise
 
                 hard_failures = [p for p in plans if p.status in HARD_FAIL_STATUSES]
@@ -400,20 +405,27 @@ class JobRunner:
 
                 if hard_failures:
                     pre_pull_report_path = _write_pre_pull_report("plan_failed", plans, None)
+                    pre_pull_report_artifact_registered = _register_pre_pull_report_artifact_once(
+                        job_store=self.job_store,
+                        job=job,
+                        report_path=pre_pull_report_path,
+                        already_registered=pre_pull_report_artifact_registered,
+                    )
                     detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
                     raise ValueError(f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}")
 
                 try:
                     results = apply_pre_pull_plans(plans)
                 except Exception as apply_exc:
-                    plans.append(
+                    report_plans = list(plans)
+                    report_plans.append(
                         PrePullPlan(
                             repo="__pre_pull__",
                             path=str(hub),
                             status=PrePullStatus.ERROR,
                             needs_apply=False,
                             message=f"pre-pull apply crashed before per-repo results were available: {apply_exc}",
-                            stderr=_redact_git_stderr(str(apply_exc))
+                            stderr=_safe_text(str(apply_exc))
                         )
                     )
                     synthetic_results = [
@@ -424,7 +436,13 @@ class JobRunner:
                             changed=False,
                         )
                     ]
-                    pre_pull_report_path = _write_pre_pull_report("apply_exception", plans, synthetic_results)
+                    pre_pull_report_path = _write_pre_pull_report("apply_exception", report_plans, synthetic_results)
+                    pre_pull_report_artifact_registered = _register_pre_pull_report_artifact_once(
+                        job_store=self.job_store,
+                        job=job,
+                        report_path=pre_pull_report_path,
+                        already_registered=pre_pull_report_artifact_registered,
+                    )
                     raise
                 results_warned = False
                 for result in results:
@@ -444,11 +462,22 @@ class JobRunner:
                 apply_hard_failures = [r for r in results if r.status in HARD_FAIL_STATUSES]
                 if apply_hard_failures:
                     pre_pull_report_path = _write_pre_pull_report("apply_failed", plans, results)
+                    pre_pull_report_artifact_registered = _register_pre_pull_report_artifact_once(
+                        job_store=self.job_store,
+                        job=job,
+                        report_path=pre_pull_report_path,
+                        already_registered=pre_pull_report_artifact_registered,
+                    )
                     detail = "; ".join(f"{r.repo}: {r.status} - {r.message}" for r in apply_hard_failures)
                     raise ValueError(f"Pre-pull apply failed: {detail}")
 
                 pre_pull_report_path = _write_pre_pull_report("completed", plans, results)
-                _register_pre_pull_report_artifact_once(pre_pull_report_path)
+                pre_pull_report_artifact_registered = _register_pre_pull_report_artifact_once(
+                    job_store=self.job_store,
+                    job=job,
+                    report_path=pre_pull_report_path,
+                    already_registered=pre_pull_report_artifact_registered,
+                )
             else:
                 if req.pre_pull and req.plan_only:
                     log("Pre-pull skipped because plan_only=True.")
@@ -637,7 +666,12 @@ class JobRunner:
 
         except Exception as e:
             # If we failed during pre-pull or later, register a minimal artifact with the report
-            _register_pre_pull_report_artifact_once(pre_pull_report_path)
+            _register_pre_pull_report_artifact_once(
+                job_store=self.job_store,
+                job=job,
+                report_path=pre_pull_report_path,
+                already_registered=pre_pull_report_artifact_registered,
+            )
 
             job.status = "failed"
             job.error = str(e)

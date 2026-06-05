@@ -469,12 +469,12 @@ def test_pre_pull_report_written_on_plan_exception(mock_job_store, temp_hub):
     with cms["scan"], cms["write"], cms["validate"], \
          cms["plan"] as plan, cms["apply"], cms["self"]:
 
-        plan.side_effect = RuntimeError("unexpected git disaster")
+        plan.side_effect = RuntimeError("https://secret-token@host/repo.git plan boom")
 
         runner._run_job(job.id)
 
         assert job.status == "failed"
-        assert "unexpected git disaster" in (job.error or "")
+        assert "plan boom" in (job.error or "")
 
         added_artifacts = mock_job_store.add_artifact.call_args_list
         assert len(added_artifacts) == 1
@@ -484,7 +484,12 @@ def test_pre_pull_report_written_on_plan_exception(mock_job_store, temp_hub):
         assert report_file.exists()
 
         with open(report_file) as f:
-            report = json.load(f)
+            blob = f.read()
+
+        assert "secret-token" not in blob
+        assert "[REDACTED]" in blob
+
+        report = json.loads(blob)
         assert report["schema"] == "lenskit.pre_pull_report.v1"
         assert report["phase"] == "plan_exception"
         assert report["effective_pre_pull"] is True
@@ -642,7 +647,7 @@ def test_pre_pull_report_written_on_apply_exception(mock_job_store, temp_hub):
         plan.return_value = [
             _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
         ]
-        apply.side_effect = RuntimeError("apply boom")
+        apply.side_effect = RuntimeError("https://secret-token@host/repo.git apply boom")
 
         runner._run_job(job.id)
 
@@ -656,6 +661,11 @@ def test_pre_pull_report_written_on_apply_exception(mock_job_store, temp_hub):
 
         report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
         with open(report_file) as f:
-            report = json.load(f)
+            blob = f.read()
+
+        assert "secret-token" not in blob
+        assert "[REDACTED]" in blob
+
+        report = json.loads(blob)
         assert report["phase"] == "apply_exception"
         assert report["repos"][-1]["plan_status"] == "error"
