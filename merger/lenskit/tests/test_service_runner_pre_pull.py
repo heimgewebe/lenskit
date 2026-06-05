@@ -306,7 +306,7 @@ def test_pre_pull_report_written_on_success(mock_job_store, temp_hub):
         assert job.status == "succeeded"
 
         added_artifacts = mock_job_store.add_artifact.call_args_list
-        assert len(added_artifacts) == 1
+        assert len(added_artifacts) == 2
         art = added_artifacts[0][0][0]
         assert "pre_pull_report" in art.paths
 
@@ -408,7 +408,7 @@ def test_pre_pull_report_redacts_credentials(mock_job_store, temp_hub):
         runner._run_job(job.id)
 
         added_artifacts = mock_job_store.add_artifact.call_args_list
-        assert len(added_artifacts) == 1
+        assert len(added_artifacts) == 2
         art = added_artifacts[0][0][0]
 
         report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
@@ -534,10 +534,78 @@ def test_pre_pull_report_uses_relative_merges_dir(mock_job_store, temp_hub):
         assert job.status == "succeeded"
 
         added_artifacts = mock_job_store.add_artifact.call_args_list
-        assert len(added_artifacts) == 1
+        assert len(added_artifacts) == 2
         art = added_artifacts[0][0][0]
         assert "pre_pull_report" in art.paths
         assert art.merges_dir == str((temp_hub / "custom-merges").resolve())
 
         report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
         assert report_file.exists()
+
+def test_pre_pull_report_registered_when_canceled_during_scan(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
+
+    get_job_calls = {"count": 0}
+    def mock_get_job(jid):
+        get_job_calls["count"] += 1
+        if get_job_calls["count"] > 1:
+            job.status = "canceled"
+        return job
+
+    mock_job_store.get_job.side_effect = mock_get_job
+
+    cms = _patched()
+    with cms["scan"], cms["write"], cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
+            _plan("repoB", PrePullStatus.UP_TO_DATE, needs_apply=False)
+        ]
+        apply.return_value = [_result("repoA", PrePullStatus.FAST_FORWARDED, changed=True)]
+
+        runner._run_job(job.id)
+
+        assert job.status == "canceled"
+        assert apply.call_count == 1
+
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        assert "pre_pull_report" in art.paths
+
+
+def test_pre_pull_report_registered_when_canceled_at_pre_write(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+
+    get_job_calls = {"count": 0}
+    def mock_get_job(jid):
+        get_job_calls["count"] += 1
+        if get_job_calls["count"] == 3:
+            job.status = "canceled"
+        return job
+
+    mock_job_store.get_job.side_effect = mock_get_job
+
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
+        plan.return_value = [_plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True)]
+        apply.return_value = [_result("repoA", PrePullStatus.FAST_FORWARDED, changed=True)]
+
+        runner._run_job(job.id)
+
+        assert job.status == "canceled"
+        assert scan.call_count == 1
+        assert write.call_count == 0
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        assert "pre_pull_report" in art.paths

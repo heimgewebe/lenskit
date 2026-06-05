@@ -224,6 +224,35 @@ class JobRunner:
             # checkout, switch or clean.
             effective_pre_pull = req.pre_pull and not req.plan_only
 
+            def _register_pre_pull_report_artifact_once(path: Path | None) -> None:
+                nonlocal pre_pull_report_artifact_registered
+                if path is None or not path.exists():
+                    return
+                if pre_pull_report_artifact_registered:
+                    return
+                try:
+                    artifact_id = str(uuid.uuid4())
+                    art = Artifact(
+                        id=artifact_id,
+                        job_id=job_id,
+                        hub=str(hub),
+                        repos=repo_names,
+                        created_at=datetime.now(timezone.utc).isoformat(),
+                        paths={"pre_pull_report": path.name},
+                        params=req,
+                        merges_dir=str(merges_dir.resolve()) if merges_dir is not None else ""
+                    )
+                    self.job_store.add_artifact(art)
+                    job.artifact_ids.append(artifact_id)
+                    pre_pull_report_artifact_registered = True
+                except Exception as artifact_error:
+                    logger.warning(
+                        "Job %s: failed to register pre-pull report artifact: %s",
+                        job_id,
+                        artifact_error,
+                        exc_info=True,
+                    )
+
             # Helper to write report and log digest
             def _write_pre_pull_report(phase: str, plans: list = None, results: list = None) -> Path | None:
                 nonlocal merges_dir
@@ -388,6 +417,7 @@ class JobRunner:
                     raise ValueError(f"Pre-pull apply failed: {detail}")
 
                 pre_pull_report_path = _write_pre_pull_report("completed", plans, results)
+                _register_pre_pull_report_artifact_once(pre_pull_report_path)
             else:
                 if req.pre_pull and req.plan_only:
                     log("Pre-pull skipped because plan_only=True.")
@@ -548,7 +578,7 @@ class JobRunner:
                 for i, p in enumerate(artifacts_obj.other):
                     path_map[f"other_{i+1}"] = p.name
 
-            if pre_pull_report_path and pre_pull_report_path.exists():
+            if pre_pull_report_path and pre_pull_report_path.exists() and not pre_pull_report_artifact_registered:
                 path_map["pre_pull_report"] = pre_pull_report_path.name
 
             artifact_id = str(uuid.uuid4())
@@ -576,34 +606,7 @@ class JobRunner:
 
         except Exception as e:
             # If we failed during pre-pull or later, register a minimal artifact with the report
-            has_unregistered_pre_pull_report = (
-                pre_pull_report_path is not None
-                and pre_pull_report_path.exists()
-                and not pre_pull_report_artifact_registered
-            )
-            if has_unregistered_pre_pull_report:
-                try:
-                    artifact_id = str(uuid.uuid4())
-                    art = Artifact(
-                        id=artifact_id,
-                        job_id=job_id,
-                        hub=str(hub),
-                        repos=repo_names,
-                        created_at=datetime.now(timezone.utc).isoformat(),
-                        paths={"pre_pull_report": pre_pull_report_path.name},
-                        params=req,
-                        merges_dir=str(merges_dir.resolve()) if merges_dir is not None else ""
-                    )
-                    self.job_store.add_artifact(art)
-                    job.artifact_ids.append(artifact_id)
-                except Exception as artifact_error:
-                    # Best-effort artifact registration: do not mask the primary job failure.
-                    logger.warning(
-                        "Job %s: failed to register pre-pull report artifact: %s",
-                        job_id,
-                        artifact_error,
-                        exc_info=True,
-                    )
+            _register_pre_pull_report_artifact_once(pre_pull_report_path)
 
             job.status = "failed"
             job.error = str(e)
