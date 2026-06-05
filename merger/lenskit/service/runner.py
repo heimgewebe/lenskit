@@ -559,8 +559,14 @@ class JobRunner:
                     )
                     self.job_store.add_artifact(art)
                     job.artifact_ids.append(artifact_id)
-                except Exception:
-                    pass
+                except Exception as artifact_error:
+                    # Best-effort artifact registration: do not mask the primary job failure.
+                    logger.warning(
+                        "Job %s: failed to register pre-pull report artifact: %s",
+                        job_id,
+                        artifact_error,
+                        exc_info=True,
+                    )
 
             job.status = "failed"
             job.error = str(e)
