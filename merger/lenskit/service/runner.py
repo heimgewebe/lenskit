@@ -1,3 +1,4 @@
+import json
 import concurrent.futures
 import sys
 import os
@@ -14,6 +15,7 @@ from .repo_sync import (
     apply_pre_pull_plans,
     is_self_repo,
     PrePullStatus,
+    SUCCESS_STATUSES,
     HARD_FAIL_STATUSES,
     WARN_STATUSES,
 )
@@ -175,6 +177,32 @@ class JobRunner:
             if not sources:
                 raise ValueError("No valid repository sources found.")
 
+            # 2a. Resolve Merges Dir early (for pre-pull report)
+            if req.merges_dir:
+                p = Path(req.merges_dir)
+                if not p.is_absolute():
+                    # Resolve relative paths against HUB to ensure visibility in container environments
+                    merges_dir = (hub / p).resolve()
+                    log(f"Resolved relative merges_dir '{p}' to '{merges_dir}'")
+                else:
+                    merges_dir = p.resolve()
+
+                merges_dir.mkdir(parents=True, exist_ok=True)
+                # Ensure security/validation for custom merges_dir if needed
+                try:
+                    # Use the validated, canonical path
+                    merges_dir = get_security_config().validate_path(merges_dir)
+                    # Update request object so Artifact reflects reality (absolute canonical path)
+                    req.merges_dir = str(merges_dir.resolve())
+                except SecurityViolationError as e:
+                    log(f"Security Warning: merges_dir '{merges_dir}' validation failed: {e}")
+                    raise ValueError(f"SECURITY: merges_dir not allowed: {e}")
+            else:
+                merges_dir = get_merges_dir(hub)
+
+            # Log the effective output directory
+            log(f"Writing reports to: {merges_dir.resolve()}")
+
             # 2b. Pre-pull preflight (bounded repo-sync mutation).
             # Runs AFTER source resolution/validation and BEFORE any scan so the
             # dump reflects current upstream state instead of a stale checkout.
@@ -188,65 +216,154 @@ class JobRunner:
             # (see service/repo_sync.py) — no shell, pull, reset, rebase, stash,
             # checkout, switch or clean.
             effective_pre_pull = req.pre_pull and not req.plan_only
+            
+            # Helper to write report and log digest
+            def _write_pre_pull_report(phase: str, plans: list = None, results: list = None) -> Path | None:
+                import json
+                summary = {
+                    "repos_total": len(sources),
+                    "planned": len(plans) if plans else 0,
+                    "applied": len(results) if results else 0,
+                    "fast_forwarded": 0,
+                    "up_to_date": 0,
+                    "warnings": 0,
+                    "hard_failures": 0
+                }
+                
+                repo_map = {}
+                for p in (plans or []):
+                    # Exclude needs_apply
+                    repo_map[p.repo] = {
+                        "repo": p.repo,
+                        "path": str(p.path),
+                        "plan_status": p.status,
+                        "apply_status": None,
+                        "changed": p.changed,
+                        "before_head": p.before_head,
+                        "after_head": p.after_head,
+                        "upstream": p.upstream,
+                        "message": p.message,
+                        "stderr": p.stderr[:4000] + (" (truncated)" if len(p.stderr) > 4000 else "") if p.stderr else None
+                    }
+                    if p.status in SUCCESS_STATUSES:
+                        summary["up_to_date"] += 1
+                    elif p.status in WARN_STATUSES:
+                        summary["warnings"] += 1
+                    elif p.status in HARD_FAIL_STATUSES:
+                        summary["hard_failures"] += 1
+
+                for r in (results or []):
+                    if r.repo in repo_map:
+                        rm = repo_map[r.repo]
+                        rm["apply_status"] = r.status
+                        rm["changed"] = rm["changed"] or r.changed
+                        rm["before_head"] = r.before_head or rm["before_head"]
+                        rm["after_head"] = r.after_head or rm["after_head"]
+                        rm["upstream"] = r.upstream or rm["upstream"]
+                        rm["message"] = r.message or rm["message"]
+                        if r.stderr:
+                            rm["stderr"] = r.stderr[:4000] + (" (truncated)" if len(r.stderr) > 4000 else "")
+                        
+                        # Apply result overrides plan for success stats if plan was PLANNED_FAST_FORWARD
+                        if rm["plan_status"] == PrePullStatus.PLANNED_FAST_FORWARD:
+                            if r.status == PrePullStatus.FAST_FORWARDED:
+                                summary["fast_forwarded"] += 1
+                            elif r.status == PrePullStatus.UP_TO_DATE:
+                                summary["up_to_date"] += 1
+                            elif r.status in WARN_STATUSES:
+                                summary["warnings"] += 1
+                            elif r.status in HARD_FAIL_STATUSES:
+                                summary["hard_failures"] += 1
+                
+                repos_list = list(repo_map.values())
+                
+                report = {
+                  "schema": "lenskit.pre_pull_report.v1",
+                  "job_id": job.id,
+                  "created_at": datetime.now(timezone.utc).isoformat(),
+                  "hub": str(hub),
+                  "requested_pre_pull": req.pre_pull,
+                  "plan_only": req.plan_only,
+                  "effective_pre_pull": effective_pre_pull,
+                  "phase": phase,
+                  "summary": summary,
+                  "repos": repos_list
+                }
+                
+                # Write to merges_dir
+                report_path = merges_dir / f"rlens-job-{job.id}_pre_pull_report.json"
+                try:
+                    with open(report_path, "w", encoding="utf-8") as f:
+                        json.dump(report, f, indent=2)
+                except Exception as exc:
+                    log(f"WARN: Failed to write pre_pull_report: {exc}")
+                    return None
+                
+                # Live-Log Digest
+                log(f"Pre-pull report: effective={str(effective_pre_pull).lower()}, repos={summary['repos_total']}, fast_forwarded={summary['fast_forwarded']}, up_to_date={summary['up_to_date']}, warnings={summary['warnings']}, hard_failures={summary['hard_failures']}")
+                log(f"Pre-pull report artifact: {report_path.name}")
+                
+                # Print hard failures explicitly, max 3
+                hf_repos = [rm for rm in repos_list if (rm["apply_status"] or rm["plan_status"]) in HARD_FAIL_STATUSES]
+                for i, hf in enumerate(hf_repos):
+                    if i < 3:
+                        status = hf["apply_status"] or hf["plan_status"]
+                        msg = hf["message"] or "unknown error"
+                        log(f"Pre-pull blocked before scan: {hf['repo']}: {status} - {msg}")
+                    elif i == 3:
+                        log(f"... and {len(hf_repos) - 3} more hard failures; see {report_path.name}")
+                        break
+                        
+                return report_path
+            
+            pre_pull_report_path = None
             if effective_pre_pull:
                 log("Pre-pull enabled: planning updates for all repositories (fast-forward only)...")
                 plans = plan_pre_pull_repos(sources)
 
-                hard_failures = []
-                prepull_warned = False
-                for plan in plans:
-                    log(f"Pre-pull plan {plan.repo}: {plan.status} - {plan.message}")
-                    if plan.stderr:
-                        # stderr is already credential-redacted by repo_sync.
-                        log(f"Pre-pull plan {plan.repo} detail: {plan.stderr.strip()}")
-                    if plan.status in WARN_STATUSES:
-                        warn = f"Pre-pull {plan.repo}: {plan.status} - {plan.message}"
+                hard_failures = [p for p in plans if p.status in HARD_FAIL_STATUSES]
+                warned = False
+                for p in plans:
+                    if p.status in WARN_STATUSES:
+                        warn = f"Pre-pull {p.repo}: {p.status} - {p.message}"
                         job.warnings.append(warn)
-                        prepull_warned = True
-                    if plan.status in HARD_FAIL_STATUSES:
-                        hard_failures.append(plan)
-
-                if prepull_warned:
+                        warned = True
+                if warned:
                     self.job_store.update_job(job)
 
                 if hard_failures:
-                    # Abort BEFORE applying any fast-forward, so no repo is left
-                    # partially updated when another repo hard-fails during the plan phase.
+                    pre_pull_report_path = _write_pre_pull_report("plan_failed", plans, None)
                     detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
-                    raise ValueError(
-                        f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}"
-                    )
+                    raise ValueError(f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}")
 
-                log("Pre-pull plan OK: applying fast-forwards...")
                 results = apply_pre_pull_plans(plans)
                 results_warned = False
                 for result in results:
-                    log(f"Pre-pull apply {result.repo}: {result.status} - {result.message}")
-                    if result.stderr:
-                        log(f"Pre-pull apply {result.repo} detail: {result.stderr.strip()}")
-
-                    if result.status in HARD_FAIL_STATUSES:
-                        raise ValueError(f"Pre-pull apply failed for {result.repo}: {result.status} - {result.message}")
-
-                    # Only an ACTUAL fast-forward of the running code repo warrants a
-                    # restart reminder (files changed but the live process keeps old
-                    # modules). Never auto-restart — that would kill this very job.
                     if result.status == PrePullStatus.FAST_FORWARDED and is_self_repo(Path(result.path)):
                         restart_warn = (
                             f"WARN pre_pull fast-forwarded the running rLens code repository "
                             f"'{result.repo}'. Restart rlens.service after updating lenskit; a "
                             f"running Python service does not reload modules automatically."
                         )
-                        log(restart_warn)
                         job.warnings.append(restart_warn)
                         results_warned = True
 
                 if results_warned:
                     self.job_store.update_job(job)
-            elif req.pre_pull and req.plan_only:
-                log("Pre-pull skipped because plan_only=True.")
+                    
+                apply_hard_failures = [r for r in results if r.status in HARD_FAIL_STATUSES]
+                if apply_hard_failures:
+                    pre_pull_report_path = _write_pre_pull_report("apply_failed", plans, results)
+                    detail = "; ".join(f"{r.repo}: {r.status} - {r.message}" for r in apply_hard_failures)
+                    raise ValueError(f"Pre-pull apply failed: {detail}")
+                
+                pre_pull_report_path = _write_pre_pull_report("completed", plans, results)
             else:
-                log("Pre-pull disabled by request.")
+                if req.pre_pull and req.plan_only:
+                    log("Pre-pull skipped because plan_only=True.")
+                else:
+                    log("Pre-pull disabled by request.")
+                pre_pull_report_path = _write_pre_pull_report("skipped")
 
             # 3. Scan Repos
             max_bytes = parse_human_size(req.max_bytes or "0")
@@ -323,30 +440,6 @@ class JobRunner:
 
             # 4. Write Reports
             log("Generating reports...")
-            if req.merges_dir:
-                p = Path(req.merges_dir)
-                if not p.is_absolute():
-                    # Resolve relative paths against HUB to ensure visibility in container environments
-                    merges_dir = (hub / p).resolve()
-                    log(f"Resolved relative merges_dir '{p}' to '{merges_dir}'")
-                else:
-                    merges_dir = p.resolve()
-
-                merges_dir.mkdir(parents=True, exist_ok=True)
-                # Ensure security/validation for custom merges_dir if needed
-                try:
-                    # Use the validated, canonical path
-                    merges_dir = get_security_config().validate_path(merges_dir)
-                    # Update request object so Artifact reflects reality (absolute canonical path)
-                    req.merges_dir = str(merges_dir.resolve())
-                except SecurityViolationError as e:
-                    log(f"Security Warning: merges_dir '{merges_dir}' validation failed: {e}")
-                    raise ValueError(f"SECURITY: merges_dir not allowed: {e}")
-            else:
-                merges_dir = get_merges_dir(hub)
-
-            # Log the effective output directory
-            log(f"Writing reports to: {merges_dir.resolve()}")
 
             # Re-check cancel status before write (expensive operation)
             job = self.job_store.get_job(job_id)
@@ -426,6 +519,9 @@ class JobRunner:
                 for i, p in enumerate(artifacts_obj.other):
                     path_map[f"other_{i+1}"] = p.name
 
+            if pre_pull_report_path and pre_pull_report_path.exists():
+                path_map["pre_pull_report"] = pre_pull_report_path.name
+
             artifact_id = str(uuid.uuid4())
 
             art = Artifact(
@@ -448,6 +544,25 @@ class JobRunner:
             self.job_store.update_job(job)
 
         except Exception as e:
+            # If we failed during pre-pull, register a minimal artifact with the report
+            if 'pre_pull_report_path' in locals() and pre_pull_report_path and pre_pull_report_path.exists():
+                try:
+                    artifact_id = str(uuid.uuid4())
+                    art = Artifact(
+                        id=artifact_id,
+                        job_id=job_id,
+                        hub=str(hub),
+                        repos=repo_names if 'repo_names' in locals() else [],
+                        created_at=datetime.now(timezone.utc).isoformat(),
+                        paths={"pre_pull_report": pre_pull_report_path.name},
+                        params=req,
+                        merges_dir=str(merges_dir.resolve()) if 'merges_dir' in locals() else ""
+                    )
+                    self.job_store.add_artifact(art)
+                    job.artifact_ids.append(artifact_id)
+                except Exception:
+                    pass
+
             job.status = "failed"
             job.error = str(e)
             job.finished_at = datetime.now(timezone.utc).isoformat()

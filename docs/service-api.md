@@ -337,3 +337,6 @@ Notes:
 - CLI: `lenskit rlens-client run` (and repoLens headless) send `pre_pull`
   explicitly; disable with `--no-pre-pull`. `--plan-only` implies
   `pre_pull=false`.
+
+**Pre-Pull Report Artifact:**
+Every job where `pre_pull` is not skipped (including hard-fail aborts) produces a structured `pre_pull_report` JSON artifact. This artifact contains detailed status, timings, and standard error (with credentials redacted) for every repository processed during the plan and apply phases. The live job log contains only a concise digest summary of this report.

@@ -1969,6 +1969,15 @@ async function loadAtlasArtifacts() {
                     }));
                 }
 
+                if (art.paths.pre_pull_report) {
+                    dlDiv.appendChild(createArtifactDownloadButton({
+                        url: `${API_BASE}/atlas/${art.id}/download?key=pre_pull_report`,
+                        filename: art.paths.pre_pull_report,
+                        label: 'Pre-Pull',
+                        className: 'bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-cyan-400'
+                    }));
+                }
+
                 div.appendChild(dlDiv);
             } else if (art.status === 'failed') {
                 const errDiv = document.createElement('div');

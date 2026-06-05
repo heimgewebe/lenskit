@@ -34,11 +34,15 @@ def _fake_artifacts() -> MagicMock:
 
 
 def _plan(name: str, status: str, **kw) -> PrePullPlan:
-    return PrePullPlan(repo=name, path=str(Path("/hub") / name), status=status, message=status, **kw)
+    if "message" not in kw:
+        kw["message"] = status
+    return PrePullPlan(repo=name, path=str(Path("/hub") / name), status=status, **kw)
 
 
 def _result(name: str, status: str, **kw) -> PrePullResult:
-    return PrePullResult(repo=name, path=str(Path("/hub") / name), status=status, message=status, **kw)
+    if "message" not in kw:
+        kw["message"] = status
+    return PrePullResult(repo=name, path=str(Path("/hub") / name), status=status, **kw)
 
 
 @pytest.fixture
@@ -255,3 +259,126 @@ def test_self_repo_up_to_date_does_not_emit_restart_warning(mock_job_store, temp
         assert job.status == "succeeded"
         assert scan.call_count == 1
         assert not any("Restart" in w for w in job.warnings), f"unexpected restart warning: {job.warnings}"
+
+import json
+
+def test_pre_pull_report_written_on_success(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
+        
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
+            _plan("repoB", PrePullStatus.LOCAL_AHEAD)
+        ]
+        apply.return_value = [
+            _result("repoA", PrePullStatus.FAST_FORWARDED, changed=True),
+            _result("repoB", PrePullStatus.LOCAL_AHEAD)
+        ]
+
+        runner._run_job(job.id)
+        
+        assert job.status == "succeeded"
+        
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        assert "pre_pull_report" in art.paths
+        
+        report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
+        assert report_file.exists()
+        
+        with open(report_file) as f:
+            report = json.load(f)
+            
+        assert report["schema"] == "lenskit.pre_pull_report.v1"
+        assert report["summary"]["repos_total"] == 2
+        assert report["summary"]["fast_forwarded"] == 1
+        assert report["summary"]["warnings"] == 1
+        
+        log_lines = [call[0][1] for call in mock_job_store.append_log_line.call_args_list]
+        assert any("Pre-pull report: effective=true, repos=2, fast_forwarded=1, up_to_date=0, warnings=1, hard_failures=0" in line for line in log_lines)
+
+
+def test_pre_pull_report_written_on_plan_hard_fail(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA", "repoB"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True),
+            _plan("repoB", PrePullStatus.UNTRACKED_WOULD_BE_OVERWRITTEN, message="local untracked path would be overwritten by upstream"),
+        ]
+
+        runner._run_job(job.id)
+        
+        assert job.status == "failed"
+        
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) >= 1
+        art = added_artifacts[0][0][0]
+        assert "pre_pull_report" in art.paths
+        
+        log_lines = [call[0][1] for call in mock_job_store.append_log_line.call_args_list]
+        assert any("Pre-pull report: effective=true" in line and "hard_failures=1" in line for line in log_lines)
+        assert any("repoB: untracked_would_be_overwritten" in line and "local untracked path would be overwritten by upstream" in line for line in log_lines)
+
+
+def test_pre_pull_report_redacts_credentials(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
+        
+        plan.return_value = [
+            _plan("repoA", PrePullStatus.PLANNED_FAST_FORWARD, needs_apply=True, stderr="fatal: could not read from https://[REDACTED]@host/repo.git")
+        ]
+        apply.return_value = [
+            _result("repoA", PrePullStatus.FAST_FORWARDED, changed=True, stderr="fatal: could not read from https://[REDACTED]@host/repo.git")
+        ]
+
+        runner._run_job(job.id)
+        
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        
+        report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
+        with open(report_file) as f:
+            report = json.load(f)
+            
+        assert "[REDACTED]" in report["repos"][0]["stderr"]
+        assert "token" not in report["repos"][0]["stderr"]
+
+
+def test_pre_pull_report_skipped_for_plan_only_or_disabled(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True, plan_only=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"] as write, cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"]:
+        write.return_value = _fake_artifacts()
+
+        runner._run_job(job.id)
+        
+        assert job.status == "succeeded"
+        
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        art = added_artifacts[0][0][0]
+        
+        report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
+        with open(report_file) as f:
+            report = json.load(f)
+            
+        assert report["effective_pre_pull"] is False
+        assert report["phase"] == "skipped"
