@@ -102,6 +102,28 @@ def test_plan_only_skips_pre_pull_even_if_requested(mock_job_store, temp_hub):
         assert job.status == "succeeded"
 
 
+def test_final_artifact_has_resolved_repo_names(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    # Implicit job (no specific repos requested)
+    job = _make_job(temp_hub, [], pre_pull=True, plan_only=True)
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"], cms["write"] as write, cms["validate"], \
+         cms["plan"], cms["apply"], cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec, \
+         patch("merger.lenskit.adapters.security.validate_source_dir", side_effect=lambda x: x):
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
+        write.return_value = _fake_artifacts()
+        runner._run_job(job.id)
+
+        assert job.status == "succeeded"
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        # Should resolve to all repos in temp_hub
+        assert set(art.repos) == {"repoA", "repoB"}
+
+
 def test_pre_pull_false_skips_pre_pull(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
     job = _make_job(temp_hub, ["repoA"], pre_pull=False)
@@ -348,6 +370,7 @@ def test_pre_pull_report_written_on_plan_hard_fail(mock_job_store, temp_hub):
         assert job.status == "failed"
         assert job.artifact_ids
         art = mock_job_store.add_artifact.call_args_list[0][0][0]
+        assert art.repos == ["repoA", "repoB"]
         assert "pre_pull_report" in art.paths
         report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
         assert report_file.exists()
@@ -488,6 +511,7 @@ def test_pre_pull_report_written_on_plan_exception(mock_job_store, temp_hub, cap
         assert len(added_artifacts) == 1
         art = added_artifacts[0][0][0]
         assert "pre_pull_report" in art.paths
+        assert art.repos == ["repoA"]
         report_file = Path(art.merges_dir) / art.paths["pre_pull_report"]
         assert report_file.exists()
 

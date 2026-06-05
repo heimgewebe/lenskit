@@ -109,6 +109,7 @@ def _register_pre_pull_report_artifact_once(
     job: Job,
     report_path: Path | None,
     already_registered: bool,
+    repos: List[str] | None = None,
 ) -> bool:
     if report_path is None or not report_path.exists():
         return False
@@ -121,7 +122,7 @@ def _register_pre_pull_report_artifact_once(
             id=artifact_id,
             job_id=job.id,
             hub=job.hub_resolved or "",
-            repos=job.request.repos or [],
+            repos=repos if repos is not None else (job.request.repos or []),
             created_at=datetime.now(timezone.utc).isoformat(),
             paths={"pre_pull_report": report_path.name},
             params=job.request,
@@ -200,6 +201,7 @@ class JobRunner:
         try:
             req = job.request
             merges_dir: Path | None = None
+            repo_names = list(job.request.repos or [])
             pre_pull_report_path: Path | None = None
             pre_pull_report_artifact_registered = False
 
@@ -231,6 +233,8 @@ class JobRunner:
 
             if not sources:
                 raise ValueError("No valid repository sources found.")
+
+            repo_names = [Path(src).name for src in sources]
 
             # 2a. Resolve Merges Dir early (for pre-pull report)
             if req.merges_dir:
@@ -399,6 +403,7 @@ class JobRunner:
                         job=job,
                         report_path=pre_pull_report_path,
                         already_registered=pre_pull_report_artifact_registered,
+                        repos=repo_names,
                     )
                     raise
 
@@ -419,6 +424,7 @@ class JobRunner:
                         job=job,
                         report_path=pre_pull_report_path,
                         already_registered=pre_pull_report_artifact_registered,
+                        repos=repo_names,
                     )
                     detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
                     raise ValueError(f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}")
@@ -451,6 +457,7 @@ class JobRunner:
                         job=job,
                         report_path=pre_pull_report_path,
                         already_registered=pre_pull_report_artifact_registered,
+                        repos=repo_names,
                     )
                     raise
                 results_warned = False
@@ -476,6 +483,7 @@ class JobRunner:
                         job=job,
                         report_path=pre_pull_report_path,
                         already_registered=pre_pull_report_artifact_registered,
+                        repos=repo_names,
                     )
                     detail = "; ".join(f"{r.repo}: {r.status} - {r.message}" for r in apply_hard_failures)
                     raise ValueError(f"Pre-pull apply failed: {detail}")
@@ -486,6 +494,7 @@ class JobRunner:
                     job=job,
                     report_path=pre_pull_report_path,
                     already_registered=pre_pull_report_artifact_registered,
+                    repos=repo_names,
                 )
             else:
                 if req.pre_pull and req.plan_only:
@@ -656,7 +665,7 @@ class JobRunner:
                 id=artifact_id,
                 job_id=job_id,
                 hub=str(hub),
-                repos=req.repos or [],
+                repos=repo_names,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 paths=path_map,
                 params=req,
@@ -680,6 +689,7 @@ class JobRunner:
                 job=job,
                 report_path=pre_pull_report_path,
                 already_registered=pre_pull_report_artifact_registered,
+                repos=repo_names,
             )
 
             safe_error = _safe_text(e) or "unknown error"
