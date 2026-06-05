@@ -3281,7 +3281,7 @@ class MergerUI(object):
         all_out_paths = []
 
         # Pre-pull (bounded repo-sync mutation), two-phase across ALL selected repos
-        # BEFORE any scan, so no repo is fast-forwarded if another cannot be synced.
+        # BEFORE any scan, so no repo is fast-forwarded when another repo hard-fails during the plan phase.
         # plan_only never mutates local repos, so it forces pre-pull off.
         effective_pre_pull = pre_pull and not plan_only
         if effective_pre_pull:

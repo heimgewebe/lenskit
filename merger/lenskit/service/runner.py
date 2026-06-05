@@ -211,7 +211,7 @@ class JobRunner:
 
                 if hard_failures:
                     # Abort BEFORE applying any fast-forward, so no repo is left
-                    # partially updated when another repo cannot be synced.
+                    # partially updated when another repo hard-fails during the plan phase.
                     detail = "; ".join(f"{p.repo}: {p.status} - {p.message}" for p in hard_failures)
                     raise ValueError(
                         f"Pre-pull plan failed (no repo HEADs or working trees were fast-forwarded): {detail}"
