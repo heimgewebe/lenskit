@@ -194,7 +194,7 @@ Typed read-only facade over stored `query_trace` artifacts. Returns the trace pa
 
 When `/api/query` or `/api/federation/query` is called with `trace=true` and a `context_bundle` is present in the result, the response wrapper includes an `agent_query_session` field. This includes context bundles produced by an `output_profile` as well as cases where `build_context_bundle=true`.
 
-**Provenance classification:**  
+**Provenance classification:**
 The `agent_query_session` is always classified as `session_authority: "agent_context_projection"`. This means:
 - It is a projection built from query results and runtime artifact references — **not** canonical repository content.
 - `artifact_refs.query_trace_id` carries the stable artifact store ID for the `query_trace` artifact (`null` for `/api/federation/query`, which does not produce a standalone query_trace).
@@ -337,3 +337,18 @@ Notes:
 - CLI: `lenskit rlens-client run` (and repoLens headless) send `pre_pull`
   explicitly; disable with `--no-pre-pull`. `--plan-only` implies
   `pre_pull=false`.
+
+**Pre-Pull Report Artifact (Early Diagnostic):**
+Every job that reaches the effective pre-pull report-writing boundary produces
+a structured `pre_pull_report` JSON artifact, unless writing the report itself fails. This artifact contains structured
+per-repo status, phase metadata, HEAD/upstream information, messages, and
+credential-redacted standard error. The live job log contains only a concise
+digest summary of this report.
+
+- **Early Registration:** The report is written and registered immediately after
+  the pre-pull plan/apply phases. This ensures that subsequent cancellations, scan failures,
+  or write failures do not lose the structured pre-pull evidence.
+- **Exception Phases:** If unexpected errors crash the plan or apply phases before completion,
+  the report captures the failure with `phase="plan_exception"` or `phase="apply_exception"`.
+- **Skip:** No `pre_pull_report` artifact is produced when effective pre-pull is false
+  (`plan_only=true` or `pre_pull=false`).
