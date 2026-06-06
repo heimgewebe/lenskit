@@ -124,6 +124,35 @@ def test_final_artifact_has_resolved_repo_names(mock_job_store, temp_hub):
         assert set(art.repos) == {"repoA", "repoB"}
 
 
+def test_pre_pull_report_custom_merges_dir_validates_before_mkdir(mock_job_store, temp_hub):
+    from merger.lenskit.adapters.security import SecurityViolationError
+
+    blocked_dir = temp_hub / "blocked-merges"
+
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], pre_pull=True)
+    job.request.merges_dir = "blocked-merges"
+    mock_job_store.get_job.return_value = job
+
+    cms = _patched()
+    with cms["scan"] as scan, cms["write"], cms["validate"], \
+         cms["plan"] as plan, cms["apply"] as apply, cms["self"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+
+        security = MagicMock()
+        security.validate_path.side_effect = SecurityViolationError("blocked merges_dir")
+        mock_sec.return_value = security
+
+        runner._run_job(job.id)
+
+    assert job.status == "failed"
+    assert "blocked" in (job.error or "").lower() or "security" in (job.error or "").lower()
+    assert not blocked_dir.exists()
+    plan.assert_not_called()
+    apply.assert_not_called()
+    scan.assert_not_called()
+
+
 def test_pre_pull_false_skips_pre_pull(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
     job = _make_job(temp_hub, ["repoA"], pre_pull=False)

@@ -246,7 +246,6 @@ class JobRunner:
                 else:
                     merges_dir = p.resolve()
 
-                merges_dir.mkdir(parents=True, exist_ok=True)
                 # Ensure security/validation for custom merges_dir if needed
                 try:
                     # Use the validated, canonical path
@@ -256,6 +255,8 @@ class JobRunner:
                 except SecurityViolationError as e:
                     log(f"Security Warning: merges_dir '{merges_dir}' validation failed: {e}")
                     raise ValueError(f"SECURITY: merges_dir not allowed: {e}")
+
+                merges_dir.mkdir(parents=True, exist_ok=True)
             else:
                 merges_dir = get_merges_dir(hub)
                 merges_dir.mkdir(parents=True, exist_ok=True)
