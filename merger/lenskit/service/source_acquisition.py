@@ -281,7 +281,6 @@ def resolve_remote_ref(
     if inside.returncode != 0 or inside.stdout.strip() != "true":
         return make(SourceStatus.ERROR, f"{repo_name} is not a git work tree", stderr=inside.stderr)
 
-    remote_name = "origin"
     full_ref = None
 
     if remote_ref:
