@@ -574,7 +574,13 @@ def test_remote_snapshot_cleans_existing_snapshot_dir_before_extract(tmp_path):
     job_id = "job-clean"
     
     # First materialization
-    result1 = materialize_remote_snapshot(local, None, "default_branch", cache, job_id)
+    result1 = materialize_remote_snapshot(
+        local,
+        remote_ref=None,
+        remote_ref_policy="default_branch",
+        cache_root=cache,
+        job_id=job_id,
+    )
     assert result1.status == SourceStatus.SNAPSHOT_CREATED
     assert (Path(result1.snapshot_path) / "old.txt").exists()
     
@@ -584,7 +590,13 @@ def test_remote_snapshot_cleans_existing_snapshot_dir_before_extract(tmp_path):
     _git("push", "origin", "main", cwd=temp)
     
     # Second materialization with same job_id
-    result2 = materialize_remote_snapshot(local, None, "default_branch", cache, job_id)
+    result2 = materialize_remote_snapshot(
+        local,
+        remote_ref=None,
+        remote_ref_policy="default_branch",
+        cache_root=cache,
+        job_id=job_id,
+    )
     assert result2.status == SourceStatus.SNAPSHOT_CREATED
     assert not (Path(result2.snapshot_path) / "old.txt").exists()
     assert (Path(result2.snapshot_path) / "file.txt").read_text() == "B\n"
