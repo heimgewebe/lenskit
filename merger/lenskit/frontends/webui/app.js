@@ -637,7 +637,7 @@ function getEffectiveMergeFormDefaults() {
         codeOnly: false,
         prePull: true,
         sourceMode: 'local_ff',
-        remoteRefPolicy: 'upstream',
+        remoteRefPolicy: 'default_branch',
         remoteRef: '',
         extras: [...DEFAULT_EXTRAS]
     };
@@ -758,6 +758,19 @@ function syncSourceModeFields() {
     if (!sourceModeEl || !fields || !fields.classList) return;
     const isRemote = sourceModeEl.value === 'remote_snapshot';
     fields.classList.toggle('hidden', !isRemote);
+
+    if (isRemote) {
+        const policyEl = document.getElementById('remoteRefPolicy');
+        if (policyEl && policyEl.value === 'upstream') {
+            try {
+                const raw = localStorage.getItem(CONFIG_KEY);
+                const saved = raw ? JSON.parse(raw) : {};
+                if (!saved.remoteRefPolicy) {
+                    policyEl.value = 'default_branch';
+                }
+            } catch (e) {}
+        }
+    }
 }
 
 function restoreConfig() {

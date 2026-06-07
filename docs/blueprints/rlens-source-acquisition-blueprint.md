@@ -52,6 +52,7 @@ When `repo_source_mode` is set explicitly it wins.
 * never mutates local hub repos (no fetch into them, no merge, no checkout);
 * never sets an upstream;
 * never switches branches;
+* remote URL is never persisted as cache remote config;
 * uses a **job-bound** cache/temp directory under the validated `merges_dir`:
   `<merges_dir>/.rlens-source-snapshots/<job_id>/<repo>/`;
 * works even when the local branch has no upstream.
@@ -101,8 +102,12 @@ For `remote_snapshot`:
 
 1. Read `remote.origin.url` from the local repo (missing → `missing_remote`).
 2. Resolve the ref (above).
-3. Build a **bare** cache git dir under the job-bound snapshot root, add/refresh
-   the `origin` remote, `fetch --prune origin +refs/heads/*:refs/remotes/origin/*`.
+3. Build a bare cache git dir under the job-bound snapshot root. The cache does not
+   store the remote URL as `remote.origin.url`. rLens fetches directly from the
+   redacted-at-reporting remote URL with an explicit refspec:
+   `git --git-dir <cache_git_dir> fetch --prune <remote_url> +refs/heads/*:refs/remotes/origin/*`
+   This still creates `refs/remotes/origin/*` in the bare cache, but avoids
+   credential-at-rest leakage in `<cache_git_dir>/config`.
 4. `rev-parse` the resolved ref to a commit.
 5. `git --git-dir … archive --format=tar <commit>` and extract safely in Python.
 

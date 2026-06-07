@@ -181,7 +181,7 @@ async function run() {
     // 4. remote_snapshot → pre_pull false + ref policy; remote_ref sent when set.
     captured.body = null;
     els.sourceMode.value = 'remote_snapshot';
-    els.remoteRefPolicy.value = 'default_branch';
+    context.syncSourceModeFields();
     els.remoteRef.value = '';
     await context.startJob(submitEvent());
     assert(captured.body && captured.body.pre_pull === false, 'remote_snapshot derives pre_pull === false');
