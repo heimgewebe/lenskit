@@ -424,22 +424,9 @@ def materialize_remote_snapshot(
         return make(SourceStatus.MISSING_REMOTE, f"{repo_name} has no 'origin' remote configured",
                     resolution=resolution, stderr=url_proc.stderr)
 
-    # Add or refresh origin in the bare cache.
-    remotes = _run_git(["remote"], git_dir=cache_git_dir, timeout=timeout_seconds)
-    existing = set(remotes.stdout.split()) if remotes.returncode == 0 else set()
-    if "origin" in existing:
-        set_url = _run_git(["remote", "set-url", "origin", remote_url], git_dir=cache_git_dir, timeout=timeout_seconds)
-        if set_url.returncode != 0:
-            return make(SourceStatus.ERROR, f"could not set origin url for {repo_name} cache",
-                        resolution=resolution, stderr=set_url.stderr)
-    else:
-        add = _run_git(["remote", "add", "origin", remote_url], git_dir=cache_git_dir, timeout=timeout_seconds)
-        if add.returncode != 0:
-            return make(SourceStatus.ERROR, f"could not add origin remote for {repo_name} cache",
-                        resolution=resolution, stderr=add.stderr)
-
+    # Direct fetch against the URL to avoid storing credentials in the cache git config.
     fetch = _run_git(
-        ["fetch", "--prune", "origin", "+refs/heads/*:refs/remotes/origin/*"],
+        ["fetch", "--prune", remote_url, "+refs/heads/*:refs/remotes/origin/*"],
         git_dir=cache_git_dir,
         timeout=timeout_seconds,
     )

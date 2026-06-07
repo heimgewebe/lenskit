@@ -210,6 +210,42 @@ def test_remote_snapshot_failure_fails_job_and_writes_report(mock_job_store, tem
         assert "source_acquisition_report" in art.paths
 
 
+def test_remote_snapshot_report_registered_when_canceled_during_scan(mock_job_store, temp_hub):
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA", "repoB"], repo_source_mode="remote_snapshot", pre_pull=False)
+
+    get_job_calls = {"count": 0}
+    def mock_get_job(jid):
+        get_job_calls["count"] += 1
+        if get_job_calls["count"] > 1:
+            job.status = "canceled"
+        return job
+
+    mock_job_store.get_job.side_effect = mock_get_job
+
+    cms = _patched()
+    with cms["scan"], cms["write"], cms["validate"], \
+         cms["plan"], cms["apply"], cms["self"], \
+         cms["materialize"] as materialize, cms["resolve_ref"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
+        materialize.side_effect = [
+            _snap_result("repoA", str(temp_hub / "snap-repoA")),
+            _snap_result("repoB", str(temp_hub / "snap-repoB")),
+        ]
+
+        runner._run_job(job.id)
+
+        assert job.status == "canceled"
+        assert materialize.call_count == 2
+
+        added_artifacts = mock_job_store.add_artifact.call_args_list
+        assert len(added_artifacts) == 1
+        art = added_artifacts[0][0][0]
+        assert "source_acquisition_report" in art.paths
+
+
 def test_plan_only_skips_pre_pull_even_if_requested(mock_job_store, temp_hub):
     runner = JobRunner(mock_job_store)
     job = _make_job(temp_hub, ["repoA"], pre_pull=True, plan_only=True)

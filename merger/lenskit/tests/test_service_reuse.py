@@ -227,16 +227,19 @@ def test_plan_only_pre_pull_uses_effective_hash():
 def test_succeeded_job_not_reused_when_source_mode_local_ff_even_if_pre_pull_false(service_client):
     """repo_source_mode='local_ff' enforces a fresh check even if legacy pre_pull is False."""
     ctx = service_client
-    # Initial job, say it was a local_current run that succeeded
-    req = {"repos": ["repo-test"], "level": "summary", "repo_source_mode": "local_current"}
+    req = {
+        "repos": ["repo-test"],
+        "level": "summary",
+        "repo_source_mode": "local_ff",
+        "pre_pull": False,
+    }
     resp1 = ctx.client.post("/api/jobs", json=req, headers=ctx.headers)
     assert resp1.status_code == 200
     job1_id = resp1.json()["id"]
     _force_status(ctx, job1_id, "succeeded")
 
-    # New request with local_ff, pre_pull=False
-    req2 = {"repos": ["repo-test"], "level": "summary", "repo_source_mode": "local_ff", "pre_pull": False}
-    resp2 = ctx.client.post("/api/jobs", json=req2, headers=ctx.headers)
+    # Repeat exact request
+    resp2 = ctx.client.post("/api/jobs", json=req, headers=ctx.headers)
     assert resp2.status_code == 200
     assert resp2.json()["id"] != job1_id
 

@@ -1246,7 +1246,7 @@ async function startJob(e) {
         commonPayload.repo_source_mode = sourceMode;
         if (sourceMode === 'remote_snapshot') {
             const policyEl = document.getElementById('remoteRefPolicy');
-            commonPayload.remote_ref_policy = (policyEl && policyEl.value) ? policyEl.value : 'upstream';
+            commonPayload.remote_ref_policy = (policyEl && policyEl.value) ? policyEl.value : 'default_branch';
             const refEl = document.getElementById('remoteRef');
             const refVal = refEl && refEl.value ? refEl.value.trim() : '';
             if (refVal) commonPayload.remote_ref = refVal;

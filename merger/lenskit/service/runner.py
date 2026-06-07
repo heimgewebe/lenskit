@@ -570,15 +570,16 @@ class JobRunner:
 
                 source_acq_report_path = _write_source_acquisition_report(source_results, "remote_snapshot")
 
+                source_acq_report_artifact_registered = _register_source_acquisition_report_artifact_once(
+                    job_store=self.job_store,
+                    job=job,
+                    report_path=source_acq_report_path,
+                    already_registered=source_acq_report_artifact_registered,
+                    repos=repo_names,
+                )
+
                 failures = [r for r in source_results if r.status in _SOURCE_FAILURE_STATUSES]
                 if failures:
-                    source_acq_report_artifact_registered = _register_source_acquisition_report_artifact_once(
-                        job_store=self.job_store,
-                        job=job,
-                        report_path=source_acq_report_path,
-                        already_registered=source_acq_report_artifact_registered,
-                        repos=repo_names,
-                    )
                     detail = "; ".join(
                         f"{r.repo}: {r.status} - {_safe_text(r.message)}" for r in failures
                     )
@@ -587,13 +588,6 @@ class JobRunner:
                 if req.plan_only:
                     # Dry-plan: ref resolution only. No snapshot, no scan, no local
                     # write, no bundle write. The report records the planned refs.
-                    source_acq_report_artifact_registered = _register_source_acquisition_report_artifact_once(
-                        job_store=self.job_store,
-                        job=job,
-                        report_path=source_acq_report_path,
-                        already_registered=source_acq_report_artifact_registered,
-                        repos=repo_names,
-                    )
                     log("remote_snapshot plan_only: ref resolution complete; skipping scan and bundle write.")
                     job.status = "succeeded"
                     job.finished_at = datetime.now(timezone.utc).isoformat()

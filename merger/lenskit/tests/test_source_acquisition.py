@@ -322,3 +322,54 @@ def test_remote_snapshot_warns_on_lfs_attributes_or_pointer(remote_and_local):
     )
     assert result.status == SourceStatus.SNAPSHOT_CREATED, result.message
     assert sa.WARN_LFS_NOT_SMUDGED in result.warnings
+
+
+def test_remote_snapshot_does_not_persist_remote_url_credentials_in_cache(tmp_path, monkeypatch):
+    repo = tmp_path / "cred_repo"
+    _git("init", "-b", "main", str(repo), cwd=tmp_path)
+    _commit_file(repo, "a.txt", "a\n", "init")
+
+    secret = "secret-token-12345"
+    fake_url = f"https://user:{secret}@example.invalid/repo.git"
+
+    def mock_read_remote_url(repo_path, timeout):
+        return fake_url, subprocess.CompletedProcess(["git"], 0, stdout=fake_url)
+
+    monkeypatch.setattr(sa, "_read_remote_url", mock_read_remote_url)
+
+    orig_run_git = sa._run_git
+    run_git_calls = []
+
+    def spy_run_git(args, **kwargs):
+        run_git_calls.append(list(args))
+        if args[0] == "ls-remote":
+            return subprocess.CompletedProcess(args, 0, stdout="1234567890abcdef1234567890abcdef12345678\trefs/heads/main\n")
+        return orig_run_git(args, **kwargs)
+
+    monkeypatch.setattr(sa, "_run_git", spy_run_git)
+
+    result = materialize_remote_snapshot(
+        repo,
+        remote_ref="origin/main",
+        remote_ref_policy="upstream",
+        cache_root=tmp_path / "cache",
+        job_id="job-cred-test",
+    )
+
+    assert result.status == SourceStatus.FETCH_FAILED
+    assert "[REDACTED]" in (result.remote_url_redacted or "")
+    assert secret not in (result.remote_url_redacted or "")
+    assert secret not in (result.stderr or "")
+    assert secret not in (result.message or "")
+
+    for call_args in run_git_calls:
+        if call_args[0] == "remote":
+            assert "add" not in call_args
+            assert "set-url" not in call_args
+
+    cache_git_dir = tmp_path / "cache" / sa.SNAPSHOT_DIR_NAME / "job-cred-test" / "cred_repo.git"
+    config_file = cache_git_dir / "config"
+    if config_file.exists():
+        content = config_file.read_text(encoding="utf-8")
+        assert secret not in content
+        assert 'remote "origin"' not in content
