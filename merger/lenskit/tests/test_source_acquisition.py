@@ -332,7 +332,7 @@ def test_remote_snapshot_does_not_persist_remote_url_credentials_in_cache(tmp_pa
     secret = "secret-token-12345"
     fake_url = f"https://user:{secret}@example.invalid/repo.git"
 
-    def mock_read_remote_url(repo_path, timeout):
+    def mock_read_remote_url(repo_path, remote_name, timeout):
         return fake_url, subprocess.CompletedProcess(["git"], 0, stdout=fake_url)
 
     monkeypatch.setattr(sa, "_read_remote_url", mock_read_remote_url)
@@ -373,3 +373,115 @@ def test_remote_snapshot_does_not_persist_remote_url_credentials_in_cache(tmp_pa
         content = config_file.read_text(encoding="utf-8")
         assert secret not in content
         assert 'remote "origin"' not in content
+
+# --- 12. Fix 1: Non-origin upstream ---
+
+def test_remote_snapshot_upstream_policy_uses_tracked_non_origin_remote(tmp_path):
+    # Remote A (origin)
+    origin_remote = tmp_path / "origin.git"
+    _git("init", "--bare", "-b", "main", str(origin_remote), cwd=tmp_path)
+
+    # Remote B (upstream)
+    upstream_remote = tmp_path / "upstream.git"
+    _git("init", "--bare", "-b", "main", str(upstream_remote), cwd=tmp_path)
+
+    # We need a commit in upstream
+    temp = tmp_path / "temp"
+    _git("init", "-b", "main", str(temp), cwd=tmp_path)
+    _commit_file(temp, "upstream.txt", "hello upstream\n", "init")
+    _git("remote", "add", "upstream", str(upstream_remote), cwd=temp)
+    _git("push", "upstream", "main", cwd=temp)
+
+    # Local repo
+    local = tmp_path / "local"
+    _git("init", "-b", "main", str(local), cwd=tmp_path)
+    _commit_file(local, "local.txt", "local\n", "init")
+    _git("remote", "add", "origin", str(origin_remote), cwd=local)
+    _git("remote", "add", "upstream", str(upstream_remote), cwd=local)
+
+    # fetch upstream and set tracking
+    _git("fetch", "upstream", cwd=local)
+    _git("branch", "-u", "upstream/main", "main", cwd=local)
+
+    result = materialize_remote_snapshot(
+        local,
+        remote_ref=None,
+        remote_ref_policy="upstream",
+        cache_root=tmp_path / "cache",
+        job_id="job_upstream",
+    )
+
+    assert result.status == SourceStatus.SNAPSHOT_CREATED, result.stderr
+    assert result.resolved_ref == "upstream/main"
+    assert (Path(result.snapshot_path) / "upstream.txt").read_text() == "hello upstream\n"
+
+
+# --- 13. Fix 2: Tag ref ---
+
+def test_remote_snapshot_explicit_tag_ref(tmp_path):
+    remote = tmp_path / "remote.git"
+    _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+
+    temp = tmp_path / "temp"
+    _git("init", "-b", "main", str(temp), cwd=tmp_path)
+    _commit_file(temp, "tag.txt", "v1\n", "init")
+    _git("remote", "add", "origin", str(remote), cwd=temp)
+    _git("tag", "v1", cwd=temp)
+    _git("push", "origin", "main", "--tags", cwd=temp)
+
+    local = tmp_path / "local"
+    _git("init", "-b", "main", str(local), cwd=tmp_path)
+    _git("remote", "add", "origin", str(remote), cwd=local)
+
+    result = materialize_remote_snapshot(
+        local,
+        remote_ref="refs/tags/v1",
+        remote_ref_policy="upstream",
+        cache_root=tmp_path / "cache",
+        job_id="job_tag",
+    )
+    assert result.status == SourceStatus.SNAPSHOT_CREATED, result.stderr
+    assert result.resolved_ref == "refs/tags/v1"
+    assert (Path(result.snapshot_path) / "tag.txt").read_text() == "v1\n"
+
+
+# --- 14. Fix 2: Explicit SHA ---
+
+def test_remote_snapshot_explicit_sha_reachable_only_by_tag(tmp_path):
+    remote = tmp_path / "remote.git"
+    _git("init", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+
+    temp = tmp_path / "temp"
+    _git("init", "-b", "main", str(temp), cwd=tmp_path)
+    _git("remote", "add", "origin", str(remote), cwd=temp)
+    _commit_file(temp, "file.txt", "1\n", "first")
+    sha1 = _git("rev-parse", "HEAD", cwd=temp).stdout.strip()
+    _git("tag", "v1", cwd=temp)
+
+    _commit_file(temp, "file.txt", "2\n", "second")
+    _git("push", "origin", "main", "--tags", cwd=temp)
+
+    # We ask for sha1 directly
+    local = tmp_path / "local"
+    _git("init", "-b", "main", str(local), cwd=tmp_path)
+    _git("remote", "add", "origin", str(remote), cwd=local)
+
+    result = materialize_remote_snapshot(
+        local,
+        remote_ref=sha1,
+        remote_ref_policy="upstream",
+        cache_root=tmp_path / "cache",
+        job_id="job_sha",
+    )
+    assert result.status == SourceStatus.SNAPSHOT_CREATED, result.stderr
+    assert result.resolved_commit == sha1
+    assert (Path(result.snapshot_path) / "file.txt").read_text() == "1\n"
+
+# --- 15. Fix 3: Redaction ---
+
+def test_redact_credentials_in_non_http_remote_urls():
+    assert sa._redact("ftp://user:password@example.com/repo.git") == "ftp://[REDACTED]@example.com/repo.git"
+    assert sa._redact("ssh://git@example.com/repo.git") == "ssh://[REDACTED]@example.com/repo.git"
+    assert sa._redact("https://token@example.com/repo.git") == "https://[REDACTED]@example.com/repo.git"
+    assert sa._redact("https://user:token@example.com/repo.git") == "https://[REDACTED]@example.com/repo.git"
+    assert sa._redact("git@github.com:owner/repo.git") == "git@github.com:owner/repo.git"

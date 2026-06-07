@@ -103,10 +103,9 @@ For `remote_snapshot`:
 1. Read `remote.origin.url` from the local repo (missing → `missing_remote`).
 2. Resolve the ref (above).
 3. Build a bare cache git dir under the job-bound snapshot root. The cache does not
-   store the remote URL as `remote.origin.url`. rLens fetches directly from the
-   redacted-at-reporting remote URL with an explicit refspec:
-   `git --git-dir <cache_git_dir> fetch --prune <remote_url> +refs/heads/*:refs/remotes/origin/*`
-   This still creates `refs/remotes/origin/*` in the bare cache, but avoids
+   store the remote URL as `remote.origin.url`. Heads and tags are fetched directly from the selected remote URL without storing it as cache config:
+   `git --git-dir <cache_git_dir> fetch --prune <remote_url> +refs/heads/*:refs/remotes/<remote_name>/* +refs/tags/*:refs/tags/*`
+   This avoids
    credential-at-rest leakage in `<cache_git_dir>/config`.
 4. `rev-parse` the resolved ref to a commit.
 5. `git --git-dir … archive --format=tar <commit>` and extract safely in Python.

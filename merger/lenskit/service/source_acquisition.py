@@ -65,7 +65,7 @@ class SourceStatus:
 
 # Mask credentials git can echo in remote URLs:
 # https://user:token@host and https://token@host forms.
-_CREDENTIAL_RE = re.compile(r"(https?://)(?:[^/\s:@]+:)?[^/\s@]+@")
+_CREDENTIAL_RE = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://)[^/\s@]+@")
 
 _HEX_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 
@@ -160,6 +160,7 @@ class RemoteRefResolution:
     message: str
     stderr: Optional[str] = None
     remote_url_redacted: Optional[str] = None
+    remote_name: str = "origin"
 
 
 @dataclass
@@ -202,32 +203,37 @@ def resolve_effective_source_mode(req) -> str:
     return "local_current"
 
 
-def _read_remote_url(repo_path: Path, timeout: int) -> "tuple[Optional[str], subprocess.CompletedProcess]":
-    proc = _run_git(["config", "--get", "remote.origin.url"], repo_path=repo_path, timeout=timeout)
+
+def _read_remote_url(repo_path: Path, remote_name: str, timeout: int) -> "tuple[Optional[str], subprocess.CompletedProcess]":
+    proc = _run_git(["config", "--get", f"remote.{remote_name}.url"], repo_path=repo_path, timeout=timeout)
     url = proc.stdout.strip() if proc.returncode == 0 else None
     return (url or None), proc
 
 
-def _branch_from_remote_tracking(ref: str) -> Optional[str]:
-    """Normalize a ref spelling onto a bare branch name, or None if it is a SHA/unknown."""
+def _parse_remote_tracking_ref(ref: str, *, default_remote: str = "origin") -> Optional[tuple[str, str]]:
+    """Normalize a ref spelling onto (remote_name, full_ref), or None if it is a SHA/unknown."""
     r = ref.strip()
-    if not r:
+    if not r or _HEX_SHA_RE.match(r):
         return None
-    if r.startswith("refs/remotes/origin/"):
-        return r[len("refs/remotes/origin/"):]
+
+    if r.startswith("refs/remotes/"):
+        parts = r[len("refs/remotes/"):].split("/", 1)
+        if len(parts) == 2:
+            return parts[0], f"refs/heads/{parts[1]}"
     if r.startswith("refs/heads/"):
-        return r[len("refs/heads/"):]
-    if r.startswith("origin/"):
-        return r[len("origin/"):]
-    if _HEX_SHA_RE.match(r):
-        return None
-    # Bare branch name (e.g. "main").
-    return r
+        return default_remote, r
+    if r.startswith("refs/tags/"):
+        return default_remote, r
+    if "/" in r:
+        parts = r.split("/", 1)
+        return parts[0], f"refs/heads/{parts[1]}"
+
+    return default_remote, f"refs/heads/{r}"
 
 
-def _ls_remote_commit(remote_url: str, branch: str, timeout: int) -> "tuple[Optional[str], subprocess.CompletedProcess]":
-    """Return the commit a remote branch points at via ls-remote (no fetch)."""
-    proc = _run_git(["ls-remote", remote_url, f"refs/heads/{branch}"], timeout=timeout)
+def _ls_remote_commit(remote_url: str, ref: str, timeout: int) -> "tuple[Optional[str], subprocess.CompletedProcess]":
+    """Return the commit a remote ref points at via ls-remote (no fetch)."""
+    proc = _run_git(["ls-remote", remote_url, ref], timeout=timeout)
     sha = None
     if proc.returncode == 0 and proc.stdout.strip():
         sha = proc.stdout.split()[0].strip() or None
@@ -251,7 +257,7 @@ def resolve_remote_ref(
     path_str = str(repo_path)
 
     def make(status: str, message: str, *, resolved_ref=None, resolved_commit=None,
-             stderr=None, remote_url=None) -> RemoteRefResolution:
+             stderr=None, remote_url=None, remote_name="origin") -> RemoteRefResolution:
         return RemoteRefResolution(
             repo=repo_name,
             repo_path=path_str,
@@ -263,6 +269,7 @@ def resolve_remote_ref(
             message=message,
             stderr=_redact(stderr),
             remote_url_redacted=_redact(remote_url),
+            remote_name=remote_name,
         )
 
     version = _run_git(["--version"], timeout=timeout_seconds)
@@ -274,26 +281,96 @@ def resolve_remote_ref(
     if inside.returncode != 0 or inside.stdout.strip() != "true":
         return make(SourceStatus.ERROR, f"{repo_name} is not a git work tree", stderr=inside.stderr)
 
-    remote_url, url_proc = _read_remote_url(repo_path, timeout_seconds)
-    if not remote_url:
-        return make(SourceStatus.MISSING_REMOTE,
-                    f"{repo_name} has no 'origin' remote configured", stderr=url_proc.stderr)
+    remote_name = "origin"
+    full_ref = None
 
-    # 1. Explicit remote_ref wins.
     if remote_ref:
-        branch = _branch_from_remote_tracking(remote_ref)
-        if branch is None:
-            # A commit SHA (or unrecognized spelling treated as a literal commit-ish).
+        parsed = _parse_remote_tracking_ref(remote_ref)
+        if parsed is None:
+            remote_url, _ = _read_remote_url(repo_path, "origin", timeout_seconds)
             return make(SourceStatus.RESOLVED, f"using explicit ref {remote_ref}",
-                        resolved_ref=remote_ref, resolved_commit=remote_ref if _HEX_SHA_RE.match(remote_ref.strip()) else None,
-                        remote_url=remote_url)
-        sha, ls = _ls_remote_commit(remote_url, branch, timeout_seconds)
+                        resolved_ref=remote_ref,
+                        resolved_commit=remote_ref if _HEX_SHA_RE.match(remote_ref.strip()) else None,
+                        remote_url=remote_url, remote_name="origin")
+
+        remote_name, full_ref = parsed
+        remote_url, url_proc = _read_remote_url(repo_path, remote_name, timeout_seconds)
+        if not remote_url:
+            return make(SourceStatus.MISSING_REMOTE, f"{repo_name} has no '{remote_name}' remote configured", stderr=url_proc.stderr)
+
+        sha, ls = _ls_remote_commit(remote_url, full_ref, timeout_seconds)
         if not sha:
+            return make(SourceStatus.MISSING_REF, f"explicit remote_ref '{remote_ref}' not found on {remote_name}", stderr=ls.stderr, remote_url=remote_url, remote_name=remote_name)
+
+        if full_ref.startswith("refs/heads/"):
+            resolved_display = f"{remote_name}/{full_ref[len('refs/heads/'):]}"
+        else:
+            resolved_display = full_ref
+
+        return make(SourceStatus.RESOLVED, f"resolved explicit ref to {resolved_display}",
+                    resolved_ref=resolved_display, resolved_commit=sha, remote_url=remote_url, remote_name=remote_name)
+
+    elif remote_ref_policy == "upstream":
+        up = _run_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+                      repo_path=repo_path, timeout=timeout_seconds)
+        if up.returncode != 0 or not up.stdout.strip():
+            remote_url, _ = _read_remote_url(repo_path, "origin", timeout_seconds)
             return make(SourceStatus.MISSING_REF,
-                        f"explicit remote_ref '{remote_ref}' not found on origin",
-                        stderr=ls.stderr, remote_url=remote_url)
-        return make(SourceStatus.RESOLVED, f"resolved explicit ref to origin/{branch}",
-                    resolved_ref=f"origin/{branch}", resolved_commit=sha, remote_url=remote_url)
+                        f"{repo_name} has no upstream tracking branch (policy=upstream)",
+                        stderr=up.stderr, remote_url=remote_url)
+
+        parsed = _parse_remote_tracking_ref(up.stdout.strip())
+        if not parsed:
+            remote_url, _ = _read_remote_url(repo_path, "origin", timeout_seconds)
+            return make(SourceStatus.MISSING_REF,
+                        f"{repo_name} upstream '{up.stdout.strip()}' is not an origin branch",
+                        remote_url=remote_url)
+
+        remote_name, full_ref = parsed
+        remote_url, url_proc = _read_remote_url(repo_path, remote_name, timeout_seconds)
+        if not remote_url:
+            return make(SourceStatus.MISSING_REMOTE, f"{repo_name} has no '{remote_name}' remote configured", stderr=url_proc.stderr)
+
+    elif remote_ref_policy == "same_branch":
+        cur = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], repo_path=repo_path, timeout=timeout_seconds)
+        branch = cur.stdout.strip() if cur.returncode == 0 else ""
+        remote_url, url_proc = _read_remote_url(repo_path, "origin", timeout_seconds)
+        if not branch or branch == "HEAD":
+            return make(SourceStatus.MISSING_REF,
+                        f"{repo_name} is detached or has no current branch (policy=same_branch)",
+                        stderr=cur.stderr, remote_url=remote_url)
+        if not remote_url:
+            return make(SourceStatus.MISSING_REMOTE, f"{repo_name} has no 'origin' remote configured", stderr=url_proc.stderr)
+
+        remote_name = "origin"
+        full_ref = f"refs/heads/{branch}"
+
+    elif remote_ref_policy == "default_branch":
+        remote_name = "origin"
+        remote_url, url_proc = _read_remote_url(repo_path, "origin", timeout_seconds)
+        if not remote_url:
+            return make(SourceStatus.MISSING_REMOTE, f"{repo_name} has no 'origin' remote configured", stderr=url_proc.stderr)
+
+        full_ref = _resolve_default_branch(remote_url, timeout_seconds)
+        if not full_ref:
+            return make(SourceStatus.MISSING_REF,
+                        f"could not determine origin default branch for {repo_name}",
+                        remote_url=remote_url)
+    else:
+        remote_url, _ = _read_remote_url(repo_path, "origin", timeout_seconds)
+        return make(SourceStatus.ERROR, f"unknown remote_ref_policy '{remote_ref_policy}'",
+                    remote_url=remote_url)
+
+    sha, ls = _ls_remote_commit(remote_url, full_ref, timeout_seconds)
+    if not sha:
+        display = f"{remote_name}/{full_ref[len('refs/heads/'):]}" if full_ref.startswith("refs/heads/") else full_ref
+        return make(SourceStatus.MISSING_REF,
+                    f"{display} not found on remote for {repo_name}",
+                    stderr=ls.stderr, remote_url=remote_url, remote_name=remote_name)
+
+    display = f"{remote_name}/{full_ref[len('refs/heads/'):]}" if full_ref.startswith("refs/heads/") else full_ref
+    return make(SourceStatus.RESOLVED, f"resolved to {display}",
+                resolved_ref=display, resolved_commit=sha, remote_url=remote_url, remote_name=remote_name)
 
     # 2/3/4. Policy-driven.
     if remote_ref_policy == "upstream":
@@ -341,15 +418,13 @@ def _resolve_default_branch(remote_url: str, timeout: int) -> Optional[str]:
         for line in sym.stdout.splitlines():
             line = line.strip()
             if line.startswith("ref:") and line.endswith("HEAD"):
-                # Format: "ref: refs/heads/main\tHEAD"
                 middle = line[len("ref:"):].strip().split()[0]
-                branch = _branch_from_remote_tracking(middle)
-                if branch:
-                    return branch
-    # Fallback: refs/heads/main if it exists on the remote.
-    main_sha, _ = _ls_remote_commit(remote_url, "main", timeout)
+                parsed = _parse_remote_tracking_ref(middle)
+                if parsed:
+                    return parsed[1]
+    main_sha, _ = _ls_remote_commit(remote_url, "refs/heads/main", timeout)
     if main_sha:
-        return "main"
+        return "refs/heads/main"
     return None
 
 
@@ -418,15 +493,21 @@ def materialize_remote_snapshot(
         return make(SourceStatus.ERROR, f"git init --bare failed for {repo_name}",
                     resolution=resolution, stderr=init.stderr)
 
-    # We re-read the (un-redacted) remote URL from the user's repo for fetching.
-    remote_url, url_proc = _read_remote_url(repo_path, timeout_seconds)
+
+    remote_name = resolution.remote_name
+    remote_url, url_proc = _read_remote_url(repo_path, remote_name, timeout_seconds)
     if not remote_url:
-        return make(SourceStatus.MISSING_REMOTE, f"{repo_name} has no 'origin' remote configured",
+        return make(SourceStatus.MISSING_REMOTE, f"{repo_name} has no '{remote_name}' remote configured",
                     resolution=resolution, stderr=url_proc.stderr)
 
-    # Direct fetch against the URL to avoid storing credentials in the cache git config.
     fetch = _run_git(
-        ["fetch", "--prune", remote_url, "+refs/heads/*:refs/remotes/origin/*"],
+        [
+            "fetch",
+            "--prune",
+            remote_url,
+            f"+refs/heads/*:refs/remotes/{remote_name}/*",
+            "+refs/tags/*:refs/tags/*"
+        ],
         git_dir=cache_git_dir,
         timeout=timeout_seconds,
     )
@@ -434,17 +515,28 @@ def materialize_remote_snapshot(
         return make(SourceStatus.FETCH_FAILED, f"git fetch failed for {repo_name} snapshot",
                     resolution=resolution, stderr=fetch.stderr)
 
-    # Resolve the ref to a concrete commit inside the bare cache.
     rev_target = resolution.resolved_commit or resolution.resolved_ref or ""
-    if resolution.resolved_ref and resolution.resolved_ref.startswith("origin/"):
+    if resolution.resolved_ref and resolution.resolved_ref.startswith(f"{remote_name}/"):
         rev_target = f"refs/remotes/{resolution.resolved_ref}"
+    elif resolution.resolved_ref and resolution.resolved_ref.startswith("refs/tags/"):
+        rev_target = resolution.resolved_ref
+
     rev = _run_git(["rev-parse", "--verify", f"{rev_target}^{{commit}}"], git_dir=cache_git_dir, timeout=timeout_seconds)
+
+    if rev.returncode != 0 and resolution.resolved_ref and _HEX_SHA_RE.match(resolution.resolved_ref):
+        direct_fetch = _run_git(
+            ["fetch", "--prune", remote_url, resolution.resolved_ref],
+            git_dir=cache_git_dir,
+            timeout=timeout_seconds,
+        )
+        if direct_fetch.returncode == 0:
+            rev = _run_git(["rev-parse", "--verify", f"{rev_target}^{{commit}}"], git_dir=cache_git_dir, timeout=timeout_seconds)
+
     if rev.returncode != 0:
         return make(SourceStatus.MISSING_REF,
                     f"could not resolve {resolution.resolved_ref} to a commit in {repo_name} cache",
                     resolution=resolution, stderr=rev.stderr)
     commit = rev.stdout.strip()
-    # Keep the report's resolved_commit consistent with what was actually materialized.
     resolution.resolved_commit = commit
 
     archive = _run_git_binary(["archive", "--format=tar", commit], git_dir=cache_git_dir, timeout=timeout_seconds)
