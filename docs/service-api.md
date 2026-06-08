@@ -386,8 +386,9 @@ An explicit commit SHA works if the commit is reachable via fetched heads/tags o
 never sets an upstream, never switches branches; uses a job-bound cache under
 `<merges_dir>/.rlens-source-snapshots/<job_id>/`; every git call is an explicit
 argument list with `GIT_TERMINAL_PROMPT=0`; remote URLs, stderr and reports are
-credential-redacted; tar extraction is hardened against path traversal and
-escaping symlink/hardlink members.
+credential-redacted; fetch uses `--no-write-fetch-head` so credential-bearing
+URLs are not written to `FETCH_HEAD`; tar extraction is hardened against path
+traversal and escaping symlink/hardlink members.
 
 **Plan-only:** `remote_snapshot + plan_only` is a dry-plan: remote ref resolution only, no snapshot materialization, no scan, no local repository mutation and no bundle content write. A diagnostic `source_acquisition_report` artifact is still written so the planned ref/commit is inspectable.
 

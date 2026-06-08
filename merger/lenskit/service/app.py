@@ -215,6 +215,7 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
     # Configure Security
     sec = get_security_config()
     sec.set_token(token)
+
     # Allowlist the Hub
     sec.add_allowlist_root(hub_path)
     # Allowlist Merges Dir if separate

@@ -105,9 +105,9 @@ For `remote_snapshot`:
 2. Resolve the ref (above).
 3. Build a bare cache git dir under the job-bound snapshot root. The cache does not
    store the remote URL as `remote.origin.url`. Heads and tags are fetched directly from the selected remote URL without storing it as cache config:
-   `git --git-dir <cache_git_dir> fetch --prune <remote_url> +refs/heads/*:refs/remotes/<remote_name>/* +refs/tags/*:refs/tags/*`
+   `git --git-dir <cache_git_dir> fetch --no-write-fetch-head --prune <remote_url> +refs/heads/*:refs/remotes/<remote_name>/* +refs/tags/*:refs/tags/*`
    This avoids
-   credential-at-rest leakage in `<cache_git_dir>/config`.
+   credential-at-rest leakage in `<cache_git_dir>/config` and `FETCH_HEAD`.
 4. `rev-parse` the resolved ref to a commit.
 5. `git --git-dir … archive --format=tar <commit>` and extract safely in Python.
 
