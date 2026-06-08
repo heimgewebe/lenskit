@@ -479,3 +479,73 @@ def test_baseline_schema_rejects_empty_code_path_kind():
         }
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(instance=bad_baseline, schema=schema)
+
+
+# --------------------------------------------------------------------------- #
+# 13. load_baseline() runtime validation (entry-level)
+# --------------------------------------------------------------------------- #
+
+_VALID_ENTRY = {
+    "id": "abcdef0123456789",
+    "code": "UNREGISTERED_PLANNING_ARTIFACT",
+    "path": "docs/blueprints/x.md",
+    "kind": "unregistered",
+    "reason": "legacy",
+}
+
+
+def _make_baseline(entries):
+    return json.dumps({
+        "schema": "lenskit.planning_registration_baseline.v1",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "generator": "scripts/docmeta/check_planning_registration.py",
+        "entries": entries,
+    })
+
+
+@pytest.mark.parametrize("field", ["code", "path", "kind"])
+def test_baseline_entry_empty_required_string_is_config_error(fake_repo, tmp_path, field):
+    bad = dict(_VALID_ENTRY, **{field: ""})
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_make_baseline([bad]), encoding="utf-8")
+    code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert code == 2
+
+
+@pytest.mark.parametrize("bad_id", [
+    "not-a-hex-id",
+    "abcdef",           # too short
+    "ABCDEF0123456789", # uppercase not allowed
+    "abcdef012345678z", # invalid char
+])
+def test_baseline_entry_invalid_id_is_config_error(fake_repo, tmp_path, bad_id):
+    bad = dict(_VALID_ENTRY, id=bad_id)
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_make_baseline([bad]), encoding="utf-8")
+    code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert code == 2
+
+
+@pytest.mark.parametrize("field", ["id", "code", "path", "kind", "reason"])
+def test_baseline_entry_missing_required_field_is_config_error(fake_repo, tmp_path, field):
+    bad = {k: v for k, v in _VALID_ENTRY.items() if k != field}
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_make_baseline([bad]), encoding="utf-8")
+    code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert code == 2
+
+
+def test_baseline_entry_invalid_exception_code_is_config_error(fake_repo, tmp_path):
+    bad = dict(_VALID_ENTRY, code=check_plan.CODE_INVALID_EXCEPTION)
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_make_baseline([bad]), encoding="utf-8")
+    code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert code == 2

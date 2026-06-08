@@ -32,6 +32,7 @@ CODE_CONTROL_FILE_PARSE_ERROR = "CONTROL_FILE_PARSE_ERROR"
 _INVALID_EXCEPTION_CODES = {CODE_INVALID_EXCEPTION}
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_BASELINE_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
 # Explicit scan patterns: (glob_pattern, extra_filter_fn_or_None)
 # extra_filter_fn receives (rel_path, meta) and returns True if the file should be checked
@@ -433,6 +434,43 @@ def build_baseline(findings):
     }
 
 
+def _validate_baseline_entry(entry, index):
+    """Validate a single baseline entry dict. Raises BaselineError on violation."""
+    if not isinstance(entry, dict):
+        raise BaselineError(f"Baseline entry [{index}] must be an object.")
+
+    for field in ("id", "code", "path", "kind", "reason"):
+        if field not in entry:
+            raise BaselineError(
+                f"Baseline entry [{index}] missing required field '{field}'."
+            )
+
+    eid = entry["id"]
+    if not isinstance(eid, str) or not _BASELINE_ID_RE.match(eid):
+        raise BaselineError(
+            f"Baseline entry [{index}] has invalid id {eid!r}; "
+            "expected 16 lowercase hex chars."
+        )
+
+    for field in ("code", "path", "kind"):
+        val = entry[field]
+        if not isinstance(val, str) or not val.strip():
+            raise BaselineError(
+                f"Baseline entry [{index}] field '{field}' must be a non-empty string."
+            )
+
+    if not isinstance(entry["reason"], str):
+        raise BaselineError(
+            f"Baseline entry [{index}] field 'reason' must be a string."
+        )
+
+    if entry["code"] in _INVALID_EXCEPTION_CODES:
+        raise BaselineError(
+            f"Baseline entry [{index}] has code {entry['code']!r}, "
+            "which is never permitted in a baseline."
+        )
+
+
 def load_baseline(path):
     """Load and validate a baseline file. Raises BaselineError on problems."""
     full = path if os.path.isabs(path) else os.path.join(REPO_ROOT, path)
@@ -455,9 +493,8 @@ def load_baseline(path):
     entries = data.get("entries")
     if not isinstance(entries, list):
         raise BaselineError("Baseline 'entries' must be a list.")
-    for e in entries:
-        if not isinstance(e, dict) or "id" not in e:
-            raise BaselineError("Each baseline entry must be an object with an 'id'.")
+    for i, e in enumerate(entries):
+        _validate_baseline_entry(e, i)
     return data
 
 

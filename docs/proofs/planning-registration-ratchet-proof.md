@@ -118,13 +118,17 @@ python3 -m json.tool /tmp/planning-registration-report.json >/dev/null
 
 ## Test evidence
 
-- `merger/lenskit/tests/test_planning_registration_ratchet.py` (22 tests):
+- `merger/lenskit/tests/test_planning_registration_ratchet.py` (38 tests):
   scanner detection, line-number-independent ids, baseline toleration, new-drift
   blocking, resolved/stale handling, invalid/expired exemptions blocking (including
   the key invariant that `invalid_exceptions` do **not** appear in `new_findings`),
+  direct `partition_ratchet()` invariant test with unfiltered `run_checks()` output,
   valid exemption suppression, JSON report schema validation (scan/ratchet/
   update_baseline modes), committed-baseline validated against the baseline
-  contract schema, workflow static wiring, and exit-code-2 config errors.
+  contract schema, workflow static wiring, exit-code-2 config errors, and
+  `load_baseline()` runtime validation (empty code/path/kind → exit 2, invalid id
+  pattern → exit 2, missing required field → exit 2, INVALID_PLANNING_EXCEPTION
+  code in baseline → exit 2).
 - `scripts/docmeta/tests/test_check_planning_registration.py` (27 tests): the
   pre-existing scanner contract, unchanged and still green.
 - Real-repo ratchet run: exit 0, report validates against
