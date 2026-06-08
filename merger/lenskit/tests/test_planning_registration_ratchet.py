@@ -384,3 +384,98 @@ def test_committed_baseline_validates_against_schema():
     id_re = _re.compile(r"^[0-9a-f]{16}$")
     for e in data["entries"]:
         assert id_re.match(e["id"]), f"id {e['id']!r} does not match pattern"
+
+
+# --------------------------------------------------------------------------- #
+# 11. partition_ratchet() itself filters invalid exceptions (core invariant)
+# --------------------------------------------------------------------------- #
+
+
+def test_partition_ratchet_excludes_invalid_exceptions_directly(fake_repo):
+    """partition_ratchet() must not let INVALID_PLANNING_EXCEPTION into new/known,
+    even when called with raw run_checks() output (no pre-filtering by caller)."""
+    write(
+        fake_repo,
+        "docs/blueprints/bad-exempt.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n  reason: just because\n---\nBody",
+    )
+    findings = check_plan.run_checks()
+
+    # Confirm the invalid exception is present in the raw findings.
+    assert any(f["code"] == check_plan.CODE_INVALID_EXCEPTION for f in findings)
+
+    # Call partition_ratchet directly with unfiltered findings — simulates a
+    # caller that does not pre-filter, verifying the core invariant.
+    new, known, resolved = check_plan.partition_ratchet(findings, [])
+    assert new == []
+    assert known == []
+    assert resolved == []
+
+    # Build the report to confirm the exception surfaces correctly.
+    report = check_plan.build_report("ratchet", findings, None, False, new, known, resolved)
+    assert report["summary"]["new_findings"] == 0
+    assert report["summary"]["invalid_exceptions"] == 1
+    assert report["new_findings"] == []
+    assert len(report["invalid_exceptions"]) == 1
+    assert report["invalid_exceptions"][0]["code"] == check_plan.CODE_INVALID_EXCEPTION
+
+
+# --------------------------------------------------------------------------- #
+# 12. Schemas reject empty code / path / kind
+# --------------------------------------------------------------------------- #
+
+
+def test_report_schema_rejects_empty_code_path_kind():
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    base_finding = {
+        "id": "abcdef0123456789",
+        "code": "UNREGISTERED_PLANNING_ARTIFACT",
+        "path": "docs/blueprints/x.md",
+        "kind": "unregistered",
+    }
+
+    for field in ("code", "path", "kind"):
+        bad = dict(base_finding, **{field: ""})
+        bad_report = {
+            "schema": "lenskit.planning_registration_report.v1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "mode": "ratchet",
+            "summary": {
+                "current_findings": 1, "baseline_findings": 0,
+                "new_findings": 1, "known_findings": 0,
+                "resolved_findings": 0, "invalid_exceptions": 0,
+            },
+            "findings": [bad],
+            "baseline": {"path": None, "loaded": False},
+            "new_findings": [bad],
+            "known_findings": [],
+            "resolved_findings": [],
+            "invalid_exceptions": [],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(instance=bad_report, schema=schema)
+
+
+def test_baseline_schema_rejects_empty_code_path_kind():
+    schema = json.loads(BASELINE_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    base_entry = {
+        "id": "abcdef0123456789",
+        "code": "UNREGISTERED_PLANNING_ARTIFACT",
+        "path": "docs/blueprints/x.md",
+        "kind": "unregistered",
+        "reason": "test",
+    }
+
+    for field in ("code", "path", "kind"):
+        bad_entry = dict(base_entry, **{field: ""})
+        bad_baseline = {
+            "schema": "lenskit.planning_registration_baseline.v1",
+            "generated_at": "2026-01-01T00:00:00Z",
+            "generator": "scripts/docmeta/check_planning_registration.py",
+            "entries": [bad_entry],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(instance=bad_baseline, schema=schema)

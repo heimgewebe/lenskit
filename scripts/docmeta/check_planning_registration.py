@@ -462,12 +462,20 @@ def load_baseline(path):
 
 
 def partition_ratchet(current_findings, baseline_entries):
-    """Split current findings into known/new and compute resolved baseline entries."""
-    baseline_ids = {e["id"] for e in baseline_entries}
-    current_ids = {f["id"] for f in current_findings}
+    """Split current findings into known/new and compute resolved baseline entries.
 
-    new_findings = [f for f in current_findings if f["id"] not in baseline_ids]
-    known_findings = [f for f in current_findings if f["id"] in baseline_ids]
+    INVALID_PLANNING_EXCEPTION findings are excluded from new/known: they are a
+    separate blocking class handled via _invalid_exceptions(), never baselined.
+    """
+    ratchetable = [
+        f for f in current_findings
+        if f.get("code") not in _INVALID_EXCEPTION_CODES
+    ]
+    baseline_ids = {e["id"] for e in baseline_entries}
+    current_ids = {f["id"] for f in ratchetable}
+
+    new_findings = [f for f in ratchetable if f["id"] not in baseline_ids]
+    known_findings = [f for f in ratchetable if f["id"] in baseline_ids]
     resolved_findings = [
         dict(e) for e in baseline_entries if e["id"] not in current_ids
     ]
@@ -616,9 +624,8 @@ def main(argv=None):
         except BaselineError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 2
-        ratchetable = [f for f in findings if f["code"] not in _INVALID_EXCEPTION_CODES]
         new_findings, known_findings, resolved_findings = partition_ratchet(
-            ratchetable, baseline.get("entries", []))
+            findings, baseline.get("entries", []))
         report = build_report("ratchet", findings, args.baseline, True,
                               new_findings, known_findings, resolved_findings)
         invalid = report["invalid_exceptions"]
