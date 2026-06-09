@@ -1129,3 +1129,66 @@ def test_update_baseline_report_contains_written_baseline_entries(fake_repo, tmp
     assert exit_code == 0
     assert report["summary"]["written_baseline_entries"] == 1
     jsonschema.validate(instance=report, schema=schema)
+
+
+# --------------------------------------------------------------------------- #
+# 24. Frontmatter parser hardening: inline comments and multiline
+# --------------------------------------------------------------------------- #
+
+
+def test_inline_comment_after_quoted_expires_does_not_cause_bad_date(fake_repo, tmp_path):
+    """An inline comment after a quoted expires value must not trigger exempt_bad_date."""
+    write(
+        fake_repo,
+        "docs/blueprints/inline-expires.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n"
+        '  reason: "temporary exception" # explanation\n'
+        "  owner: ops\n"
+        '  expires: "2999-12-31" # end of year\n'
+        "---\nBody",
+    )
+    bl = tmp_path / "baseline.json"
+    write_baseline(bl, [])
+    exit_code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert exit_code == 0, "Inline comment after quoted expires must not block"
+
+
+def test_hash_inside_quotes_preserved_through_ratchet(fake_repo, tmp_path):
+    """'#' inside quoted values must not be treated as a comment start."""
+    write(
+        fake_repo,
+        "docs/blueprints/hash-in-val.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n"
+        '  reason: "temporary # still reason"\n'
+        '  owner: "ops#team"\n'
+        '  expires: "2999-12-31"\n'
+        "---\nBody",
+    )
+    bl = tmp_path / "baseline.json"
+    write_baseline(bl, [])
+    exit_code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert exit_code == 0, "'#' inside quotes must not truncate the value"
+
+
+def test_invalid_exemption_suggestion_mentions_single_line_only(fake_repo):
+    """Suggestion for an invalid exemption must mention single-line scalar support."""
+    write(
+        fake_repo,
+        "docs/blueprints/bad-exempt.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n"
+        "  reason: some reason\n"
+        "  owner: ops\n"
+        "  expires: not-a-date\n"
+        "---\nBody",
+    )
+    findings = check_plan.run_checks()
+    invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+    assert len(invalid) == 1
+    assert "single-line scalar values only" in invalid[0]["suggestion"]

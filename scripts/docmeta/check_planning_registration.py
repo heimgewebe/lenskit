@@ -278,11 +278,49 @@ def parse_markdown_meta(filepath):
     return meta
 
 
+def _strip_inline_comment(value: str) -> str:
+    """Remove a trailing inline comment and outer quotes from a YAML scalar string.
+
+    '#' is treated as a comment start only when it appears outside of single or
+    double quoted strings.  '#' inside quotes is part of the value.  Outer
+    matching single/double quotes are stripped from the returned value.
+
+    Examples::
+
+        'abc # comment'          -> 'abc'
+        '"abc" # comment'        -> 'abc'
+        '"abc # not comment"'    -> 'abc # not comment'
+        'ops#team'               -> 'ops#team'
+    """
+    in_single = False
+    in_double = False
+    for i, ch in enumerate(value):
+        if ch == "'" and not in_double:
+            in_single = not in_single
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+        elif ch == "#" and not in_single and not in_double:
+            # In YAML, an inline comment requires whitespace before '#'.
+            if i == 0 or value[i - 1] in (" ", "\t"):
+                value = value[:i].rstrip()
+                break
+    result = value.strip()
+    if (
+        len(result) >= 2
+        and result[0] == result[-1]
+        and result[0] in ('"', "'")
+    ):
+        result = result[1:-1]
+    return result
+
+
 def parse_planning_registration_block(filepath):
     """Extract the nested `planning_registration:` frontmatter mapping.
 
     Returns a dict of scalar key->value if the block is present, otherwise None.
     Only single-level nesting is supported (status/reason/owner/expires).
+    Multiline/block scalar values (YAML '>' and '|' indicators) are not
+    supported; their value will be the bare indicator character.
     """
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -325,7 +363,7 @@ def parse_planning_registration_block(filepath):
             break
         if ":" in stripped:
             k, v = stripped.split(":", 1)
-            block[k.strip()] = v.strip().strip('"\'')
+            block[k.strip()] = _strip_inline_comment(v)
     return block
 
 
@@ -416,7 +454,9 @@ def run_checks(today=None):
                     "reason": f"Invalid planning_registration exemption ({invalid_kind}).",
                     "suggestion": (
                         "An exempt block requires status: exempt with non-empty "
-                        "reason, owner and an unexpired ISO expires (YYYY-MM-DD)."
+                        "reason, owner and an unexpired ISO expires (YYYY-MM-DD). "
+                        "planning_registration supports simple single-line scalar "
+                        "values only; multiline/block scalar values are not supported."
                     ),
                     "source": "planning-registration",
                 })

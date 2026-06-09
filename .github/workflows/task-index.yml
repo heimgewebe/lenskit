@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json, os
+          import json
           path = "planning-registration-report.json"
           print("## Planning Registration Ratchet\n")
           try:

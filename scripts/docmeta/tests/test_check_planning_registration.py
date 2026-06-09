@@ -218,5 +218,99 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         self.assertIn("Report-only mode: findings do not fail CI", mock_stderr.getvalue())
 
 
+    # --- Inline comment stripping (unit) ---
+
+    def test_strip_inline_comment_bare_value_with_comment(self):
+        assert check_plan._strip_inline_comment("abc # comment") == "abc"
+
+    def test_strip_inline_comment_quoted_value_with_comment(self):
+        assert check_plan._strip_inline_comment('"abc" # comment') == "abc"
+
+    def test_strip_inline_comment_single_quoted_value_with_comment(self):
+        assert check_plan._strip_inline_comment("'abc' # comment") == "abc"
+
+    def test_strip_inline_comment_hash_inside_double_quotes_preserved(self):
+        assert check_plan._strip_inline_comment('"abc # not comment"') == "abc # not comment"
+
+    def test_strip_inline_comment_hash_inside_single_quotes_preserved(self):
+        assert check_plan._strip_inline_comment("'abc # not comment'") == "abc # not comment"
+
+    def test_strip_inline_comment_hash_without_spaces_in_bare_value(self):
+        assert check_plan._strip_inline_comment("ops#team") == "ops#team"
+
+    def test_strip_inline_comment_empty_value(self):
+        assert check_plan._strip_inline_comment("") == ""
+
+    def test_strip_inline_comment_leading_whitespace(self):
+        assert check_plan._strip_inline_comment("  exempt  # note") == "exempt"
+
+    # --- Inline comment integration: parse_planning_registration_block ---
+
+    def test_block_inline_comment_after_quoted_expires_ignored(self):
+        """'expires: "2099-12-31" # end' must parse as '2099-12-31', not trigger exempt_bad_date."""
+        self.write_file(
+            "docs/blueprints/inline-comment.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            '  reason: "temporary exception" # explanation\n'
+            "  owner: ops\n"
+            '  expires: "2099-12-31" # end of year\n'
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert invalid == [], f"Unexpected invalid exceptions: {invalid}"
+
+    def test_block_hash_inside_quotes_preserved(self):
+        """'#' inside quotes must remain part of the field value."""
+        self.write_file(
+            "docs/blueprints/hash-in-quotes.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            '  reason: "temporary # still reason"\n'
+            '  owner: "ops#team"\n'
+            '  expires: "2099-12-31"\n'
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert invalid == [], f"Unexpected invalid exceptions: {invalid}"
+
+    def test_block_inline_comment_after_unquoted_value(self):
+        """'owner: ops # team owner' must parse owner as 'ops'."""
+        self.write_file(
+            "docs/blueprints/unquoted-comment.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            "  reason: temporary\n"
+            "  owner: ops # team owner\n"
+            "  expires: 2099-12-31\n"
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert invalid == [], f"Unexpected invalid exceptions: {invalid}"
+
+    def test_block_multiline_suggestion_mentions_single_line_only(self):
+        """When an exemption is invalid, the suggestion must mention single-line-only."""
+        self.write_file(
+            "docs/blueprints/bad-exempt.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            "  reason: some reason\n"
+            "  owner: ops\n"
+            "  expires: not-a-date\n"
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert len(invalid) == 1
+        assert "single-line scalar values only" in invalid[0]["suggestion"]
+
+
 if __name__ == '__main__':
     unittest.main()
