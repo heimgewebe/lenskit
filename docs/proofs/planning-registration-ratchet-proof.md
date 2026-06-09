@@ -191,7 +191,7 @@ python3 -m json.tool /tmp/planning-registration-report.json >/dev/null
   missing required field, non-eligible code → exit 2), Bash-semantics tests under
   `set -euo pipefail` (prove `|| code=$?` captures exit codes without aborting;
   enforce step exits 2 on empty output; enforce step propagates codes 0/1/2 unchanged).
-- `scripts/docmeta/tests/test_check_planning_registration.py` (27 tests): the
+- `scripts/docmeta/tests/test_check_planning_registration.py`: the
   pre-existing scanner contract, unchanged and still green.
 - Real-repo ratchet run: exit 0, report validates against
   `merger/lenskit/contracts/planning-registration-report.v1.schema.json`.
