@@ -311,6 +311,98 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         assert len(invalid) == 1
         assert "single-line scalar values only" in invalid[0]["suggestion"]
 
+    # --- Block-scalar indicator detection ---
+
+    def test_block_scalar_reason_is_invalid_exception(self):
+        """reason: > must produce INVALID_PLANNING_EXCEPTION with exempt_unsupported_scalar."""
+        self.write_file(
+            "docs/blueprints/block-reason.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            "  reason: >\n"
+            "    long reason text\n"
+            "  owner: ops\n"
+            "  expires: 2999-12-31\n"
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert len(invalid) == 1, f"Expected 1 invalid exception, got: {invalid}"
+        assert invalid[0]["kind"] == "exempt_unsupported_scalar"
+        assert "single-line scalar values only" in invalid[0]["suggestion"]
+
+    def test_block_scalar_expires_is_invalid_exception(self):
+        """expires: | must also trigger exempt_unsupported_scalar, not exempt_bad_date."""
+        self.write_file(
+            "docs/blueprints/block-expires.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            "  reason: temporary\n"
+            "  owner: ops\n"
+            "  expires: |\n"
+            "    2999-12-31\n"
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert len(invalid) == 1
+        assert invalid[0]["kind"] == "exempt_unsupported_scalar"
+
+    def test_block_scalar_owner_is_invalid_exception(self):
+        """owner: >- must trigger exempt_unsupported_scalar."""
+        self.write_file(
+            "docs/blueprints/block-owner.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            "  reason: temporary\n"
+            "  owner: >-\n"
+            "    ops\n"
+            "  expires: 2999-12-31\n"
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert len(invalid) == 1
+        assert invalid[0]["kind"] == "exempt_unsupported_scalar"
+
+    def test_block_scalar_with_inline_comment_still_detected(self):
+        """'> # comment' strips to '>' which must still be detected as unsupported scalar."""
+        self.write_file(
+            "docs/blueprints/block-with-comment.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            "  reason: > # fold scalar\n"
+            "    long reason\n"
+            "  owner: ops\n"
+            "  expires: 2999-12-31\n"
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
+        assert len(invalid) == 1
+        assert invalid[0]["kind"] == "exempt_unsupported_scalar"
+
+    def test_block_scalar_does_not_enter_baseline(self):
+        """build_baseline() must not include an exempt_unsupported_scalar finding."""
+        self.write_file(
+            "docs/blueprints/block-scalar.md",
+            "---\nstatus: active\n"
+            "planning_registration:\n"
+            "  status: exempt\n"
+            "  reason: >\n"
+            "    long reason\n"
+            "  owner: ops\n"
+            "  expires: 2999-12-31\n"
+            "---\nBody",
+        )
+        findings = check_plan.run_checks()
+        baseline = check_plan.build_baseline(findings)
+        assert baseline["entries"] == []
+
 
 if __name__ == '__main__':
     unittest.main()

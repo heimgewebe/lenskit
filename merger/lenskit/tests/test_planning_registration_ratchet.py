@@ -1192,3 +1192,57 @@ def test_invalid_exemption_suggestion_mentions_single_line_only(fake_repo):
     invalid = [f for f in findings if f["code"] == check_plan.CODE_INVALID_EXCEPTION]
     assert len(invalid) == 1
     assert "single-line scalar values only" in invalid[0]["suggestion"]
+
+
+# --------------------------------------------------------------------------- #
+# 25. Block-scalar indicator detection (exempt_unsupported_scalar)
+# --------------------------------------------------------------------------- #
+
+
+def test_block_scalar_reason_blocks_ratchet_with_exit_1(fake_repo, tmp_path, capsys):
+    """reason: > with an otherwise-valid block must produce exit 1 (invalid exception)."""
+    write(
+        fake_repo,
+        "docs/blueprints/block-reason.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n"
+        "  reason: >\n"
+        "    long reason text\n"
+        "  owner: ops\n"
+        "  expires: 2999-12-31\n"
+        "---\nBody",
+    )
+    bl = tmp_path / "baseline.json"
+    write_baseline(bl, [])
+
+    exit_code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    out = capsys.readouterr().out
+    report = json.loads(out)
+
+    assert exit_code == 1, "Block-scalar reason must block with exit 1"
+    assert report["summary"]["invalid_exceptions"] == 1
+    assert report["summary"]["new_findings"] == 0
+    assert report["new_findings"] == []
+    assert len(report["invalid_exceptions"]) == 1
+    assert report["invalid_exceptions"][0]["kind"] == "exempt_unsupported_scalar"
+
+
+def test_block_scalar_finding_not_written_to_baseline(fake_repo):
+    """build_baseline() must not include an exempt_unsupported_scalar finding."""
+    write(
+        fake_repo,
+        "docs/blueprints/block-reason.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n"
+        "  reason: >\n"
+        "    long reason\n"
+        "  owner: ops\n"
+        "  expires: 2999-12-31\n"
+        "---\nBody",
+    )
+    findings = check_plan.run_checks()
+    assert any(f["code"] == check_plan.CODE_INVALID_EXCEPTION for f in findings)
+    baseline = check_plan.build_baseline(findings)
+    assert baseline["entries"] == []

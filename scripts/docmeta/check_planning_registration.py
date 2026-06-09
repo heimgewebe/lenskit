@@ -55,6 +55,12 @@ _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _ISO_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _BASELINE_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
+# YAML block-scalar fold/literal indicators.  A planning_registration field
+# whose value reduces to one of these after inline-comment stripping is a
+# multiline/block scalar that the parser cannot interpret; it must be rejected
+# rather than silently treated as a one-character value.
+_BLOCK_SCALAR_INDICATORS = frozenset({">", "|", ">-", ">+", "|-", "|+"})
+
 # Explicit scan patterns: (glob_pattern, extra_filter_fn_or_None)
 # extra_filter_fn receives (rel_path, meta) and returns True if the file should be checked
 _SCAN_PATTERNS = [
@@ -320,7 +326,7 @@ def parse_planning_registration_block(filepath):
     Returns a dict of scalar key->value if the block is present, otherwise None.
     Only single-level nesting is supported (status/reason/owner/expires).
     Multiline/block scalar values (YAML '>' and '|' indicators) are not
-    supported; their value will be the bare indicator character.
+    supported; validate_exemption() will reject them as exempt_unsupported_scalar.
     """
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -389,6 +395,15 @@ def validate_exemption(block, today=None):
     missing = [k for k in ("reason", "owner", "expires") if not (block.get(k) or "").strip()]
     if missing:
         return (False, "exempt_missing_fields")
+
+    # Block-scalar fold/literal indicators are not supported as field values.
+    # Detect them here so they produce a stable, distinct kind rather than
+    # falling through to a misleading exempt_bad_date or exempt_missing_fields.
+    if any(
+        (block.get(f) or "").strip() in _BLOCK_SCALAR_INDICATORS
+        for f in ("reason", "owner", "expires")
+    ):
+        return (False, "exempt_unsupported_scalar")
 
     expires = block["expires"].strip().strip('"\'')
     if not _ISO_DATE_RE.match(expires):
