@@ -37,7 +37,7 @@
             "pattern": "^[0-9a-f]{16}$",
             "description": "Stable finding id: sha256(code\\0normalized_path\\0kind)[:16]."
           },
-          "code": {"type": "string", "minLength": 1},
+          "code": {"type": "string", "const": "UNREGISTERED_PLANNING_ARTIFACT"},
           "path": {"type": "string", "minLength": 1},
           "kind": {"type": "string", "minLength": 1},
           "reason": {"type": "string"}

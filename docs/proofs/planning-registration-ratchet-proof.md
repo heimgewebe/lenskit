@@ -62,6 +62,14 @@ Rules:
   tolerated findings, deterministically sorted by `(path, code, id)`. It may be
   empty; the ratchet still works. The initial scan of this repo produced **0**
   findings, so the committed baseline is empty.
+- **Baseline eligibility**: only `UNREGISTERED_PLANNING_ARTIFACT` findings are
+  written to or accepted from a baseline. `CONTROL_FILE_MISSING` and
+  `CONTROL_FILE_PARSE_ERROR` signal a broken governance structure and must be
+  fixed, not grandfathered. `INVALID_PLANNING_EXCEPTION` is handled as a
+  separate blocking class and is never eligible. A baseline entry with a
+  non-eligible code causes `load_baseline()` to raise `BaselineError` → exit 2.
+  The baseline JSON schema enforces this with `"const": "UNREGISTERED_PLANNING_ARTIFACT"`
+  on the `entries[].code` field.
 - `--ratchet` partitions the current scan against the baseline:
   - `known_findings`: id present in baseline → tolerated.
   - `new_findings`: genuine new drift, id absent from baseline → **blocking**.
@@ -118,17 +126,21 @@ python3 -m json.tool /tmp/planning-registration-report.json >/dev/null
 
 ## Test evidence
 
-- `merger/lenskit/tests/test_planning_registration_ratchet.py` (38 tests):
+- `merger/lenskit/tests/test_planning_registration_ratchet.py` (43 tests):
   scanner detection, line-number-independent ids, baseline toleration, new-drift
   blocking, resolved/stale handling, invalid/expired exemptions blocking (including
   the key invariant that `invalid_exceptions` do **not** appear in `new_findings`),
   direct `partition_ratchet()` invariant test with unfiltered `run_checks()` output,
   valid exemption suppression, JSON report schema validation (scan/ratchet/
   update_baseline modes), committed-baseline validated against the baseline
-  contract schema, workflow static wiring, exit-code-2 config errors, and
+  contract schema, workflow static wiring, exit-code-2 config errors,
   `load_baseline()` runtime validation (empty code/path/kind → exit 2, invalid id
-  pattern → exit 2, missing required field → exit 2, INVALID_PLANNING_EXCEPTION
-  code in baseline → exit 2).
+  pattern → exit 2, missing required field → exit 2, non-eligible code in baseline
+  → exit 2), and baseline eligibility enforcement (`build_baseline()` retains only
+  `UNREGISTERED_PLANNING_ARTIFACT`; `CONTROL_FILE_MISSING`,
+  `CONTROL_FILE_PARSE_ERROR`, and `INVALID_PLANNING_EXCEPTION` are excluded at
+  write time and rejected at load time; baseline schema `const` rejects
+  non-eligible codes).
 - `scripts/docmeta/tests/test_check_planning_registration.py` (27 tests): the
   pre-existing scanner contract, unchanged and still green.
 - Real-repo ratchet run: exit 0, report validates against

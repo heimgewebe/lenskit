@@ -31,6 +31,11 @@ CODE_CONTROL_FILE_PARSE_ERROR = "CONTROL_FILE_PARSE_ERROR"
 # never tolerated via baseline).
 _INVALID_EXCEPTION_CODES = {CODE_INVALID_EXCEPTION}
 
+# Only UNREGISTERED_PLANNING_ARTIFACT findings may be written to or loaded from
+# a baseline. Control-file errors signal a broken governance structure and must
+# never be grandfathered; invalid exceptions are handled separately above.
+_BASELINE_ELIGIBLE_CODES = {CODE_UNREGISTERED}
+
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _BASELINE_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
@@ -417,13 +422,16 @@ def _baseline_entry(finding):
 def build_baseline(findings):
     """Build a deterministic baseline document from current findings.
 
-    Invalid exceptions are intentionally NOT baselined: a broken/expired
-    exemption must always be fixed, never grandfathered.
+    Only UNREGISTERED_PLANNING_ARTIFACT findings are eligible. Control-file
+    errors (CONTROL_FILE_MISSING, CONTROL_FILE_PARSE_ERROR) mean the governance
+    structure itself is broken and must be fixed, not tolerated. Invalid
+    exceptions (INVALID_PLANNING_EXCEPTION) must always be fixed, never
+    grandfathered.
     """
     entries = [
         _baseline_entry(f)
         for f in findings
-        if f["code"] not in _INVALID_EXCEPTION_CODES
+        if f["code"] in _BASELINE_ELIGIBLE_CODES
     ]
     entries.sort(key=lambda e: (e["path"], e["code"], e["id"]))
     return {
@@ -464,10 +472,10 @@ def _validate_baseline_entry(entry, index):
             f"Baseline entry [{index}] field 'reason' must be a string."
         )
 
-    if entry["code"] in _INVALID_EXCEPTION_CODES:
+    if entry["code"] not in _BASELINE_ELIGIBLE_CODES:
         raise BaselineError(
-            f"Baseline entry [{index}] has code {entry['code']!r}, "
-            "which is never permitted in a baseline."
+            f"Baseline entry [{index}] has code {entry['code']!r}; "
+            "only UNREGISTERED_PLANNING_ARTIFACT is permitted in a baseline."
         )
 
 

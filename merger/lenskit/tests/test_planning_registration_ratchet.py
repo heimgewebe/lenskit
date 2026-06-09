@@ -549,3 +549,81 @@ def test_baseline_entry_invalid_exception_code_is_config_error(fake_repo, tmp_pa
         ["--ratchet", "--baseline", str(bl), "--format", "json"]
     )
     assert code == 2
+
+
+# --------------------------------------------------------------------------- #
+# 14. Baseline eligibility: only UNREGISTERED_PLANNING_ARTIFACT is permitted
+# --------------------------------------------------------------------------- #
+
+
+def test_build_baseline_allows_only_unregistered_planning_artifacts():
+    """build_baseline() retains only UNREGISTERED_PLANNING_ARTIFACT findings."""
+    findings = [
+        {
+            "id": "abcdef0123456789",
+            "code": check_plan.CODE_UNREGISTERED,
+            "path": "docs/blueprints/x.md",
+            "kind": "unregistered",
+        },
+        {
+            "id": "bbbbbbbbbbbbbbbb",
+            "code": check_plan.CODE_INVALID_EXCEPTION,
+            "path": "docs/blueprints/y.md",
+            "kind": "invalid_exception",
+        },
+        {
+            "id": "cccccccccccccccc",
+            "code": check_plan.CODE_CONTROL_FILE_MISSING,
+            "path": "docs/tasks",
+            "kind": "control_file",
+        },
+        {
+            "id": "dddddddddddddddd",
+            "code": check_plan.CODE_CONTROL_FILE_PARSE_ERROR,
+            "path": "docs/tasks/board.md",
+            "kind": "control_file",
+        },
+    ]
+    result = check_plan.build_baseline(findings)
+    codes_in_baseline = [e["code"] for e in result["entries"]]
+    assert codes_in_baseline == [check_plan.CODE_UNREGISTERED]
+
+
+@pytest.mark.parametrize("non_eligible_code", [
+    check_plan.CODE_CONTROL_FILE_MISSING,
+    check_plan.CODE_CONTROL_FILE_PARSE_ERROR,
+    check_plan.CODE_INVALID_EXCEPTION,
+])
+def test_baseline_entry_non_eligible_code_is_config_error(fake_repo, tmp_path, non_eligible_code):
+    """load_baseline() rejects any code that is not UNREGISTERED_PLANNING_ARTIFACT."""
+    bad = dict(_VALID_ENTRY, code=non_eligible_code)
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_make_baseline([bad]), encoding="utf-8")
+    exit_code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert exit_code == 2
+
+
+def test_baseline_schema_rejects_control_file_code():
+    """The baseline JSON schema enforces code = UNREGISTERED_PLANNING_ARTIFACT."""
+    schema = json.loads(BASELINE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    for bad_code in [
+        check_plan.CODE_CONTROL_FILE_MISSING,
+        check_plan.CODE_CONTROL_FILE_PARSE_ERROR,
+        check_plan.CODE_INVALID_EXCEPTION,
+    ]:
+        bad_baseline = {
+            "schema": "lenskit.planning_registration_baseline.v1",
+            "generated_at": "2026-01-01T00:00:00Z",
+            "generator": "scripts/docmeta/check_planning_registration.py",
+            "entries": [{
+                "id": "abcdef0123456789",
+                "code": bad_code,
+                "path": "docs/blueprints/x.md",
+                "kind": "unregistered",
+                "reason": "test",
+            }],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(instance=bad_baseline, schema=schema)
