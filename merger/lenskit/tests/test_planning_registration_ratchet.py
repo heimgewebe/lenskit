@@ -1176,6 +1176,57 @@ def test_hash_inside_quotes_preserved_through_ratchet(fake_repo, tmp_path):
     assert exit_code == 0, "'#' inside quotes must not truncate the value"
 
 
+def test_owner_nospace_hash_with_trailing_comment_is_valid(fake_repo, tmp_path):
+    """owner: ops#team # inline comment — the '#' without preceding whitespace is
+    not a comment start, so the value stays 'ops#team'; the space-prefixed '#' IS
+    a comment start and is stripped.  The exemption must be valid (exit 0)."""
+    write(
+        fake_repo,
+        "docs/blueprints/owner-nospace-hash.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n"
+        "  reason: temporary accepted drift\n"
+        "  owner: ops#team # inline comment\n"
+        "  expires: 2999-12-31\n"
+        "---\nBody",
+    )
+    bl = tmp_path / "baseline.json"
+    write_baseline(bl, [])
+    exit_code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    assert exit_code == 0, "ops#team owner with trailing inline comment must yield valid exemption"
+
+
+def test_expires_nospace_hash_is_bad_date(fake_repo, tmp_path, capsys):
+    """expires: 2099-12-31#no-space — '#' without preceding whitespace is not a
+    comment, so the value is '2099-12-31#no-space', which is not a valid ISO date.
+    The ratchet must block with exit 1 (invalid_exception / exempt_bad_date)."""
+    write(
+        fake_repo,
+        "docs/blueprints/expires-nospace-hash.md",
+        "---\nstatus: active\nplanning_registration:\n"
+        "  status: exempt\n"
+        "  reason: temporary accepted drift\n"
+        "  owner: ops\n"
+        "  expires: 2099-12-31#no-space\n"
+        "---\nBody",
+    )
+    bl = tmp_path / "baseline.json"
+    write_baseline(bl, [])
+    import io, json as _json
+    out = io.StringIO()
+    with __import__("unittest.mock", fromlist=["patch"]).patch("sys.stdout", out):
+        exit_code = check_plan.main(
+            ["--ratchet", "--baseline", str(bl), "--format", "json"]
+        )
+    report = _json.loads(out.getvalue())
+    assert exit_code == 1, "no-space hash in expires must produce exit 1"
+    assert len(report["invalid_exceptions"]) == 1, "must have exactly one invalid exception"
+    assert report["invalid_exceptions"][0]["kind"] == "exempt_bad_date"
+    assert report["new_findings"] == [], "invalid exceptions must not appear in new_findings"
+
+
 def test_invalid_exemption_suggestion_mentions_single_line_only(fake_repo):
     """Suggestion for an invalid exemption must mention single-line scalar support."""
     write(

@@ -45,14 +45,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json
+          import json, sys
           path = "planning-registration-report.json"
           print("## Planning Registration Ratchet\n")
           try:
               with open(path, encoding="utf-8") as fh:
                   report = json.load(fh)
           except Exception as exc:  # noqa: BLE001 - summary must never crash the job
-              print(f"::warning::Planning registration report unavailable: {exc}")
+              print(f"::warning::Planning registration report unavailable: {exc}", file=sys.stderr)
+              print(f"Report unavailable: `{exc}`")
               raise SystemExit(0)
           s = report.get("summary", {})
           print(f"- mode: `{report.get('mode')}`")

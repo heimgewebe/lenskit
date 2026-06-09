@@ -130,7 +130,7 @@ Rules:
      code 1 (new drift) or code 2 (config error).
 
 Result: Report and summary are always published; the gate blocks iff the ratchet
-produced new drift or a config error.
+produced new drift, invalid exceptions, or a control/config error.
 
 No network or GitHub-API dependency; no time-of-day logic in the gate.
 
@@ -206,6 +206,11 @@ python3 -m json.tool /tmp/planning-registration-report.json >/dev/null
   planning-doc location outside the known globs is out of scope until added.
 - Resolved/stale baseline entries are surfaced but not auto-pruned.
 - Invalid exemptions block but are not auto-fixed.
+- Tab characters in `planning_registration:` block indentation are not detected
+  or rejected; YAML prohibits tabs in indentation, so this is an authoring error.
+  A malformed tab-indented block may be silently missed (not parsed as an
+  exemption), which is conservative (drift detected rather than falsely exempted).
+  Full YAML parsing is deferred to a follow-up parser-hardening task.
 
 ## Follow-up
 
@@ -214,5 +219,6 @@ python3 -m json.tool /tmp/planning-registration-report.json >/dev/null
 - Optionally widen scan coverage as new planning-doc locations appear.
 - Promotion of additional planning-doc types into the `doc_type` filter set.
 
-This task controls known drift and blocks new drift; it is **not** a claim that
-every planning artifact is perfectly registered.
+This task controls known drift and blocks new drift, invalid exceptions, and
+control/config errors; it is **not** a claim that every planning artifact is
+perfectly registered.

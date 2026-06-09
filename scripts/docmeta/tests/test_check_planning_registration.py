@@ -327,6 +327,14 @@ class TestCheckPlanningRegistration(unittest.TestCase):
     def test_strip_inline_comment_hash_without_spaces_in_bare_value(self):
         assert check_plan._strip_inline_comment("ops#team") == "ops#team"
 
+    def test_strip_inline_comment_nospace_hash_then_space_hash_comment(self):
+        # First '#' has no preceding whitespace → not a comment; second has a space → comment.
+        assert check_plan._strip_inline_comment("ops#team # inline comment") == "ops#team"
+
+    def test_strip_inline_comment_nospace_hash_in_date(self):
+        # '#' without preceding whitespace inside a date-like value → preserved verbatim.
+        assert check_plan._strip_inline_comment("2099-12-31#no-space") == "2099-12-31#no-space"
+
     def test_strip_inline_comment_empty_value(self):
         assert check_plan._strip_inline_comment("") == ""
 
