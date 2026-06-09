@@ -31,12 +31,27 @@ CODE_CONTROL_FILE_PARSE_ERROR = "CONTROL_FILE_PARSE_ERROR"
 # never tolerated via baseline).
 _INVALID_EXCEPTION_CODES = {CODE_INVALID_EXCEPTION}
 
+# Control-file errors: the tool cannot read/parse its own control structure.
+# These always block hard (exit 2) and are never baseline-eligible.
+_CONTROL_FILE_CODES = {CODE_CONTROL_FILE_MISSING, CODE_CONTROL_FILE_PARSE_ERROR}
+
+# Codes excluded from the ratchet partition (new/known): each is handled by its
+# own dedicated blocking class, never mixed into ordinary drift.
+_NON_RATCHETABLE_CODES = _INVALID_EXCEPTION_CODES | _CONTROL_FILE_CODES
+
 # Only UNREGISTERED_PLANNING_ARTIFACT findings may be written to or loaded from
 # a baseline. Control-file errors signal a broken governance structure and must
 # never be grandfathered; invalid exceptions are handled separately above.
 _BASELINE_ELIGIBLE_CODES = {CODE_UNREGISTERED}
 
+# Allowed top-level / per-entry fields, mirroring the baseline contract's
+# additionalProperties:false. Enforced at runtime because the CI runner does not
+# install jsonschema; the contract schema is validated in tests instead.
+_BASELINE_TOP_FIELDS = {"schema", "generated_at", "generator", "entries"}
+_BASELINE_ENTRY_FIELDS = {"id", "code", "path", "kind", "reason"}
+
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ISO_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _BASELINE_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
 # Explicit scan patterns: (glob_pattern, extra_filter_fn_or_None)
@@ -453,6 +468,12 @@ def _validate_baseline_entry(entry, index):
                 f"Baseline entry [{index}] missing required field '{field}'."
             )
 
+    extra = set(entry) - _BASELINE_ENTRY_FIELDS
+    if extra:
+        raise BaselineError(
+            f"Baseline entry [{index}] has unexpected field(s): {sorted(extra)}."
+        )
+
     eid = entry["id"]
     if not isinstance(eid, str) or not _BASELINE_ID_RE.match(eid):
         raise BaselineError(
@@ -478,6 +499,16 @@ def _validate_baseline_entry(entry, index):
             "only UNREGISTERED_PLANNING_ARTIFACT is permitted in a baseline."
         )
 
+    # ID integrity: the id must be reconstructible from code/path/kind. A formally
+    # well-formed but computationally wrong id would let a finding be tolerated
+    # under a foreign identity — a hand-edited or forged baseline must be rejected.
+    expected = compute_finding_id(entry["code"], entry["path"], entry["kind"])
+    if eid != expected:
+        raise BaselineError(
+            f"Baseline entry [{index}] id {eid!r} does not match the id computed "
+            f"from its code/path/kind ({expected!r}); baseline is hand-edited or corrupt."
+        )
+
 
 def load_baseline(path):
     """Load and validate a baseline file. Raises BaselineError on problems."""
@@ -494,27 +525,59 @@ def load_baseline(path):
 
     if not isinstance(data, dict):
         raise BaselineError("Baseline root must be an object.")
+
+    extra = set(data) - _BASELINE_TOP_FIELDS
+    if extra:
+        raise BaselineError(
+            f"Baseline has unexpected top-level field(s): {sorted(extra)}."
+        )
+
     if data.get("schema") != BASELINE_SCHEMA:
         raise BaselineError(
             f"Baseline schema mismatch: expected {BASELINE_SCHEMA!r}, got {data.get('schema')!r}."
         )
+    if data.get("generator") != GENERATOR:
+        raise BaselineError(
+            f"Baseline generator mismatch: expected {GENERATOR!r}, got {data.get('generator')!r}."
+        )
+    gen_at = data.get("generated_at")
+    if not isinstance(gen_at, str) or not _ISO_DATETIME_RE.match(gen_at):
+        raise BaselineError(
+            "Baseline 'generated_at' must be an ISO-8601 UTC timestamp "
+            f"(YYYY-MM-DDThh:mm:ssZ); got {gen_at!r}."
+        )
+
     entries = data.get("entries")
     if not isinstance(entries, list):
         raise BaselineError("Baseline 'entries' must be a list.")
     for i, e in enumerate(entries):
         _validate_baseline_entry(e, i)
+
+    ids = [e["id"] for e in entries]
+    seen = set()
+    dupes = sorted({i for i in ids if i in seen or seen.add(i)})
+    if dupes:
+        raise BaselineError(f"Baseline contains duplicate entry id(s): {dupes}.")
+
+    keys = [(e["path"], e["code"], e["id"]) for e in entries]
+    if keys != sorted(keys):
+        raise BaselineError(
+            "Baseline entries are not in canonical order (path, code, id); "
+            "regenerate with --update-baseline."
+        )
     return data
 
 
 def partition_ratchet(current_findings, baseline_entries):
     """Split current findings into known/new and compute resolved baseline entries.
 
-    INVALID_PLANNING_EXCEPTION findings are excluded from new/known: they are a
-    separate blocking class handled via _invalid_exceptions(), never baselined.
+    INVALID_PLANNING_EXCEPTION and CONTROL_FILE_* findings are excluded from
+    new/known: each is a separate blocking class (handled via _invalid_exceptions()
+    / _control_errors()), never baselined and never counted as ordinary drift.
     """
     ratchetable = [
         f for f in current_findings
-        if f.get("code") not in _INVALID_EXCEPTION_CODES
+        if f.get("code") not in _NON_RATCHETABLE_CODES
     ]
     baseline_ids = {e["id"] for e in baseline_entries}
     current_ids = {f["id"] for f in ratchetable}
@@ -532,9 +595,14 @@ def _invalid_exceptions(findings):
     return [f for f in findings if f["code"] in _INVALID_EXCEPTION_CODES]
 
 
+def _control_errors(findings):
+    return [f for f in findings if f["code"] in _CONTROL_FILE_CODES]
+
+
 def build_report(mode, findings, baseline_path, baseline_loaded,
                  new_findings, known_findings, resolved_findings):
     invalid = _invalid_exceptions(findings)
+    control = _control_errors(findings)
     baseline_count = len(known_findings) + len(resolved_findings)
     return {
         "schema": REPORT_SCHEMA,
@@ -547,6 +615,7 @@ def build_report(mode, findings, baseline_path, baseline_loaded,
             "known_findings": len(known_findings),
             "resolved_findings": len(resolved_findings),
             "invalid_exceptions": len(invalid),
+            "control_errors": len(control),
         },
         "findings": findings,
         "baseline": {
@@ -557,6 +626,7 @@ def build_report(mode, findings, baseline_path, baseline_loaded,
         "known_findings": known_findings,
         "resolved_findings": resolved_findings,
         "invalid_exceptions": invalid,
+        "control_errors": control,
     }
 
 
@@ -575,6 +645,11 @@ def _render_human(report, stream):
     print(f"  new findings:        {s['new_findings']}", file=stream)
     print(f"  resolved findings:   {s['resolved_findings']}", file=stream)
     print(f"  invalid exceptions:  {s['invalid_exceptions']}", file=stream)
+    print(f"  control errors:      {s.get('control_errors', 0)}", file=stream)
+    if report.get("control_errors"):
+        print("Control-file errors (blocking, exit 2):", file=stream)
+        for f in report["control_errors"]:
+            print(f"  x {f['code']} {f['path']} [{f['id']}]: {f['reason']}", file=stream)
     if report["new_findings"]:
         print("New findings (blocking):", file=stream)
         for f in report["new_findings"]:
@@ -641,6 +716,28 @@ def main(argv=None):
 
     # --- update-baseline mode ---
     if args.update_baseline:
+        # Refuse to write a baseline over a broken governance structure. A control
+        # error (exit 2) means findings are unreliable; an invalid exception (exit 1)
+        # must be fixed, never grandfathered. In both cases NO baseline is written,
+        # so a defective state can never be silently stamped "resolved".
+        control = _control_errors(findings)
+        invalid = _invalid_exceptions(findings)
+        if control or invalid:
+            report = build_report("update_baseline", findings, args.baseline, False,
+                                  new_findings=[], known_findings=[], resolved_findings=[])
+            if args.format == "json":
+                print(json.dumps(report, indent=2, ensure_ascii=False))
+                _render_human(report, sys.stderr)
+            else:
+                _render_human(report, sys.stdout)
+            if control:
+                print("update-baseline: control-file error(s) present; baseline not written.",
+                      file=sys.stderr)
+                return 2
+            print("update-baseline: invalid exception(s) present; baseline not written.",
+                  file=sys.stderr)
+            return 1
+
         baseline = build_baseline(findings)
         full = (args.baseline if os.path.isabs(args.baseline)
                 else os.path.join(REPO_ROOT, args.baseline))
@@ -674,12 +771,19 @@ def main(argv=None):
         report = build_report("ratchet", findings, args.baseline, True,
                               new_findings, known_findings, resolved_findings)
         invalid = report["invalid_exceptions"]
+        control = report["control_errors"]
         if args.format == "json":
             print(json.dumps(report, indent=2, ensure_ascii=False))
             _render_human(report, sys.stderr)
         else:
             _render_human(report, sys.stdout)
 
+        # Control-file errors mean the tool cannot trust its own control structure,
+        # so the ratchet comparison is unreliable: fail config-style (exit 2).
+        if control:
+            print("Ratchet: control-file error(s) — cannot read control structure; "
+                  "treating as config error.", file=sys.stderr)
+            return 2
         should_block = bool(new_findings) or bool(invalid)
         if should_block:
             print("Ratchet: blocking — new findings or invalid exceptions present.",

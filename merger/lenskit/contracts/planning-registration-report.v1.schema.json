@@ -47,7 +47,8 @@
         "new_findings": {"type": "integer", "minimum": 0},
         "known_findings": {"type": "integer", "minimum": 0},
         "resolved_findings": {"type": "integer", "minimum": 0},
-        "invalid_exceptions": {"type": "integer", "minimum": 0}
+        "invalid_exceptions": {"type": "integer", "minimum": 0},
+        "control_errors": {"type": "integer", "minimum": 0}
       }
     },
     "baseline": {
@@ -77,6 +78,11 @@
     },
     "invalid_exceptions": {
       "type": "array",
+      "items": {"$ref": "#/definitions/finding"}
+    },
+    "control_errors": {
+      "type": "array",
+      "description": "Control-file errors (missing/unparseable task-control files). Always blocking (exit 2); never baseline-eligible.",
       "items": {"$ref": "#/definitions/finding"}
     }
   },

@@ -70,14 +70,39 @@ Rules:
   non-eligible code causes `load_baseline()` to raise `BaselineError` → exit 2.
   The baseline JSON schema enforces this with `"const": "UNREGISTERED_PLANNING_ARTIFACT"`
   on the `entries[].code` field.
+- **Baseline integrity (load-time, `load_baseline()`)**: because the CI runner
+  does not install `jsonschema`, the runtime loader enforces the baseline
+  contract invariants manually (the contract schema is still validated in
+  tests). On any violation it raises `BaselineError` → **exit 2**:
+  - `schema` and `generator` must equal the contract constants; `generated_at`
+    must be an ISO-8601 UTC timestamp (`YYYY-MM-DDThh:mm:ssZ`).
+  - No unexpected top-level fields and no unexpected per-entry fields
+    (mirrors `additionalProperties: false`).
+  - Every entry carries all required fields with non-empty `code`/`path`/`kind`.
+  - **ID integrity**: `entry["id"]` must equal
+    `compute_finding_id(code, path, kind)`. A pattern-valid but computationally
+    wrong id is rejected, so a hand-edited/forged baseline cannot tolerate a
+    finding under a foreign identity.
+  - No duplicate entry ids; entries must already be in canonical
+    `(path, code, id)` order.
 - `--ratchet` partitions the current scan against the baseline:
   - `known_findings`: id present in baseline → tolerated.
   - `new_findings`: genuine new drift, id absent from baseline → **blocking**.
-    `invalid_exceptions` are **not** counted here; they are a separate blocking class.
+    `invalid_exceptions` and `control_errors` are **not** counted here; each is a
+    separate blocking class.
   - `resolved_findings`: baseline id absent from the current scan → stale,
     **non-blocking** (surfaced for later baseline pruning).
-  - `invalid_exceptions`: kaputte/abgelaufene Frontmatter-Ausnahmen, always
-    **blocking**, regardless of baseline, **never** in `new_findings`.
+  - `invalid_exceptions`: broken/expired frontmatter exemptions, always
+    **blocking** (exit 1), regardless of baseline, **never** in `new_findings`.
+  - `control_errors`: `CONTROL_FILE_MISSING` / `CONTROL_FILE_PARSE_ERROR`. The
+    tool cannot read its own control structure, so the ratchet comparison is
+    unreliable: these **always block with exit 2** (config-style), are excluded
+    from `new`/`known`, and are never baseline-eligible. Surfaced in the report
+    under the optional `control_errors` array.
+- **`--update-baseline` never grandfathers a defective state**: if the current
+  scan contains control errors it exits **2** and writes nothing; if it contains
+  invalid exceptions it exits **1** and writes nothing. A baseline is written
+  only from a clean scan, so a broken structure can never be stamped "resolved".
 - CI does not enforce "all registered". It enforces **no new drift**.
 
 ## CI behavior
@@ -112,8 +137,8 @@ No network or GitHub-API dependency; no time-of-day logic in the gate.
 | Code | Meaning |
 | ---- | ------- |
 | 0 | No new blocking findings (ratchet), or scan/update-baseline success. |
-| 1 | Ratchet: new findings or invalid exceptions present. |
-| 2 | Usage/config error: invalid baseline, schema mismatch, broken input, mutually exclusive flags (`--ratchet` + `--update-baseline`), or `--ratchet`/`--update-baseline` without `--baseline`. |
+| 1 | Ratchet: new findings or invalid exceptions present. `--update-baseline`: invalid exceptions present (baseline not written). |
+| 2 | Usage/config error: invalid baseline (schema/generator/timestamp mismatch, unexpected fields, bad/forged entry id, duplicate ids, non-canonical order), broken input, mutually exclusive flags, missing `--baseline`, **or control-file errors** (the tool cannot read its own control structure) in ratchet/update-baseline. |
 
 JSON (`--format json`) is emitted on **stdout only**; human-readable output goes
 to **stderr** in JSON mode so stdout stays parseable.
@@ -138,7 +163,7 @@ python3 -m json.tool /tmp/planning-registration-report.json >/dev/null
 
 ## Test evidence
 
-- `merger/lenskit/tests/test_planning_registration_ratchet.py` (50 tests):
+- `merger/lenskit/tests/test_planning_registration_ratchet.py` (67 tests):
   scanner detection, line-number-independent ids, baseline toleration, new-drift
   blocking, resolved/stale handling, invalid/expired exemptions blocking (including
   the key invariant that `invalid_exceptions` do **not** appear in `new_findings`),
@@ -148,15 +173,22 @@ python3 -m json.tool /tmp/planning-registration-report.json >/dev/null
   contract schema, baseline eligibility enforcement (`build_baseline()` retains only
   `UNREGISTERED_PLANNING_ARTIFACT`; control-file codes and invalid exceptions
   excluded at write time and rejected at load time; baseline schema `const`
-  rejects non-eligible codes), workflow static wiring (step-isolated YAML
-  assertions: ratchet step uses `python3 -m` module form, `code=0` init, `|| code=$?`
-  capture, and `GITHUB_OUTPUT` write; enforce step is fail-closed with explicit
-  missing-output check → exit 2 and `exit "${code}"` propagation), exit-code-2
-  config errors, `load_baseline()` runtime validation (empty code/path/kind → exit 2,
-  invalid id pattern → exit 2, missing required field → exit 2, non-eligible code
-  → exit 2), Bash-semantics tests under `set -euo pipefail` (prove `|| code=$?`
-  captures exit codes without aborting; enforce step exits 2 on empty output;
-  enforce step propagates codes 0/1/2 unchanged).
+  rejects non-eligible codes), **baseline load-time integrity** (forged/mismatched
+  entry id → exit 2; unexpected top-level field, wrong generator, malformed
+  `generated_at`, unexpected entry field, duplicate ids, non-canonical order →
+  exit 2; committed baseline loads under the hardened validator), **`--update-baseline`
+  refuses defective state** (invalid exception → exit 1 & no file written; control
+  error → exit 2 & no file written; invalid exception never grandfathered into
+  entries), **control-file errors as their own class** (ratchet exit 2, excluded
+  from `new`/`known` partition, surfaced in `control_errors`, report still validates
+  against schema), workflow static wiring (step-isolated YAML assertions: ratchet
+  step uses `python3 -m` module form, `code=0` init, `|| code=$?` capture, and
+  `GITHUB_OUTPUT` write; enforce step is fail-closed with explicit missing-output
+  check → exit 2 and `exit "${code}"` propagation), exit-code-2 config errors,
+  `load_baseline()` runtime validation (empty code/path/kind, invalid id pattern,
+  missing required field, non-eligible code → exit 2), Bash-semantics tests under
+  `set -euo pipefail` (prove `|| code=$?` captures exit codes without aborting;
+  enforce step exits 2 on empty output; enforce step propagates codes 0/1/2 unchanged).
 - `scripts/docmeta/tests/test_check_planning_registration.py` (27 tests): the
   pre-existing scanner contract, unchanged and still green.
 - Real-repo ratchet run: exit 0, report validates against

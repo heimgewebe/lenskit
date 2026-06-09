@@ -742,3 +742,197 @@ def test_bash_enforce_propagates_exit_code(code, expected_exit):
     )
     assert result.returncode == expected_exit, \
         f"code={code!r}: expected exit {expected_exit}, got {result.returncode}"
+
+
+# --------------------------------------------------------------------------- #
+# 16. Baseline integrity: ID consistency & contract invariants (load-time)
+# --------------------------------------------------------------------------- #
+
+
+def _raw_baseline(entries, **overrides):
+    """Build a baseline JSON string with optional top-level overrides."""
+    doc = {
+        "schema": "lenskit.planning_registration_baseline.v1",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "generator": "scripts/docmeta/check_planning_registration.py",
+        "entries": entries,
+    }
+    doc.update(overrides)
+    return json.dumps(doc)
+
+
+def test_baseline_id_must_match_computed_id(fake_repo, tmp_path, capsys):
+    """A pattern-valid but computationally wrong baseline id is a config error,
+    and must NOT let the finding be tolerated as known."""
+    write(fake_repo, "docs/blueprints/legacy.md", "---\nstatus: active\n---\nBody")
+    code = check_plan.CODE_UNREGISTERED
+    path = "docs/blueprints/legacy.md"
+    kind = "unregistered"
+    correct = check_plan.compute_finding_id(code, path, kind)
+    wrong = "0" * 16 if correct != "0" * 16 else "1" * 16
+    entry = {"id": wrong, "code": code, "path": path, "kind": kind, "reason": "forged"}
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_raw_baseline([entry]), encoding="utf-8")
+
+    exit_code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    err = capsys.readouterr().err
+    assert exit_code == 2
+    assert "does not match" in err and wrong in err
+
+
+def test_baseline_unexpected_top_level_field_blocks(fake_repo, tmp_path):
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_raw_baseline([], surprise=True), encoding="utf-8")
+    assert check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    ) == 2
+
+
+def test_baseline_wrong_generator_blocks(fake_repo, tmp_path):
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_raw_baseline([], generator="totally/wrong.py"), encoding="utf-8")
+    assert check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    ) == 2
+
+
+@pytest.mark.parametrize("bad_ts", ["", "2026-01-01", "not-a-date", "2026-01-01 00:00:00"])
+def test_baseline_bad_generated_at_blocks(fake_repo, tmp_path, bad_ts):
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_raw_baseline([], generated_at=bad_ts), encoding="utf-8")
+    assert check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    ) == 2
+
+
+def test_baseline_entry_unexpected_field_blocks(fake_repo, tmp_path):
+    path = "docs/blueprints/legacy.md"
+    eid = check_plan.compute_finding_id(check_plan.CODE_UNREGISTERED, path, "unregistered")
+    entry = {
+        "id": eid, "code": check_plan.CODE_UNREGISTERED, "path": path,
+        "kind": "unregistered", "reason": "legacy", "extra": "nope",
+    }
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_raw_baseline([entry]), encoding="utf-8")
+    assert check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    ) == 2
+
+
+def test_baseline_duplicate_ids_block(fake_repo, tmp_path):
+    path = "docs/blueprints/legacy.md"
+    eid = check_plan.compute_finding_id(check_plan.CODE_UNREGISTERED, path, "unregistered")
+    entry = {"id": eid, "code": check_plan.CODE_UNREGISTERED, "path": path,
+             "kind": "unregistered", "reason": "legacy"}
+    bl = tmp_path / "baseline.json"
+    bl.write_text(_raw_baseline([dict(entry), dict(entry)]), encoding="utf-8")
+    assert check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    ) == 2
+
+
+def test_baseline_unsorted_entries_block(fake_repo, tmp_path):
+    p1, p2 = "docs/blueprints/aaa.md", "docs/blueprints/bbb.md"
+    e1 = {"id": check_plan.compute_finding_id(check_plan.CODE_UNREGISTERED, p1, "unregistered"),
+          "code": check_plan.CODE_UNREGISTERED, "path": p1, "kind": "unregistered", "reason": ""}
+    e2 = {"id": check_plan.compute_finding_id(check_plan.CODE_UNREGISTERED, p2, "unregistered"),
+          "code": check_plan.CODE_UNREGISTERED, "path": p2, "kind": "unregistered", "reason": ""}
+    bl = tmp_path / "baseline.json"
+    # Deliberately reversed (bbb before aaa) -> not canonical order.
+    bl.write_text(_raw_baseline([e2, e1]), encoding="utf-8")
+    assert check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    ) == 2
+
+
+def test_committed_baseline_loads_under_strict_runtime_validation():
+    """The committed repo baseline must satisfy the hardened load-time invariants."""
+    data = check_plan.load_baseline(str(BASELINE_PATH))
+    assert data["schema"] == check_plan.BASELINE_SCHEMA
+    assert data["generator"] == check_plan.GENERATOR
+
+
+# --------------------------------------------------------------------------- #
+# 17. --update-baseline refuses to grandfather defective state
+# --------------------------------------------------------------------------- #
+
+
+def test_update_baseline_blocks_on_invalid_exception(fake_repo, tmp_path, capsys):
+    write(
+        fake_repo,
+        "docs/blueprints/bad-exempt.md",
+        "---\nstatus: active\nplanning_registration:\n  status: exempt\n  reason: x\n---\nBody",
+    )
+    bl = tmp_path / "baseline.json"
+    exit_code = check_plan.main(
+        ["--update-baseline", "--baseline", str(bl), "--format", "json"]
+    )
+    out = capsys.readouterr().out
+    report = json.loads(out)
+    assert exit_code == 1
+    assert report["summary"]["invalid_exceptions"] == 1
+    # The baseline must NOT be written: no "resolved" stamp on a broken structure.
+    assert not bl.exists()
+
+
+def test_update_baseline_does_not_grandfather_invalid_exception_into_entries(fake_repo, tmp_path):
+    write(
+        fake_repo,
+        "docs/blueprints/bad-exempt.md",
+        "---\nstatus: active\nplanning_registration:\n  status: exempt\n  reason: x\n---\nBody",
+    )
+    findings = check_plan.run_checks()
+    baseline = check_plan.build_baseline(findings)
+    assert baseline["entries"] == []
+
+
+# --------------------------------------------------------------------------- #
+# 18. Control-file errors: own blocking class, exit 2, never baseline-eligible
+# --------------------------------------------------------------------------- #
+
+
+def test_control_file_error_blocks_ratchet_with_exit_2(fake_repo, tmp_path, capsys):
+    (fake_repo / "docs/tasks/index.json").unlink()
+    bl = tmp_path / "baseline.json"
+    write_baseline(bl, [])
+
+    exit_code = check_plan.main(
+        ["--ratchet", "--baseline", str(bl), "--format", "json"]
+    )
+    report = json.loads(capsys.readouterr().out)
+    assert exit_code == 2
+    assert report["summary"]["control_errors"] >= 1
+    assert report["summary"]["new_findings"] == 0  # not misclassified as drift
+    assert any(
+        f["code"] == check_plan.CODE_CONTROL_FILE_MISSING for f in report["control_errors"]
+    )
+
+
+def test_control_file_error_blocks_update_baseline_with_exit_2(fake_repo, tmp_path):
+    (fake_repo / "docs/tasks/index.json").unlink()
+    bl = tmp_path / "baseline.json"
+    exit_code = check_plan.main(
+        ["--update-baseline", "--baseline", str(bl), "--format", "json"]
+    )
+    assert exit_code == 2
+    assert not bl.exists()
+
+
+def test_control_file_error_excluded_from_ratchet_partition(fake_repo):
+    (fake_repo / "docs/tasks/index.json").unlink()
+    findings = check_plan.run_checks()
+    assert any(f["code"] == check_plan.CODE_CONTROL_FILE_MISSING for f in findings)
+    new, known, resolved = check_plan.partition_ratchet(findings, [])
+    assert new == [] and known == []
+
+
+def test_ratchet_report_with_control_errors_validates_against_schema(fake_repo, tmp_path, capsys):
+    (fake_repo / "docs/tasks/index.json").unlink()
+    bl = tmp_path / "baseline.json"
+    write_baseline(bl, [])
+    check_plan.main(["--ratchet", "--baseline", str(bl), "--format", "json"])
+    report = json.loads(capsys.readouterr().out)
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)
