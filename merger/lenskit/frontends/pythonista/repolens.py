@@ -295,18 +295,77 @@ except ImportError:
             SourceModeConflictError,
         )
     except ImportError:
+        # The remote-snapshot machinery needs the service package (git/network),
+        # so it stays unavailable here. The source-mode *control plane*, however,
+        # is pure logic with no dependencies — so we ship a local fallback rather
+        # than fail open. repoLens must never skip source-mode validation just
+        # because the service package is not importable.
         resolve_remote_ref = None
         materialize_remote_snapshot = None
         SourceStatus = None
-        validate_source_mode_request = None
 
-        # Fallback must stay a real exception type, not None: the ``except
-        # SourceModeConflictError`` below is dead code in this branch (it is
-        # guarded by ``validate_source_mode_request is not None``), but a None
-        # here makes that ``except`` clause un-catchable and trips static
-        # analysis. A never-raised subclass keeps the symbol well-typed.
-        class SourceModeConflictError(Exception):  # type: ignore[no-redef]
-            """Unavailable-import fallback; never raised (control plane is absent)."""
+        class SourceModeConflictError(ValueError):  # type: ignore[no-redef]
+            """Local fallback mirroring service.source_acquisition.SourceModeConflictError."""
+
+        def validate_source_mode_request(  # type: ignore[no-redef]
+            *,
+            repo_source_mode,
+            pre_pull,
+            plan_only,
+            remote_ref,
+            remote_ref_policy,
+        ):
+            """Local mirror of the central validator (kept in lockstep with it).
+
+            Pure logic, no I/O. Rejects the same contradictions /api/jobs does so a
+            headless repoLens run without the service package still fails closed.
+            """
+            allowed_modes = {None, "local_current", "local_ff", "remote_snapshot"}
+            if repo_source_mode not in allowed_modes:
+                raise SourceModeConflictError(f"unknown repo_source_mode: {repo_source_mode!r}")
+
+            has_remote_ref = bool(remote_ref and str(remote_ref).strip())
+            non_default_policy = remote_ref_policy is not None and remote_ref_policy != "upstream"
+
+            if repo_source_mode == "remote_snapshot":
+                if pre_pull is True:
+                    raise SourceModeConflictError(
+                        "remote_snapshot never mutates the local repo; pre_pull must not be true."
+                    )
+                return None
+
+            if has_remote_ref:
+                raise SourceModeConflictError(
+                    "remote_ref is only valid with repo_source_mode='remote_snapshot'."
+                )
+            if non_default_policy:
+                raise SourceModeConflictError(
+                    "a non-default remote_ref_policy is only valid with "
+                    "repo_source_mode='remote_snapshot'."
+                )
+
+            if repo_source_mode == "local_current":
+                if pre_pull is True:
+                    raise SourceModeConflictError(
+                        "local_current scans the working tree as-is and does not fast-forward; "
+                        "pre_pull must not be true."
+                    )
+                return None
+
+            if repo_source_mode == "local_ff":
+                if pre_pull is False:
+                    raise SourceModeConflictError(
+                        "local_ff implies a fast-forward pre-pull; pre_pull must not be false."
+                    )
+                if plan_only:
+                    raise SourceModeConflictError(
+                        "local_ff cannot be combined with plan_only: local_ff would fast-forward "
+                        "the local repo, but plan_only must not cause any local mutation."
+                    )
+                return None
+
+            # repo_source_mode is None → legacy; nothing further to validate.
+            return None
 
 
 def resolve_headless_source_mode(args) -> str:

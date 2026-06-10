@@ -35,15 +35,31 @@ def _load_source_acquisition_schema() -> dict:
     return json.loads(_SOURCE_ACQ_SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
+# Canonical sentinel credentials. If any of these survive verbatim in a report,
+# redaction failed — the weaker "'secret' not in blob OR '[REDACTED]' in blob"
+# could pass while a real token still leaked, so we assert the exact values absent.
+_CREDENTIAL_SENTINELS = (
+    "rlens-user",
+    "rlens-password-123",
+    "ghp_testtoken_123456",
+    "secret-token-abc",
+)
+
+
+def _assert_no_raw_credentials(report: dict, *extra_sentinels: str) -> None:
+    blob = json.dumps(report)
+    for value in (*_CREDENTIAL_SENTINELS, *extra_sentinels):
+        assert value not in blob, f"raw credential leaked into report: {value!r}"
+
+
 def _assert_source_acquisition_report_valid(report: dict) -> None:
     """Validate a written report against the v1 contract and its hard invariants."""
     schema = _load_source_acquisition_schema()
     jsonschema.Draft7Validator.check_schema(schema)
     jsonschema.validate(report, schema)
     assert report["schema"] == "lenskit.source_acquisition_report.v1"
-    blob = json.dumps(report)
-    # No raw credential userinfo may survive in the report.
-    assert "secret" not in blob.lower() or "[REDACTED]" in blob
+    # No known raw credential value may survive anywhere in the report.
+    _assert_no_raw_credentials(report)
     for repo in report["repos"]:
         # remote_snapshot never mutates the local repo.
         assert repo["local_repo_mutated"] is False
@@ -243,6 +259,36 @@ def test_remote_snapshot_failure_fails_job_and_writes_report(mock_job_store, tem
         report = json.loads((Path(art.merges_dir) / art.paths["source_acquisition_report"]).read_text())
         # Failure report still validates against the v1 contract.
         assert report["repos"][0]["status"] == SourceStatus.MISSING_REF
+        _assert_source_acquisition_report_valid(report)
+
+
+def test_remote_snapshot_report_redacts_credentials(mock_job_store, temp_hub):
+    # The report writer routes message/stderr through _safe_text (credential
+    # redaction). A result carrying raw userinfo must never leak it into the report.
+    runner = JobRunner(mock_job_store)
+    job = _make_job(temp_hub, ["repoA"], repo_source_mode="remote_snapshot", pre_pull=False,
+                    remote_ref_policy="upstream")
+    mock_job_store.get_job.return_value = job
+    cms = _patched()
+    with cms["scan"], cms["write"], cms["validate"], \
+         cms["plan"], cms["apply"], cms["self"], \
+         cms["materialize"] as materialize, cms["resolve_ref"], \
+         patch("merger.lenskit.service.runner.get_security_config") as mock_sec:
+        mock_sec.return_value.validate_path.side_effect = lambda x: x
+        raw_secret = "secret-token-abc"
+        leaky = _snap_result("repoA", None, status=SourceStatus.FETCH_FAILED)
+        leaky.message = f"fetch failed for https://rlens-user:{raw_secret}@host/repo.git"
+        leaky.stderr = f"fatal: authentication failed for https://{raw_secret}@host/repo.git"
+        materialize.return_value = leaky
+
+        runner._run_job(job.id)
+
+        art = mock_job_store.add_artifact.call_args_list[0][0][0]
+        report = json.loads((Path(art.merges_dir) / art.paths["source_acquisition_report"]).read_text())
+        # The raw token and userinfo are gone; the redaction marker is present.
+        _assert_no_raw_credentials(report, raw_secret)
+        blob = json.dumps(report)
+        assert "[REDACTED]" in blob
         _assert_source_acquisition_report_valid(report)
 
 

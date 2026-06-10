@@ -190,29 +190,40 @@ def resolve_effective_source_mode(req) -> str:
 
     Defensive: ``JobRequest`` already rejects contradictions at /api/jobs, but
     internal objects, stored jobs, ``model_construct()`` and tests can bypass
-    pydantic. An *explicit* ``local_ff`` + ``plan_only`` therefore raises here
-    rather than being silently smoothed to ``local_current`` — a silent coercion
-    would hide a contradictory intent.
+    pydantic. So an *explicit* mode is re-run through the same central
+    ``validate_source_mode_request`` the API uses — a contradictory state
+    (``local_ff`` + ``plan_only``, ``local_current`` + explicit ``pre_pull``,
+    an unknown mode, …) raises here rather than being silently smoothed away.
     """
     explicit = getattr(req, "repo_source_mode", None)
     plan_only = bool(getattr(req, "plan_only", False))
-    if explicit == "remote_snapshot":
-        # remote_snapshot never mutates the local repo; plan_only becomes a dry-plan.
-        return "remote_snapshot"
-    if explicit == "local_current":
-        return "local_current"
-    if explicit == "local_ff":
-        if plan_only:
-            raise SourceModeConflictError(
-                "local_ff cannot be combined with plan_only: local_ff would fast-forward "
-                "the local repo, but plan_only must not cause any local mutation."
-            )
-        return "local_ff"
-    # Legacy (repo_source_mode is None): derive from pre_pull/plan_only.
-    pre_pull = bool(getattr(req, "pre_pull", True))
-    if pre_pull and not plan_only:
-        return "local_ff"
-    return "local_current"
+
+    if explicit is None:
+        # Legacy: derive purely from pre_pull/plan_only. There is no explicit mode
+        # to contradict, so there is nothing for the validator to reject here.
+        pre_pull = bool(getattr(req, "pre_pull", True))
+        return "local_ff" if pre_pull and not plan_only else "local_current"
+
+    # ``pre_pull`` is only an explicit choice when the object records it as set
+    # (pydantic's ``model_fields_set``). On a plain JobRequest with just a
+    # ``repo_source_mode``, ``pre_pull`` is the inert default and must not, on its
+    # own, turn a bare explicit mode into a conflict. Objects without that marker
+    # (test doubles, dict-shaped stored jobs) give no explicit/default signal, so
+    # ``pre_pull`` is treated as unset to preserve the API's legacy tolerance.
+    fields_set = getattr(req, "model_fields_set", None)
+    if fields_set is not None and "pre_pull" in fields_set:
+        pre_pull = bool(getattr(req, "pre_pull", False))
+    else:
+        pre_pull = None
+
+    validate_source_mode_request(
+        repo_source_mode=explicit,
+        pre_pull=pre_pull,
+        plan_only=plan_only,
+        remote_ref=getattr(req, "remote_ref", None),
+        remote_ref_policy=getattr(req, "remote_ref_policy", None),
+    )
+    return explicit
 
 
 class SourceModeConflictError(ValueError):
@@ -762,20 +773,42 @@ def safe_extract_tar(data: bytes, dest: Path) -> None:
                 target = dest.joinpath(*parts)
                 if target.is_symlink():
                     raise SnapshotExtractionError(f"symlink in target path: {target}")
-                target.mkdir(parents=True, exist_ok=True)
+                try:
+                    target.mkdir(parents=True, exist_ok=True)
+                except OSError as exc:
+                    raise SnapshotExtractionError(
+                        f"could not create directory member {name!r}: {exc}"
+                    ) from exc
                 continue
 
             # Regular file: validate the parent chain, create dirs, write by hand.
             _assert_no_symlink_ancestor(parts[:-1])
             parent = dest.joinpath(*parts[:-1]) if len(parts) > 1 else dest
-            parent.mkdir(parents=True, exist_ok=True)
+            try:
+                parent.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise SnapshotExtractionError(
+                    f"could not create parent directory for member {name!r}: {exc}"
+                ) from exc
             target = dest.joinpath(*parts)
             if target.is_symlink():
                 raise SnapshotExtractionError(f"symlink in target path: {target}")
             extracted = tar.extractfile(member)
-            payload = extracted.read() if extracted is not None else b""
-            with open(target, "wb") as fh:
-                fh.write(payload)
+            if extracted is None:
+                raise SnapshotExtractionError(
+                    f"could not extract regular file member: {name!r}"
+                )
+            # Stream the member in chunks: never read a whole file into memory, so a
+            # hostile or oversized archive cannot blow up the resident set.
+            try:
+                with open(target, "wb") as fh:
+                    shutil.copyfileobj(extracted, fh)
+            except OSError as exc:
+                raise SnapshotExtractionError(
+                    f"could not write member {name!r}: {exc}"
+                ) from exc
+            finally:
+                extracted.close()
             # Preserve only the low permission bits; never setuid/setgid/sticky.
             try:
                 os.chmod(target, member.mode & 0o777)

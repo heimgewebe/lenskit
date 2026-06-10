@@ -752,11 +752,14 @@ function syncPrePullWithPlanOnly() {
 
 // Show the remote-snapshot ref fields only when the Quelle dropdown selects it.
 // remote_snapshot supports a plan-only dry-plan, so plan-only does not disable it.
-// Source-mode control plane (mirrors merger/lenskit/service/source_acquisition.py
-// validate_source_mode_request). Returns a user-facing error string for a
-// contradictory selection, or null when the selection is coherent. The UI must
-// block the submit and surface the message — never silently coerce to another
-// mode or drop an inert field.
+// Mirrors the UI-reachable subset of validate_source_mode_request
+// (merger/lenskit/service/source_acquisition.py). Returns a user-facing error
+// string for a contradictory selection the user can actually express here, or
+// null when coherent. The UI must block the submit and surface the message —
+// never silently coerce to another mode or drop an inert field.
+// The pre_pull conflicts are not directly reachable from this form because
+// pre_pull is derived from sourceMode before the payload is built; /api/jobs
+// remains the authoritative boundary and re-checks every rule server-side.
 function sourceModeSelectionError(sourceMode, planOnly, remoteRef) {
     if (sourceMode === 'local_ff' && planOnly) {
         return "local_ff kann nicht mit Plan-only kombiniert werden: local_ff würde das lokale Repo "

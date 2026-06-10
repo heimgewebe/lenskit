@@ -129,7 +129,7 @@ The `source_acquisition_report` distinguishes, per repo, with no silent loss:
 * `source_mode` — `local_current` / `local_ff` / `remote_snapshot`.
 * `resolved_ref` — the remote ref that was resolved.
 * `resolved_commit` — the commit SHA that was materialized.
-* `local_repo_mutated` — boolean; always `false` for remote_snapshot.
+* `local_repo_mutated` — `const: false` (schema-enforced, not merely conventional) for remote_snapshot.
 
 ## Materialization
 

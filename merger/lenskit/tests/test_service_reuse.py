@@ -1,5 +1,7 @@
 import time
 
+import pytest
+
 
 def _wait_terminal(ctx, job_id, timeout_s=5.0):
     """Wait for the background runner to reach a terminal state so a later manual
@@ -285,8 +287,6 @@ def test_succeeded_job_not_reused_when_source_mode_remote_snapshot(service_clien
 # ---------------------------------------------------------------------------
 # Source-mode control plane: /api/jobs is the hard boundary (TASK-SERVICE-003B)
 # ---------------------------------------------------------------------------
-
-import pytest
 
 
 @pytest.mark.parametrize(

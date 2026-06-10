@@ -97,19 +97,42 @@ class _Req:
         self.remote_ref_policy = kw.get("remote_ref_policy", "upstream")
         self.pre_pull = kw.get("pre_pull", True)
         self.plan_only = kw.get("plan_only", False)
+        # Mirror pydantic's model_fields_set: only the kwargs the caller passed
+        # count as explicitly set, so the resolver can tell an explicit pre_pull
+        # from the inert default — exactly as it does for a real JobRequest.
+        self.model_fields_set = set(kw.keys())
 
 
 def test_effective_source_mode_legacy_and_explicit():
+    # Legacy (repo_source_mode unset): derived purely from pre_pull/plan_only.
     assert resolve_effective_source_mode(_Req(pre_pull=True, plan_only=False)) == "local_ff"
     assert resolve_effective_source_mode(_Req(pre_pull=False)) == "local_current"
     assert resolve_effective_source_mode(_Req(pre_pull=True, plan_only=True)) == "local_current"
-    assert resolve_effective_source_mode(_Req(repo_source_mode="local_current", pre_pull=True)) == "local_current"
+    # A bare explicit mode (no explicit pre_pull) is accepted as-is.
+    assert resolve_effective_source_mode(_Req(repo_source_mode="local_current")) == "local_current"
+    assert resolve_effective_source_mode(_Req(repo_source_mode="local_ff")) == "local_ff"
     assert resolve_effective_source_mode(_Req(repo_source_mode="remote_snapshot")) == "remote_snapshot"
-    # An *explicit* local_ff + plan_only is a contradiction: local_ff would mutate
-    # the local repo, plan_only forbids any mutation. It must not be silently
-    # smoothed to local_current — it raises so the conflicting intent surfaces.
+
+
+def test_effective_source_mode_rejects_explicit_contradictions():
+    # The resolver re-runs the central validator, so an object that bypasses the
+    # /api/jobs model_validator (model_construct, stored jobs, test doubles) still
+    # cannot smuggle a contradictory explicit state past it.
+    # local_ff + plan_only: local_ff would mutate, plan_only forbids mutation.
     with pytest.raises(SourceModeConflictError):
         resolve_effective_source_mode(_Req(repo_source_mode="local_ff", plan_only=True))
+    # local_ff + explicit pre_pull=False: local_ff implies the fast-forward pre-pull.
+    with pytest.raises(SourceModeConflictError):
+        resolve_effective_source_mode(_Req(repo_source_mode="local_ff", pre_pull=False))
+    # local_current + explicit pre_pull=True: local_current scans as-is, never pre-pulls.
+    with pytest.raises(SourceModeConflictError):
+        resolve_effective_source_mode(_Req(repo_source_mode="local_current", pre_pull=True))
+    # remote_snapshot + explicit pre_pull=True: remote_snapshot never mutates the local repo.
+    with pytest.raises(SourceModeConflictError):
+        resolve_effective_source_mode(_Req(repo_source_mode="remote_snapshot", pre_pull=True))
+    # Unknown explicit mode must never fall through to a silent local default.
+    with pytest.raises(SourceModeConflictError):
+        resolve_effective_source_mode(_Req(repo_source_mode="wat"))
 
 
 # --- 1. default_branch on a no-upstream local branch -----------------------
@@ -881,3 +904,13 @@ def test_safe_extract_tar_extracts_regular_files_and_dirs(tmp_path):
     assert (dest / "README.md").read_text() == "hi\n"
     # Nothing escaped the destination.
     assert (dest / "pkg").is_dir() and not (dest / "pkg").is_symlink()
+
+
+def test_safe_extract_tar_wraps_fs_collision_as_extraction_error(tmp_path):
+    # A regular file "a" followed by "a/b.txt" makes the parent mkdir fail. The
+    # raw OSError must be wrapped as SnapshotExtractionError so the caller maps it
+    # onto a controlled extract_failed, not an uncaught FileExistsError.
+    dest = tmp_path / "out"
+    members = [_reg("a", b"i am a file"), _reg("a/b.txt", b"x")]
+    with pytest.raises(SnapshotExtractionError):
+        safe_extract_tar(_build_tar(members), dest)

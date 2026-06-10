@@ -153,6 +153,47 @@ def test_headless_source_mode_control_plane_conflicts(monkeypatch, argv):
     assert exc.value.code == 2
 
 
+def test_repolens_falls_closed_when_service_validator_unavailable(monkeypatch):
+    """If the service package cannot be imported, repoLens must not fail open.
+
+    It ships a local fallback validator with the same source-mode rules, so a
+    contradictory request (here: local_ff + plan_only) is still rejected even
+    when ``merger.lenskit.service.source_acquisition`` is unimportable.
+    """
+    import importlib
+
+    # Block both import spellings so a reloaded repolens takes its ImportError
+    # fallback branch instead of importing the real service validator.
+    monkeypatch.setitem(sys.modules, "merger.lenskit.service.source_acquisition", None)
+    monkeypatch.setitem(sys.modules, "lenskit.service.source_acquisition", None)
+    try:
+        importlib.reload(repolens)
+        # The fallback must be a real callable — never None (that would fail open).
+        assert repolens.validate_source_mode_request is not None
+        with pytest.raises(repolens.SourceModeConflictError):
+            repolens.validate_source_mode_request(
+                repo_source_mode="local_ff",
+                pre_pull=None,
+                plan_only=True,
+                remote_ref=None,
+                remote_ref_policy=None,
+            )
+        # Unknown modes are rejected too, not silently passed through.
+        with pytest.raises(repolens.SourceModeConflictError):
+            repolens.validate_source_mode_request(
+                repo_source_mode="wat",
+                pre_pull=None,
+                plan_only=False,
+                remote_ref=None,
+                remote_ref_policy=None,
+            )
+    finally:
+        # Restore the real service import for the rest of the suite.
+        sys.modules.pop("merger.lenskit.service.source_acquisition", None)
+        sys.modules.pop("lenskit.service.source_acquisition", None)
+        importlib.reload(repolens)
+
+
 # --- resolve_pre_pull_switch_value helper -----------------------------------
 
 def test_resolve_pre_pull_switch_value_none_returns_true():
