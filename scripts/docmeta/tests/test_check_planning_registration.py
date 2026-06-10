@@ -542,18 +542,22 @@ class TestCheckPlanningRegistration(unittest.TestCase):
     def test_write_helper_empty_removal_is_noop_without_rewrite(self):
         baseline_path = self.write_baseline()
         baseline = check_plan.load_baseline(baseline_path)
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
 
         written = check_plan._write_pruned_baseline(baseline_path, baseline, [])
 
         self.assertFalse(written)
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_write_helper_rejects_removing_all_loaded_entries(self):
         self.write_file("docs/blueprints/resolved.md", "---\nstatus: active\n---\n")
         baseline_path = self.write_baseline()
         baseline = check_plan.load_baseline(baseline_path)
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
 
         with self.assertRaisesRegex(
             check_plan.BaselineError,
@@ -563,7 +567,11 @@ class TestCheckPlanningRegistration(unittest.TestCase):
                 baseline_path, baseline, baseline["entries"]
             )
 
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+
+            after = f.read()
+
+        self.assertEqual(after, before)
 
     def test_write_helper_returns_true_only_after_resolved_only_write(self):
         self.write_file("docs/blueprints/active.md", "---\nstatus: active\n---\n")
@@ -589,7 +597,8 @@ class TestCheckPlanningRegistration(unittest.TestCase):
     def test_prune_dry_run_reports_resolved_without_changing_file(self):
         self.write_file("docs/blueprints/resolved.md", "---\nstatus: active\n---\n")
         baseline_path = self.write_baseline()
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
         self.write_file("docs/tasks/board.md", "docs/blueprints/resolved.md")
 
         code, report, _ = self.run_json(
@@ -599,7 +608,9 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(report["prune"]["dry_run"])
         self.assertEqual(report["prune"]["removed_count"], 1)
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_prune_write_removes_only_resolved_entries(self):
         self.write_file("docs/blueprints/active.md", "---\nstatus: active\n---\n")
@@ -613,7 +624,8 @@ class TestCheckPlanningRegistration(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertFalse(report["prune"]["dry_run"])
-        data = json.loads(open(baseline_path, encoding="utf-8").read())
+        with open(baseline_path, encoding="utf-8") as f:
+            data = json.loads(f.read())
         self.assertEqual([entry["path"] for entry in data["entries"]],
                          ["docs/blueprints/active.md"])
 
@@ -631,14 +643,16 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual([f["path"] for f in report["new_findings"]],
                          ["docs/blueprints/new.md"])
-        data = json.loads(open(baseline_path, encoding="utf-8").read())
+        with open(baseline_path, encoding="utf-8") as f:
+            data = json.loads(f.read())
         self.assertNotIn("docs/blueprints/new.md",
                          [entry["path"] for entry in data["entries"]])
 
     def test_invalid_exception_blocks_prune_without_file_change(self):
         self.write_file("docs/blueprints/active.md", "---\nstatus: active\n---\n")
         baseline_path = self.write_baseline()
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
         self.write_file(
             "docs/blueprints/invalid.md",
             "---\nstatus: active\nplanning_registration:\n  status: exempt\n"
@@ -652,12 +666,15 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertTrue(report["prune"]["blocked"])
         self.assertIn("invalid_exceptions", report["prune"]["block_reasons"])
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_control_error_blocks_prune_without_file_change(self):
         self.write_file("docs/blueprints/active.md", "---\nstatus: active\n---\n")
         baseline_path = self.write_baseline()
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
         os.unlink(os.path.join(self.test_dir, "docs/tasks/index.json"))
 
         code, report, _ = self.run_json(
@@ -666,7 +683,9 @@ class TestCheckPlanningRegistration(unittest.TestCase):
 
         self.assertEqual(code, 2)
         self.assertIn("control_errors", report["prune"]["block_reasons"])
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_missing_baseline_blocks_prune(self):
         missing = os.path.join(self.test_dir, "missing.json")
@@ -690,7 +709,8 @@ class TestCheckPlanningRegistration(unittest.TestCase):
     def test_invalid_baseline_structure_blocks_prune(self):
         baseline_path = os.path.join(self.test_dir, "invalid-baseline.json")
         self.write_file("invalid-baseline.json", '{"schema":"wrong","entries":[]}')
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
 
         code, report, stderr = self.run_json(
             "--prune-baseline", "--write", "--baseline", baseline_path
@@ -702,12 +722,15 @@ class TestCheckPlanningRegistration(unittest.TestCase):
             "Baseline partition unavailable because baseline failed to load.",
             stderr,
         )
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_prune_write_removing_last_remaining_entry_is_blocked(self):
         self.write_file("docs/blueprints/resolved.md", "---\nstatus: active\n---\n")
         baseline_path = self.write_baseline()
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
         self.write_file("docs/tasks/board.md", "docs/blueprints/resolved.md")
 
         code, report, _ = self.run_json(
@@ -716,11 +739,14 @@ class TestCheckPlanningRegistration(unittest.TestCase):
 
         self.assertEqual(code, 2)
         self.assertIn("empty_baseline_write", report["prune"]["block_reasons"])
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_prune_write_with_already_empty_baseline_is_noop(self):
         baseline_path = self.write_baseline()
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
 
         code, report, _ = self.run_json(
             "--prune-baseline", "--write", "--baseline", baseline_path
@@ -729,12 +755,15 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(report["prune"]["removed_count"], 0)
         self.assertFalse(report["prune"]["blocked"])
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_prune_noop_is_stable(self):
         self.write_file("docs/blueprints/active.md", "---\nstatus: active\n---\n")
         baseline_path = self.write_baseline()
-        before = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            before = f.read()
 
         code, report, _ = self.run_json(
             "--prune-baseline", "--write", "--baseline", baseline_path
@@ -742,7 +771,9 @@ class TestCheckPlanningRegistration(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertEqual(report["prune"]["removed_count"], 0)
-        self.assertEqual(open(baseline_path, encoding="utf-8").read(), before)
+        with open(baseline_path, encoding="utf-8") as f:
+            after = f.read()
+        self.assertEqual(after, before)
 
     def test_prune_write_is_deterministic_and_repeat_is_noop(self):
         self.write_file("docs/blueprints/z-active.md", "---\nstatus: active\n---\n")
@@ -754,11 +785,13 @@ class TestCheckPlanningRegistration(unittest.TestCase):
         first_code, _, _ = self.run_json(
             "--prune-baseline", "--write", "--baseline", baseline_path
         )
-        first = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            first = f.read()
         second_code, second_report, _ = self.run_json(
             "--prune-baseline", "--write", "--baseline", baseline_path
         )
-        second = open(baseline_path, encoding="utf-8").read()
+        with open(baseline_path, encoding="utf-8") as f:
+            second = f.read()
 
         self.assertEqual((first_code, second_code), (0, 0))
         self.assertEqual(second_report["prune"]["removed_count"], 0)
