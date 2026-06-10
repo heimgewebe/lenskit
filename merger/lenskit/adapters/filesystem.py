@@ -21,6 +21,24 @@ class TrustedPath:
 def list_allowed_roots(hub: Optional[Path], merges_dir: Optional[Path]) -> List[Dict[str, Any]]:
     sec = get_security_config()
     roots: List[Dict[str, Any]] = []
+
+    # Restricted mode: only explicit allowed roots, no system/home root, no /
+    if sec.root_policy == "restricted":
+        if hub:
+            try:
+                sec.validate_path(hub.resolve())
+                roots.append({"id": "hub", "path": str(hub.resolve())})
+            except Exception:
+                pass
+        if merges_dir:
+            try:
+                sec.validate_path(merges_dir.resolve())
+                roots.append({"id": "merges", "path": str(merges_dir.resolve())})
+            except Exception:
+                pass
+        return roots
+
+    # Default mode: backward-compatible behavior
     if hub:
         roots.append({"id": "hub", "path": str(hub.resolve())})
     if merges_dir:

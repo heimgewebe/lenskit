@@ -197,7 +197,9 @@ class ServiceState:
 
 state = ServiceState()
 
-def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0.0.1", merges_dir: Optional[Path] = None):
+def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0.0.1",
+                 merges_dir: Optional[Path] = None, root_policy: str = "default",
+                 allowed_roots: Optional[List[str]] = None):
     state.hub = hub_path
     state.merges_dir = merges_dir
     state.job_store = JobStore(hub_path)
@@ -216,34 +218,63 @@ def init_service(hub_path: Path, token: Optional[str] = None, host: str = "127.0
     sec = get_security_config()
     sec.set_token(token)
 
+    # Apply root policy before adding any roots
+    sec.set_root_policy(root_policy)
+
+    # Validate and register explicit allowed roots (for restricted mode or custom setup)
+    if allowed_roots:
+        for root_str in allowed_roots:
+            root_str = root_str.strip()
+            if not root_str:
+                continue
+            try:
+                root_path = Path(root_str).expanduser().resolve()
+                if not root_path.is_dir():
+                    logger.warning("Allowed root is not a directory, skipping: %s", root_str)
+                    continue
+                if not root_path.exists():
+                    logger.warning("Allowed root does not exist, skipping: %s", root_str)
+                    continue
+                sec.add_allowlist_root(root_path)
+                logger.info("Registered explicit allowed root: %s", root_path)
+            except ValueError as e:
+                logger.warning("Invalid allowed root '%s': %s", root_str, e)
+            except Exception as e:
+                logger.warning("Error registering allowed root '%s': %s", root_str, e)
+
     # Allowlist the Hub
     sec.add_allowlist_root(hub_path)
     # Allowlist Merges Dir if separate
     if merges_dir:
         sec.add_allowlist_root(merges_dir)
 
-    # Allow System Root (Home) for Atlas
-    # "System" root maps to user home (e.g. /home/alex), not /
-    try:
-        sec.add_allowlist_root(Path.home().resolve())
-    except Exception as e:
-        logger.debug("Could not allow system root: %s", e, exc_info=True)
-
-    # Root Access: enabled by default on loopback with auth
-    is_loopback = _is_loopback_host(host)
-    has_token = bool(token or os.getenv("RLENS_TOKEN") or os.getenv("RLENS_FS_TOKEN_SECRET"))
-
-    if is_loopback and has_token:
-        root = Path("/").resolve()
-        if root not in getattr(sec, "allowlist_roots", []):
-            logger.warning("Root allowlisted (loopback + auth).")
-            sec.add_allowlist_root(root)
+    if sec.root_policy == "restricted":
+        # Restricted mode: no system root, no / root.
+        # Only hub, merges_dir, and explicit allowed_roots are accepted.
+        logger.info("Restricted root policy active: no system/home root, no / root.")
     else:
-        logger.warning(
-            "Root browsing refused (loopback=%s, has_token=%s).",
-            is_loopback,
-            has_token
-        )
+        # Default mode: backward-compatible behavior
+        # Allow System Root (Home) for Atlas
+        try:
+            sec.add_allowlist_root(Path.home().resolve())
+        except Exception as e:
+            logger.debug("Could not allow system root: %s", e, exc_info=True)
+
+        # Root Access: enabled by default on loopback with auth
+        is_loopback = _is_loopback_host(host)
+        has_token = bool(token or os.getenv("RLENS_TOKEN") or os.getenv("RLENS_FS_TOKEN_SECRET"))
+
+        if is_loopback and has_token:
+            root = Path("/").resolve()
+            if root not in getattr(sec, "allowlist_roots", []):
+                logger.warning("Root allowlisted (loopback + auth).")
+                sec.add_allowlist_root(root)
+        else:
+            logger.warning(
+                "Root browsing refused (loopback=%s, has_token=%s).",
+                is_loopback,
+                has_token
+            )
 
     # Apply CORS based on host
     # Prevent middleware duplication (if init called multiple times in tests)
