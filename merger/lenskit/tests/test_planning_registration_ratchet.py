@@ -250,6 +250,7 @@ def test_report_validates_against_schema(fake_repo, tmp_path, capsys):
     jsonschema.validate(instance=report, schema=schema)
     assert report["mode"] == "ratchet"
     assert report["summary"]["new_findings"] == 1
+    assert report["prune"]["enabled"] is False
 
 
 def test_scan_and_update_reports_validate_against_schema(fake_repo, tmp_path, capsys):
@@ -259,6 +260,7 @@ def test_scan_and_update_reports_validate_against_schema(fake_repo, tmp_path, ca
     scan_report = json.loads(capsys.readouterr().out)
     jsonschema.validate(instance=scan_report, schema=schema)
     assert scan_report["mode"] == "scan"
+    assert scan_report["prune"]["enabled"] is False
 
     baseline_file = tmp_path / "baseline.json"
     check_plan.main(
@@ -267,6 +269,101 @@ def test_scan_and_update_reports_validate_against_schema(fake_repo, tmp_path, ca
     update_report = json.loads(capsys.readouterr().out)
     jsonschema.validate(instance=update_report, schema=schema)
     assert update_report["mode"] == "update_baseline"
+    assert update_report["prune"]["enabled"] is False
+
+
+@pytest.mark.parametrize("mode", ["scan", "ratchet", "update_baseline"])
+def test_v1_schema_accepts_legacy_reports_without_prune(mode):
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = check_plan.build_report(mode, [], None, False, [], [], [])
+    report.pop("prune")
+
+    jsonschema.validate(instance=report, schema=schema)
+
+
+def test_v1_schema_accepts_literal_legacy_report():
+    """Verify legacy v1 reports without a prune block remain valid, completely independent of the producer."""
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = {
+        "schema": "lenskit.planning_registration_report.v1",
+        "created_at": "2026-06-10T00:00:00Z",
+        "mode": "ratchet",
+        "summary": {
+            "current_findings": 0,
+            "baseline_findings": 0,
+            "new_findings": 0,
+            "known_findings": 0,
+            "resolved_findings": 0,
+            "invalid_exceptions": 0
+        },
+        "findings": [],
+        "baseline": {
+            "path": "docs/tasks/planning-registration-baseline.json",
+            "loaded": True
+        },
+        "new_findings": [],
+        "known_findings": [],
+        "resolved_findings": [],
+        "invalid_exceptions": []
+    }
+    jsonschema.validate(instance=report, schema=schema)
+
+
+@pytest.mark.parametrize("mode", ["scan", "ratchet", "update_baseline"])
+def test_v1_schema_rejects_non_prune_modes_with_prune_enabled(mode):
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = check_plan.build_report(mode, [], None, False, [], [], [])
+    report["prune"] = {
+        "enabled": True,
+        "dry_run": False,
+        "write": False,
+        "removed_count": 0,
+        "removed": [],
+        "blocked": False,
+        "block_reasons": [],
+        "write_would_block": False,
+        "write_block_reasons": []
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_v1_schema_rejects_prune_baseline_without_prune_block():
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    prune = check_plan._prune_report(write=False, resolved_findings=[])
+    report = check_plan.build_report("prune_baseline", [], None, False, [], [], [], prune=prune)
+    report.pop("prune")
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_v1_schema_rejects_prune_baseline_with_prune_disabled():
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    prune = check_plan._prune_report(write=False, resolved_findings=[])
+    report = check_plan.build_report("prune_baseline", [], None, False, [], [], [], prune=prune)
+    report["prune"]["enabled"] = False
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_build_report_requires_explicit_prune_for_prune_baseline():
+    with pytest.raises(ValueError, match="prune_baseline reports require an explicit prune block"):
+        check_plan.build_report("prune_baseline", [], None, False, [], [], [])
+
+
+def test_prune_report_validates_against_schema(fake_repo, tmp_path, capsys):
+    baseline_file = tmp_path / "baseline.json"
+    write_baseline(baseline_file, [])
+    result = check_plan.main(
+        ["--prune-baseline", "--baseline", str(baseline_file), "--format", "json"]
+    )
+    report = json.loads(capsys.readouterr().out)
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)
+    assert result == 0
+    assert report["mode"] == "prune_baseline"
+    assert report["prune"]["dry_run"] is True
+
 
 
 # --------------------------------------------------------------------------- #
@@ -283,6 +380,8 @@ def test_workflow_wires_ratchet():
     assert "--format json" in text
     assert "upload-artifact" in text
     assert "GITHUB_STEP_SUMMARY" in text
+    assert "permissions:\n  contents: read" in text
+    assert "Write is explicit and fails closed" in text
 
 
 # --------------------------------------------------------------------------- #
