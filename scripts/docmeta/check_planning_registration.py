@@ -855,11 +855,13 @@ def _write_pruned_baseline(path, baseline, resolved_findings):
             try:
                 os.close(fd)
             except OSError:
+                # Best-effort cleanup: do not mask the primary write/validation result.
                 pass
         if temp_path and os.path.exists(temp_path):
             try:
                 os.unlink(temp_path)
             except OSError:
+                # Best-effort cleanup: ignore unlink failures during finalization.
                 pass
     return True
 
