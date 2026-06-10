@@ -727,7 +727,12 @@ def safe_extract_tar(data: bytes, dest: Path) -> None:
     by hand so member metadata can never redirect the write.
     """
     dest = Path(dest).resolve()
-    dest.mkdir(parents=True, exist_ok=True)
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SnapshotExtractionError(
+            f"could not create extraction destination {dest}: {exc}"
+        ) from exc
 
     def _normalized_parts(name: str) -> tuple:
         # Reject absolute paths and any traversal; return the safe relative parts.

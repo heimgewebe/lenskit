@@ -148,7 +148,7 @@ For `remote_snapshot`:
 Safe extraction is a hand-rolled writer: it extracts only regular files and
 ordinary directories, and rejects absolute paths, `..` traversal, any write
 through an existing symlinked path component, and every symlink, hardlink, FIFO
-or device member outright (v1: security before convenience — links are dropped,
+or device member outright (v1: security before convenience — links are rejected,
 not followed). `tarfile.extract` is never used.
 
 ## Plan-only semantics
