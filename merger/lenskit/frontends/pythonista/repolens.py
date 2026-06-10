@@ -368,6 +368,32 @@ except ImportError:
             return None
 
 
+# --- Runtime capability gate (Pythonista/iOS has no subprocess support) -------
+#
+# Pythonista on iOS raises "Subprocesses are not supported on ios" the instant
+# ``subprocess`` is touched. Every git-backed feature (pre-pull, source-mode
+# local-ff, remote-snapshot) shells out to git, so those must be gated off on iOS
+# *before* the subprocess path is reached — never handled after the fact. Local
+# filesystem scans use no subprocess and stay available.
+
+def is_ios_runtime() -> bool:
+    """True when running under Pythonista/iOS, where subprocesses are unavailable."""
+    return sys.platform == "ios"
+
+
+def git_subprocesses_supported() -> bool:
+    """False on Pythonista/iOS; True everywhere repoLens can spawn git subprocesses."""
+    return not is_ios_runtime()
+
+
+def git_subprocess_unavailable_message(feature: str) -> str:
+    """One-line explanation for a git-backed feature that cannot run on iOS."""
+    return (
+        f"{feature} requires git subprocesses and is not supported in Pythonista/iOS. "
+        "Disable this option or run repoLens on desktop/server."
+    )
+
+
 def resolve_headless_source_mode(args) -> str:
     """Map parsed headless CLI args onto the effective source mode.
 
@@ -396,6 +422,30 @@ def resolve_pre_pull_switch_value(pre_pull_switch) -> bool:
     Default-True matches the documented pre_pull default across all surfaces.
     """
     return True if pre_pull_switch is None else bool(pre_pull_switch.value)
+
+
+def resolve_effective_pre_pull(pre_pull, plan_only, *, log=None, notify=None) -> bool:
+    """Decide whether pre-pull actually runs, applying the iOS capability gate.
+
+    The base rule is ``pre_pull and not plan_only``. On Pythonista/iOS the result
+    is forced ``False`` because git subprocesses are unavailable there — so a
+    requested (or stored-default) pre-pull never reaches ``run_pre_pull_two_phase``
+    and the local scan proceeds as-is. ``log`` (and optional ``notify`` for a HUD)
+    receive a one-line hint only when an otherwise-active pre-pull is suppressed
+    on iOS. Off-iOS behaviour is unchanged.
+    """
+    effective = bool(pre_pull and not plan_only)
+    if effective and not git_subprocesses_supported():
+        hint = (
+            "Pre-pull disabled on iOS: git subprocesses are not supported in "
+            "Pythonista. Scanning the local working tree as-is."
+        )
+        if log is not None:
+            log(hint)
+        if notify is not None:
+            notify("Pre-pull disabled on iOS (no git subprocess)")
+        return False
+    return effective
 
 
 def run_pre_pull_two_phase(sources, log=print, warn=None):
@@ -3403,8 +3453,18 @@ class MergerUI(object):
 
         # Pre-pull (bounded repo-sync mutation), two-phase across ALL selected repos
         # BEFORE any scan, so no repo is fast-forwarded when another repo hard-fails during the plan phase.
-        # plan_only never mutates local repos, so it forces pre-pull off.
-        effective_pre_pull = pre_pull and not plan_only
+        # plan_only never mutates local repos, so it forces pre-pull off; Pythonista/iOS
+        # forces it off too (no git subprocesses) — see resolve_effective_pre_pull.
+        def _pre_pull_hud(message):
+            if console:
+                try:
+                    console.hud_alert(message, "info", 2.0)
+                except Exception:
+                    pass
+
+        effective_pre_pull = resolve_effective_pre_pull(
+            pre_pull, plan_only, log=print, notify=_pre_pull_hud
+        )
         if effective_pre_pull:
             pre_pull_sources = [self.hub / name for name in selected_repos if (self.hub / name).is_dir()]
             try:
@@ -3680,6 +3740,23 @@ def main_cli():
 
     args = parser.parse_args()
 
+    # Pythonista/iOS capability gate: git subprocesses are unavailable there, so
+    # reject *explicit* git-backed requests early — before hub detection or any
+    # git/network access — with a clear message instead of crashing later in
+    # subprocess.run(). This is an additional capability gate, not a replacement
+    # for the source-mode control plane below (which still runs on every host).
+    # The implicit default (no flags) is degraded to a local scan further down.
+    if is_ios_runtime():
+        if getattr(args, "pre_pull", None) is True:
+            print(f"Error: {git_subprocess_unavailable_message('--pre-pull')}", file=sys.stderr)
+            sys.exit(2)
+        if args.source_mode == "local-ff":
+            print(f"Error: {git_subprocess_unavailable_message('--source-mode local-ff')}", file=sys.stderr)
+            sys.exit(2)
+        if args.source_mode == "remote-snapshot":
+            print(f"Error: {git_subprocess_unavailable_message('--source-mode remote-snapshot')}", file=sys.stderr)
+            sys.exit(2)
+
     # plan_only never mutates local repos; an explicit --pre-pull contradicts it.
     if getattr(args, "plan_only", False) and getattr(args, "pre_pull", None) is True:
         print(
@@ -3753,6 +3830,17 @@ def main_cli():
     # without ever mutating the local repo.
     effective_source_mode = resolve_headless_source_mode(args)
     remote_ref_policy = (args.remote_ref_policy or "upstream").replace("-", "_")
+
+    # Pythonista/iOS: explicit git-backed modes were already rejected (exit 2)
+    # above, so the only way to reach local_ff here is the *implicit* default
+    # (a plain `repolens.py --headless` with no source/pre-pull flags). Degrade it
+    # to a local scan rather than crashing in git's subprocess.run().
+    if effective_source_mode == "local_ff" and not git_subprocesses_supported():
+        print(
+            "Pre-pull disabled on iOS: git subprocesses are not supported in "
+            "Pythonista; scanning the local working tree as-is."
+        )
+        effective_source_mode = "local_current"
 
     if effective_source_mode == "remote_snapshot":
         if materialize_remote_snapshot is None or resolve_remote_ref is None:

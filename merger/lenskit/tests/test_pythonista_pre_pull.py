@@ -211,3 +211,165 @@ def test_resolve_pre_pull_switch_value_switch_off():
     class FakeSwitch:
         value = False
     assert repolens.resolve_pre_pull_switch_value(FakeSwitch()) is False
+
+
+# ---------------------------------------------------------------------------
+# iOS / Pythonista capability gate (no git subprocesses)
+# ---------------------------------------------------------------------------
+#
+# Pythonista on iOS cannot spawn subprocesses, so every git-backed feature
+# (pre-pull, source-mode local-ff, remote-snapshot) must be gated off *before*
+# the subprocess path is reached. These tests pin that behaviour and prove the
+# non-iOS semantics are untouched. ``sys.platform`` is patched per-test so the
+# gate is exercised deterministically on any host.
+
+def _boom(*args, **kwargs):
+    raise AssertionError("git subprocess path must not be reached on iOS")
+
+
+# --- capability primitives --------------------------------------------------
+
+def test_is_ios_runtime_true_on_ios(monkeypatch):
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    assert repolens.is_ios_runtime() is True
+    assert repolens.git_subprocesses_supported() is False
+
+
+def test_is_ios_runtime_false_off_ios(monkeypatch):
+    monkeypatch.setattr(repolens.sys, "platform", "linux")
+    assert repolens.is_ios_runtime() is False
+    assert repolens.git_subprocesses_supported() is True
+
+
+def test_git_subprocess_unavailable_message_mentions_feature_and_cause():
+    msg = repolens.git_subprocess_unavailable_message("--pre-pull")
+    assert "--pre-pull" in msg
+    assert "subprocess" in msg.lower()
+    assert "ios" in msg.lower()
+
+
+# --- 7.1 non-iOS is unchanged ----------------------------------------------
+
+def test_resolve_effective_pre_pull_off_ios_preserves_base_rule(monkeypatch):
+    monkeypatch.setattr(repolens.sys, "platform", "linux")
+    # Default (switch on, not plan-only) keeps the desktop pre-pull behaviour.
+    assert repolens.resolve_effective_pre_pull(True, False) is True
+    # plan_only still forces pre-pull off, exactly as before.
+    assert repolens.resolve_effective_pre_pull(True, True) is False
+    # Explicitly disabled stays disabled.
+    assert repolens.resolve_effective_pre_pull(False, False) is False
+
+
+def test_resolve_effective_pre_pull_off_ios_emits_no_hint(monkeypatch):
+    monkeypatch.setattr(repolens.sys, "platform", "linux")
+    logs = []
+    assert repolens.resolve_effective_pre_pull(True, False, log=logs.append) is True
+    assert logs == []
+
+
+# --- 7.2 iOS UI/default: pre-pull never reaches the subprocess path ---------
+
+def test_resolve_effective_pre_pull_ios_forces_false_with_hint(monkeypatch):
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    logs = []
+    notes = []
+    # Even an explicitly-on switch (or a stored pre_pull=true default) → False.
+    assert repolens.resolve_effective_pre_pull(
+        True, False, log=logs.append, notify=notes.append
+    ) is False
+    assert any("ios" in m.lower() for m in logs), logs
+    assert notes, "a HUD hint should be emitted on iOS"
+
+
+def test_ios_ui_chokepoint_never_calls_pre_pull(monkeypatch):
+    """Mirror the UI guard (``if effective: run_pre_pull_two_phase(...)``): on iOS
+    the resolver returns False, so the git subprocess path is never reached."""
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    monkeypatch.setattr(repolens, "run_pre_pull_two_phase", _boom)
+    logs = []
+    effective = repolens.resolve_effective_pre_pull(True, False, log=logs.append)
+    if effective:  # never true on iOS — guards against a regression
+        repolens.run_pre_pull_two_phase([Path("/hub/x")], log=print)
+    assert effective is False
+    assert any("ios" in m.lower() for m in logs)
+
+
+def test_ios_ui_plan_only_reason_unchanged(monkeypatch):
+    """plan_only — not the iOS gate — is why pre-pull is off under plan_only, so
+    no iOS hint is emitted (effective is already False before the gate runs)."""
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    logs = []
+    assert repolens.resolve_effective_pre_pull(True, True, log=logs.append) is False
+    assert logs == [], logs
+
+
+# --- 7.3 / 7.4 / 7.5 iOS headless: explicit git features rejected early -----
+
+@pytest.fixture
+def ios_headless_no_git(monkeypatch):
+    """iOS headless with every git/remote/hub entrypoint armed to explode, so a
+    SystemExit proves main_cli bailed out before reaching any of them."""
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    monkeypatch.setattr(repolens, "run_pre_pull_two_phase", _boom)
+    monkeypatch.setattr(repolens, "resolve_remote_ref", _boom)
+    monkeypatch.setattr(repolens, "materialize_remote_snapshot", _boom)
+    monkeypatch.setattr(repolens, "detect_hub_dir", _boom)
+    return monkeypatch
+
+
+def test_headless_ios_explicit_pre_pull_rejected(ios_headless_no_git, capsys):
+    ios_headless_no_git.setattr(sys, "argv", ["repolens.py", "--headless", "--pre-pull"])
+    with pytest.raises(SystemExit) as exc:
+        repolens.main_cli()
+    assert exc.value.code == 2
+    err = capsys.readouterr().err.lower()
+    assert "ios" in err or "subprocess" in err
+
+
+def test_headless_ios_local_ff_rejected(ios_headless_no_git, capsys):
+    ios_headless_no_git.setattr(
+        sys, "argv", ["repolens.py", "--headless", "--source-mode", "local-ff"]
+    )
+    with pytest.raises(SystemExit) as exc:
+        repolens.main_cli()
+    assert exc.value.code == 2
+    err = capsys.readouterr().err.lower()
+    assert "ios" in err or "subprocess" in err
+
+
+def test_headless_ios_remote_snapshot_rejected(ios_headless_no_git, capsys):
+    ios_headless_no_git.setattr(
+        sys, "argv", ["repolens.py", "--headless", "--source-mode", "remote-snapshot"]
+    )
+    with pytest.raises(SystemExit) as exc:
+        repolens.main_cli()
+    assert exc.value.code == 2
+    err = capsys.readouterr().err.lower()
+    assert "ios" in err or "subprocess" in err
+
+
+# --- iOS headless implicit default: degrade to local scan, never crash ------
+
+def test_headless_ios_implicit_default_degrades_to_local_scan(monkeypatch, tmp_path, capsys):
+    """A plain ``repolens.py --headless`` on iOS (no flags) resolves to local_ff;
+    it must degrade to a local scan instead of crashing in run_pre_pull_two_phase."""
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    monkeypatch.setattr(repolens, "run_pre_pull_two_phase", _boom)
+    monkeypatch.setattr(repolens, "detect_hub_dir", lambda *a, **k: tmp_path)
+
+    class _ScanReached(Exception):
+        pass
+
+    def _fake_scan(*a, **k):
+        raise _ScanReached()
+
+    monkeypatch.setattr(repolens, "scan_repo", _fake_scan)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(sys, "argv", ["repolens.py", "--headless", str(repo)])
+
+    # Reaches the local scan (no SystemExit, no _boom) → degrade worked.
+    with pytest.raises(_ScanReached):
+        repolens.main_cli()
+    out = capsys.readouterr().out.lower()
+    assert "ios" in out  # the degrade hint was printed before scanning
