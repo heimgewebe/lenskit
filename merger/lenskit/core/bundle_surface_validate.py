@@ -17,6 +17,8 @@ its internal coherence:
 - agent reading pack consistency: a present claim map MUST be summarized in the
   pack (with its artifact line), never announced as absent, and the legacy
   "not yet produced" placeholder is treated as drift;
+- agent reading pack front door: the emitted pack MUST expose the v1.1 version
+  sentinel, required navigation sections, and change-impact caution markers;
 - post-emit health: a persisted ``post_emit_health`` sidecar exists (so
   ``output_health=pass`` cannot be mistaken for forensic-readiness) AND its
   ``status`` is propagated — a present-but-failed post_emit_health drags the
@@ -65,7 +67,21 @@ _CLAIM_MAP_ROLE = ArtifactRole.CLAIM_EVIDENCE_MAP_JSON.value
 _AGENT_PACK_ROLE = ArtifactRole.AGENT_READING_PACK.value
 _OUTPUT_HEALTH_ROLE = ArtifactRole.OUTPUT_HEALTH.value
 
-# Pack markers (see core/agent_reading_pack.py: CLAIM_EVIDENCE_MAP_SUMMARY).
+# Pack markers (see core/agent_reading_pack.py). The surface validator keeps
+# these explicit because it guards the emitted runtime artifact, not merely the
+# producer's in-process version constant.
+_AGENT_PACK_V1_1_SENTINEL_PREFIX = (
+    "<!-- ARTIFACT:agent_reading_pack VERSION:v1.1 "
+)
+_AGENT_PACK_V1_1_FRONT_DOOR_MARKERS = (
+    "## REQUIRED_READING_BY_TASK",
+    "## WHEN_CANONICAL_MD_ONLY_IS_INSUFFICIENT",
+    "## SIDECAR_USAGE_RULES",
+    "## ANSWER_COMPLIANCE_CHECKLIST",
+    "## DO_NOT_CLAIM",
+    "`change_impact`",
+    "relation or path proximity alone does not prove change impact",
+)
 _PACK_SUMMARY_HEADER = "## CLAIM_EVIDENCE_MAP_SUMMARY"
 _PACK_ABSENT_PLACEHOLDER = "_No verified `claim_evidence_map_json` artifact present._"
 # Legacy placeholder emitted by stale builds that predate the claim-map wiring.
@@ -142,6 +158,46 @@ def _read_pack_text(manifest_dir: Path, pack_entry: Optional[Dict[str, Any]]) ->
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         return None
+
+
+def _pack_front_door_v1_1_check(
+    *,
+    pack_present_in_manifest: bool,
+    pack_text: Optional[str],
+) -> Dict[str, str]:
+    if not pack_present_in_manifest:
+        return _check(
+            "agent_reading_pack_front_door_v1_1",
+            "skipped",
+            "agent_reading_pack not declared in manifest",
+        )
+    if pack_text is None:
+        return _check(
+            "agent_reading_pack_front_door_v1_1",
+            "fail",
+            "agent_reading_pack declared but not readable; navigation surface "
+            "stale/incomplete",
+        )
+
+    missing = []
+    if not pack_text.startswith(_AGENT_PACK_V1_1_SENTINEL_PREFIX):
+        missing.append("ARTIFACT:agent_reading_pack VERSION:v1.1 sentinel")
+    missing.extend(
+        marker for marker in _AGENT_PACK_V1_1_FRONT_DOOR_MARKERS if marker not in pack_text
+    )
+    if missing:
+        return _check(
+            "agent_reading_pack_front_door_v1_1",
+            "fail",
+            "agent_reading_pack missing v1.1 front-door marker(s): "
+            + ", ".join(missing)
+            + "; navigation surface stale/incomplete",
+        )
+    return _check(
+        "agent_reading_pack_front_door_v1_1",
+        "pass",
+        "agent_reading_pack exposes the complete v1.1 front-door navigation surface",
+    )
 
 
 def _claim_surface_check(
@@ -457,6 +513,12 @@ def validate_bundle_surface(
             pack_text=pack_text,
             claim_present=claim_present,
             absence_reason=absence_reason,
+        )
+    )
+    checks.append(
+        _pack_front_door_v1_1_check(
+            pack_present_in_manifest=pack_entry is not None,
+            pack_text=pack_text,
         )
     )
 

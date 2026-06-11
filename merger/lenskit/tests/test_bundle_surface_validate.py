@@ -30,21 +30,34 @@ def _write_post_health(manifest_path, status="pass"):
     )
 
 
-_PACK_SUMMARY_PRESENT = (
+_PACK_V1_1_FRONT_DOOR = (
+    "<!-- ARTIFACT:agent_reading_pack VERSION:v1.1 "
+    "AUTHORITY:navigation_index CANONICALITY:derived -->\n"
+    "## REQUIRED_READING_BY_TASK\n"
+    "## WHEN_CANONICAL_MD_ONLY_IS_INSUFFICIENT\n"
+    "## SIDECAR_USAGE_RULES\n"
+    "## ANSWER_COMPLIANCE_CHECKLIST\n"
+    "## DO_NOT_CLAIM\n"
+    "- `change_impact` — relation or path proximity alone does not prove change impact.\n"
+)
+_PACK_SUMMARY_PRESENT = _PACK_V1_1_FRONT_DOOR + (
     "## CLAIM_EVIDENCE_MAP_SUMMARY\n"
     "- artifact: `x.claim_evidence_map.json`\n"
     "- claims: 3\n"
 )
-_PACK_ABSENT = (
+_PACK_ABSENT = _PACK_V1_1_FRONT_DOOR + (
     "## CLAIM_EVIDENCE_MAP_SUMMARY\n"
     "- _No verified `claim_evidence_map_json` artifact present._\n"
 )
-_PACK_ABSENT_WITH_REASON = (
+_PACK_ABSENT_WITH_REASON = _PACK_V1_1_FRONT_DOOR + (
     "## CLAIM_EVIDENCE_MAP_SUMMARY\n"
     "- _No verified `claim_evidence_map_json` artifact present._\n"
     "- reason=no_registry (registry missing)\n"
 )
-_PACK_LEGACY = "## CLAIM_EVIDENCE_MAP_SUMMARY\nclaim_evidence_map is not yet produced\n"
+_PACK_LEGACY = (
+    _PACK_V1_1_FRONT_DOOR
+    + "## CLAIM_EVIDENCE_MAP_SUMMARY\nclaim_evidence_map is not yet produced\n"
+)
 
 _DUMMY_SHA = "0" * 64
 
@@ -120,6 +133,76 @@ def _make_manifest(
 
 def _check(report, name):
     return next(c for c in report["checks"] if c["name"] == name)
+
+
+# ── agent-reading-pack v1.1 front door ─────────────────────────────────────
+
+
+def test_agent_pack_v1_1_front_door_passes(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True)
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+
+    check = _check(report, "agent_reading_pack_front_door_v1_1")
+    assert check["status"] == "pass"
+    assert report["status"] == "pass"
+
+
+def test_agent_pack_v1_front_door_fails_and_names_missing_markers(tmp_path):
+    pack_text = (
+        "<!-- ARTIFACT:agent_reading_pack VERSION:v1 -->\n"
+        "## CLAIM_EVIDENCE_MAP_SUMMARY\n"
+        "- artifact: `x.claim_evidence_map.json`\n"
+    )
+    mp = _make_manifest(tmp_path, claim_present=True, pack_text=pack_text)
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+
+    check = _check(report, "agent_reading_pack_front_door_v1_1")
+    assert check["status"] == "fail"
+    assert report["status"] == "fail"
+    for marker in (
+        "VERSION:v1.1 sentinel",
+        "## REQUIRED_READING_BY_TASK",
+        "## DO_NOT_CLAIM",
+        "`change_impact`",
+        "relation or path proximity alone does not prove change impact",
+    ):
+        assert marker in check["detail"]
+    assert "navigation surface stale/incomplete" in check["detail"]
+
+
+def test_agent_pack_v1_10_sentinel_does_not_satisfy_v1_1(tmp_path):
+    pack_text = _PACK_SUMMARY_PRESENT.replace("VERSION:v1.1", "VERSION:v1.10")
+    mp = _make_manifest(tmp_path, claim_present=True, pack_text=pack_text)
+
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+
+    check = _check(report, "agent_reading_pack_front_door_v1_1")
+    assert check["status"] == "fail"
+    assert report["status"] == "fail"
+    assert "VERSION:v1.1 sentinel" in check["detail"]
+
+
+@pytest.mark.parametrize(
+    "missing_marker",
+    [
+        "## REQUIRED_READING_BY_TASK",
+        "## WHEN_CANONICAL_MD_ONLY_IS_INSUFFICIENT",
+        "## SIDECAR_USAGE_RULES",
+        "## ANSWER_COMPLIANCE_CHECKLIST",
+        "## DO_NOT_CLAIM",
+        "`change_impact`",
+        "relation or path proximity alone does not prove change impact",
+    ],
+)
+def test_agent_pack_missing_required_v1_1_marker_fails(tmp_path, missing_marker):
+    pack_text = _PACK_SUMMARY_PRESENT.replace(missing_marker, "")
+    mp = _make_manifest(tmp_path, claim_present=True, pack_text=pack_text)
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+
+    check = _check(report, "agent_reading_pack_front_door_v1_1")
+    assert check["status"] == "fail"
+    assert missing_marker in check["detail"]
+    assert report["status"] == "fail"
 
 
 # ── headline: claim-evidence-map surface ────────────────────────────────────
