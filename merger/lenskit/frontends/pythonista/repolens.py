@@ -368,6 +368,32 @@ except ImportError:
             return None
 
 
+# --- Runtime capability gate (Pythonista/iOS has no subprocess support) -------
+#
+# Pythonista on iOS raises "Subprocesses are not supported on ios" the instant
+# ``subprocess`` is touched. Every git-backed feature (pre-pull, source-mode
+# local-ff, remote-snapshot) shells out to git, so those must be gated off on iOS
+# *before* the subprocess path is reached — never handled after the fact. Local
+# filesystem scans use no subprocess and stay available.
+
+def is_ios_runtime() -> bool:
+    """True when running under Pythonista/iOS, where subprocesses are unavailable."""
+    return sys.platform == "ios"
+
+
+def git_subprocesses_supported() -> bool:
+    """False on Pythonista/iOS; True everywhere repoLens can spawn git subprocesses."""
+    return not is_ios_runtime()
+
+
+def git_subprocess_unavailable_message(feature: str) -> str:
+    """One-line explanation for a git-backed feature that cannot run on iOS."""
+    return (
+        f"{feature} requires git subprocesses and is not supported in Pythonista/iOS. "
+        "Disable this option or run repoLens on desktop/server."
+    )
+
+
 def resolve_headless_source_mode(args) -> str:
     """Map parsed headless CLI args onto the effective source mode.
 
@@ -396,6 +422,50 @@ def resolve_pre_pull_switch_value(pre_pull_switch) -> bool:
     Default-True matches the documented pre_pull default across all surfaces.
     """
     return True if pre_pull_switch is None else bool(pre_pull_switch.value)
+
+
+def resolve_effective_pre_pull(pre_pull, plan_only, *, log=None, notify=None) -> bool:
+    """Decide whether pre-pull actually runs, applying the iOS capability gate.
+
+    The base rule is ``pre_pull and not plan_only``. On Pythonista/iOS the result
+    is forced ``False`` because git subprocesses are unavailable there — so a
+    requested (or stored-default) pre-pull never reaches ``run_pre_pull_two_phase``
+    and the local scan proceeds as-is. ``log`` (and optional ``notify`` for a HUD)
+    receive a one-line hint only when an otherwise-active pre-pull is suppressed
+    on iOS. Off-iOS behaviour is unchanged.
+    """
+    effective = bool(pre_pull and not plan_only)
+    if effective and not git_subprocesses_supported():
+        hint = (
+            "Pre-pull disabled on iOS: git subprocesses are not supported in "
+            "Pythonista. Scanning the local working tree as-is."
+        )
+        if log is not None:
+            log(hint)
+        if notify is not None:
+            notify("Pre-pull disabled on iOS (no git subprocess)")
+        return False
+    return effective
+
+
+def resolve_effective_headless_source_mode(args, *, log=print) -> str:
+    """Map headless CLI args to an effective source mode, applying the iOS capability gate.
+
+    Wraps ``resolve_headless_source_mode``. On Pythonista/iOS the implicit
+    ``local_ff`` default (plain invocation with no source-mode flags) is degraded
+    to ``local_current`` with a log hint. Explicit git-backed modes on iOS are
+    rejected earlier (exit 2 in ``main_cli``), so this path is only reached for
+    the implicit default.
+    """
+    mode = resolve_headless_source_mode(args)
+    if mode == "local_ff" and not git_subprocesses_supported():
+        if log is not None:
+            log(
+                "Implicit local_ff/default fast-forward disabled on iOS: git subprocesses "
+                "are not supported in Pythonista; scanning the local working tree as-is."
+            )
+        mode = "local_current"
+    return mode
 
 
 def run_pre_pull_two_phase(sources, log=print, warn=None):
@@ -3403,8 +3473,19 @@ class MergerUI(object):
 
         # Pre-pull (bounded repo-sync mutation), two-phase across ALL selected repos
         # BEFORE any scan, so no repo is fast-forwarded when another repo hard-fails during the plan phase.
-        # plan_only never mutates local repos, so it forces pre-pull off.
-        effective_pre_pull = pre_pull and not plan_only
+        # plan_only never mutates local repos, so it forces pre-pull off; Pythonista/iOS
+        # forces it off too (no git subprocesses) — see resolve_effective_pre_pull.
+        def _pre_pull_hud(message):
+            try:
+                if console:
+                    console.hud_alert(message, "info", 2.0)
+            except Exception:
+                # Best-effort UI notification only; HUD errors must not interrupt the merge flow.
+                pass
+
+        effective_pre_pull = resolve_effective_pre_pull(
+            pre_pull, plan_only, log=print, notify=_pre_pull_hud
+        )
         if effective_pre_pull:
             pre_pull_sources = [self.hub / name for name in selected_repos if (self.hub / name).is_dir()]
             try:
@@ -3680,6 +3761,32 @@ def main_cli():
 
     args = parser.parse_args()
 
+    # Defensive local variables — argparse attributes depend on the exact set of
+    # registered arguments; getattr guards against missing attrs (e.g. when the
+    # parser is extended or reloaded in tests).
+    source_mode_arg = getattr(args, "source_mode", None)
+    pre_pull_arg = getattr(args, "pre_pull", None)
+    plan_only_arg = bool(getattr(args, "plan_only", False))
+    remote_ref_arg = getattr(args, "remote_ref", None)
+    remote_ref_policy_arg = getattr(args, "remote_ref_policy", None)
+
+    # Pythonista/iOS capability gate: git subprocesses are unavailable there, so
+    # reject *explicit* git-backed requests early — before hub detection or any
+    # git/network access — with a clear message instead of crashing later in
+    # subprocess.run(). This is an additional capability gate, not a replacement
+    # for the source-mode control plane below (which still runs on every host).
+    # The implicit default (no flags) is degraded to a local scan further down.
+    if is_ios_runtime():
+        if pre_pull_arg is True:
+            print(f"Error: {git_subprocess_unavailable_message('--pre-pull')}", file=sys.stderr)
+            sys.exit(2)
+        if source_mode_arg == "local-ff":
+            print(f"Error: {git_subprocess_unavailable_message('--source-mode local-ff')}", file=sys.stderr)
+            sys.exit(2)
+        if source_mode_arg == "remote-snapshot":
+            print(f"Error: {git_subprocess_unavailable_message('--source-mode remote-snapshot')}", file=sys.stderr)
+            sys.exit(2)
+
     # plan_only never mutates local repos; an explicit --pre-pull contradicts it.
     if getattr(args, "plan_only", False) and getattr(args, "pre_pull", None) is True:
         print(
@@ -3690,13 +3797,13 @@ def main_cli():
         sys.exit(2)
 
     # Reject contradictory --source-mode / --pre-pull combinations.
-    if args.source_mode == "local-current" and getattr(args, "pre_pull", None) is True:
+    if source_mode_arg == "local-current" and pre_pull_arg is True:
         print("Error: --source-mode local-current does not fast-forward; remove --pre-pull.", file=sys.stderr)
         sys.exit(2)
-    if args.source_mode == "local-ff" and getattr(args, "pre_pull", None) is False:
+    if source_mode_arg == "local-ff" and pre_pull_arg is False:
         print("Error: --source-mode local-ff implies a fast-forward pre-pull; remove --no-pre-pull.", file=sys.stderr)
         sys.exit(2)
-    if args.source_mode == "remote-snapshot" and getattr(args, "pre_pull", None) is True:
+    if source_mode_arg == "remote-snapshot" and pre_pull_arg is True:
         print("Error: --source-mode remote-snapshot never mutates the local repo; remove --pre-pull.", file=sys.stderr)
         sys.exit(2)
 
@@ -3704,14 +3811,14 @@ def main_cli():
     # local-ff + plan-only, remote-ref / non-default policy on a local mode, etc.
     # Runs before any hub detection or remote git access (headless: exit 2, no network).
     if validate_source_mode_request is not None:
-        _canon_mode = args.source_mode.replace("-", "_") if args.source_mode else None
-        _canon_policy = args.remote_ref_policy.replace("-", "_") if args.remote_ref_policy else None
+        _canon_mode = source_mode_arg.replace("-", "_") if source_mode_arg else None
+        _canon_policy = remote_ref_policy_arg.replace("-", "_") if remote_ref_policy_arg else None
         try:
             validate_source_mode_request(
                 repo_source_mode=_canon_mode,
-                pre_pull=getattr(args, "pre_pull", None),
-                plan_only=bool(getattr(args, "plan_only", False)),
-                remote_ref=args.remote_ref,
+                pre_pull=pre_pull_arg,
+                plan_only=plan_only_arg,
+                remote_ref=remote_ref_arg,
                 remote_ref_policy=_canon_policy,
             )
         except SourceModeConflictError as exc:
@@ -3751,8 +3858,10 @@ def main_cli():
     # to scan is acquired. local_ff keeps the bounded pre-pull; local_current
     # scans the tree as-is; remote_snapshot scans an isolated remote materialization
     # without ever mutating the local repo.
-    effective_source_mode = resolve_headless_source_mode(args)
-    remote_ref_policy = (args.remote_ref_policy or "upstream").replace("-", "_")
+    # On iOS the implicit local_ff default is degraded to local_current here (with
+    # a log hint); explicit git-backed modes were already rejected with exit 2 above.
+    effective_source_mode = resolve_effective_headless_source_mode(args)
+    remote_ref_policy = (remote_ref_policy_arg or "upstream").replace("-", "_")
 
     if effective_source_mode == "remote_snapshot":
         if materialize_remote_snapshot is None or resolve_remote_ref is None:
@@ -3763,12 +3872,12 @@ def main_cli():
             sys.exit(1)
         merges_dir = get_merges_dir(hub)
         job_id = "headless-" + uuid.uuid4().hex[:12]
-        if args.plan_only:
+        if plan_only_arg:
             # Dry-plan: resolve refs only, never materialize or scan.
             ok = True
             for src in sources:
                 resolution = resolve_remote_ref(
-                    src, remote_ref=args.remote_ref, remote_ref_policy=remote_ref_policy
+                    src, remote_ref=remote_ref_arg, remote_ref_policy=remote_ref_policy
                 )
                 if resolution.status == SourceStatus.RESOLVED:
                     commit_short = (resolution.resolved_commit or "")[:12]
@@ -3784,7 +3893,7 @@ def main_cli():
         for src in sources:
             result = materialize_remote_snapshot(
                 src,
-                remote_ref=args.remote_ref,
+                remote_ref=remote_ref_arg,
                 remote_ref_policy=remote_ref_policy,
                 cache_root=merges_dir,
                 job_id=job_id,
@@ -3806,7 +3915,7 @@ def main_cli():
             # requested pre-pull — fail loudly and do not scan.
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-    elif args.plan_only and getattr(args, "pre_pull", None) is not False:
+    elif plan_only_arg and pre_pull_arg is not False:
         print("Pre-pull skipped because plan_only=True.")
 
     max_bytes = parse_human_size(str(args.max_bytes))
@@ -3863,7 +3972,7 @@ def main_cli():
         args.level,
         args.mode,
         max_bytes,
-        args.plan_only,
+        plan_only_arg,
         args.code_only,
         split_size,
         debug=args.debug,

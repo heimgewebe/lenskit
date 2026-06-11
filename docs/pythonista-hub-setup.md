@@ -20,6 +20,29 @@ Konkrete Pfade (Beispiel):
 
 ---
 
+## iOS-Fähigkeiten und Grenzen (keine Subprozesse)
+
+Pythonista/iOS unterstützt **keine Subprozesse**. repoLens kann dort daher keine
+Git-Subprozesse starten.
+
+- **Lokale Scans funktionieren** (kein Git nötig) – Merge/Reports laufen normal.
+- **Git-basierte Funktionen sind auf iOS nicht verfügbar** – das Verhalten
+  unterscheidet sich je nach Oberfläche:
+
+  | Oberfläche | Verhalten |
+  | :--- | :--- |
+  | **UI (Run Merge)** | Ein aktivierter Pre-pull-Schalter wird **effektiv deaktiviert** (kein Crash, Hinweis im Log, lokaler Scan läuft weiter). |
+  | **Headless – explizite Flags** | `--pre-pull`, `--source-mode local-ff`, `--source-mode remote-snapshot` werden **früh abgelehnt** (Exit 2, klare Fehlermeldung, kein Stacktrace). |
+  | **Headless – impliziter Default** | Ein einfaches `repolens.py --headless` (keine Source-Flags) würde intern zu `local_ff` auflösen; stattdessen wird **implizit auf `local_current` degradiert** (Hinweis im stdout, kein Crash). |
+
+- Für alle git-basierten Funktionen **Desktop bzw. den rLens-Service verwenden**.
+
+> Praxis: Auf dem iPad „Run Merge” ohne Pre-pull ausführen. Ein versehentlich
+> aktivierter Pre-pull-Schalter stoppt den Merge nicht – er wird effektiv
+> deaktiviert, der lokale Scan läuft weiter.
+
+---
+
 ## Prinzip
 
 Der `pathfinder.py` muss **im Kontext des Hubs ausgeführt werden**.
