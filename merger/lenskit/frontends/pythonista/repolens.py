@@ -3480,6 +3480,7 @@ class MergerUI(object):
                 if console:
                     console.hud_alert(message, "info", 2.0)
             except Exception:
+                # Best-effort UI notification only; HUD errors must not interrupt the merge flow.
                 pass
 
         effective_pre_pull = resolve_effective_pre_pull(
