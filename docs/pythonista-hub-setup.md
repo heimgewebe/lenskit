@@ -26,16 +26,20 @@ Pythonista/iOS unterstützt **keine Subprozesse**. repoLens kann dort daher kein
 Git-Subprozesse starten.
 
 - **Lokale Scans funktionieren** (kein Git nötig) – Merge/Reports laufen normal.
-- **Git-basierte Funktionen sind auf iOS nicht verfügbar** und werden bewusst
-  deaktiviert bzw. früh mit klarer Meldung abgelehnt (kein Stacktrace):
-  - Pre-pull (UI-Schalter/gespeicherter Default wird auf iOS effektiv ignoriert)
-  - `--source-mode local-ff`
-  - `--source-mode remote-snapshot`
-- Für diese Git-basierten Funktionen **Desktop bzw. den rLens-Service verwenden**.
+- **Git-basierte Funktionen sind auf iOS nicht verfügbar** – das Verhalten
+  unterscheidet sich je nach Oberfläche:
 
-> Praxis: Auf dem iPad „Run Merge“ ohne Pre-pull ausführen. Ein versehentlich
-> aktivierter Pre-pull-Schalter stoppt den Merge nicht – er wird mit Hinweis
-> übersprungen, der lokale Scan läuft weiter.
+  | Oberfläche | Verhalten |
+  | :--- | :--- |
+  | **UI (Run Merge)** | Ein aktivierter Pre-pull-Schalter wird **effektiv deaktiviert** (kein Crash, Hinweis im Log, lokaler Scan läuft weiter). |
+  | **Headless – explizite Flags** | `--pre-pull`, `--source-mode local-ff`, `--source-mode remote-snapshot` werden **früh abgelehnt** (Exit 2, klare Fehlermeldung, kein Stacktrace). |
+  | **Headless – impliziter Default** | Ein einfaches `repolens.py --headless` (keine Source-Flags) würde intern zu `local_ff` auflösen; stattdessen wird **implizit auf `local_current` degradiert** (Hinweis im stdout, kein Crash). |
+
+- Für alle git-basierten Funktionen **Desktop bzw. den rLens-Service verwenden**.
+
+> Praxis: Auf dem iPad „Run Merge” ohne Pre-pull ausführen. Ein versehentlich
+> aktivierter Pre-pull-Schalter stoppt den Merge nicht – er wird effektiv
+> deaktiviert, der lokale Scan läuft weiter.
 
 ---
 

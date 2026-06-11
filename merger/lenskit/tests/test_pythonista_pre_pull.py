@@ -100,6 +100,40 @@ class _Args:
         self.plan_only = kw.get("plan_only", False)
 
 
+# --- resolve_effective_headless_source_mode ---------------------------------
+
+def test_resolve_effective_headless_source_mode_off_ios_preserves_default(monkeypatch):
+    """Off-iOS: the implicit default still resolves to local_ff (no degrade)."""
+    monkeypatch.setattr(repolens.sys, "platform", "linux")
+    mode = repolens.resolve_effective_headless_source_mode(_Args())
+    assert mode == "local_ff"
+
+
+def test_resolve_effective_headless_source_mode_ios_implicit_default_degrades(monkeypatch):
+    """On iOS: the implicit local_ff default is degraded to local_current with a log hint."""
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    logs = []
+    mode = repolens.resolve_effective_headless_source_mode(_Args(), log=logs.append)
+    assert mode == "local_current"
+    assert logs, "a log hint must be emitted on iOS implicit degrade"
+    assert any("ios" in m.lower() for m in logs), logs
+    assert any("local_ff" in m or "fast-forward" in m.lower() for m in logs), logs
+
+
+def test_headless_ios_implicit_default_validates_before_degrade(monkeypatch):
+    """The control-plane validator still runs before the iOS degrade path.
+
+    A contradictory explicit combination (local-ff + plan-only) is rejected with
+    exit 2 even on iOS — the validator sees the *pre-degrade* canonical mode, so
+    the control plane never fails open.
+    """
+    monkeypatch.setattr(repolens.sys, "platform", "ios")
+    monkeypatch.setattr(sys, "argv", ["repolens.py", "--headless", "--source-mode", "local-ff", "--plan-only"])
+    with pytest.raises(SystemExit) as exc:
+        repolens.main_cli()
+    assert exc.value.code == 2
+
+
 def test_resolve_headless_source_mode_mapping():
     r = repolens.resolve_headless_source_mode
     assert r(_Args(source_mode="remote-snapshot")) == "remote_snapshot"
