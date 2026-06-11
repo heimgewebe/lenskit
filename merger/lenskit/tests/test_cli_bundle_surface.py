@@ -10,8 +10,25 @@ from merger.lenskit.core.post_emit_health import derive_post_health_path
 
 
 _DUMMY_SHA = "0" * 64
-_PACK_PRESENT = "## CLAIM_EVIDENCE_MAP_SUMMARY\n- artifact: `x.cem.json`\n- claims: 1\n"
-_PACK_ABSENT = "## CLAIM_EVIDENCE_MAP_SUMMARY\n- _No verified `claim_evidence_map_json` artifact present._\n"
+_AGENT_PACK_V1_1_FRONT_DOOR = (
+    "<!-- ARTIFACT:agent_reading_pack VERSION:v1.1 "
+    "AUTHORITY:navigation_index CANONICALITY:derived -->\n"
+    "## REQUIRED_READING_BY_TASK\n"
+    "## WHEN_CANONICAL_MD_ONLY_IS_INSUFFICIENT\n"
+    "## SIDECAR_USAGE_RULES\n"
+    "## ANSWER_COMPLIANCE_CHECKLIST\n"
+    "## DO_NOT_CLAIM\n"
+    "- `change_impact` — relation or path proximity alone does not prove change impact.\n"
+)
+_PACK_PRESENT = _AGENT_PACK_V1_1_FRONT_DOOR + (
+    "## CLAIM_EVIDENCE_MAP_SUMMARY\n"
+    "- artifact: `x.cem.json`\n"
+    "- claims: 1\n"
+)
+_PACK_ABSENT = _AGENT_PACK_V1_1_FRONT_DOOR + (
+    "## CLAIM_EVIDENCE_MAP_SUMMARY\n"
+    "- _No verified `claim_evidence_map_json` artifact present._\n"
+)
 
 
 def _make_bundle(tmp_path: Path, *, claim_present: bool, absence_reason=None) -> Path:
@@ -20,6 +37,8 @@ def _make_bundle(tmp_path: Path, *, claim_present: bool, absence_reason=None) ->
     artifacts.append({"role": "canonical_md", "path": "x.md", "sha256": _DUMMY_SHA, "bytes": 8})
 
     pack_text = _PACK_PRESENT if claim_present else _PACK_ABSENT
+    if not claim_present and absence_reason is not None:
+        pack_text += f"- reason={absence_reason} (declared fixture gap)\n"
     (tmp_path / "x.pack.md").write_text(pack_text, encoding="utf-8")
     artifacts.append(
         {"role": "agent_reading_pack", "path": "x.pack.md", "sha256": _DUMMY_SHA, "bytes": 1}
@@ -85,6 +104,9 @@ def test_cli_absent_without_reason_fails_exit_1(tmp_path, capsys):
     assert rc == 1
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "fail"
+    claim_check = next(c for c in out["checks"] if c["name"] == "claim_evidence_map_surface")
+    assert claim_check["status"] == "fail"
+    assert "silent absence" in claim_check["detail"]
 
 
 def test_cli_json_contains_claim_surface_check(tmp_path, capsys):

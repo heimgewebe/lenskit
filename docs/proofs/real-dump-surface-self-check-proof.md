@@ -257,3 +257,31 @@ Aktueller Lauf (vollständige Lenskit-Suite, ohne Playwright-`test_webui_payload
 python3 -m pytest -q --ignore=merger/lenskit/tests/test_webui_payload.py merger/lenskit/tests/
                                                           # 1754 passed, 1 skipped
 ```
+
+## Nachtrag 2026-06-11 — Agent-Pack-v1.1 Runtime Surface Guard
+
+Ein realer Dump konnte trotz eines emittierten `agent_reading_pack` mit
+`VERSION:v1` weiterhin eine grüne Bundle-Surface-Diagnose tragen. Ursache war,
+dass `agent_reading_pack_consistency` nur die Kohärenz zur Claim Evidence Map
+und den alten Claim-Map-Platzhalter prüfte. Die tatsächliche agent-facing
+Front-Door-Version und ihre Pflichtabschnitte waren kein Bestandteil der
+Surface-Diagnose.
+
+`bundle_surface_validate.py` prüft deshalb nun zusätzlich mit
+`agent_reading_pack_front_door_v1_1` die aus dem Manifest aufgelöste, emittierte
+Markdown-Datei. Verlangt werden `VERSION:v1.1`, die vier Reading-/Sidecar-/Answer-
+Abschnitte, `## DO_NOT_CLAIM`, `` `change_impact` `` und die ausdrückliche Grenze,
+dass Relation oder Pfadnähe allein keinen Change Impact beweisen. Fehlende Marker
+führen zu `fail` und werden im Detail einzeln genannt. Damit kann ein stale
+`VERSION:v1`-Pack nicht mehr in einer grünen Surface-Validation verborgen bleiben.
+Der bestehende Post-Merge-Surface-Smoke übernimmt dieses Ergebnis über
+`links.bundle_surface_validation_status`; parallele Markerlogik im Shell-Skript
+ist nicht nötig.
+
+Die Prüfung bewertet ausschließlich Aktualität und Mindestvollständigkeit der
+abgeleiteten Navigationsoberfläche (`authority=navigation_index`,
+`canonicality=derived`). Sie beweist **weder** Repo-Verständnis oder Claim-Wahrheit
+**noch** Antwortsicherheit, Review-Vollständigkeit oder Change Impact. Ein nach
+Restart beziehungsweise frischer Runtime-Ladung neu erzeugter Real-Dump bleibt
+notwendig, um zu belegen, dass die operative Service-Runtime tatsächlich den
+v1.1-Producer und den neuen Surface-Guard geladen hat.
