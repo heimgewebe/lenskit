@@ -168,8 +168,8 @@ def _pack_front_door_v1_1_check(
     if not pack_present_in_manifest:
         return _check(
             "agent_reading_pack_front_door_v1_1",
-            "skipped",
-            "agent_reading_pack not declared in manifest",
+            "fail",
+            "agent_reading_pack not declared in manifest; navigation surface absent",
         )
     if pack_text is None:
         return _check(

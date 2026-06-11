@@ -147,6 +147,17 @@ def test_agent_pack_v1_1_front_door_passes(tmp_path):
     assert report["status"] == "pass"
 
 
+def test_agent_pack_front_door_fails_when_pack_missing(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True, include_pack=False)
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+
+    check = _check(report, "agent_reading_pack_front_door_v1_1")
+    assert check["status"] == "fail"
+    assert report["status"] == "fail"
+    assert "not declared in manifest" in check["detail"]
+    assert "navigation surface absent" in check["detail"]
+
+
 def test_agent_pack_v1_front_door_fails_and_names_missing_markers(tmp_path):
     pack_text = (
         "<!-- ARTIFACT:agent_reading_pack VERSION:v1 -->\n"
