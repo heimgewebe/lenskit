@@ -29,6 +29,7 @@ from . import clock
 from .chunker import Chunker
 from .redactor import Redactor
 from .range_resolver import build_explicit_range_ref
+from .yaml_compat import ensure_pyyaml_collections_abc_compat
 from . import __core_version__ as CORE_VERSION
 
 try:
@@ -1305,6 +1306,7 @@ def _render_augment_block(sources: List[Path], meta_density: str = "full") -> st
         return ""
 
     try:
+        ensure_pyyaml_collections_abc_compat()
         data = yaml.safe_load(raw)  # type: ignore[name-defined]
     except Exception as e:
         # If the augment file is malformed, log error and do not break the merge
