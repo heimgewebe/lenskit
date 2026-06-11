@@ -527,6 +527,9 @@ def render_agent_reading_pack(model: PackModel) -> str:
     lines.append("- `test_sufficiency` — located tests do not prove sufficient coverage.")
     lines.append("- `runtime_correctness` — static artifacts do not prove runtime behavior.")
     lines.append("- `review_complete` — reading guidance or health passes do not complete a review.")
+    lines.append(
+        "- `change_impact` — relation or path proximity alone does not prove change impact."
+    )
     lines.append("- `forensic_ready` — diagnostic passes do not establish forensic readiness.")
     lines.append("- `all_relevant_context_used` — sidecar use does not prove complete context use.")
     lines.append("- `regression_absence` — these artifacts do not prove that regressions are absent.")

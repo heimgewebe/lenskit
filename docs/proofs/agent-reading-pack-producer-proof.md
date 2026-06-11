@@ -1,9 +1,14 @@
 # Agent Reading Pack Producer Proof
 
-- Datum: 2026-05-20
-- Repo HEAD (Basis): b59cf653d8b06012789ec2d14cbe31c8a978d709
 - Arbeitspaket: D (PR 4) aus `docs/blueprints/lenskit-output-optimierung-v1.md`
 - Artefaktrolle: `agent_reading_pack` (`authority=navigation_index`, `canonicality=derived`, `role_only`, `text/markdown`)
+
+## Proof Basis
+
+- Original producer proof basis (v1): 2026-05-20, `b59cf653d8b06012789ec2d14cbe31c8a978d709`
+- Front-Door Hardening v1.1 verification basis: current PR commit at verification time
+- The v1.1 sentinel and sections below are verified by targeted producer/CLI tests,
+  not by the original 2026-05-20 proof run.
 
 ## Zweck
 
@@ -100,7 +105,7 @@ slice does not add schemas, sidecars, health gates, retrieval ranking,
 consumption tracing or LLM/embedding dependencies.
 
 Does not establish: answer correctness, repo understanding, claim truth, test
-sufficiency, runtime correctness, review completeness or forensic readiness.
+sufficiency, runtime correctness, review completeness, change impact or forensic readiness.
 
 Targeted verification for this slice:
 

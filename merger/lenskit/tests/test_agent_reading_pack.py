@@ -340,6 +340,7 @@ def test_pack_do_not_claim_lists_prohibited_claim_classes(tmp_path):
         "test_sufficiency",
         "runtime_correctness",
         "review_complete",
+        "change_impact",
         "forensic_ready",
         "all_relevant_context_used",
         "regression_absence",
@@ -349,6 +350,8 @@ def test_pack_do_not_claim_lists_prohibited_claim_classes(tmp_path):
     assert "health reports" in section
     assert "surface validation" in section
     assert "sidecars do not prove" in section
+    assert "relation or path proximity" in section
+    assert "change impact" in section
 
 
 def test_pack_answer_compliance_checklist_is_declarative(tmp_path):
