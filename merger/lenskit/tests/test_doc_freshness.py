@@ -26,6 +26,27 @@ from merger.lenskit.core.doc_freshness import (
 
 REPO_ROOT = repo_root_from_here()
 
+_PYYAML_COLLECTIONS_ALIASES = (
+    "Hashable",
+    "Mapping",
+    "MutableMapping",
+    "Sequence",
+)
+
+
+def _delete_pyyaml_collections_aliases(monkeypatch, collections_module) -> None:
+    import collections.abc
+
+    for name in _PYYAML_COLLECTIONS_ALIASES:
+        # Register even an initially missing attribute for automatic teardown.
+        monkeypatch.setattr(
+            collections_module,
+            name,
+            getattr(collections.abc, name),
+            raising=False,
+        )
+        monkeypatch.delattr(collections_module, name, raising=False)
+
 
 # --- evidence resolution -----------------------------------------------------
 
@@ -517,6 +538,28 @@ def test_verified_entry_ids_excludes_findings():
     assert "ok1" in ids
     assert "stale1" in ids  # tracked-but-ok is stampable
     assert "bad" not in ids
+
+
+def test_load_registry_installs_pyyaml_collections_compat_before_safe_load(
+    monkeypatch, tmp_path
+):
+    import collections
+    import collections.abc
+    import yaml
+
+    from merger.lenskit.core import doc_freshness
+
+    registry_path = tmp_path / "registry.yml"
+    registry_path.write_text("claims: []\n", encoding="utf-8")
+    _delete_pyyaml_collections_aliases(monkeypatch, collections)
+
+    def fake_safe_load(text):
+        assert text == "claims: []\n"
+        assert collections.Hashable is collections.abc.Hashable
+        return {"claims": []}
+
+    monkeypatch.setattr(yaml, "safe_load", fake_safe_load)
+    assert doc_freshness.load_registry(registry_path) == {"claims": []}
 
 
 # --- the REAL checked-in registry --------------------------------------------

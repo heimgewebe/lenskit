@@ -44,6 +44,9 @@ import re
 from typing import Iterable, Optional
 
 from merger.lenskit.core.path_security import resolve_secure_path
+from merger.lenskit.core.yaml_compat import (
+    ensure_pyyaml_collections_abc_compat,
+)
 
 # ``kind`` of evidence whose *presence* implies the work is implemented ("done").
 _DONE_KINDS = frozenset({"symbol", "test", "proof"})
@@ -474,6 +477,7 @@ def load_registry(path: Path) -> dict:
     import yaml
 
     text = path.read_text(encoding="utf-8")
+    ensure_pyyaml_collections_abc_compat()
     data = yaml.safe_load(text)
     if not isinstance(data, dict):
         raise ValueError(f"registry must be a YAML mapping: {path}")
