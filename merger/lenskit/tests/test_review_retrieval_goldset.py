@@ -91,14 +91,14 @@ def _missing_or_wrong_kind_path(pattern: str) -> str | None:
 
 
 def _iter_searchable_files() -> list[Path]:
-    excluded_paths = {REVIEW_QUERIES_PATH.resolve(), THIS_TEST_PATH}
+    excluded_paths = {REVIEW_QUERIES_PATH, THIS_TEST_PATH}
     files: list[Path] = []
     for root_name in TEXT_SEARCH_ROOTS:
         root = REPO_ROOT / root_name
         if not root.exists():
             continue
         for path in root.rglob("*"):
-            if not path.is_file() or path.resolve() in excluded_paths:
+            if not path.is_file() or path in excluded_paths:
                 continue
             rel_parts = path.relative_to(REPO_ROOT).parts
             if any(part in SKIP_SEARCH_PARTS for part in rel_parts):
@@ -107,17 +107,6 @@ def _iter_searchable_files() -> list[Path]:
                 continue
             files.append(path)
     return files
-
-
-def _pattern_exists_in_repo_text(pattern: str, searchable_files: list[Path]) -> bool:
-    for path in searchable_files:
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        if pattern in text:
-            return True
-    return False
 
 
 def test_review_retrieval_goldset_uses_existing_query_format(
@@ -217,7 +206,7 @@ def test_review_retrieval_goldset_expected_path_patterns_exist(
 def test_review_retrieval_goldset_symbolic_patterns_exist_in_repo_text(
     review_queries: list[dict[str, Any]],
 ) -> None:
-    symbolic_patterns = {
+    remaining_patterns = {
         pattern
         for query_case in review_queries
         for pattern in query_case["expected_patterns"]
@@ -226,12 +215,19 @@ def test_review_retrieval_goldset_symbolic_patterns_exist_in_repo_text(
     searchable_files = _iter_searchable_files()
 
     assert searchable_files, "no searchable repository text files found"
-    missing = sorted(
-        pattern
-        for pattern in symbolic_patterns
-        if not _pattern_exists_in_repo_text(pattern, searchable_files)
-    )
-    assert missing == [], (
+
+    for path in searchable_files:
+        if not remaining_patterns:
+            break
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+
+        found = {pattern for pattern in remaining_patterns if pattern in text}
+        remaining_patterns -= found
+
+    assert remaining_patterns == set(), (
         "symbolic patterns not found outside the goldset and its guard test: "
-        f"{missing}"
+        f"{sorted(remaining_patterns)}"
     )
