@@ -23,6 +23,17 @@
       ]
     },
     {
+      "id": "TASK-AGENT-FRONTDOOR-003",
+      "title": "Retrieval Review Goldset v1",
+      "status": "done",
+      "description": "Added a versioned 20-query review retrieval goldset in the existing queries.v1.json list format, with loader-tolerated categories, static structure and repository-target tests, and an explicitly structural baseline. Metric-baseline wiring, miss taxonomy integration, and retrieval-ranking improvements remain separate follow-up slices.",
+      "evidence": [
+        "docs/retrieval/review_queries.v1.json",
+        "merger/lenskit/tests/test_review_retrieval_goldset.py",
+        "docs/diagnostics/review-retrieval-baseline.md"
+      ]
+    },
+    {
       "id": "TASK-SERVICE-003B",
       "title": "rLens Source Acquisition Control-Plane Hardening",
       "status": "done",
