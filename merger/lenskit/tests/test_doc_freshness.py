@@ -562,6 +562,57 @@ def test_load_registry_installs_pyyaml_collections_compat_before_safe_load(
     assert doc_freshness.load_registry(registry_path) == {"claims": []}
 
 
+def test_validate_registry_falls_back_when_jsonschema_missing(no_jsonschema, tmp_path):
+    valid = {
+        "kind": "lenskit.doc_freshness_registry",
+        "version": "1.0",
+        "entries": [
+            {
+                "id": "sample-claim",
+                "doc": "docs/sample.md",
+                "claim": "sample claim",
+                "status": "done",
+                "owner": "tests",
+                "last_verified": "2026-06-11",
+                "evidence": [
+                    {"kind": "proof", "target": "docs/proofs/sample.md"}
+                ],
+            }
+        ],
+    }
+
+    assert validate_registry(valid, tmp_path / "unused.schema.json") == []
+
+
+def test_validate_registry_fallback_reports_structural_errors(
+    no_jsonschema, tmp_path
+):
+    invalid = {
+        "kind": "lenskit.doc_freshness_registry",
+        "version": "1.0",
+        "entries": [
+            {
+                "id": "Bad ID",
+                "doc": "",
+                "claim": "sample claim",
+                "status": "banana",
+                "owner": "tests",
+                "last_verified": "not-a-date",
+                "evidence": [{"kind": "banana", "target": ""}],
+            }
+        ],
+    }
+
+    errors = validate_registry(invalid, tmp_path / "unused.schema.json")
+
+    assert "[entries.0.id] must match ^[a-z0-9][a-z0-9-]*$" in errors
+    assert "[entries.0.doc] must be a non-empty string" in errors
+    assert "[entries.0.status] invalid status: banana" in errors
+    assert "[entries.0.last_verified] must match YYYY-MM-DD" in errors
+    assert "[entries.0.evidence.0.kind] invalid kind: banana" in errors
+    assert "[entries.0.evidence.0.target] must be a non-empty string" in errors
+
+
 # --- the REAL checked-in registry --------------------------------------------
 
 

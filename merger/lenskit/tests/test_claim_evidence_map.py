@@ -226,59 +226,124 @@ entries:
     assert from_disk["claims"][0]["requires_live_check"] is True
 
 
+def test_produce_claim_evidence_map_works_without_jsonschema(
+    no_jsonschema, tmp_path
+):
+    registry_path = tmp_path / "docs" / "doc-freshness-registry.yml"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text(
+        """
+kind: lenskit.doc_freshness_registry
+version: "1.0"
+entries:
+  - id: sample-claim
+    doc: docs/sample.md
+    claim: sample claim
+    status: done
+    owner: tests
+    last_verified: "2026-06-11"
+    evidence:
+      - kind: proof
+        target: docs/proofs/sample.md
+""".lstrip(),
+        encoding="utf-8",
+    )
+    out = tmp_path / "out" / "bundle.claim_evidence_map.json"
+
+    result = produce_claim_evidence_map(
+        registry_path, out, generated_at="2026-06-11T00:00:00Z"
+    )
+
+    assert out.exists()
+    assert [claim["id"] for claim in result["claims"]] == ["sample-claim"]
+    assert json.loads(out.read_text(encoding="utf-8")) == result
+
+
 def test_produce_claim_evidence_map_generated_at_is_deterministic_from_registry(tmp_path):
-        registry_path = tmp_path / "docs" / "doc-freshness-registry.yml"
-        registry_path.parent.mkdir(parents=True)
-        registry_path.write_text(
-                (
-                        "kind: lenskit.doc_freshness_registry\n"
-                        "version: \"1.0\"\n"
-                        "entries:\n"
-                        "  - id: a\n"
-                        "    doc: docs/a.md\n"
-                        "    locator: a\n"
-                        "    claim: a\n"
-                        "    status: done\n"
-                        "    normative: false\n"
-                        "    owner: o\n"
-                        "    last_verified: \"2026-05-30\"\n"
-                        "    evidence:\n"
-                        "      - kind: file\n"
-                        "        target: docs/a.md\n"
-                        "  - id: b\n"
-                        "    doc: docs/b.md\n"
-                        "    locator: b\n"
-                        "    claim: b\n"
-                        "    status: done\n"
-                        "    normative: false\n"
-                        "    owner: o\n"
-                        "    last_verified: \"2026-05-31\"\n"
-                        "    evidence:\n"
-                        "      - kind: file\n"
-                        "        target: docs/b.md\n"
-                ),
-                encoding="utf-8",
-        )
+    registry_path = tmp_path / "docs" / "doc-freshness-registry.yml"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text(
+        (
+            "kind: lenskit.doc_freshness_registry\n"
+            "version: \"1.0\"\n"
+            "entries:\n"
+            "  - id: a\n"
+            "    doc: docs/a.md\n"
+            "    locator: a\n"
+            "    claim: a\n"
+            "    status: done\n"
+            "    normative: false\n"
+            "    owner: o\n"
+            "    last_verified: \"2026-05-30\"\n"
+            "    evidence:\n"
+            "      - kind: file\n"
+            "        target: docs/a.md\n"
+            "  - id: b\n"
+            "    doc: docs/b.md\n"
+            "    locator: b\n"
+            "    claim: b\n"
+            "    status: done\n"
+            "    normative: false\n"
+            "    owner: o\n"
+            "    last_verified: \"2026-05-31\"\n"
+            "    evidence:\n"
+            "      - kind: file\n"
+            "        target: docs/b.md\n"
+        ),
+        encoding="utf-8",
+    )
 
-        contracts_dir = tmp_path / "merger" / "lenskit" / "contracts"
-        contracts_dir.mkdir(parents=True)
-        source_schema = (
-                Path(__file__).parent.parent / "contracts" / "doc-freshness-registry.v1.schema.json"
-        )
-        (contracts_dir / "doc-freshness-registry.v1.schema.json").write_text(
-                source_schema.read_text(encoding="utf-8"),
-                encoding="utf-8",
-        )
+    contracts_dir = tmp_path / "merger" / "lenskit" / "contracts"
+    contracts_dir.mkdir(parents=True)
+    source_schema = (
+        Path(__file__).parent.parent
+        / "contracts"
+        / "doc-freshness-registry.v1.schema.json"
+    )
+    (contracts_dir / "doc-freshness-registry.v1.schema.json").write_text(
+        source_schema.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
 
-        out1 = tmp_path / "out" / "a.claim_evidence_map.json"
-        out2 = tmp_path / "out" / "b.claim_evidence_map.json"
+    out1 = tmp_path / "out" / "a.claim_evidence_map.json"
+    out2 = tmp_path / "out" / "b.claim_evidence_map.json"
 
-        first = produce_claim_evidence_map(registry_path, out1)
-        second = produce_claim_evidence_map(registry_path, out2)
+    first = produce_claim_evidence_map(registry_path, out1)
+    second = produce_claim_evidence_map(registry_path, out2)
 
-        assert first["source"]["generated_at"] == "2026-05-31T00:00:00Z"
-        assert first["source"]["generated_at"] == second["source"]["generated_at"]
-        assert out1.read_text(encoding="utf-8") == out2.read_text(encoding="utf-8")
+    assert first["source"]["generated_at"] == "2026-05-31T00:00:00Z"
+    assert first["source"]["generated_at"] == second["source"]["generated_at"]
+    assert out1.read_text(encoding="utf-8") == out2.read_text(encoding="utf-8")
+
+
+def test_produce_claim_evidence_map_rejects_fallback_validation_errors(
+    no_jsonschema, tmp_path
+):
+    registry_path = tmp_path / "docs" / "doc-freshness-registry.yml"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text(
+        """
+kind: lenskit.doc_freshness_registry
+version: "1.0"
+entries:
+  - id: Bad ID
+    doc: docs/sample.md
+    claim: sample claim
+    status: banana
+    owner: tests
+    last_verified: "2026-06-11"
+    evidence:
+      - kind: proof
+        target: docs/proofs/sample.md
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "out" / "bundle.claim_evidence_map.json"
+    with pytest.raises(ValueError, match="validation failed.*invalid status: banana"):
+        produce_claim_evidence_map(registry_path, out)
+
+    assert not out.exists()
 
 
 def test_produce_claim_evidence_map_raises_for_invalid_registry(tmp_path):
