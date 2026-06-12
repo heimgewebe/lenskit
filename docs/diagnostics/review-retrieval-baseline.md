@@ -42,10 +42,13 @@ presence of symbolic targets outside the goldset and its guard test.
 ## Baseline Type
 
 Structural baseline only. This slice does not run or commit retrieval metrics and does
-not change retrieval, routing, indexing, or ranking behavior.
+not change retrieval, routing, indexing, or ranking behavior. This document closes only
+the structural-goldset subtask; it does not close the full blueprint acceptance criteria
+for reproducible retrieval baseline metrics or miss diagnostics. Those remain tracked by
+`TASK-AGENT-FRONTDOOR-004`.
 
 ## Follow-up
 
-Later slices may connect this goldset to deterministic `retrieval_eval` metrics, miss
-taxonomy reporting, and ranking improvements. Metric-baseline wiring remains separate
-from this completed structural slice.
+`TASK-AGENT-FRONTDOOR-004` remains open to connect this goldset to deterministic
+`retrieval_eval` metrics, expected-target hit reporting, and miss diagnostics reconciled
+with the existing taxonomy. Ranking improvements remain a separate later slice.
