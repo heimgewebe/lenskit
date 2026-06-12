@@ -15,8 +15,8 @@
     {
       "id": "TASK-AGENT-FRONTDOOR-002",
       "title": "Agent-Pack-Usage Smoke",
-      "status": "open",
-      "description": "Add a deterministic producer-level smoke test for the Agent Reading Pack v1.1 task-to-artifact usage matrix, canonical-only insufficiency rules and sidecar authority boundaries. No new schema, CLI command or producer behavior is in scope.",
+      "status": "done",
+      "description": "Added a deterministic producer-level smoke test for the Agent Reading Pack v1.1 task-to-artifact usage matrix, canonical-only insufficiency rules and sidecar authority boundaries. No schema, CLI command or producer behavior was added.",
       "evidence": [
         "merger/lenskit/tests/test_agent_reading_pack_usage_rules.py",
         "docs/blueprints/lenskit-agent-front-door-hardening.md"

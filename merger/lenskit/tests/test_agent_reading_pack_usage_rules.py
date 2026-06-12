@@ -17,6 +17,33 @@ _TASK_PROFILES = (
     "retrieval_quality_review",
 )
 
+_EXPECTED_REQUIRED_BY_PROFILE = {
+    "basic_repo_question": {"agent_reading_pack", "canonical_md"},
+    "pr_review": {
+        "agent_reading_pack",
+        "canonical_md",
+        "citation_map_jsonl",
+        "post_emit_health",
+    },
+    "roadmap_status_claim": {
+        "agent_reading_pack",
+        "canonical_md",
+        "claim_evidence_map_json",
+    },
+    "artifact_surface_review": {
+        "bundle_manifest",
+        "post_emit_health",
+        "bundle_surface_validation",
+        "canonical_md",
+    },
+    "retrieval_quality_review": {
+        "retrieval_eval_json",
+        "chunk_index_jsonl",
+        "sqlite_index",
+        "canonical_md",
+    },
+}
+
 
 def _section(body: str, heading: str) -> str:
     match = re.search(
@@ -49,6 +76,10 @@ def _assert_meaningful_cell(value: str, *, field: str, profile: str) -> None:
     )
 
 
+def _roles_from_cell(value: str) -> set[str]:
+    return set(re.findall(r"`([^`]+)`", value))
+
+
 @pytest.fixture(scope="module")
 def pack_text(tmp_path_factory: pytest.TempPathFactory) -> str:
     tmp_path = tmp_path_factory.mktemp("agent-pack-usage-smoke")
@@ -67,19 +98,12 @@ def test_agent_pack_usage_profiles_are_complete(pack_text: str) -> None:
             _assert_meaningful_cell(row[field], field=field, profile=profile)
 
 
-def test_agent_pack_usage_profiles_require_expected_sidecars(pack_text: str) -> None:
-    body = pack_text
-
-    expected_required = {
-        "pr_review": {"citation_map_jsonl"},
-        "roadmap_status_claim": {"claim_evidence_map_json"},
-        "artifact_surface_review": {"post_emit_health", "bundle_surface_validation"},
-        "retrieval_quality_review": {"retrieval_eval_json"},
-    }
-    for profile, roles in expected_required.items():
-        required = _row_for_profile(body, profile)["required"]
-        for role in roles:
-            assert f"`{role}`" in required
+def test_agent_pack_usage_profiles_require_complete_expected_matrix(
+    pack_text: str,
+) -> None:
+    for profile, expected_roles in _EXPECTED_REQUIRED_BY_PROFILE.items():
+        row = _row_for_profile(pack_text, profile)
+        assert _roles_from_cell(row["required"]) == expected_roles
 
 
 def test_canonical_only_insufficiency_is_explicit_for_heavy_profiles(
