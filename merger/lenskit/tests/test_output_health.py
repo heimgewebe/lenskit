@@ -931,6 +931,14 @@ def test_range_ref_jsonschema_unavailable_is_warn_not_fail(tmp_path):
     )
     assert result["checks"]["range_ref_resolution_ok"] is None
     assert result["checks"]["range_ref_resolution_status"] == "environment_error"
+    assert result["checks"]["range_ref_resolution"]["status"] == "environment_error"
+    assert result["checks"]["range_ref_resolution"]["validation"] == {
+        "mode": "skipped_unavailable",
+        "engine": "range_resolver",
+        "reason": "dependency_unavailable",
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=result, schema=schema)
     assert any("jsonschema" in w.lower() for w in result["warnings"])
     assert not any("jsonschema" in e.lower() for e in result["errors"])
 
@@ -990,6 +998,13 @@ def test_range_ref_status_ok_on_intact_path(tmp_path):
 
     assert result["checks"]["range_ref_resolution_ok"] is True
     assert result["checks"]["range_ref_resolution_status"] == "ok"
+    assert result["checks"]["range_ref_resolution"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "range_resolver",
+        "reason": "available",
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=result, schema=schema)
     assert result["verdict"] == "pass"
 
 

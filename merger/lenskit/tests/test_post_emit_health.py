@@ -13,6 +13,8 @@ from pathlib import Path
 import jsonschema
 import pytest
 
+from merger.lenskit.core import post_emit_health
+from merger.lenskit.core import range_resolver
 from merger.lenskit.core.post_emit_health import (
     DOES_NOT_MEAN,
     compute_post_emit_health,
@@ -324,6 +326,17 @@ def test_post_emit_health_clean_bundle_passes(tmp_path):
     assert report["agent_pack"]["self_role_ok"] is True
     # A clean bundle whose chunks carry canonical_range resolves a real range path.
     assert report["range_ref_resolution_status"] == "ok"
+    by_name = {item["name"]: item for item in report["checks"]}
+    assert by_name["manifest_schema_valid"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
+    assert by_name["range_ref_resolution"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "range_resolver",
+        "reason": "available",
+    }
     assert "repo_understood" in report["does_not_mean"]
     assert "answer_safe_without_citations" in report["does_not_mean"]
     assert set(DOES_NOT_MEAN).issubset(set(report["does_not_mean"]))
@@ -363,6 +376,61 @@ def test_post_emit_health_checks_claim_evidence_map_when_present(tmp_path):
     assert by_name["claim_evidence_map_present"]["status"] == "pass"
     assert by_name["claim_evidence_map_hash_ok"]["status"] == "pass"
     assert by_name["claim_evidence_map_schema_valid"]["status"] == "pass"
+    assert by_name["claim_evidence_map_schema_valid"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
+
+
+def test_post_emit_health_reports_jsonschema_degradation_machine_readably(
+    tmp_path, monkeypatch
+):
+    manifest = _make_bundle(tmp_path, include_claim_map=True, include_citation=True)
+    monkeypatch.setattr(post_emit_health, "jsonschema", None)
+    monkeypatch.setattr(range_resolver, "jsonschema", None)
+
+    report = compute_post_emit_health(str(manifest))
+
+    assert report["status"] == "warn"
+    by_name = {item["name"]: item for item in report["checks"]}
+    for check_name, engine in (
+        ("manifest_schema_valid", "jsonschema"),
+        ("range_ref_resolution", "range_resolver"),
+        ("claim_evidence_map_schema_valid", "jsonschema"),
+    ):
+        check = by_name[check_name]
+        assert check["status"] == "skipped"
+        assert "jsonschema unavailable" in check["detail"]
+        assert check["validation"] == {
+            "mode": "skipped_unavailable",
+            "engine": engine,
+            "reason": "dependency_unavailable",
+        }
+
+
+def test_post_emit_health_reports_missing_claim_schema_machine_readably(
+    tmp_path, monkeypatch
+):
+    manifest = _make_bundle(tmp_path, include_claim_map=True, include_citation=True)
+    monkeypatch.setattr(
+        post_emit_health,
+        "_validate_claim_evidence_map_schema",
+        lambda _doc: (
+            "environment_error",
+            "claim_evidence_map schema not found: claim-evidence-map.v1.schema.json",
+        ),
+    )
+
+    report = compute_post_emit_health(str(manifest))
+
+    assert report["status"] == "warn"
+    by_name = {item["name"]: item for item in report["checks"]}
+    assert by_name["claim_evidence_map_schema_valid"]["validation"] == {
+        "mode": "skipped_unavailable",
+        "engine": "jsonschema",
+        "reason": "schema_missing",
+    }
 
 
 def test_post_emit_health_fails_on_invalid_claim_map_schema(tmp_path):

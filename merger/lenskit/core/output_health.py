@@ -406,6 +406,32 @@ def compute_output_health(
         rr_ok, rr_msgs, rr_status = _range_ref_check(dump_index_path, chunk_index_path)
         checks["range_ref_resolution_ok"] = rr_ok
         checks["range_ref_resolution_status"] = rr_status
+        # mode names the validation capability used by this check; engine names
+        # the local component consuming that capability, not a schema engine.
+        if rr_status == "environment_error":
+            rr_validation = {
+                "mode": "skipped_unavailable",
+                "engine": "range_resolver",
+                "reason": "dependency_unavailable",
+            }
+        elif rr_status in {"ok", "fail"}:
+            rr_validation = {
+                "mode": "jsonschema",
+                "engine": "range_resolver",
+                "reason": "available",
+            }
+        else:
+            rr_validation = {
+                "mode": "skipped_unavailable",
+                "engine": "range_resolver",
+                "reason": "check_not_applicable",
+            }
+        checks["range_ref_resolution"] = {
+            "status": rr_status,
+            "required": True,
+            "reason": rr_msgs[0] if rr_msgs else "range_ref validation completed",
+            "validation": rr_validation,
+        }
         if rr_ok is False:
             errors.extend(rr_msgs)
         else:
@@ -414,6 +440,16 @@ def compute_output_health(
     else:
         checks["range_ref_resolution_ok"] = None
         checks["range_ref_resolution_status"] = "skipped"
+        checks["range_ref_resolution"] = {
+            "status": "skipped",
+            "required": False,
+            "reason": "chunk_index not required; range_ref check not applicable",
+            "validation": {
+                "mode": "skipped_unavailable",
+                "engine": "range_resolver",
+                "reason": "check_not_applicable",
+            },
+        }
 
     # ── non-blocking optional checks ────────────────────────────────────────
     checks["sample_query_content_hit"] = {
