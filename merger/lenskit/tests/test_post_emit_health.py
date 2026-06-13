@@ -6,6 +6,7 @@ full merge pipeline. The defining property: post_emit_health validates the FINAL
 bundle surface (including the agent_reading_pack, which the in-pipeline
 output_health cannot see) and is independent of the pre-emit output_health verdict.
 """
+
 import hashlib
 import json
 from pathlib import Path
@@ -52,11 +53,17 @@ def _make_bundle(
     artifacts = []
 
     (tmp_path / "demo.md").write_bytes(_CANONICAL)
-    artifacts.append({
-        "role": "canonical_md", "path": "demo.md", "content_type": "text/markdown",
-        "bytes": len(_CANONICAL), "sha256": _sha256(_CANONICAL),
-        "authority": "canonical_content", "canonicality": "content_source",
-    })
+    artifacts.append(
+        {
+            "role": "canonical_md",
+            "path": "demo.md",
+            "content_type": "text/markdown",
+            "bytes": len(_CANONICAL),
+            "sha256": _sha256(_CANONICAL),
+            "authority": "canonical_content",
+            "canonicality": "content_source",
+        }
+    )
 
     _start = _CANONICAL.index(b"x = 1")
     chunk = {
@@ -75,56 +82,83 @@ def _make_bundle(
     }
     chunk_bytes = (json.dumps(chunk) + "\n").encode("utf-8")
     (tmp_path / "demo.chunk_index.jsonl").write_bytes(chunk_bytes)
-    artifacts.append({
-        "role": "chunk_index_jsonl", "path": "demo.chunk_index.jsonl",
-        "content_type": "application/x-ndjson", "bytes": len(chunk_bytes),
-        "sha256": _sha256(chunk_bytes),
-        "authority": "retrieval_index", "canonicality": "derived",
-    })
+    artifacts.append(
+        {
+            "role": "chunk_index_jsonl",
+            "path": "demo.chunk_index.jsonl",
+            "content_type": "application/x-ndjson",
+            "bytes": len(chunk_bytes),
+            "sha256": _sha256(chunk_bytes),
+            "authority": "retrieval_index",
+            "canonicality": "derived",
+        }
+    )
 
     if include_health:
         checks = {"chunk_count": 1}
         if health_checks:
             checks.update(health_checks)
         health_doc = {
-            "kind": "lenskit.output_health", "version": "1.0", "run_id": "demo-run",
-            "created_at": "2026-05-20T00:00:00Z", "stem": "demo",
-            "checks": checks, "diagnostic_artifacts": {},
-            "warnings": [], "errors": [], "verdict": health_verdict,
+            "kind": "lenskit.output_health",
+            "version": "1.0",
+            "run_id": "demo-run",
+            "created_at": "2026-05-20T00:00:00Z",
+            "stem": "demo",
+            "checks": checks,
+            "diagnostic_artifacts": {},
+            "warnings": [],
+            "errors": [],
+            "verdict": health_verdict,
         }
         if health_top_level:
             health_doc.update(health_top_level)
         health_bytes = json.dumps(health_doc, indent=2).encode("utf-8")
         (tmp_path / "demo.output_health.json").write_bytes(health_bytes)
-        artifacts.append({
-            "role": "output_health", "path": "demo.output_health.json",
-            "content_type": "application/json", "bytes": len(health_bytes),
-            "sha256": _sha256(health_bytes),
-            "authority": "diagnostic_signal", "canonicality": "diagnostic",
-        })
+        artifacts.append(
+            {
+                "role": "output_health",
+                "path": "demo.output_health.json",
+                "content_type": "application/json",
+                "bytes": len(health_bytes),
+                "sha256": _sha256(health_bytes),
+                "authority": "diagnostic_signal",
+                "canonicality": "diagnostic",
+            }
+        )
 
     if include_pack:
         pack_bytes = b"<!-- ARTIFACT:agent_reading_pack VERSION:v1 -->\n# Pack\nNAVIGATION, NOT TRUTH\n"
         (tmp_path / "demo.agent_reading_pack.md").write_bytes(pack_bytes)
-        artifacts.append({
-            "role": "agent_reading_pack", "path": "demo.agent_reading_pack.md",
-            "content_type": "text/markdown", "bytes": len(pack_bytes),
-            "sha256": _sha256(pack_bytes),
-            "authority": pack_authority, "canonicality": pack_canonicality,
-        })
+        artifacts.append(
+            {
+                "role": "agent_reading_pack",
+                "path": "demo.agent_reading_pack.md",
+                "content_type": "text/markdown",
+                "bytes": len(pack_bytes),
+                "sha256": _sha256(pack_bytes),
+                "authority": pack_authority,
+                "canonicality": pack_canonicality,
+            }
+        )
 
     if include_citation:
         cit_bytes = b'{"citation_id":"cit_0000000000000000"}\n'
         (tmp_path / "demo.citation_map.jsonl").write_bytes(cit_bytes)
-        artifacts.append({
-            "role": "citation_map_jsonl", "path": "demo.citation_map.jsonl",
-            "content_type": "application/x-ndjson", "bytes": len(cit_bytes),
-            "sha256": _sha256(cit_bytes),
-            "authority": "navigation_index", "canonicality": "derived",
-            "regenerable": True, "staleness_sensitive": True,
-            "contract": {"id": "citation-map", "version": "v1"},
-            "interpretation": {"mode": "contract"},
-        })
+        artifacts.append(
+            {
+                "role": "citation_map_jsonl",
+                "path": "demo.citation_map.jsonl",
+                "content_type": "application/x-ndjson",
+                "bytes": len(cit_bytes),
+                "sha256": _sha256(cit_bytes),
+                "authority": "navigation_index",
+                "canonicality": "derived",
+                "regenerable": True,
+                "staleness_sensitive": True,
+                "contract": {"id": "citation-map", "version": "v1"},
+                "interpretation": {"mode": "contract"},
+            }
+        )
 
     if include_claim_map:
         claim_doc = {
@@ -156,7 +190,9 @@ def _make_bundle(
                     "owner": "lenskit",
                     "last_verified": "2026-05-20",
                     "requires_live_check": True,
-                    "evidence_refs": [{"kind": "symbol", "target": "docs/proof.md::L1"}],
+                    "evidence_refs": [
+                        {"kind": "symbol", "target": "docs/proof.md::L1"}
+                    ],
                     "relation": "declared_evidence_ref",
                     "does_not_establish": [
                         "truth",
@@ -169,29 +205,34 @@ def _make_bundle(
         }
         claim_bytes = json.dumps(claim_doc, indent=2).encode("utf-8")
         (tmp_path / "demo.claim_evidence_map.json").write_bytes(claim_bytes)
-        artifacts.append({
-            "role": "claim_evidence_map_json",
-            "path": "demo.claim_evidence_map.json",
-            "content_type": "application/json",
-            "bytes": len(claim_bytes),
-            "sha256": _sha256(claim_bytes),
-            "authority": "navigation_index",
-            "canonicality": "derived",
-            "regenerable": True,
-            "staleness_sensitive": True,
-            "contract": {"id": "claim-evidence-map", "version": "v1"},
-            "interpretation": {"mode": "contract"},
-        })
+        artifacts.append(
+            {
+                "role": "claim_evidence_map_json",
+                "path": "demo.claim_evidence_map.json",
+                "content_type": "application/json",
+                "bytes": len(claim_bytes),
+                "sha256": _sha256(claim_bytes),
+                "authority": "navigation_index",
+                "canonicality": "derived",
+                "regenerable": True,
+                "staleness_sensitive": True,
+                "contract": {"id": "claim-evidence-map", "version": "v1"},
+                "interpretation": {"mode": "contract"},
+            }
+        )
 
     links = {}
     if claim_absence_reason is not None:
         links["claim_evidence_map_absence_reason"] = claim_absence_reason
 
     manifest = {
-        "kind": "repolens.bundle.manifest", "version": "1.0", "run_id": "demo-run",
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "demo-run",
         "created_at": "2026-05-20T00:00:00Z",
         "generator": {"name": "test", "version": "1.0", "config_sha256": "a" * 64},
-        "artifacts": artifacts, "links": links,
+        "artifacts": artifacts,
+        "links": links,
         "capabilities": {"fts5_bm25": False, "redaction": redaction},
     }
     manifest_path = tmp_path / "demo.bundle.manifest.json"
@@ -234,7 +275,9 @@ def test_post_emit_health_accepts_legacy_excluded_noise_list(tmp_path):
         tmp_path,
         health_top_level={
             "excluded_noise": [
-                {"path": ".tmp/forensic-preflight-ci-canary/artifacts/forensic-preflight-canary.json"}
+                {
+                    "path": ".tmp/forensic-preflight-ci-canary/artifacts/forensic-preflight-canary.json"
+                }
             ]
         },
     )
@@ -243,6 +286,7 @@ def test_post_emit_health_accepts_legacy_excluded_noise_list(tmp_path):
 
     assert report["noise_hygiene"]["available"] is True
     assert report["noise_hygiene"]["excluded_noise_count"] == 1
+
 
 def test_post_emit_health_requires_agent_pack(tmp_path):
     """A bundle without an agent_reading_pack must not silently pass."""
@@ -260,7 +304,9 @@ def test_post_emit_health_independent_of_pre_health(tmp_path):
     """output_health.verdict=pass must never imply post_emit_health.status=pass."""
     manifest = _make_bundle(tmp_path, health_verdict="pass")
     # Introduce a post-emit-only defect: corrupt the pack so its hash mismatches.
-    (tmp_path / "demo.agent_reading_pack.md").write_bytes(b"tampered content not in manifest hash\n")
+    (tmp_path / "demo.agent_reading_pack.md").write_bytes(
+        b"tampered content not in manifest hash\n"
+    )
 
     report = compute_post_emit_health(str(manifest))
 
@@ -296,7 +342,9 @@ def test_post_emit_health_detects_missing_artifact(tmp_path):
 
     assert report["status"] == "fail"
     assert report["missing_artifact_count"] >= 1
-    paths_check = next(c for c in report["checks"] if c["name"] == "artifact_paths_exist")
+    paths_check = next(
+        c for c in report["checks"] if c["name"] == "artifact_paths_exist"
+    )
     assert paths_check["status"] == "fail"
 
 
@@ -309,13 +357,16 @@ def test_post_emit_health_detects_hash_mismatch(tmp_path):
 
     assert report["status"] == "fail"
     assert report["hash_mismatch_count"] >= 1
-    hashes_check = next(c for c in report["checks"] if c["name"] == "artifact_hashes_match")
+    hashes_check = next(
+        c for c in report["checks"] if c["name"] == "artifact_hashes_match"
+    )
     assert hashes_check["status"] == "fail"
 
 
 # ---------------------------------------------------------------------------
 # Supporting coverage
 # ---------------------------------------------------------------------------
+
 
 def test_post_emit_health_clean_bundle_passes(tmp_path):
     manifest = _make_bundle(tmp_path)
@@ -508,7 +559,9 @@ def test_post_emit_health_claim_map_absence_reports_reason(tmp_path):
 def test_post_emit_health_output_validates_against_schema(tmp_path):
     schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
     # Build distinct bundles in fresh dirs and validate each report against schema.
-    for i, kwargs in enumerate(({}, {"include_pack": False}, {"include_citation": True})):
+    for i, kwargs in enumerate(
+        ({}, {"include_pack": False}, {"include_citation": True})
+    ):
         sub = tmp_path / f"bundle_{i}"
         sub.mkdir()
         manifest = _make_bundle(sub, **kwargs)
@@ -575,6 +628,7 @@ def test_post_emit_health_blocked_precedes_fail(tmp_path):
 # C2.1: additive, optional authority/risk_class self-declaration
 # ---------------------------------------------------------------------------
 
+
 def _valid_post_emit_report(tmp_path) -> dict:
     manifest = _make_bundle(tmp_path)
     return compute_post_emit_health(str(manifest))
@@ -623,6 +677,11 @@ def test_write_post_emit_health_persists_unregistered_artifact(tmp_path):
     assert out.exists()
     written = json.loads(out.read_text(encoding="utf-8"))
     assert written["status"] == report["status"] == "pass"
+
+    post_checks = {check["name"]: check for check in written["checks"]}
+    assert "validation" in post_checks["manifest_schema_valid"]
+    assert "validation" in post_checks["range_ref_resolution"]
+    assert "validation" in post_checks["claim_evidence_map_schema_valid"]
 
     # Persistence must NOT mutate the bundle manifest (no registration).
     assert manifest.read_text(encoding="utf-8") == manifest_before
