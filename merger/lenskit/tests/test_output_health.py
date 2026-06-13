@@ -10,7 +10,9 @@ import pytest
 
 from merger.lenskit.core.output_health import compute_output_health, write_output_health
 
-_SCHEMA_PATH = Path(__file__).parent.parent / "contracts" / "output-health.v1.schema.json"
+_SCHEMA_PATH = (
+    Path(__file__).parent.parent / "contracts" / "output-health.v1.schema.json"
+)
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -56,13 +58,17 @@ def _make_dump_index(tmp_path: Path, canonical_name: str, chunk_name: str) -> Pa
     return p
 
 
-def _make_sqlite(tmp_path: Path, chunks_rows: list[dict], fts_rows: list[dict] | None = None) -> Path:
+def _make_sqlite(
+    tmp_path: Path, chunks_rows: list[dict], fts_rows: list[dict] | None = None
+) -> Path:
     db_path = tmp_path / "test.index.sqlite"
     conn = sqlite3.connect(str(db_path))
     c = conn.cursor()
     c.execute("CREATE TABLE chunks (id TEXT PRIMARY KEY, content TEXT, path TEXT)")
     try:
-        c.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(chunk_id, content, path_tokens)")
+        c.execute(
+            "CREATE VIRTUAL TABLE chunks_fts USING fts5(chunk_id, content, path_tokens)"
+        )
     except sqlite3.OperationalError as e:
         conn.close()
         if "no such module: fts5" in str(e).lower():
@@ -70,19 +76,27 @@ def _make_sqlite(tmp_path: Path, chunks_rows: list[dict], fts_rows: list[dict] |
         raise
 
     for row in chunks_rows:
-        c.execute("INSERT INTO chunks VALUES (?, ?, ?)", (row["id"], row["content"], row["path"]))
+        c.execute(
+            "INSERT INTO chunks VALUES (?, ?, ?)",
+            (row["id"], row["content"], row["path"]),
+        )
 
     if fts_rows is None:
         fts_rows = chunks_rows
     for row in fts_rows:
-        c.execute("INSERT INTO chunks_fts VALUES (?, ?, ?)", (row["id"], row["content"], row["path"]))
+        c.execute(
+            "INSERT INTO chunks_fts VALUES (?, ?, ?)",
+            (row["id"], row["content"], row["path"]),
+        )
 
     conn.commit()
     conn.close()
     return db_path
 
 
-def _build_range_ref_for_canonical(canonical_path: Path, start_byte: int, end_byte: int) -> dict:
+def _build_range_ref_for_canonical(
+    canonical_path: Path, start_byte: int, end_byte: int
+) -> dict:
     content = canonical_path.read_bytes()[start_byte:end_byte]
     return {
         "artifact_role": "canonical_md",
@@ -108,7 +122,9 @@ def _base_kwargs(
 
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
     sqlite_index_path = _make_sqlite(tmp_path, chunks) if with_sqlite else None
 
     return dict(
@@ -125,13 +141,26 @@ def _base_kwargs(
     )
 
 
-def test_verdict_pass_when_blocking_checks_pass_and_optional_features_are_skipped(tmp_path):
+def test_verdict_pass_when_blocking_checks_pass_and_optional_features_are_skipped(
+    tmp_path,
+):
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
-    chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md", "content_range_ref": rr}]
+    chunks = [
+        {
+            "id": "c1",
+            "content": "hello world",
+            "path": "test/a.md",
+            "content_range_ref": rr,
+        }
+    ]
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
-    sqlite_index_path = _make_sqlite(tmp_path, [{"id": "c1", "content": "hello world", "path": "test/a.md"}])
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
+    sqlite_index_path = _make_sqlite(
+        tmp_path, [{"id": "c1", "content": "hello world", "path": "test/a.md"}]
+    )
 
     result = compute_output_health(
         run_id="run-pass",
@@ -169,7 +198,9 @@ def test_health_not_fail_when_final_bundle_manifest_not_written_yet(tmp_path):
     result = compute_output_health(**kwargs)
 
     assert result["checks"]["manifest_present"] is True
-    assert not any("primary artifact manifest is missing" in e for e in result["errors"])
+    assert not any(
+        "primary artifact manifest is missing" in e for e in result["errors"]
+    )
     assert result["verdict"] != "fail"
 
 
@@ -181,7 +212,9 @@ def test_output_health_does_not_require_final_bundle_manifest_entry(tmp_path):
     result = compute_output_health(**kwargs)
 
     assert result["checks"]["manifest_present"] is True
-    assert not any("primary artifact manifest is missing" in e for e in result["errors"])
+    assert not any(
+        "primary artifact manifest is missing" in e for e in result["errors"]
+    )
     assert result["verdict"] != "fail"
 
 
@@ -251,7 +284,9 @@ def test_verdict_fail_chunk_index_missing_file_when_required(tmp_path):
 
     assert result["verdict"] == "fail"
     assert result["checks"]["chunk_index_hash_ok"] is False
-    assert any("chunk_index hash check failed: file missing" in e for e in result["errors"])
+    assert any(
+        "chunk_index hash check failed: file missing" in e for e in result["errors"]
+    )
 
 
 def test_verdict_fail_empty_chunk_index(tmp_path):
@@ -272,7 +307,9 @@ def test_verdict_fail_sqlite_row_count_mismatch(tmp_path):
 
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks_full)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
     sqlite_index_path = _make_sqlite(tmp_path, chunks_short)
 
     result = compute_output_health(
@@ -296,7 +333,9 @@ def test_verdict_fail_sqlite_expected_but_missing(tmp_path):
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunks = [{"id": "c1", "content": "aaa", "path": "a.md"}]
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
     sqlite_index_path = tmp_path / "missing.index.sqlite"
 
     result = compute_output_health(
@@ -315,15 +354,26 @@ def test_verdict_fail_sqlite_expected_but_missing(tmp_path):
     assert result["checks"]["sqlite_present"] is False
     assert result["checks"]["sqlite_checks_required"] is True
     assert result["verdict"] == "fail"
-    assert any("sqlite" in e.lower() and "missing" in e.lower() for e in result["errors"])
+    assert any(
+        "sqlite" in e.lower() and "missing" in e.lower() for e in result["errors"]
+    )
 
 
 def test_sqlite_not_required_and_missing_does_not_warn_or_fail(tmp_path):
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
-    chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md", "content_range_ref": rr}]
+    chunks = [
+        {
+            "id": "c1",
+            "content": "hello world",
+            "path": "test/a.md",
+            "content_range_ref": rr,
+        }
+    ]
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-missing-sqlite-not-required",
@@ -355,8 +405,12 @@ def test_verdict_fail_sqlite_fts_row_count_mismatch(tmp_path):
 
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
-    sqlite_index_path = _make_sqlite(tmp_path, chunks_rows=chunks, fts_rows=fts_only_one)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
+    sqlite_index_path = _make_sqlite(
+        tmp_path, chunks_rows=chunks, fts_rows=fts_only_one
+    )
 
     result = compute_output_health(
         run_id="run-fts-mismatch",
@@ -374,14 +428,19 @@ def test_verdict_fail_sqlite_fts_row_count_mismatch(tmp_path):
     assert result["verdict"] == "fail"
     assert result["checks"]["sqlite_fts_row_count"] == 1
     assert result["checks"]["sqlite_fts_row_count_matches_chunk_count"] is False
-    assert any("fts row count" in e.lower() and "chunk count" in e.lower() for e in result["errors"])
+    assert any(
+        "fts row count" in e.lower() and "chunk count" in e.lower()
+        for e in result["errors"]
+    )
 
 
 def test_verdict_fail_fts_content_empty(tmp_path):
     chunks = [{"id": "c1", "content": "text", "path": "a.md"}]
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     sqlite_index_path = _make_sqlite(
         tmp_path,
@@ -426,7 +485,9 @@ def test_verdict_fail_range_ref_resolution_broken(tmp_path):
     ]
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-broken-ref",
@@ -456,7 +517,9 @@ def test_verdict_fail_invalid_content_range_ref_json_string(tmp_path):
     ]
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-invalid-ref-json",
@@ -495,7 +558,9 @@ def test_verdict_fail_content_range_ref_wrong_type(tmp_path):
     ]
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-wrong-ref-type",
@@ -574,7 +639,9 @@ def test_no_range_reference_is_warn_not_pass(tmp_path):
 
     assert result["checks"]["range_ref_resolution_ok"] is None
     assert result["verdict"] == "warn"
-    assert any("range_ref" in w.lower() and "skipped" in w.lower() for w in result["warnings"])
+    assert any(
+        "range_ref" in w.lower() and "skipped" in w.lower() for w in result["warnings"]
+    )
 
 
 def test_schema_conformance(tmp_path):
@@ -614,7 +681,10 @@ def test_agent_pack_expected_but_missing_is_warning_not_fail(tmp_path):
     assert check["status"] == "warning"
     # Non-blocking in v1: a missing-but-expected pack must not fail the verdict.
     assert result["verdict"] != "fail"
-    assert any("agent_reading_pack expected but file is missing" in w for w in result["warnings"])
+    assert any(
+        "agent_reading_pack expected but file is missing" in w
+        for w in result["warnings"]
+    )
 
 
 def test_agent_pack_missing_and_not_expected_is_skipped(tmp_path):
@@ -668,7 +738,14 @@ def test_agent_pack_check_schema_conformance(tmp_path):
 def test_write_output_health_writes_file(tmp_path):
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
-    chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md", "content_range_ref": rr}]
+    chunks = [
+        {
+            "id": "c1",
+            "content": "hello world",
+            "path": "test/a.md",
+            "content_range_ref": rr,
+        }
+    ]
     kwargs = _base_kwargs(tmp_path=tmp_path, chunks=chunks, with_sqlite=False)
     out_path = tmp_path / "test.output_health.json"
     returned = write_output_health(out_path, **kwargs)
@@ -679,6 +756,7 @@ def test_write_output_health_writes_file(tmp_path):
     assert data["kind"] == "lenskit.output_health"
     assert data["verdict"] in {"pass", "warn", "fail"}
 
+    # Assert validation is emitted in the real written sidecar
     output_checks = data["checks"]
     assert "validation" in output_checks["range_ref_resolution"]
     assert output_checks["range_ref_resolution"]["validation"]["mode"] == "jsonschema"
@@ -703,11 +781,12 @@ def test_chunk_index_invalid_json_line_is_error(tmp_path):
     chunk_index_path = tmp_path / "test.chunk_index.jsonl"
     # Write valid line + invalid line
     chunk_index_path.write_text(
-        json.dumps(chunks[0]) + "\n" + "this is not json\n",
-        encoding="utf-8"
+        json.dumps(chunks[0]) + "\n" + "this is not json\n", encoding="utf-8"
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-invalid-json",
@@ -736,7 +815,9 @@ def test_chunk_index_non_object_json_line_is_error(tmp_path):
         encoding="utf-8",
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-non-object-json",
@@ -761,11 +842,12 @@ def test_chunk_index_missing_id_is_error(tmp_path):
     chunk_index_path = tmp_path / "test.chunk_index.jsonl"
     # JSON object without id or chunk_id
     chunk_index_path.write_text(
-        json.dumps({"content": "hello", "path": "test/a.md"}) + "\n",
-        encoding="utf-8"
+        json.dumps({"content": "hello", "path": "test/a.md"}) + "\n", encoding="utf-8"
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-missing-id",
@@ -793,7 +875,9 @@ def test_chunk_index_empty_chunk_id_is_error(tmp_path):
         encoding="utf-8",
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-empty-chunk-id",
@@ -820,7 +904,9 @@ def test_chunk_index_whitespace_chunk_id_is_error(tmp_path):
         encoding="utf-8",
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-whitespace-chunk-id",
@@ -847,7 +933,9 @@ def test_chunk_index_none_id_is_error(tmp_path):
         encoding="utf-8",
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-none-id",
@@ -874,7 +962,9 @@ def test_chunk_index_false_chunk_id_is_error(tmp_path):
         encoding="utf-8",
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-false-chunk-id",
@@ -901,7 +991,9 @@ def test_chunk_index_list_chunk_id_is_error(tmp_path):
         encoding="utf-8",
     )
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-list-chunk-id",
@@ -925,7 +1017,9 @@ def test_chunk_index_invalid_utf8_is_structured_fail_not_crash(tmp_path):
     chunk_index_path = tmp_path / "test.chunk_index.jsonl"
     chunk_index_path.write_bytes(b"\xff\xfe\xfd\n")
     chunk_index_sha = _sha256_bytes(chunk_index_path.read_bytes())
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-invalid-utf8",
@@ -962,17 +1056,29 @@ def _make_range_ref_chunks(tmp_path):
     rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
     chunks = [{"id": "c1", "content": "hello", "path": "a.md", "content_range_ref": rr}]
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
-    return canonical_md_path, canonical_md_sha, chunk_index_path, chunk_sha, dump_index_path
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
+    return (
+        canonical_md_path,
+        canonical_md_sha,
+        chunk_index_path,
+        chunk_sha,
+        dump_index_path,
+    )
 
 
 def test_range_ref_jsonschema_unavailable_is_warn_not_fail(tmp_path):
     """jsonschema missing → environment_error, verdict warn, not fail."""
     from unittest.mock import patch
 
-    canonical_md_path, canonical_md_sha, chunk_index_path, chunk_sha, dump_index_path = (
-        _make_range_ref_chunks(tmp_path)
-    )
+    (
+        canonical_md_path,
+        canonical_md_sha,
+        chunk_index_path,
+        chunk_sha,
+        dump_index_path,
+    ) = _make_range_ref_chunks(tmp_path)
 
     with patch(
         "merger.lenskit.core.range_resolver.resolve_range_ref",
@@ -1013,9 +1119,13 @@ def test_range_ref_jsonschema_unavailable_verdict_is_warn_not_pass(tmp_path):
     """When jsonschema is unavailable, verdict is 'warn' (not 'pass'), diagnostic is visible."""
     from unittest.mock import patch
 
-    canonical_md_path, canonical_md_sha, chunk_index_path, chunk_sha, dump_index_path = (
-        _make_range_ref_chunks(tmp_path)
-    )
+    (
+        canonical_md_path,
+        canonical_md_sha,
+        chunk_index_path,
+        chunk_sha,
+        dump_index_path,
+    ) = _make_range_ref_chunks(tmp_path)
 
     with patch(
         "merger.lenskit.core.range_resolver.resolve_range_ref",
@@ -1037,16 +1147,27 @@ def test_range_ref_jsonschema_unavailable_verdict_is_warn_not_pass(tmp_path):
 
     assert result["verdict"] == "warn"
     assert result["errors"] == []
-    assert any("skipped" in w.lower() and "jsonschema" in w.lower() for w in result["warnings"])
+    assert any(
+        "skipped" in w.lower() and "jsonschema" in w.lower() for w in result["warnings"]
+    )
 
 
 def test_range_ref_status_ok_on_intact_path(tmp_path):
     """Intact range-ref path reports status=ok."""
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     rr = _build_range_ref_for_canonical(canonical_md_path, 0, 8)
-    chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md", "content_range_ref": rr}]
+    chunks = [
+        {
+            "id": "c1",
+            "content": "hello world",
+            "path": "test/a.md",
+            "content_range_ref": rr,
+        }
+    ]
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-range-ok",
@@ -1137,7 +1258,9 @@ def test_range_ref_status_fail_on_real_semantic_error(tmp_path):
     ]
     canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
     chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(tmp_path, canonical_md_path.name, chunk_index_path.name)
+    dump_index_path = _make_dump_index(
+        tmp_path, canonical_md_path.name, chunk_index_path.name
+    )
 
     result = compute_output_health(
         run_id="run-range-fail",
@@ -1187,9 +1310,13 @@ def test_range_ref_jsonschema_importerror_is_warn_not_fail(tmp_path):
     """ModuleNotFoundError for jsonschema must also produce warn, not fail."""
     from unittest.mock import patch
 
-    canonical_md_path, canonical_md_sha, chunk_index_path, chunk_sha, dump_index_path = (
-        _make_range_ref_chunks(tmp_path)
-    )
+    (
+        canonical_md_path,
+        canonical_md_sha,
+        chunk_index_path,
+        chunk_sha,
+        dump_index_path,
+    ) = _make_range_ref_chunks(tmp_path)
 
     with patch(
         "merger.lenskit.core.range_resolver.resolve_range_ref",
@@ -1228,7 +1355,9 @@ def test_output_health_noise_hygiene_available_with_scan_diagnostic(tmp_path):
     kwargs = _base_kwargs(tmp_path=tmp_path)
     kwargs["excluded_noise"] = {
         "count": 1,
-        "samples": [".tmp/forensic-preflight-ci-canary/artifacts/forensic-preflight-canary.json"],
+        "samples": [
+            ".tmp/forensic-preflight-ci-canary/artifacts/forensic-preflight-canary.json"
+        ],
         "patterns": [".tmp/"],
     }
     result = compute_output_health(**kwargs)
