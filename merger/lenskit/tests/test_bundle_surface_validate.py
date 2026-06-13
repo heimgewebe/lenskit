@@ -466,6 +466,7 @@ def test_missing_manifest_blocked(tmp_path):
     )
     assert report["status"] == "blocked"
     assert report["checks"][0]["name"] == "manifest_present"
+    _assert_all_checks_have_structural_precheck(report)
 
 
 def test_report_shape_and_does_not_mean(tmp_path):

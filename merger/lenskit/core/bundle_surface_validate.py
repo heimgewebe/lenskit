@@ -365,7 +365,7 @@ def _pack_consistency_surface_check(
 # post_emit_health.status → surface-check status. A present-but-failed
 # post_emit_health must NOT pass: persistence ("is present") is separated from
 # the verdict ("says green"). Unknown/invalid status is treated conservatively.
-_POST_STATUS_TO_CHECK = {
+_POST_STATUS_TO_CHECK: Dict[str, CheckStatus] = {
     "pass": "pass",
     "warn": "warn",
     "fail": "fail",
