@@ -433,6 +433,18 @@ def test_report_shape_and_does_not_mean(tmp_path):
     assert "forensic_ready" in report["does_not_mean"]
     # Always carries the headline check name (machine-readable contract).
     assert any(c["name"] == "claim_evidence_map_surface" for c in report["checks"])
+    # 1. Newly produced checks include a validation object
+    # 2. validation contains mode, engine, and reason.
+    # 3. Uses mode=structural_precheck
+    # 7. Prove actual emission.
+    manifest_check = next(c for c in report["checks"] if c["name"] == "manifest_present")
+    assert "validation" in manifest_check
+    assert manifest_check["validation"]["mode"] == "structural_precheck"
+    assert manifest_check["validation"]["engine"] == "bundle_surface_validate"
+    assert manifest_check["validation"]["reason"] == "surface_coherence_check"
+
+    claim_check = next(c for c in report["checks"] if c["name"] == "claim_evidence_map_surface")
+    assert claim_check["validation"]["mode"] == "structural_precheck"
 
 
 # ── persistence sidecar ─────────────────────────────────────────────────────
@@ -604,3 +616,48 @@ def test_bundle_surface_validation_schema_requires_headline_fields():
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=incomplete, schema=_SURFACE_SCHEMA)
+
+
+def test_bundle_surface_validation_schema_backward_compatibility(tmp_path):
+    # 4. Existing/minimal reports without validation remain schema-valid
+    minimal = {
+        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
+        "run_id": "r", "bundle_run_id": "b", "checked_at": "2026-06-02T00:00:00Z",
+        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
+        "status": "pass",
+        "checks": [{"name": "manifest_present", "status": "pass", "detail": "loaded"}],
+        "does_not_mean": ["claims_true", "forensic_ready"],
+    }
+    jsonschema.validate(instance=minimal, schema=_SURFACE_SCHEMA)
+
+def test_bundle_surface_validation_schema_rejects_bad_validation_mode():
+    # 5. Invalid validation.mode is rejected by the schema.
+    bad_mode = {
+        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
+        "run_id": "r", "bundle_run_id": "b", "checked_at": "2026-06-02T00:00:00Z",
+        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
+        "status": "pass",
+        "checks": [{
+            "name": "manifest_present", "status": "pass", "detail": "loaded",
+            "validation": {"mode": "invalid_mode_xyz", "engine": "e", "reason": "r"}
+        }],
+        "does_not_mean": ["claims_true", "forensic_ready"],
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=bad_mode, schema=_SURFACE_SCHEMA)
+
+def test_bundle_surface_validation_schema_rejects_incomplete_validation():
+    # 6. Missing required fields inside validation are rejected by the schema.
+    incomplete_val = {
+        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
+        "run_id": "r", "bundle_run_id": "b", "checked_at": "2026-06-02T00:00:00Z",
+        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
+        "status": "pass",
+        "checks": [{
+            "name": "manifest_present", "status": "pass", "detail": "loaded",
+            "validation": {"mode": "structural_precheck", "engine": "e"} # missing reason
+        }],
+        "does_not_mean": ["claims_true", "forensic_ready"],
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=incomplete_val, schema=_SURFACE_SCHEMA)
