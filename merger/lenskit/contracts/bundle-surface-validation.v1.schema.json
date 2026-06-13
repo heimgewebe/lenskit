@@ -42,10 +42,7 @@
       "description": "Unique id for this surface validation run (not the bundle run)."
     },
     "bundle_run_id": {
-      "type": [
-        "string",
-        "null"
-      ],
+      "type": ["string", "null"],
       "description": "run_id of the validated bundle manifest, when available."
     },
     "checked_at": {
@@ -62,12 +59,7 @@
     },
     "status": {
       "type": "string",
-      "enum": [
-        "pass",
-        "warn",
-        "fail",
-        "blocked"
-      ],
+      "enum": ["pass", "warn", "fail", "blocked"],
       "description": "fail = active surface defect (silent claim-map absence, present/announced-absent contradiction, stale pack placeholder, missing provenance fields, dangling links, or a failed post_emit_health). blocked = a declared, honest gap (claim map absent with a machine-readable reason while required). warn = usable but degraded. pass = the emitted surface is internally coherent."
     },
     "checks": {
@@ -75,23 +67,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "name",
-          "status"
-        ],
+        "required": ["name", "status"],
         "properties": {
           "name": {
             "type": "string"
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pass",
-              "warn",
-              "fail",
-              "blocked",
-              "skipped"
-            ]
+            "enum": ["pass", "warn", "fail", "blocked", "skipped"]
           },
           "detail": {
             "type": "string"
@@ -99,19 +82,11 @@
           "validation": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "mode",
-              "engine",
-              "reason"
-            ],
+            "required": ["mode", "engine", "reason"],
             "properties": {
               "mode": {
                 "type": "string",
-                "enum": [
-                  "jsonschema",
-                  "minimal_fallback",
-                  "structural_precheck"
-                ],
+                "enum": ["jsonschema", "minimal_fallback", "structural_precheck"],
                 "description": "Validation diagnostic mode. bundle_surface_validate currently emits structural_precheck; jsonschema/minimal_fallback are shared diagnostic vocabulary values used by validation-producing surfaces."
               },
               "engine": {
@@ -119,13 +94,7 @@
               },
               "reason": {
                 "type": "string",
-                "enum": [
-                  "available",
-                  "dependency_missing",
-                  "dependency_unavailable",
-                  "check_not_applicable",
-                  "surface_coherence_check"
-                ]
+                "enum": ["available", "dependency_missing", "dependency_unavailable", "check_not_applicable", "surface_coherence_check"]
               }
             }
           }
@@ -140,16 +109,8 @@
       "minItems": 2,
       "description": "Disclaimers of what a surface pass deliberately does NOT establish. These are NOT claim verdicts; in particular a coherent surface is not forensic-readiness.",
       "allOf": [
-        {
-          "contains": {
-            "const": "claims_true"
-          }
-        },
-        {
-          "contains": {
-            "const": "forensic_ready"
-          }
-        }
+        { "contains": { "const": "claims_true" } },
+        { "contains": { "const": "forensic_ready" } }
       ]
     }
   }

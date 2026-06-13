@@ -71,11 +71,21 @@ ValidationReason = Literal[
     "check_not_applicable",
     "surface_coherence_check",
 ]
+CheckStatus = Literal["pass", "warn", "fail", "blocked", "skipped"]
+
+
 class Validation(TypedDict):
     mode: ValidationMode
     engine: str
     reason: ValidationReason
-Check = Dict[str, Any]
+
+
+class Check(TypedDict):
+    name: str
+    status: CheckStatus
+    detail: str
+    validation: Validation
+
 
 _ENGINE_NAME = "bundle_surface_validate"
 
@@ -86,9 +96,7 @@ _OUTPUT_HEALTH_ROLE = ArtifactRole.OUTPUT_HEALTH.value
 # Pack markers (see core/agent_reading_pack.py). The surface validator keeps
 # these explicit because it guards the emitted runtime artifact, not merely the
 # producer's in-process version constant.
-_AGENT_PACK_V1_1_SENTINEL_PREFIX = (
-    "<!-- ARTIFACT:agent_reading_pack VERSION:v1.1 "
-)
+_AGENT_PACK_V1_1_SENTINEL_PREFIX = "<!-- ARTIFACT:agent_reading_pack VERSION:v1.1 "
 _AGENT_PACK_V1_1_FRONT_DOOR_MARKERS = (
     "## REQUIRED_READING_BY_TASK",
     "## WHEN_CANONICAL_MD_ONLY_IS_INSUFFICIENT",
@@ -115,20 +123,24 @@ def _now_iso() -> str:
     return ts.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _validation(mode: ValidationMode, engine: str, reason: ValidationReason) -> Validation:
-    return {"mode": mode, "engine": engine, "reason": reason}
+def _surface_validation(
+    reason: ValidationReason = "surface_coherence_check",
+) -> Validation:
+    return {"mode": "structural_precheck", "engine": _ENGINE_NAME, "reason": reason}
 
-def _surface_validation(reason: ValidationReason = "surface_coherence_check") -> Validation:
-    return _validation("structural_precheck", _ENGINE_NAME, reason)
 
-def _check(name: str, status: str, detail: str, validation: Optional[Validation] = None) -> Check:
-    c: Check = {"name": name, "status": status, "detail": detail}
-    if validation is not None:
-        c["validation"] = validation
-    return c
-
-def _surface_check(name: str, status: str, detail: str, reason: ValidationReason = "surface_coherence_check") -> Check:
-    return _check(name, status, detail, validation=_surface_validation(reason))
+def _surface_check(
+    name: str,
+    status: CheckStatus,
+    detail: str,
+    reason: ValidationReason = "surface_coherence_check",
+) -> Check:
+    return {
+        "name": name,
+        "status": status,
+        "detail": detail,
+        "validation": _surface_validation(reason),
+    }
 
 
 def _rollup(checks: List[Check]) -> str:
@@ -170,7 +182,9 @@ def _by_role(artifacts: List[Any]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def _read_pack_text(manifest_dir: Path, pack_entry: Optional[Dict[str, Any]]) -> Optional[str]:
+def _read_pack_text(
+    manifest_dir: Path, pack_entry: Optional[Dict[str, Any]]
+) -> Optional[str]:
     if not isinstance(pack_entry, dict):
         return None
     raw_path = pack_entry.get("path")
@@ -197,21 +211,23 @@ def _pack_front_door_v1_1_surface_check(
         return _surface_check(
             "agent_reading_pack_front_door_v1_1",
             "fail",
-            "agent_reading_pack not declared in manifest; navigation surface absent"
+            "agent_reading_pack not declared in manifest; navigation surface absent",
         )
     if pack_text is None:
         return _surface_check(
             "agent_reading_pack_front_door_v1_1",
             "fail",
             "agent_reading_pack declared but not readable; navigation surface "
-            "stale/incomplete"
+            "stale/incomplete",
         )
 
     missing = []
     if not pack_text.startswith(_AGENT_PACK_V1_1_SENTINEL_PREFIX):
         missing.append("ARTIFACT:agent_reading_pack VERSION:v1.1 sentinel")
     missing.extend(
-        marker for marker in _AGENT_PACK_V1_1_FRONT_DOOR_MARKERS if marker not in pack_text
+        marker
+        for marker in _AGENT_PACK_V1_1_FRONT_DOOR_MARKERS
+        if marker not in pack_text
     )
     if missing:
         return _surface_check(
@@ -219,12 +235,12 @@ def _pack_front_door_v1_1_surface_check(
             "fail",
             "agent_reading_pack missing v1.1 front-door marker(s): "
             + ", ".join(missing)
-            + "; navigation surface stale/incomplete"
+            + "; navigation surface stale/incomplete",
         )
     return _surface_check(
         "agent_reading_pack_front_door_v1_1",
         "pass",
-        "agent_reading_pack exposes the complete v1.1 front-door navigation surface"
+        "agent_reading_pack exposes the complete v1.1 front-door navigation surface",
     )
 
 
@@ -240,13 +256,13 @@ def _claim_surface_check(
             "claim_evidence_map_surface",
             "fail",
             "contradictory surface: claim_evidence_map_json present but "
-            f"claim_evidence_map_absence_reason={absence_reason} is also set"
+            f"claim_evidence_map_absence_reason={absence_reason} is also set",
         )
     if claim_present:
         return _surface_check(
             "claim_evidence_map_surface",
             "pass",
-            "claim_evidence_map_json present and consistent"
+            "claim_evidence_map_json present and consistent",
         )
     # absent
     if absence_reason is not None:
@@ -255,7 +271,11 @@ def _claim_surface_check(
             f"{absence_reason} ({claim_absence_reason_detail(absence_reason)})"
         )
         if require:
-            return _surface_check("claim_evidence_map_surface", "blocked", detail + "; required for this bundle")
+            return _surface_check(
+                "claim_evidence_map_surface",
+                "blocked",
+                detail + "; required for this bundle",
+            )
         return _surface_check("claim_evidence_map_surface", "pass", detail)
     # absent and no reason — the silent contradiction this gate exists to catch.
     detail = (
@@ -263,7 +283,9 @@ def _claim_surface_check(
         "(silent absence)"
     )
     if require:
-        return _surface_check("claim_evidence_map_surface", "fail", detail + "; required for this bundle")
+        return _surface_check(
+            "claim_evidence_map_surface", "fail", detail + "; required for this bundle"
+        )
     return _surface_check("claim_evidence_map_surface", "warn", detail)
 
 
@@ -293,7 +315,9 @@ def _pack_consistency_surface_check(
             "agent_reading_pack contains the legacy 'claim_evidence_map is not yet "
             "produced' placeholder (stale generator build)",
         )
-    has_summary_artifact = _PACK_SUMMARY_HEADER in pack_text and "- artifact:" in pack_text
+    has_summary_artifact = (
+        _PACK_SUMMARY_HEADER in pack_text and "- artifact:" in pack_text
+    )
     has_absent_placeholder = _PACK_ABSENT_PLACEHOLDER in pack_text
     if claim_present:
         # A present claim map MUST be visible in the pack as a summary with an
@@ -313,7 +337,7 @@ def _pack_consistency_surface_check(
         return _surface_check(
             "agent_reading_pack_consistency",
             "pass",
-            "agent_reading_pack summarizes the present claim_evidence_map"
+            "agent_reading_pack summarizes the present claim_evidence_map",
         )
     # claim map absent: a placeholder is expected; if a reason is set the pack
     # should surface it rather than carry a bare blanket gap.
@@ -322,26 +346,31 @@ def _pack_consistency_surface_check(
             "agent_reading_pack_consistency",
             "fail",
             "claim_evidence_map_json absent from manifest but agent_reading_pack "
-            "advertises a CLAIM_EVIDENCE_MAP_SUMMARY artifact line"
+            "advertises a CLAIM_EVIDENCE_MAP_SUMMARY artifact line",
         )
     if absence_reason is not None and "reason=" not in pack_text:
         return _surface_check(
             "agent_reading_pack_consistency",
             "warn",
             "claim_evidence_map absent with reason "
-            f"{absence_reason} but agent_reading_pack does not surface the reason"
+            f"{absence_reason} but agent_reading_pack does not surface the reason",
         )
     return _surface_check(
         "agent_reading_pack_consistency",
         "pass",
-        "agent_reading_pack consistent with absent claim_evidence_map"
+        "agent_reading_pack consistent with absent claim_evidence_map",
     )
 
 
 # post_emit_health.status → surface-check status. A present-but-failed
 # post_emit_health must NOT pass: persistence ("is present") is separated from
 # the verdict ("says green"). Unknown/invalid status is treated conservatively.
-_POST_STATUS_TO_CHECK = {"pass": "pass", "warn": "warn", "fail": "fail", "blocked": "blocked"}
+_POST_STATUS_TO_CHECK = {
+    "pass": "pass",
+    "warn": "warn",
+    "fail": "fail",
+    "blocked": "blocked",
+}
 
 
 def _post_emit_health_checks(*, manifest_path: Path, require: bool) -> List[Check]:
@@ -362,19 +391,21 @@ def _post_emit_health_checks(*, manifest_path: Path, require: bool) -> List[Chec
             _surface_check(
                 "post_emit_health_persisted",
                 "warn",
-                f"post_emit_health sidecar present at {sidecar.name} but unreadable"
+                f"post_emit_health sidecar present at {sidecar.name} but unreadable",
             )
         ]
 
     persisted_check = _surface_check(
-        "post_emit_health_persisted", "pass", f"post_emit_health persisted at {sidecar.name}"
+        "post_emit_health_persisted",
+        "pass",
+        f"post_emit_health persisted at {sidecar.name}",
     )
     post_status = doc.get("status") if isinstance(doc, dict) else None
     if not isinstance(post_status, str) or post_status not in _POST_STATUS_TO_CHECK:
         status_check = _surface_check(
             "post_emit_health_status",
             "warn",
-            f"post_emit_health persisted but status is missing/invalid ({post_status!r})"
+            f"post_emit_health persisted but status is missing/invalid ({post_status!r})",
         )
     else:
         # Propagate the verdict: a present post_emit_health that itself failed
@@ -382,12 +413,14 @@ def _post_emit_health_checks(*, manifest_path: Path, require: bool) -> List[Chec
         status_check = _surface_check(
             "post_emit_health_status",
             _POST_STATUS_TO_CHECK[post_status],
-            f"post_emit_health.status={post_status}"
+            f"post_emit_health.status={post_status}",
         )
     return [persisted_check, status_check]
 
 
-def _links_coherence_surface_check(manifest: Dict[str, Any], manifest_dir: Path) -> Check:
+def _links_coherence_surface_check(
+    manifest: Dict[str, Any], manifest_dir: Path
+) -> Check:
     """Validate that the machine-readable surface links resolve to real sidecars.
 
     When the generator records ``post_emit_health_path`` /
@@ -406,7 +439,7 @@ def _links_coherence_surface_check(manifest: Dict[str, Any], manifest_dir: Path)
         return _surface_check(
             "surface_links_coherent",
             "skipped",
-            "no surface links recorded (pre-emit run or legacy manifest)"
+            "no surface links recorded (pre-emit run or legacy manifest)",
         )
     problems: List[str] = []
     for key, raw in referenced.items():
@@ -425,19 +458,23 @@ def _links_coherence_surface_check(manifest: Dict[str, Any], manifest_dir: Path)
     if problems:
         return _surface_check("surface_links_coherent", "fail", "; ".join(problems))
     return _surface_check(
-        "surface_links_coherent", "pass", "recorded surface links resolve to existing sidecars"
+        "surface_links_coherent",
+        "pass",
+        "recorded surface links resolve to existing sidecars",
     )
 
 
 def _generator_provenance_surface_check(generator: Any) -> Check:
     if not isinstance(generator, dict):
-        return _surface_check("generator_provenance", "fail", "generator block missing or not an object")
+        return _surface_check(
+            "generator_provenance", "fail", "generator block missing or not an object"
+        )
     missing = [k for k in ("name", "version", "config_sha256") if not generator.get(k)]
     if missing:
         return _surface_check(
             "generator_provenance",
             "fail",
-            f"generator block missing required field(s): {', '.join(missing)}"
+            f"generator block missing required field(s): {', '.join(missing)}",
         )
     runtime = generator.get("runtime")
     if not isinstance(runtime, dict) or not runtime.get("module"):
@@ -445,14 +482,14 @@ def _generator_provenance_surface_check(generator: Any) -> Check:
             "generator_provenance",
             "warn",
             "generator.runtime block missing; runtime/service drift is not "
-            "diagnosable from this bundle"
+            "diagnosable from this bundle",
         )
     commit = runtime.get("git_commit")
     return _surface_check(
         "generator_provenance",
         "pass",
         f"generator provenance complete (module={runtime.get('module')}, "
-        f"git_commit={commit})"
+        f"git_commit={commit})",
     )
 
 
@@ -483,7 +520,11 @@ def validate_bundle_surface(
             bundle_run_id=None,
             manifest_path_str=manifest_path_str,
             require_claim_evidence_map=require_claim_evidence_map,
-            checks=[_surface_check("manifest_present", "blocked", "bundle manifest not found")],
+            checks=[
+                _surface_check(
+                    "manifest_present", "blocked", "bundle manifest not found"
+                )
+            ],
         )
     try:
         manifest = json.loads(mp.read_text(encoding="utf-8"))
@@ -494,7 +535,11 @@ def validate_bundle_surface(
             bundle_run_id=None,
             manifest_path_str=manifest_path_str,
             require_claim_evidence_map=require_claim_evidence_map,
-            checks=[_surface_check("manifest_present", "blocked", f"cannot read manifest: {e}")],
+            checks=[
+                _surface_check(
+                    "manifest_present", "blocked", f"cannot read manifest: {e}"
+                )
+            ],
         )
 
     bundle_run_id = manifest.get("run_id") if isinstance(manifest, dict) else None
@@ -505,7 +550,11 @@ def validate_bundle_surface(
             bundle_run_id=bundle_run_id,
             manifest_path_str=manifest_path_str,
             require_claim_evidence_map=require_claim_evidence_map,
-            checks=[_surface_check("manifest_present", "blocked", "not a repolens.bundle.manifest")],
+            checks=[
+                _surface_check(
+                    "manifest_present", "blocked", "not a repolens.bundle.manifest"
+                )
+            ],
         )
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
@@ -515,10 +564,16 @@ def validate_bundle_surface(
             bundle_run_id=bundle_run_id,
             manifest_path_str=manifest_path_str,
             require_claim_evidence_map=require_claim_evidence_map,
-            checks=[_surface_check("manifest_present", "blocked", "manifest 'artifacts' is not a list")],
+            checks=[
+                _surface_check(
+                    "manifest_present", "blocked", "manifest 'artifacts' is not a list"
+                )
+            ],
         )
 
-    checks: List[Check] = [_surface_check("manifest_present", "pass", "bundle manifest loaded")]
+    checks: List[Check] = [
+        _surface_check("manifest_present", "pass", "bundle manifest loaded")
+    ]
     by_role = _by_role(artifacts)
     claim_present = _CLAIM_MAP_ROLE in by_role
     absence_reason = claim_absence_reason_from_manifest(manifest)
@@ -565,7 +620,8 @@ def validate_bundle_surface(
                 "output_health_not_forensic_ready",
                 "pass",
                 "output_health is a pre-emit signal; it does not inspect the "
-                "claim-map/post-emit surface and never implies forensic-readiness", reason="check_not_applicable"
+                "claim-map/post-emit surface and never implies forensic-readiness",
+                reason="check_not_applicable",
             )
         )
 

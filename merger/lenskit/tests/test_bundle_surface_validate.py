@@ -25,7 +25,9 @@ def _write_post_health(manifest_path, status="pass"):
     """Write a controlled post_emit_health sidecar with a known status, decoupled
     from the full post_emit_health computation so surface tests are deterministic."""
     derive_post_health_path(manifest_path).write_text(
-        json.dumps({"kind": "lenskit.post_emit_health", "version": "1.0", "status": status}),
+        json.dumps(
+            {"kind": "lenskit.post_emit_health", "version": "1.0", "status": status}
+        ),
         encoding="utf-8",
     )
 
@@ -79,17 +81,29 @@ def _make_manifest(
     artifacts = []
 
     (tmp_path / "x.md").write_text("# canonical\n", encoding="utf-8")
-    artifacts.append({"role": "canonical_md", "path": "x.md", "sha256": _DUMMY_SHA, "bytes": 12})
+    artifacts.append(
+        {"role": "canonical_md", "path": "x.md", "sha256": _DUMMY_SHA, "bytes": 12}
+    )
 
     if include_pack:
         (tmp_path / "x.pack.md").write_text(pack_text, encoding="utf-8")
         artifacts.append(
-            {"role": "agent_reading_pack", "path": "x.pack.md", "sha256": _DUMMY_SHA, "bytes": 1}
+            {
+                "role": "agent_reading_pack",
+                "path": "x.pack.md",
+                "sha256": _DUMMY_SHA,
+                "bytes": 1,
+            }
         )
     if include_output_health:
         (tmp_path / "x.oh.json").write_text('{"verdict": "pass"}', encoding="utf-8")
         artifacts.append(
-            {"role": "output_health", "path": "x.oh.json", "sha256": _DUMMY_SHA, "bytes": 1}
+            {
+                "role": "output_health",
+                "path": "x.oh.json",
+                "sha256": _DUMMY_SHA,
+                "bytes": 1,
+            }
         )
     if claim_present:
         (tmp_path / "x.cem.json").write_text("{}", encoding="utf-8")
@@ -145,7 +159,7 @@ def test_agent_pack_v1_1_front_door_passes(tmp_path):
     check = _check(report, "agent_reading_pack_front_door_v1_1")
     assert check["status"] == "pass"
     assert report["status"] == "pass"
-    _assert_all_checks_have_validation(report)
+    _assert_all_checks_have_structural_precheck(report)
 
 
 def test_agent_pack_front_door_fails_when_pack_missing(tmp_path):
@@ -219,11 +233,12 @@ def test_agent_pack_missing_required_v1_1_marker_fails(tmp_path, missing_marker)
 
 # ── headline: claim-evidence-map surface ────────────────────────────────────
 
+
 def test_claim_map_present_passes(tmp_path):
     mp = _make_manifest(tmp_path, claim_present=True)
     report = validate_bundle_surface(mp, require_claim_evidence_map=True)
     assert report["status"] == "pass"
-    _assert_all_checks_have_validation(report)
+    _assert_all_checks_have_structural_precheck(report)
     assert _check(report, "claim_evidence_map_surface")["status"] == "pass"
 
 
@@ -260,7 +275,7 @@ def test_claim_map_absent_with_reason_passes_when_not_required(tmp_path):
     )
     report = validate_bundle_surface(mp, require_claim_evidence_map=False)
     assert report["status"] == "pass"
-    _assert_all_checks_have_validation(report)
+    _assert_all_checks_have_structural_precheck(report)
 
 
 def test_claim_map_present_with_absence_reason_is_contradiction(tmp_path):
@@ -272,6 +287,7 @@ def test_claim_map_present_with_absence_reason_is_contradiction(tmp_path):
 
 # ── agent reading pack consistency ──────────────────────────────────────────
 
+
 def test_pack_announces_absent_while_map_present_fails(tmp_path):
     mp = _make_manifest(tmp_path, claim_present=True, pack_text=_PACK_ABSENT)
     report = validate_bundle_surface(mp, require_claim_evidence_map=True)
@@ -280,8 +296,12 @@ def test_pack_announces_absent_while_map_present_fails(tmp_path):
 
 
 def test_pack_legacy_placeholder_is_drift(tmp_path):
-    mp = _make_manifest(tmp_path, claim_present=False, absence_reason="no_registry",
-                        pack_text=_PACK_LEGACY)
+    mp = _make_manifest(
+        tmp_path,
+        claim_present=False,
+        absence_reason="no_registry",
+        pack_text=_PACK_LEGACY,
+    )
     report = validate_bundle_surface(mp, require_claim_evidence_map=False)
     pack = _check(report, "agent_reading_pack_consistency")
     assert pack["status"] == "fail"
@@ -331,6 +351,7 @@ def test_pack_summary_artifact_while_map_absent_and_required_fails(tmp_path):
 
 # ── surface link coherence ──────────────────────────────────────────────────
 
+
 def test_links_absent_skipped(tmp_path):
     mp = _make_manifest(tmp_path, claim_present=True)
     report = validate_bundle_surface(mp, require_claim_evidence_map=True)
@@ -343,7 +364,9 @@ def test_links_resolve_passes(tmp_path):
     write_bundle_surface_validation(str(mp), require_claim_evidence_map=True)
     data = json.loads(mp.read_text(encoding="utf-8"))
     data["links"]["post_emit_health_path"] = derive_post_health_path(mp).name
-    data["links"]["bundle_surface_validation_path"] = derive_surface_validation_path(mp).name
+    data["links"]["bundle_surface_validation_path"] = derive_surface_validation_path(
+        mp
+    ).name
     mp.write_text(json.dumps(data), encoding="utf-8")
     report = validate_bundle_surface(mp, require_claim_evidence_map=True)
     assert _check(report, "surface_links_coherent")["status"] == "pass"
@@ -361,6 +384,7 @@ def test_dangling_link_fails(tmp_path):
 
 # ── post-emit health persistence ────────────────────────────────────────────
 
+
 def test_post_emit_health_missing_warns_when_required(tmp_path):
     mp = _make_manifest(tmp_path, claim_present=True, include_post_health=False)
     # Ensure no sidecar exists.
@@ -377,7 +401,7 @@ def test_post_emit_health_present_and_pass_passes(tmp_path):
     assert _check(report, "post_emit_health_persisted")["status"] == "pass"
     assert _check(report, "post_emit_health_status")["status"] == "pass"
     assert report["status"] == "pass"
-    _assert_all_checks_have_validation(report)
+    _assert_all_checks_have_structural_precheck(report)
 
 
 def test_post_emit_health_fail_propagates_to_surface_fail(tmp_path):
@@ -412,6 +436,7 @@ def test_post_emit_health_invalid_status_warns(tmp_path):
 
 # ── generator provenance ────────────────────────────────────────────────────
 
+
 def test_missing_runtime_provenance_warns(tmp_path):
     mp = _make_manifest(tmp_path, claim_present=True, include_runtime=False)
     report = validate_bundle_surface(mp, require_claim_evidence_map=True)
@@ -420,8 +445,7 @@ def test_missing_runtime_provenance_warns(tmp_path):
     assert "runtime" in gp["detail"]
 
 
-
-def _assert_all_checks_have_validation(report):
+def _assert_all_checks_have_structural_precheck(report):
     for check in report["checks"]:
         validation = check.get("validation")
         assert validation is not None, check["name"]
@@ -432,10 +456,14 @@ def _assert_all_checks_have_validation(report):
             "check_not_applicable",
         }
 
+
 # ── terminal / structural ───────────────────────────────────────────────────
 
+
 def test_missing_manifest_blocked(tmp_path):
-    report = validate_bundle_surface(tmp_path / "nope.json", require_claim_evidence_map=True)
+    report = validate_bundle_surface(
+        tmp_path / "nope.json", require_claim_evidence_map=True
+    )
     assert report["status"] == "blocked"
     assert report["checks"][0]["name"] == "manifest_present"
 
@@ -449,19 +477,32 @@ def test_report_shape_and_does_not_mean(tmp_path):
     assert "forensic_ready" in report["does_not_mean"]
     # Always carries the headline check name (machine-readable contract).
     assert any(c["name"] == "claim_evidence_map_surface" for c in report["checks"])
-    _assert_all_checks_have_validation(report)
+    _assert_all_checks_have_structural_precheck(report)
 
 
 # ── persistence sidecar ─────────────────────────────────────────────────────
 
+
 def test_write_bundle_surface_validation_sidecar(tmp_path):
     mp = _make_manifest(tmp_path, claim_present=True)
-    out, report = write_bundle_surface_validation(str(mp), require_claim_evidence_map=True)
+    out, report = write_bundle_surface_validation(
+        str(mp), require_claim_evidence_map=True
+    )
     assert out == derive_surface_validation_path(mp)
     assert out.is_file()
     persisted = json.loads(out.read_text(encoding="utf-8"))
     assert persisted["status"] == report["status"]
     assert persisted["kind"] == "lenskit.bundle_surface_validation"
+
+
+def test_output_health_not_forensic_ready_uses_check_not_applicable_reason(tmp_path):
+    mp = _make_manifest(tmp_path, claim_present=True, include_output_health=True)
+    report = validate_bundle_surface(mp, require_claim_evidence_map=True)
+    output_health_check = next(
+        c for c in report["checks"] if c["name"] == "output_health_not_forensic_ready"
+    )
+    assert output_health_check["validation"]["reason"] == "check_not_applicable"
+    _assert_all_checks_have_structural_precheck(report)
 
 
 # ── end-to-end: a real single-repo dump self-checks to pass ─────────────────
@@ -543,7 +584,7 @@ def test_real_single_repo_dump_surface_self_checks_pass_and_persists(tmp_path):
         str(artifacts.bundle_manifest), require_claim_evidence_map=True
     )
     assert report["status"] == "pass"
-    _assert_all_checks_have_validation(report)
+    _assert_all_checks_have_structural_precheck(report)
 
 
 @pytest.mark.parametrize("require", [True, False])
@@ -587,8 +628,12 @@ def test_bundle_surface_validation_schema_accepts_each_status(tmp_path):
             require_claim_evidence_map=True,
         ),
         validate_bundle_surface(
-            _make_manifest(_dir("b"), claim_present=False, absence_reason="no_registry",
-                           pack_text=_PACK_ABSENT_WITH_REASON),
+            _make_manifest(
+                _dir("b"),
+                claim_present=False,
+                absence_reason="no_registry",
+                pack_text=_PACK_ABSENT_WITH_REASON,
+            ),
             require_claim_evidence_map=True,
         ),
         validate_bundle_surface(
@@ -603,11 +648,16 @@ def test_bundle_surface_validation_schema_accepts_each_status(tmp_path):
 
 def test_bundle_surface_validation_schema_rejects_unknown_status():
     bad = {
-        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
-        "run_id": "r", "bundle_run_id": None, "checked_at": "2026-06-02T00:00:00Z",
-        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
+        "kind": "lenskit.bundle_surface_validation",
+        "version": "1.0",
+        "run_id": "r",
+        "bundle_run_id": None,
+        "checked_at": "2026-06-02T00:00:00Z",
+        "bundle_manifest_path": "/x",
+        "require_claim_evidence_map": True,
         "status": "green",  # not an allowed verdict
-        "checks": [], "does_not_mean": ["claims_true", "forensic_ready"],
+        "checks": [],
+        "does_not_mean": ["claims_true", "forensic_ready"],
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=bad, schema=_SURFACE_SCHEMA)
@@ -615,8 +665,10 @@ def test_bundle_surface_validation_schema_rejects_unknown_status():
 
 def test_bundle_surface_validation_schema_requires_headline_fields():
     incomplete = {
-        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
-        "status": "pass", "checks": [],
+        "kind": "lenskit.bundle_surface_validation",
+        "version": "1.0",
+        "status": "pass",
+        "checks": [],
         # missing run_id / bundle_run_id / checked_at / bundle_manifest_path /
         # require_claim_evidence_map / does_not_mean
     }
@@ -624,68 +676,53 @@ def test_bundle_surface_validation_schema_requires_headline_fields():
         jsonschema.validate(instance=incomplete, schema=_SURFACE_SCHEMA)
 
 
-def test_bundle_surface_validation_schema_backward_compatibility(tmp_path):
-    # 4. Existing/minimal reports without validation remain schema-valid
-    minimal = {
-        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
-        "run_id": "r", "bundle_run_id": "b", "checked_at": "2026-06-02T00:00:00Z",
-        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
+def _minimal_surface_validation_report() -> dict:
+    return {
+        "kind": "lenskit.bundle_surface_validation",
+        "version": "1.0",
+        "run_id": "r",
+        "bundle_run_id": "b",
+        "checked_at": "2026-06-02T00:00:00Z",
+        "bundle_manifest_path": "/x",
+        "require_claim_evidence_map": True,
         "status": "pass",
         "checks": [{"name": "manifest_present", "status": "pass", "detail": "loaded"}],
         "does_not_mean": ["claims_true", "forensic_ready"],
     }
+
+
+def test_bundle_surface_validation_schema_backward_compatibility():
+    minimal = _minimal_surface_validation_report()
     jsonschema.validate(instance=minimal, schema=_SURFACE_SCHEMA)
 
+
 def test_bundle_surface_validation_schema_rejects_bad_validation_mode():
-    # 5. Invalid validation.mode is rejected by the schema.
-    bad_mode = {
-        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
-        "run_id": "r", "bundle_run_id": "b", "checked_at": "2026-06-02T00:00:00Z",
-        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
-        "status": "pass",
-        "checks": [{
-            "name": "manifest_present", "status": "pass", "detail": "loaded",
-            "validation": {"mode": "invalid_mode_xyz", "engine": "e", "reason": "r"}
-        }],
-        "does_not_mean": ["claims_true", "forensic_ready"],
+    bad_mode = _minimal_surface_validation_report()
+    bad_mode["checks"][0]["validation"] = {
+        "mode": "invalid_mode_xyz",
+        "engine": "bundle_surface_validate",
+        "reason": "surface_coherence_check",
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=bad_mode, schema=_SURFACE_SCHEMA)
 
-def test_bundle_surface_validation_schema_rejects_incomplete_validation():
-    # 6. Missing required fields inside validation are rejected by the schema.
-    incomplete_val = {
-        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
-        "run_id": "r", "bundle_run_id": "b", "checked_at": "2026-06-02T00:00:00Z",
-        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
-        "status": "pass",
-        "checks": [{
-            "name": "manifest_present", "status": "pass", "detail": "loaded",
-            "validation": {"mode": "structural_precheck", "engine": "e"} # missing reason
-        }],
-        "does_not_mean": ["claims_true", "forensic_ready"],
-    }
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=incomplete_val, schema=_SURFACE_SCHEMA)
-
-
 
 def test_bundle_surface_validation_schema_rejects_bad_validation_reason():
-    # 5. Invalid validation.reason is rejected by the schema.
-    bad_reason = {
-        "kind": "lenskit.bundle_surface_validation", "version": "1.0",
-        "run_id": "r", "bundle_run_id": "b", "checked_at": "2026-06-02T00:00:00Z",
-        "bundle_manifest_path": "/x", "require_claim_evidence_map": True,
-        "status": "pass",
-        "checks": [{
-            "name": "manifest_present", "status": "pass", "detail": "loaded",
-            "validation": {
-                "mode": "structural_precheck",
-                "engine": "bundle_surface_validate",
-                "reason": "banana_protocol"
-            }
-        }],
-        "does_not_mean": ["claims_true", "forensic_ready"],
+    bad_reason = _minimal_surface_validation_report()
+    bad_reason["checks"][0]["validation"] = {
+        "mode": "structural_precheck",
+        "engine": "bundle_surface_validate",
+        "reason": "banana_protocol",
     }
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=bad_reason, schema=_SURFACE_SCHEMA)
+
+
+def test_bundle_surface_validation_schema_rejects_incomplete_validation():
+    incomplete_val = _minimal_surface_validation_report()
+    incomplete_val["checks"][0]["validation"] = {
+        "mode": "structural_precheck",
+        "engine": "bundle_surface_validate",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=incomplete_val, schema=_SURFACE_SCHEMA)
