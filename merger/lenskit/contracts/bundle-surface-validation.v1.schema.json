@@ -78,6 +78,25 @@
           },
           "detail": {
             "type": "string"
+          },
+          "validation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "engine", "reason"],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["jsonschema", "minimal_fallback", "structural_precheck"],
+                "description": "Validation diagnostic mode. bundle_surface_validate currently emits structural_precheck; jsonschema/minimal_fallback are shared diagnostic vocabulary values used by validation-producing surfaces."
+              },
+              "engine": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string",
+                "enum": ["available", "dependency_missing", "dependency_unavailable", "check_not_applicable", "surface_coherence_check"]
+              }
+            }
           }
         }
       }
