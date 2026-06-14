@@ -687,3 +687,51 @@ def test_write_post_emit_health_persists_unregistered_artifact(tmp_path):
     assert manifest.read_text(encoding="utf-8") == manifest_before
     data = json.loads(manifest_before)
     assert all(a["role"] != "post_emit_health" for a in data["artifacts"])
+
+
+def test_post_emit_health_schema_rejects_bad_validation_mode(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"]["mode"] = "banana_mode"
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_post_emit_health_schema_rejects_bad_validation_reason(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"]["reason"] = "banana_reason"
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_post_emit_health_schema_rejects_bad_validation_engine(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"]["engine"] = "banana_engine"
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_post_emit_health_schema_rejects_incomplete_validation(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"] = {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+    }
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_post_emit_health_schema_accepts_legacy_check_without_validation(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check.pop("validation", None)
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)

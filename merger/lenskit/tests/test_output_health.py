@@ -1367,3 +1367,42 @@ def test_output_health_noise_hygiene_available_with_scan_diagnostic(tmp_path):
     assert result["checks"]["excluded_noise"]["samples"] == [
         ".tmp/forensic-preflight-ci-canary/artifacts/forensic-preflight-canary.json"
     ]
+
+
+def test_output_health_schema_rejects_bad_validation_mode(tmp_path):
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
+    report["checks"]["range_ref_resolution"]["validation"]["mode"] = "banana_mode"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_output_health_schema_rejects_bad_validation_reason(tmp_path):
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
+    report["checks"]["range_ref_resolution"]["validation"]["reason"] = "banana_reason"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_output_health_schema_rejects_bad_validation_engine(tmp_path):
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
+    report["checks"]["range_ref_resolution"]["validation"]["engine"] = "banana_engine"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_output_health_schema_rejects_incomplete_validation(tmp_path):
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
+    report["checks"]["range_ref_resolution"]["validation"] = {
+        "mode": "jsonschema",
+        "engine": "range_resolver",
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+def test_output_health_schema_accepts_legacy_range_ref_resolution_without_validation(tmp_path):
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
+    report["checks"].pop("range_ref_resolution", None)
+    # the legacy object has `range_ref_resolution_ok` and `range_ref_resolution_status`, but no `range_ref_resolution` block
+    jsonschema.validate(instance=report, schema=schema)
