@@ -1,0 +1,198 @@
+# Portable Validation Diagnostics Proof
+Status: implemented / diagnostic semantics proof.
+
+## Purpose
+This proof documents portable validation diagnostics emitted by Lenskit sidecars.
+It does not prove claim truth.
+It does not prove forensic readiness.
+It documents how full validation, degraded validation, fallback checks, and structural prechecks are represented.
+
+## Scope
+Covered sidecars:
+- `output_health`
+- `post_emit_health`
+- `bundle_surface_validation`
+
+Out of scope:
+- dependency inventory reports
+- structured validation error objects
+- YAML/JSON loader consolidation
+- forensic strict gate calibration
+
+## Diagnostic object shape
+```json
+{
+  "validation": {
+    "mode": "...",
+    "engine": "...",
+    "reason": "..."
+  }
+}
+```
+
+* `mode`: how the validation/check was performed or why it was degraded.
+* `engine`: component or validation engine.
+* `reason`: cause or classification.
+* The object is additive.
+* Legacy fields remain valid.
+* Older reports may omit validation where schemas keep it optional.
+
+## Modes
+
+### jsonschema
+
+Meaning:
+Full JSON Schema validation ran with the `jsonschema` dependency available.
+
+Example:
+```json
+{
+  "validation": {
+    "mode": "jsonschema",
+    "engine": "jsonschema",
+    "reason": "available"
+  }
+}
+```
+
+Limit:
+Schema validity proves structure, not claim truth.
+
+### skipped_unavailable
+
+Meaning:
+A relevant validation could not run because a runtime dependency was unavailable.
+
+Example:
+```json
+{
+  "validation": {
+    "mode": "skipped_unavailable",
+    "engine": "jsonschema",
+    "reason": "dependency_unavailable"
+  }
+}
+```
+
+Range-ref example:
+```json
+{
+  "validation": {
+    "mode": "skipped_unavailable",
+    "engine": "range_resolver",
+    "reason": "dependency_unavailable"
+  }
+}
+```
+
+Limits:
+This is not a successful validation.
+It is a machine-readable degradation signal.
+Portable/degraded runtimes may still emit sidecars.
+
+### minimal_fallback
+
+Meaning:
+A limited structural fallback check ran instead of full schema validation.
+
+Example:
+```json
+{
+  "validation": {
+    "mode": "minimal_fallback",
+    "engine": "range_ref_minimal",
+    "reason": "dependency_unavailable"
+  }
+}
+```
+
+Limit:
+This is not full JSON Schema validation.
+
+### structural_precheck
+
+Meaning:
+A coherence or surface precheck ran. This is not full schema validation.
+
+Example:
+```json
+{
+  "validation": {
+    "mode": "structural_precheck",
+    "engine": "bundle_surface_validate",
+    "reason": "surface_coherence_check"
+  }
+}
+```
+
+Not-applicable example:
+```json
+{
+  "validation": {
+    "mode": "structural_precheck",
+    "engine": "bundle_surface_validate",
+    "reason": "check_not_applicable"
+  }
+}
+```
+
+Limits:
+This does not prove claim truth.
+This does not prove forensic readiness.
+
+## Current emitted sidecars
+
+### output_health
+* `checks.range_ref_resolution.validation` records range-ref validation or degradation.
+* Legacy fields such as `range_ref_resolution_ok` and `range_ref_resolution_status` remain.
+* `output_health.verdict` is not a forensic verdict.
+
+### post_emit_health
+* Checks such as `manifest_schema_valid`, `range_ref_resolution`, and `claim_evidence_map_schema_valid` can carry check-local validation.
+* `post_emit_health.status` is separate from `output_health.verdict`.
+* A degraded validation check must not be silently read as full validation.
+
+### bundle_surface_validation
+* Surface checks use `structural_precheck`.
+* `output_health_not_forensic_ready` uses `check_not_applicable`.
+* A surface pass does not mean `claims_true`.
+* A surface pass does not mean `forensic_ready`.
+
+## Runtime interpretation
+
+### Normal runtime
+* `jsonschema` is available.
+* Full schema validation can emit `mode=jsonschema`.
+
+### Degraded runtime
+* Dependency is unavailable.
+* Sidecars remain portable.
+* The degradation must be visible as `skipped_unavailable` or, where implemented, `minimal_fallback`.
+* Degraded runtime must not be normalized into a silent pass.
+* (Pythonista/iPad environments are examples of a degraded runtime, not a special contract.)
+
+## Non-claims
+
+Explicitly state:
+* `validation.mode=jsonschema` proves schema structure, not claim truth.
+* `validation.mode=skipped_unavailable` is not a pass.
+* `validation.mode=minimal_fallback` is not full schema validation.
+* `validation.mode=structural_precheck` is not full schema validation.
+* `output_health.verdict=pass` does not mean `forensic_ready`.
+* `post_emit_health.status=pass` does not replace `output_health.verdict`.
+* `bundle_surface_validation.status=pass` does not mean `claims_true`.
+* `bundle_surface_validation.status=pass` does not mean `forensic_ready`.
+
+## Related files
+
+* [docs/proofs/post-emit-health-implementation-proof.md](post-emit-health-implementation-proof.md)
+* [docs/proofs/real-dump-surface-self-check-proof.md](real-dump-surface-self-check-proof.md)
+* [docs/architecture/artifact-capability-matrix.md](../architecture/artifact-capability-matrix.md)
+
+## Acceptance proof
+
+* real emitted `output_health` can carry nested validation diagnostics
+* real emitted `post_emit_health` can carry check-local validation diagnostics
+* real emitted `bundle_surface_validation` can carry structural precheck diagnostics
+* legacy compatibility is preserved by additive fields
+* degraded runtime is visible and not silently normalized
