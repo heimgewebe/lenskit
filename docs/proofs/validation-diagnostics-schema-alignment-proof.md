@@ -59,7 +59,7 @@ The inventory was produced by read-only inspection:
 - **schema vocabulary search** - `rg` for the diagnostic terms across the three schema files.
 - **producer vocabulary search** - `rg` over the three producer modules, then reading each `validation`-building helper (`_range_ref_validation`, `_validation`, `_surface_validation`) and tracing the literal arguments actually passed at emit sites.
 - **tests/docs vocabulary search** - `rg` over `merger/lenskit/tests` and `docs`, focusing on exact-match assertions in `test_output_health.py`, `test_post_emit_health.py`, and `test_bundle_surface_validate.py`.
-- **optional local sidecar inspection** - a `find` for emitted `*.output_health.json` / `*.post_emit_health.json` / `*.bundle_surface_validation.json` in the working tree.
+- **optional local sidecar inspection** - a `find` for emitted `*.output_health.json` / `*.bundle_health.post.json` / `*.bundle_surface_validation.json` in the working tree.
 
 A value is treated as **producer-emitted by current code** only where a producer literally sets it at an emit site and, where available, a test asserts it.
 A value present only in an `enum`, a `Literal` type, or a doc is treated as **reserved** or **obsolete/unendorsed** if it has no current schema, producer, or test endorsement.
