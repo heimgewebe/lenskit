@@ -715,6 +715,7 @@ def test_post_emit_health_schema_rejects_bad_validation_mode(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
 
+
 def test_post_emit_health_schema_rejects_bad_validation_reason(tmp_path):
     report = _valid_post_emit_report(tmp_path)
     by_name = {item["name"]: item for item in report["checks"]}
@@ -724,6 +725,7 @@ def test_post_emit_health_schema_rejects_bad_validation_reason(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
 
+
 def test_post_emit_health_schema_rejects_bad_validation_engine(tmp_path):
     report = _valid_post_emit_report(tmp_path)
     by_name = {item["name"]: item for item in report["checks"]}
@@ -732,6 +734,7 @@ def test_post_emit_health_schema_rejects_bad_validation_engine(tmp_path):
     schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
+
 
 def test_post_emit_health_schema_rejects_incomplete_validation(tmp_path):
     report = _valid_post_emit_report(tmp_path)
@@ -745,6 +748,7 @@ def test_post_emit_health_schema_rejects_incomplete_validation(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
 
+
 def test_post_emit_health_schema_accepts_legacy_check_without_validation(tmp_path):
     report = _valid_post_emit_report(tmp_path)
     by_name = {item["name"]: item for item in report["checks"]}
@@ -752,3 +756,29 @@ def test_post_emit_health_schema_accepts_legacy_check_without_validation(tmp_pat
     check.pop("validation", None)
     schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.validate(instance=report, schema=schema)
+
+
+def test_write_post_emit_health_persists_claim_map_schema_validation(tmp_path):
+    manifest = _make_bundle(tmp_path, include_claim_map=True, include_citation=True)
+    out = derive_post_health_path(manifest)
+    returned, report = write_post_emit_health(str(manifest))
+    assert returned == out
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert written["status"] == report["status"] == "pass"
+    post_checks = {check["name"]: check for check in written["checks"]}
+    assert post_checks["claim_evidence_map_schema_valid"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
+    # Optional positive checks as requested
+    assert post_checks["manifest_schema_valid"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
+    assert post_checks["range_ref_resolution"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "range_resolver",
+        "reason": "available",
+    }

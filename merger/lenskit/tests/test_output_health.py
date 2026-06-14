@@ -1382,6 +1382,7 @@ def test_output_health_schema_rejects_bad_validation_mode(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
 
+
 def test_output_health_schema_rejects_bad_validation_reason(tmp_path):
     schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
     report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
@@ -1389,12 +1390,14 @@ def test_output_health_schema_rejects_bad_validation_reason(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
 
+
 def test_output_health_schema_rejects_bad_validation_engine(tmp_path):
     schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
     report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
     report["checks"]["range_ref_resolution"]["validation"]["engine"] = "banana_engine"
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
+
 
 def test_output_health_schema_rejects_incomplete_validation(tmp_path):
     schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -1406,9 +1409,17 @@ def test_output_health_schema_rejects_incomplete_validation(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
 
-def test_output_health_schema_accepts_legacy_checks_without_range_ref_resolution_block(tmp_path):
+
+def test_output_health_schema_accepts_legacy_checks_without_range_ref_resolution_block(
+    tmp_path,
+):
     schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
     report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
+
+    # Legacy reports carried range_ref_resolution_ok/status before the nested
+    # range_ref_resolution diagnostic block was added.
+    assert "range_ref_resolution_ok" in report["checks"]
+    assert "range_ref_resolution_status" in report["checks"]
+
     report["checks"].pop("range_ref_resolution", None)
-    # the legacy object has `range_ref_resolution_ok` and `range_ref_resolution_status`, but no `range_ref_resolution` block
     jsonschema.validate(instance=report, schema=schema)
