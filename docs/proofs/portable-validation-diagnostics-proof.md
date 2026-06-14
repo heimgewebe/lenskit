@@ -3,15 +3,20 @@
 Status: implemented / diagnostic semantics proof.
 
 ## Purpose
+
 This proof documents portable validation diagnostics emitted by Lenskit sidecars.
 It does not prove claim truth.
 It does not prove forensic readiness.
 It documents how full validation, degraded validation, fallback checks, and structural prechecks are represented.
 
 ## Scope
+
 Covered sidecars:
+
 - `output_health`
+
 - `post_emit_health`
+
 - `bundle_surface_validation`
 
 Out of scope:
@@ -21,15 +26,20 @@ Out of scope:
 - forensic strict gate calibration
 
 ## Evidence baseline
+
 This proof is based on the post-merge diagnostic surfaces emitted after portable validation diagnostics landed.
 Observed diagnostic surfaces:
+
 - `output_health.checks.range_ref_resolution.validation`
+
 - `post_emit_health.checks[].validation` for schema/range validation checks
+
 - `bundle_surface_validation.checks[].validation`
 This proof documents emitted diagnostic semantics. It does not change producer code, schemas, or runtime dependency behavior.
 The evidence baseline covers currently emitted diagnostics. Reserved vocabulary such as `minimal_fallback` is documented separately and must not be read as observed emission unless a producer emits it.
 
 ## Diagnostic object shape
+
 ```json
 {
   "validation": {
@@ -126,7 +136,7 @@ Portable/degraded runtimes may still emit sidecars.
 ### minimal_fallback
 
 Meaning:
-A limited structural fallback check ran instead of full schema validation.
+When emitted, this mode indicates that a limited structural fallback check ran instead of full schema validation.
 
 Current emission status:
 This mode is part of the shared diagnostic vocabulary, but this proof does not claim a currently emitted `minimal_fallback` example for the checked sidecars.
@@ -169,16 +179,19 @@ This does not prove forensic readiness.
 ## Current emitted sidecars
 
 ### output_health
+
 * `checks.range_ref_resolution.validation` records range-ref validation or degradation.
 * Legacy fields such as `range_ref_resolution_ok` and `range_ref_resolution_status` remain.
 * `output_health.verdict` is not a forensic verdict.
 
 ### post_emit_health
+
 * Checks such as `manifest_schema_valid`, `range_ref_resolution`, and `claim_evidence_map_schema_valid` can carry check-local validation.
 * `post_emit_health.status` is separate from `output_health.verdict`.
 * A degraded validation check must not be silently read as full validation.
 
 ### bundle_surface_validation
+
 * Surface checks use `structural_precheck`.
 * `output_health_not_forensic_ready` uses `check_not_applicable`.
 * A surface pass does not mean `claims_true`.
@@ -187,13 +200,16 @@ This does not prove forensic readiness.
 ## Runtime interpretation
 
 ### Normal runtime
+
 * `jsonschema` is available.
 * Full schema validation can emit `mode=jsonschema`.
 
 ### Degraded runtime
-* Dependency is unavailable.
+
+* A validation dependency, schema, or input prerequisite is unavailable or not applicable.
 * Sidecars remain portable.
-* The degradation must be visible as `skipped_unavailable` or, where implemented, `minimal_fallback`.
+* The non-execution/degradation must be visible as `skipped_unavailable`.
+* Reserved fallback vocabulary such as `minimal_fallback` must only be read as emitted where a producer actually emits it.
 * Degraded runtime must not be normalized into a silent pass.
 * (Pythonista/iPad environments are examples of a degraded runtime, not a special contract.)
 
