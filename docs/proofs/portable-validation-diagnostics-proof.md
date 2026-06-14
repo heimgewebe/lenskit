@@ -1,4 +1,5 @@
 # Portable Validation Diagnostics Proof
+
 Status: implemented / diagnostic semantics proof.
 
 ## Purpose
@@ -19,6 +20,14 @@ Out of scope:
 - YAML/JSON loader consolidation
 - forensic strict gate calibration
 
+## Evidence baseline
+This proof is based on the post-merge diagnostic surfaces emitted after portable validation diagnostics landed.
+Observed diagnostic surfaces:
+- `output_health.checks.range_ref_resolution.validation`
+- `post_emit_health.checks[].validation` for schema/range validation checks
+- `bundle_surface_validation.checks[].validation`
+This proof documents emitted diagnostic semantics. It does not change producer code, schemas, or runtime dependency behavior.
+
 ## Diagnostic object shape
 ```json
 {
@@ -35,7 +44,7 @@ Out of scope:
 * `reason`: cause or classification.
 * The object is additive.
 * Legacy fields remain valid.
-* Older reports may omit validation where schemas keep it optional.
+* Older reports may omit `validation` where schemas keep it optional.
 
 ## Modes
 
@@ -191,8 +200,8 @@ Explicitly state:
 
 ## Acceptance proof
 
-* real emitted `output_health` can carry nested validation diagnostics
-* real emitted `post_emit_health` can carry check-local validation diagnostics
-* real emitted `bundle_surface_validation` can carry structural precheck diagnostics
+* real emitted `output_health` carries nested validation diagnostics where validation provenance is available or degraded
+* real emitted `post_emit_health` carries check-local validation diagnostics for schema/range validation checks
+* real emitted `bundle_surface_validation` carries structural precheck diagnostics
 * legacy compatibility is preserved by additive fields
 * degraded runtime is visible and not silently normalized
