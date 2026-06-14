@@ -498,8 +498,7 @@ def test_write_bundle_surface_validation_sidecar(tmp_path):
 
     _assert_all_checks_have_structural_precheck(persisted)
     by_name = {item["name"]: item for item in persisted["checks"]}
-    if "output_health_not_forensic_ready" in by_name:
-        assert by_name["output_health_not_forensic_ready"]["validation"]["reason"] == "check_not_applicable"
+    assert by_name["output_health_not_forensic_ready"]["validation"]["reason"] == "check_not_applicable"
 
 
 def test_output_health_not_forensic_ready_uses_check_not_applicable_reason(tmp_path):

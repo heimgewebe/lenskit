@@ -758,8 +758,14 @@ def test_write_output_health_writes_file(tmp_path):
 
     # Assert validation is emitted in the real written sidecar
     output_checks = data["checks"]
-    assert "validation" in output_checks["range_ref_resolution"]
-    assert output_checks["range_ref_resolution"]["validation"]["mode"] == "jsonschema"
+    assert "range_ref_resolution_ok" in output_checks
+    assert "range_ref_resolution_status" in output_checks
+    validation = output_checks["range_ref_resolution"]["validation"]
+    assert validation == {
+        "mode": "jsonschema",
+        "engine": "range_resolver",
+        "reason": "available",
+    }
 
 
 def test_redact_secrets_flag_visible_in_checks(tmp_path):
@@ -1400,7 +1406,7 @@ def test_output_health_schema_rejects_incomplete_validation(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
 
-def test_output_health_schema_accepts_legacy_range_ref_resolution_without_validation(tmp_path):
+def test_output_health_schema_accepts_legacy_checks_without_range_ref_resolution_block(tmp_path):
     schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
     report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
     report["checks"].pop("range_ref_resolution", None)

@@ -679,9 +679,26 @@ def test_write_post_emit_health_persists_unregistered_artifact(tmp_path):
     assert written["status"] == report["status"] == "pass"
 
     post_checks = {check["name"]: check for check in written["checks"]}
-    assert "validation" in post_checks["manifest_schema_valid"]
-    assert "validation" in post_checks["range_ref_resolution"]
-    assert "validation" in post_checks["claim_evidence_map_schema_valid"]
+
+    expected = {
+        "manifest_schema_valid": {
+            "mode": "jsonschema",
+            "engine": "jsonschema",
+            "reason": "available",
+        },
+        "range_ref_resolution": {
+            "mode": "jsonschema",
+            "engine": "range_resolver",
+            "reason": "available",
+        },
+        "claim_evidence_map_schema_valid": {
+            "mode": "skipped_unavailable",
+            "engine": "jsonschema",
+            "reason": "check_not_applicable",
+        },
+    }
+    for name, validation in expected.items():
+        assert post_checks[name]["validation"] == validation
 
     # Persistence must NOT mutate the bundle manifest (no registration).
     assert manifest.read_text(encoding="utf-8") == manifest_before
