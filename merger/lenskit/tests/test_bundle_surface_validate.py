@@ -449,6 +449,7 @@ def _assert_all_checks_have_structural_precheck(report):
     for check in report["checks"]:
         validation = check.get("validation")
         assert validation is not None, check["name"]
+        assert set(validation) == {"mode", "engine", "reason"}
         assert validation["mode"] == "structural_precheck"
         assert validation["engine"] == "bundle_surface_validate"
         assert validation["reason"] in {

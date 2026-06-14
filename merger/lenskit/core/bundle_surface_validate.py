@@ -80,6 +80,8 @@ class Validation(TypedDict):
     reason: ValidationReason
 
 
+# Check models newly emitted producer checks. The JSON schema keeps
+# check.validation optional for backwards compatibility with older reports.
 class Check(TypedDict):
     name: str
     status: CheckStatus
@@ -374,7 +376,7 @@ _POST_STATUS_TO_CHECK: Dict[str, CheckStatus] = {
 
 
 def _post_emit_health_checks(*, manifest_path: Path, require: bool) -> List[Check]:
-    """Two checks: persistence (presence) and status (the verdict, propagated)."""
+    """Emit persistence and, when readable, propagated post_emit_health status checks."""
     sidecar = derive_post_health_path(manifest_path)
     if not sidecar.is_file():
         detail = (
