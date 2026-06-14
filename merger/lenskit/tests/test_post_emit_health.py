@@ -679,11 +679,106 @@ def test_write_post_emit_health_persists_unregistered_artifact(tmp_path):
     assert written["status"] == report["status"] == "pass"
 
     post_checks = {check["name"]: check for check in written["checks"]}
-    assert "validation" in post_checks["manifest_schema_valid"]
-    assert "validation" in post_checks["range_ref_resolution"]
-    assert "validation" in post_checks["claim_evidence_map_schema_valid"]
+
+    expected = {
+        "manifest_schema_valid": {
+            "mode": "jsonschema",
+            "engine": "jsonschema",
+            "reason": "available",
+        },
+        "range_ref_resolution": {
+            "mode": "jsonschema",
+            "engine": "range_resolver",
+            "reason": "available",
+        },
+        "claim_evidence_map_schema_valid": {
+            "mode": "skipped_unavailable",
+            "engine": "jsonschema",
+            "reason": "check_not_applicable",
+        },
+    }
+    for name, validation in expected.items():
+        assert post_checks[name]["validation"] == validation
 
     # Persistence must NOT mutate the bundle manifest (no registration).
     assert manifest.read_text(encoding="utf-8") == manifest_before
     data = json.loads(manifest_before)
     assert all(a["role"] != "post_emit_health" for a in data["artifacts"])
+
+
+def test_post_emit_health_schema_rejects_bad_validation_mode(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"]["mode"] = "banana_mode"
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_post_emit_health_schema_rejects_bad_validation_reason(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"]["reason"] = "banana_reason"
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_post_emit_health_schema_rejects_bad_validation_engine(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"]["engine"] = "banana_engine"
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_post_emit_health_schema_rejects_incomplete_validation(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check["validation"] = {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+    }
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_post_emit_health_schema_accepts_legacy_check_without_validation(tmp_path):
+    report = _valid_post_emit_report(tmp_path)
+    by_name = {item["name"]: item for item in report["checks"]}
+    check = by_name["manifest_schema_valid"]
+    check.pop("validation", None)
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)
+
+
+def test_write_post_emit_health_persists_claim_map_schema_validation(tmp_path):
+    manifest = _make_bundle(tmp_path, include_claim_map=True, include_citation=True)
+    out = derive_post_health_path(manifest)
+    returned, report = write_post_emit_health(str(manifest))
+    assert returned == out
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert written["status"] == report["status"] == "pass"
+    post_checks = {check["name"]: check for check in written["checks"]}
+    assert post_checks["claim_evidence_map_schema_valid"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
+    # Optional positive checks as requested
+    assert post_checks["manifest_schema_valid"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
+    assert post_checks["range_ref_resolution"]["validation"] == {
+        "mode": "jsonschema",
+        "engine": "range_resolver",
+        "reason": "available",
+    }
