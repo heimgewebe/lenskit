@@ -14,12 +14,11 @@ It documents how full validation, degraded validation, fallback checks, and stru
 Covered sidecars:
 
 - `output_health`
-
 - `post_emit_health`
-
 - `bundle_surface_validation`
 
 Out of scope:
+
 - dependency inventory reports
 - structured validation error objects
 - YAML/JSON loader consolidation
@@ -31,9 +30,7 @@ This proof is based on the post-merge diagnostic surfaces emitted after portable
 Observed diagnostic surfaces:
 
 - `output_health.checks.range_ref_resolution.validation`
-
 - `post_emit_health.checks[].validation` for schema/range validation checks
-
 - `bundle_surface_validation.checks[].validation`
 This proof documents emitted diagnostic semantics. It does not change producer code, schemas, or runtime dependency behavior.
 The evidence baseline covers currently emitted diagnostics. Reserved vocabulary such as `minimal_fallback` is documented separately and must not be read as observed emission unless a producer emits it.
@@ -186,7 +183,7 @@ This does not prove forensic readiness.
 
 ### post_emit_health
 
-* Checks such as `manifest_schema_valid`, `range_ref_resolution`, and `claim_evidence_map_schema_valid` can carry check-local validation.
+* Checks such as `manifest_schema_valid`, `range_ref_resolution`, and `claim_evidence_map_schema_valid` carry check-local validation where validation provenance is available or skipped.
 * `post_emit_health.status` is separate from `output_health.verdict`.
 * A degraded validation check must not be silently read as full validation.
 
@@ -204,7 +201,7 @@ This does not prove forensic readiness.
 * `jsonschema` is available.
 * Full schema validation can emit `mode=jsonschema`.
 
-### Degraded runtime
+### Non-execution and degraded runtime
 
 * A validation dependency, schema, or input prerequisite is unavailable or not applicable.
 * Sidecars remain portable.
@@ -216,6 +213,7 @@ This does not prove forensic readiness.
 ## Non-claims
 
 Explicitly state:
+
 * `validation.mode=jsonschema` proves schema structure, not claim truth.
 * `validation.mode=skipped_unavailable` is not a pass.
 * `validation.mode=minimal_fallback` is not full schema validation.
