@@ -16,6 +16,7 @@ Design contract:
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import logging
 import sqlite3
@@ -23,6 +24,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .clock import now_utc
+
+from .dependency_diagnostics import jsonschema_dependency
+
+
+def _probe_jsonschema_available() -> bool:
+    try:
+        importlib.import_module("jsonschema")
+    except ImportError:
+        return False
+    return True
+
+
+_JSONSCHEMA_AVAILABLE = _probe_jsonschema_available()
 
 logger = logging.getLogger(__name__)
 
@@ -599,6 +613,10 @@ def compute_output_health(
         "diagnostic_artifacts": diagnostic_artifacts,
         "warnings": warnings,
         "errors": errors,
+        "dependencies": jsonschema_dependency(
+            available=_JSONSCHEMA_AVAILABLE,
+            required_for=["range_ref_schema"],
+        ),
         "verdict": verdict,
     }
 

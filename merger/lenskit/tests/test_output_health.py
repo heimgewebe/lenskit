@@ -1086,9 +1086,12 @@ def test_range_ref_jsonschema_unavailable_is_warn_not_fail(tmp_path):
         dump_index_path,
     ) = _make_range_ref_chunks(tmp_path)
 
-    with patch(
-        "merger.lenskit.core.range_resolver.resolve_range_ref",
-        side_effect=_raise_jsonschema_unavailable,
+    with (
+        patch(
+            "merger.lenskit.core.range_resolver.resolve_range_ref",
+            side_effect=_raise_jsonschema_unavailable,
+        ),
+        patch("merger.lenskit.core.range_resolver.jsonschema", None),
     ):
         result = compute_output_health(
             run_id="run-jsonschema-missing",
@@ -1133,9 +1136,13 @@ def test_range_ref_jsonschema_unavailable_verdict_is_warn_not_pass(tmp_path):
         dump_index_path,
     ) = _make_range_ref_chunks(tmp_path)
 
-    with patch(
-        "merger.lenskit.core.range_resolver.resolve_range_ref",
-        side_effect=_raise_jsonschema_unavailable,
+    with (
+        patch(
+            "merger.lenskit.core.range_resolver.resolve_range_ref",
+            side_effect=_raise_jsonschema_unavailable,
+        ),
+        patch("merger.lenskit.core.range_resolver.jsonschema", None),
+        patch("merger.lenskit.core.output_health._JSONSCHEMA_AVAILABLE", False),
     ):
         result = compute_output_health(
             run_id="run-jsonschema-warn",
@@ -1151,6 +1158,20 @@ def test_range_ref_jsonschema_unavailable_verdict_is_warn_not_pass(tmp_path):
             expected_chunk_index_sha256=chunk_sha,
         )
 
+    deps = result["dependencies"]["jsonschema"]
+    assert deps == {
+        "available": False,
+        "required_for": ["range_ref_schema"],
+        "effect": "validation_degraded",
+    }
+    assert (
+        result["checks"]["range_ref_resolution"]["validation"]["mode"]
+        == "skipped_unavailable"
+    )
+    assert (
+        result["checks"]["range_ref_resolution"]["validation"]["reason"]
+        == "dependency_unavailable"
+    )
     assert result["verdict"] == "warn"
     assert result["errors"] == []
     assert any(
@@ -1423,3 +1444,170 @@ def test_output_health_schema_accepts_legacy_checks_without_range_ref_resolution
 
     report["checks"].pop("range_ref_resolution", None)
     jsonschema.validate(instance=report, schema=schema)
+
+
+def _get_base_oh_report():
+    from merger.lenskit.core.output_health import compute_output_health
+
+    return compute_output_health(
+        run_id="test-run",
+        stem="test",
+        primary_manifest_path=None,
+        canonical_md_path=None,
+        chunk_index_path=None,
+        dump_index_path=None,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        canonical_md_required=False,
+        chunk_index_required=False,
+    )
+
+
+def test_output_health_schema_accepts_dependencies():
+    report = _get_base_oh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": True,
+            "required_for": ["range_ref_schema"],
+            "effect": "full_validation_available",
+        }
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_schema_accepts_legacy_report_without_dependencies():
+    report = _get_base_oh_report()
+    if "dependencies" in report:
+        del report["dependencies"]
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_schema_rejects_invalid_dependency_effect():
+    report = _get_base_oh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": True,
+            "required_for": ["range_ref_schema"],
+            "effect": "invalid_effect",
+        }
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_schema_rejects_invalid_required_for():
+    report = _get_base_oh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": True,
+            "required_for": ["manifest_schema"],
+            "effect": "full_validation_available",
+        }
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_schema_rejects_non_boolean_dependency_available():
+    report = _get_base_oh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": "true",
+            "required_for": ["range_ref_schema"],
+            "effect": "full_validation_available",
+        }
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_schema_rejects_extra_dependency_name():
+    report = _get_base_oh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": True,
+            "required_for": ["range_ref_schema"],
+            "effect": "full_validation_available",
+        },
+        "yaml": {
+            "available": True,
+            "required_for": [],
+            "effect": "full_validation_available",
+        },
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_schema_rejects_empty_dependencies_object():
+    report = _get_base_oh_report()
+    report["dependencies"] = {}
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_schema_rejects_dependency_available_effect_mismatch():
+    report = _get_base_oh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": False,
+            "required_for": ["range_ref_schema"],
+            "effect": "full_validation_available",
+        }
+    }
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_output_health_dependencies_reports_jsonschema_available(monkeypatch):
+    monkeypatch.setattr("merger.lenskit.core.output_health._JSONSCHEMA_AVAILABLE", True)
+
+    report = compute_output_health(
+        run_id="test-run",
+        stem="test",
+        primary_manifest_path=None,
+        canonical_md_path=None,
+        chunk_index_path=None,
+        dump_index_path=None,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        canonical_md_required=False,
+        chunk_index_required=False,
+    )
+
+    assert report["dependencies"]["jsonschema"] == {
+        "available": True,
+        "required_for": ["range_ref_schema"],
+        "effect": "full_validation_available",
+    }
+
+
+def test_output_health_dependencies_reports_jsonschema_unavailable(monkeypatch):
+    monkeypatch.setattr("merger.lenskit.core.output_health._JSONSCHEMA_AVAILABLE", False)
+
+    report = compute_output_health(
+        run_id="test-run",
+        stem="test",
+        primary_manifest_path=None,
+        canonical_md_path=None,
+        chunk_index_path=None,
+        dump_index_path=None,
+        sqlite_index_path=None,
+        redact_secrets=False,
+        canonical_md_required=False,
+        chunk_index_required=False,
+    )
+
+    assert report["dependencies"]["jsonschema"] == {
+        "available": False,
+        "required_for": ["range_ref_schema"],
+        "effect": "validation_degraded",
+    }

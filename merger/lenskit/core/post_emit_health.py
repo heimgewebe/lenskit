@@ -51,6 +51,8 @@ from .constants import ArtifactRole
 from .output_health import _is_jsonschema_unavailable_error
 from .path_security import resolve_secure_path
 
+from .dependency_diagnostics import jsonschema_dependency
+
 try:
     import jsonschema
 except ImportError:  # optional runtime dependency
@@ -352,11 +354,20 @@ def _assemble(
     hash_mismatch_count: int = 0,
     missing_artifact_count: int = 0,
     range_ref_resolution_status: Optional[str] = None,
+    jsonschema_available: bool = False,
     agent_pack: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     return {
         "kind": KIND,
         "version": VERSION,
+        "dependencies": jsonschema_dependency(
+            available=jsonschema_available,
+            required_for=[
+                "manifest_schema",
+                "range_ref_schema",
+                "claim_evidence_map_schema",
+            ],
+        ),
         "run_id": run_id,
         "bundle_run_id": bundle_run_id,
         "checked_at": _now_iso(),
@@ -428,6 +439,7 @@ def compute_post_emit_health(
             checks=[_check("manifest_present", "blocked", "bundle manifest not found")],
             errors=["bundle manifest not found or not a file"],
             warnings=[],
+            jsonschema_available=jsonschema is not None,
         )
 
     try:
@@ -442,6 +454,7 @@ def compute_post_emit_health(
             checks=[_check("manifest_present", "blocked", f"cannot read manifest: {e}")],
             errors=[f"cannot read bundle manifest: {e}"],
             warnings=[],
+            jsonschema_available=jsonschema is not None,
         )
 
     bundle_run_id = manifest.get("run_id") if isinstance(manifest, dict) else None
@@ -455,6 +468,7 @@ def compute_post_emit_health(
             checks=[_check("manifest_present", "blocked", "not a repolens.bundle.manifest")],
             errors=["manifest is not a repolens.bundle.manifest; cannot certify bundle surface"],
             warnings=[],
+            jsonschema_available=jsonschema is not None,
         )
 
     artifacts = manifest.get("artifacts")
@@ -467,6 +481,7 @@ def compute_post_emit_health(
             checks=[_check("manifest_present", "blocked", "manifest 'artifacts' is not a list")],
             errors=["manifest 'artifacts' is not a list; no inspectable artifact surface"],
             warnings=[],
+            jsonschema_available=jsonschema is not None,
         )
 
     checks: List[Dict[str, Any]] = [_check("manifest_present", "pass")]
@@ -914,6 +929,7 @@ def compute_post_emit_health(
         hash_mismatch_count=hash_mismatch_count,
         missing_artifact_count=missing_artifact_count,
         range_ref_resolution_status=rr_status,
+        jsonschema_available=jsonschema is not None,
         agent_pack=agent_pack,
     )
 

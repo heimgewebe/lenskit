@@ -242,6 +242,45 @@
     "verdict": {
       "type": "string",
       "enum": ["pass", "warn", "fail"]
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jsonschema"],
+      "properties": {
+        "jsonschema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "required_for", "effect"],
+          "properties": {
+            "available": { "type": "boolean" },
+            "required_for": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["range_ref_schema"]
+              },
+              "minItems": 1,
+              "maxItems": 1,
+              "uniqueItems": true
+            },
+            "effect": {
+              "type": "string",
+              "enum": ["full_validation_available", "validation_degraded"]
+            }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "available": { "const": true } }, "required": ["available"] },
+              "then": { "properties": { "effect": { "const": "full_validation_available" } } }
+            },
+            {
+              "if": { "properties": { "available": { "const": false } }, "required": ["available"] },
+              "then": { "properties": { "effect": { "const": "validation_degraded" } } }
+            }
+          ]
+        }
+      }
     }
   },
   "additionalProperties": false
