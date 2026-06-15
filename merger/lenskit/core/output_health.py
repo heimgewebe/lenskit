@@ -628,7 +628,7 @@ def compute_output_health(
         "warnings": warnings,
         "errors": errors,
         "dependencies": _jsonschema_dependency(
-            available=_jsonschema_available and not (rr_status == "environment_error" and rr_validation.get("reason") == "dependency_unavailable") if chunk_index_required else _jsonschema_available,
+            available=getattr(__import__("merger.lenskit.core.range_resolver", fromlist=["jsonschema"]), "jsonschema", None) is not None,
             required_for=["range_ref_schema"],
         ),
 

@@ -887,3 +887,66 @@ def test_post_emit_health_schema_rejects_extra_dependency_name():
     schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=report, schema=schema)
+
+
+
+def test_post_emit_health_dependencies_reports_jsonschema_unavailable(
+    tmp_path,
+    monkeypatch,
+):
+    import merger.lenskit.core.post_emit_health as post_emit_health
+
+    monkeypatch.setattr(post_emit_health, "jsonschema", None)
+
+    manifest = _make_bundle(tmp_path)
+    report = post_emit_health.compute_post_emit_health(str(manifest))
+
+    assert report["dependencies"]["jsonschema"] == {
+        "available": False,
+        "required_for": [
+            "manifest_schema",
+            "range_ref_schema",
+            "claim_evidence_map_schema",
+        ],
+        "effect": "validation_degraded",
+    }
+
+
+def test_post_emit_health_schema_rejects_empty_dependencies_object():
+    report = _get_base_peh_report()
+    report["dependencies"] = {}
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_post_emit_health_schema_rejects_incomplete_required_for():
+    report = _get_base_peh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": True,
+            "required_for": ["manifest_schema"],
+            "effect": "full_validation_available",
+        }
+    }
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_post_emit_health_schema_rejects_dependency_available_effect_mismatch():
+    report = _get_base_peh_report()
+    report["dependencies"] = {
+        "jsonschema": {
+            "available": False,
+            "required_for": [
+                "manifest_schema",
+                "range_ref_schema",
+                "claim_evidence_map_schema",
+            ],
+            "effect": "full_validation_available",
+        }
+    }
+    schema = json.loads(_POST_HEALTH_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)

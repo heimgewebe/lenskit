@@ -1089,6 +1089,8 @@ def test_range_ref_jsonschema_unavailable_is_warn_not_fail(tmp_path):
     with patch(
         "merger.lenskit.core.range_resolver.resolve_range_ref",
         side_effect=_raise_jsonschema_unavailable,
+    ), patch(
+        "merger.lenskit.core.range_resolver.jsonschema", None
     ):
         result = compute_output_health(
             run_id="run-jsonschema-missing",
@@ -1136,6 +1138,8 @@ def test_range_ref_jsonschema_unavailable_verdict_is_warn_not_pass(tmp_path):
     with patch(
         "merger.lenskit.core.range_resolver.resolve_range_ref",
         side_effect=_raise_jsonschema_unavailable,
+    ), patch(
+        "merger.lenskit.core.range_resolver.jsonschema", None
     ):
         result = compute_output_health(
             run_id="run-jsonschema-warn",
