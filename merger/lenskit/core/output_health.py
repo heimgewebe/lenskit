@@ -16,7 +16,7 @@ Design contract:
 from __future__ import annotations
 
 import hashlib
-import importlib.util
+import importlib
 import json
 import logging
 import sqlite3
@@ -28,7 +28,15 @@ from .clock import now_utc
 
 from .dependency_diagnostics import jsonschema_dependency
 
-_JSONSCHEMA_AVAILABLE = importlib.util.find_spec("jsonschema") is not None
+def _probe_jsonschema_available() -> bool:
+    try:
+        importlib.import_module("jsonschema")
+    except ImportError:
+        return False
+    return True
+
+
+_JSONSCHEMA_AVAILABLE = _probe_jsonschema_available()
 
 
 logger = logging.getLogger(__name__)
