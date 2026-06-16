@@ -21,6 +21,18 @@ def get_test_env() -> dict:
         env["PYTHONPATH"] = repo_root
     return env
 
+def _utf8_bytes(text: str) -> bytes:
+    return text.encode("utf-8")
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+def _write_bytes(path: Path, data: bytes) -> None:
+    path.write_bytes(data)
+
+def _path_literal(path: Path) -> str:
+    return json.dumps(str(path))
+
 def test_output_health_degraded_without_jsonschema(tmp_path):
     """
     Test A: Verify that output health is degraded (warn) when jsonschema is missing.
@@ -28,11 +40,13 @@ def test_output_health_degraded_without_jsonschema(tmp_path):
     correctly reflect availability=False and validation_degraded effect.
     """
     primary_manifest = tmp_path / "primary.manifest.json"
-    primary_manifest.write_text("{}", encoding="utf-8")
+    primary_manifest_bytes = b"{}"
+    _write_bytes(primary_manifest, primary_manifest_bytes)
     
     canonical_md = tmp_path / "canonical.md"
-    canonical_md.write_text("Hello World", encoding="utf-8")
-    expected_md_sha = hashlib.sha256(b"Hello World").hexdigest()
+    canonical_md_bytes = b"Hello World"
+    _write_bytes(canonical_md, canonical_md_bytes)
+    expected_md_sha = _sha256(canonical_md_bytes)
     
     chunk_index = tmp_path / "chunks.jsonl"
     chunk = {
@@ -42,14 +56,19 @@ def test_output_health_degraded_without_jsonschema(tmp_path):
             "repo_id": "testrepo",
             "file_path": "canonical.md",
             "start_byte": 0,
-            "end_byte": 11,
+            "end_byte": len(canonical_md_bytes),
             "start_line": 1,
             "end_line": 1,
             "content_sha256": expected_md_sha,
         }
     }
-    chunk_index.write_text(json.dumps(chunk) + "\n", encoding="utf-8")
-    expected_chunk_sha = hashlib.sha256((json.dumps(chunk) + "\n").encode("utf-8")).hexdigest()
+    chunk_bytes = _utf8_bytes(json.dumps(chunk) + "\n")
+    _write_bytes(chunk_index, chunk_bytes)
+    expected_chunk_sha = _sha256(chunk_bytes)
+
+    primary_manifest_lit = _path_literal(primary_manifest)
+    canonical_md_lit = _path_literal(canonical_md)
+    chunk_index_lit = _path_literal(chunk_index)
     
     code = f"""
 import sys
@@ -61,10 +80,10 @@ from merger.lenskit.core.output_health import compute_output_health
 report = compute_output_health(
     run_id="test-run",
     stem="test-stem",
-    primary_manifest_path=Path(r"{primary_manifest}"),
-    canonical_md_path=Path(r"{canonical_md}"),
-    chunk_index_path=Path(r"{chunk_index}"),
-    dump_index_path=Path(r"{primary_manifest}"),
+    primary_manifest_path=Path({primary_manifest_lit}),
+    canonical_md_path=Path({canonical_md_lit}),
+    chunk_index_path=Path({chunk_index_lit}),
+    dump_index_path=Path({primary_manifest_lit}),
     sqlite_index_path=None,
     redact_secrets=False,
     canonical_md_required=True,
@@ -105,8 +124,9 @@ def test_post_emit_health_degraded_without_jsonschema(tmp_path):
     manifest_path = tmp_path / "x.bundle.manifest.json"
     
     canonical_md = tmp_path / "x.md"
-    canonical_md.write_text("Hello World", encoding="utf-8")
-    expected_md_sha = hashlib.sha256(b"Hello World").hexdigest()
+    canonical_md_bytes = b"Hello World"
+    _write_bytes(canonical_md, canonical_md_bytes)
+    expected_md_sha = _sha256(canonical_md_bytes)
     
     pack_md = tmp_path / "x.pack.md"
     pack_text = (
@@ -119,8 +139,9 @@ def test_post_emit_health_degraded_without_jsonschema(tmp_path):
         "## DO_NOT_CLAIM\n"
         "- `change_impact` — relation or path proximity alone does not prove change impact.\n"
     )
-    pack_md.write_text(pack_text, encoding="utf-8")
-    expected_pack_sha = hashlib.sha256(pack_text.encode("utf-8")).hexdigest()
+    pack_bytes = _utf8_bytes(pack_text)
+    _write_bytes(pack_md, pack_bytes)
+    expected_pack_sha = _sha256(pack_bytes)
     
     chunk_index = tmp_path / "x.chunks.jsonl"
     chunk = {
@@ -130,19 +151,21 @@ def test_post_emit_health_degraded_without_jsonschema(tmp_path):
             "repo_id": "testrepo",
             "file_path": "x.md",
             "start_byte": 0,
-            "end_byte": 11,
+            "end_byte": len(canonical_md_bytes),
             "start_line": 1,
             "end_line": 1,
             "content_sha256": expected_md_sha,
         }
     }
-    chunk_index.write_text(json.dumps(chunk) + "\n", encoding="utf-8")
-    expected_chunk_sha = hashlib.sha256((json.dumps(chunk) + "\n").encode("utf-8")).hexdigest()
+    chunk_bytes = _utf8_bytes(json.dumps(chunk) + "\n")
+    _write_bytes(chunk_index, chunk_bytes)
+    expected_chunk_sha = _sha256(chunk_bytes)
     
     # Let's also create an optional claim_evidence_map_json to test when it is present
     cem_json = tmp_path / "x.cem.json"
-    cem_json.write_text("{}", encoding="utf-8")
-    expected_cem_sha = hashlib.sha256(b"{}").hexdigest()
+    cem_bytes = b"{}"
+    _write_bytes(cem_json, cem_bytes)
+    expected_cem_sha = _sha256(cem_bytes)
 
     manifest = {
         "kind": "repolens.bundle.manifest",
@@ -159,15 +182,18 @@ def test_post_emit_health_degraded_without_jsonschema(tmp_path):
             }
         },
         "artifacts": [
-            {"role": "canonical_md", "path": "x.md", "sha256": expected_md_sha, "bytes": 11},
-            {"role": "agent_reading_pack", "path": "x.pack.md", "sha256": expected_pack_sha, "bytes": len(pack_text)},
-            {"role": "chunk_index_jsonl", "path": "x.chunks.jsonl", "sha256": expected_chunk_sha, "bytes": len(json.dumps(chunk) + "\n")},
-            {"role": "claim_evidence_map_json", "path": "x.cem.json", "sha256": expected_cem_sha, "bytes": 2},
+            {"role": "canonical_md", "path": "x.md", "sha256": expected_md_sha, "bytes": len(canonical_md_bytes)},
+            {"role": "agent_reading_pack", "path": "x.pack.md", "sha256": expected_pack_sha, "bytes": len(pack_bytes)},
+            {"role": "chunk_index_jsonl", "path": "x.chunks.jsonl", "sha256": expected_chunk_sha, "bytes": len(chunk_bytes)},
+            {"role": "claim_evidence_map_json", "path": "x.cem.json", "sha256": expected_cem_sha, "bytes": len(cem_bytes)},
         ],
         "links": {},
         "capabilities": {"redaction": False},
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_bytes = _utf8_bytes(json.dumps(manifest, indent=2))
+    _write_bytes(manifest_path, manifest_bytes)
+
+    manifest_path_lit = _path_literal(manifest_path)
     
     code = f"""
 import sys
@@ -177,7 +203,7 @@ from pathlib import Path
 from merger.lenskit.core.post_emit_health import compute_post_emit_health
 
 report = compute_post_emit_health(
-    str(Path(r"{manifest_path}")),
+    {manifest_path_lit},
     agent_pack_required=True,
     run_id="test-post-run"
 )
@@ -226,8 +252,9 @@ def test_bundle_surface_validate_is_unaffected_by_jsonschema(tmp_path):
     manifest_path = tmp_path / "x.bundle.manifest.json"
     
     canonical_md = tmp_path / "x.md"
-    canonical_md.write_text("Hello World", encoding="utf-8")
-    expected_md_sha = hashlib.sha256(b"Hello World").hexdigest()
+    canonical_md_bytes = b"Hello World"
+    _write_bytes(canonical_md, canonical_md_bytes)
+    expected_md_sha = _sha256(canonical_md_bytes)
     
     pack_md = tmp_path / "x.pack.md"
     pack_text = (
@@ -243,12 +270,14 @@ def test_bundle_surface_validate_is_unaffected_by_jsonschema(tmp_path):
         "- artifact: `x.claim_evidence_map.json`\n"
         "- claims: 0\n"
     )
-    pack_md.write_text(pack_text, encoding="utf-8")
-    expected_pack_sha = hashlib.sha256(pack_text.encode("utf-8")).hexdigest()
+    pack_bytes = _utf8_bytes(pack_text)
+    _write_bytes(pack_md, pack_bytes)
+    expected_pack_sha = _sha256(pack_bytes)
     
     cem_json = tmp_path / "x.cem.json"
-    cem_json.write_text("{}", encoding="utf-8")
-    expected_cem_sha = hashlib.sha256(b"{}").hexdigest()
+    cem_bytes = b"{}"
+    _write_bytes(cem_json, cem_bytes)
+    expected_cem_sha = _sha256(cem_bytes)
 
     manifest = {
         "kind": "repolens.bundle.manifest",
@@ -265,22 +294,26 @@ def test_bundle_surface_validate_is_unaffected_by_jsonschema(tmp_path):
             }
         },
         "artifacts": [
-            {"role": "canonical_md", "path": "x.md", "sha256": expected_md_sha, "bytes": 11},
-            {"role": "agent_reading_pack", "path": "x.pack.md", "sha256": expected_pack_sha, "bytes": len(pack_text)},
-            {"role": "claim_evidence_map_json", "path": "x.cem.json", "sha256": expected_cem_sha, "bytes": 2},
+            {"role": "canonical_md", "path": "x.md", "sha256": expected_md_sha, "bytes": len(canonical_md_bytes)},
+            {"role": "agent_reading_pack", "path": "x.pack.md", "sha256": expected_pack_sha, "bytes": len(pack_bytes)},
+            {"role": "claim_evidence_map_json", "path": "x.cem.json", "sha256": expected_cem_sha, "bytes": len(cem_bytes)},
         ],
         "links": {},
         "capabilities": {"redaction": False},
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_bytes = _utf8_bytes(json.dumps(manifest, indent=2))
+    _write_bytes(manifest_path, manifest_bytes)
     
     # We write a mock post_emit_health sidecar with status "pass"
     post_health_sidecar = tmp_path / "x.bundle_health.post.json"
-    post_health_sidecar.write_text(json.dumps({
+    post_health_bytes = _utf8_bytes(json.dumps({
         "kind": "lenskit.post_emit_health",
         "version": "1.0",
         "status": "pass"
-    }), encoding="utf-8")
+    }))
+    _write_bytes(post_health_sidecar, post_health_bytes)
+
+    manifest_path_lit = _path_literal(manifest_path)
 
     code = f"""
 import sys
@@ -290,7 +323,7 @@ from pathlib import Path
 from merger.lenskit.core.bundle_surface_validate import validate_bundle_surface
 
 report = validate_bundle_surface(
-    Path(r"{manifest_path}"),
+    Path({manifest_path_lit}),
     require_claim_evidence_map=True,
     run_id="test-surface-run"
 )
