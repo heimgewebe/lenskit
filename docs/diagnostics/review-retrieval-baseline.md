@@ -1,13 +1,23 @@
 # Review Retrieval Baseline
 
-Status: initial structural baseline
+Status: metric baseline + miss diagnostics
 
 ## Scope
 
-This baseline covers review-oriented retrieval queries for Lenskit implementation,
-tests, contracts, and documentation. It provides a versioned input set whose structure,
-category coverage, and expected repository targets can be checked reproducibly before
-retrieval behavior is changed.
+This baseline measures the review goldset against the existing lexical retrieval
+evaluation and connects each expected target to the existing miss-diagnostics
+taxonomy. It does not run, change, or improve retrieval, ranking, indexing, or
+routing behavior. It is a diagnostic measuring instrument only.
+
+The baseline reuses existing infrastructure rather than reimplementing it:
+
+- Metrics (`recall@k`, `MRR`, `zero_hit_ratio`, per-category recall/MRR) come from
+  `merger/lenskit/retrieval/eval_core.py` (`do_eval`).
+- Per-expected-target miss classification reuses the eight diagnoses in
+  `merger/lenskit/retrieval/eval_diagnostics.py`
+  (`RetrievalEvalDiagnosticsCalibrator`). No second taxonomy is introduced.
+- The review-goldset adapter lives in
+  `merger/lenskit/retrieval/review_eval.py`.
 
 ## Goldset
 
@@ -15,40 +25,112 @@ retrieval behavior is changed.
 - format: a top-level list following `docs/retrieval/queries.v1.json`, with the
   loader-tolerated additive `category` field
 - queries: 20
-- minimum queries: 20
 - required categories: `agent_pack`, `claim_evidence`, `citation_map`,
   `post_emit_health`, `bundle_surface`, `bundle_manifest`, `retrieval`, `router`,
   `cli`, `contracts`, `security`, `source_acquisition`, `pr_schau`, `range_ref`,
   `lenses`
-- expected targets: repository-path patterns and symbol/text patterns; path-like
-  targets must resolve to existing files/directories, and symbolic targets must occur
-  in repository text outside the goldset and its guard test
+- expected targets: repository-path patterns and symbol/text patterns
 
-The static guard is
-`merger/lenskit/tests/test_review_retrieval_goldset.py`. It checks compatibility with
-the existing query shape, minimum size, unique non-empty query text, complete category
-coverage, expected-pattern presence, existence of path-like targets, and textual
-presence of symbolic targets outside the goldset and its guard test.
+`review_eval.load_review_queries` normalizes the goldset into stable records with a
+deterministic `query_id` (`RQ-01` … `RQ-20`), preserving categories and multiple
+expected targets per query. Symbolic targets are kept as `symbol_or_text` and are
+never reported as file errors.
 
-## Does not mean
+## Metric Baseline
 
-- Retrieval is globally good.
-- Ranking is optimal.
-- Semantic search is implemented.
-- A hit proves correctness.
-- A miss alone proves code absence.
-- The goldset is complete.
+`build_review_retrieval_baseline` consumes `do_eval` output and emits a stable,
+reproducible report. Retrieval metrics are taken verbatim from the eval output;
+the adapter adds review-specific aggregation and per-target reporting only.
 
-## Baseline Type
+Top-level metric fields (`metrics`):
 
-Structural baseline only. This slice does not run or commit retrieval metrics and does
-not change retrieval, routing, indexing, or ranking behavior. This document closes only
-the structural-goldset subtask; it does not close the full blueprint acceptance criteria
-for reproducible retrieval baseline metrics or miss diagnostics. Those remain tracked by
-`TASK-AGENT-FRONTDOOR-004`.
+- `total_queries`
+- `recall@10` (percent, as produced by `eval_core`)
+- `MRR` (mean reciprocal rank of the first matching expected target)
+- `zero_hit_ratio` (existing field name; ratio of queries returning no results)
+- `expected_target_total`, `expected_target_hits`, `expected_target_misses`
+
+## Category Metrics
+
+`categories.<category>` aggregates each blueprint category separately
+(`total_queries`, `hits`, `misses`, `recall@10`, `MRR`). The full review goldset
+spans all 15 blueprint categories; results are not collapsed into a single
+`uncategorized` bucket.
+
+## Expected-Target Reporting
+
+`queries[].expected_targets[]` reports each expected target of each query
+separately:
+
+- `target`, `target_kind` (`path` | `test_path` | `symbol_or_text` | `unknown`)
+- `found` (whether the target landed in top-k)
+- `rank` (1-indexed rank when found in top-k, else `null`)
+- `matched_result` (the ranked result that matched, else `null`)
+- `diagnosis` (taxonomy term, see below)
+
+Each query also carries `query_id`, `query`, `category`, `top_k`, and
+`query_had_zero_hits`.
+
+## Miss Diagnostics
+
+Every expected target is classified through the existing taxonomy
+(`DiagnosticsRecord.PRIMARY_DIAGNOSES`): `target_in_top_k`,
+`target_exists_not_in_top_k`, `target_missing_from_index`,
+`target_missing_from_canonical`, `target_missing_from_citation_map`,
+`stale_expected_target`, `query_target_ambiguous`, `diagnostic_inconclusive`.
+
+`miss_taxonomy_summary` counts targets by diagnosis deterministically, and
+`miss_diagnostics[]` carries the per-target diagnostic records for targets that
+did not land in top-k. Diagnostic resolution improves when the calibrator is given
+the chunk index, canonical_md, and citation_map artifacts; without them, misses are
+reported as `diagnostic_inconclusive` or `query_target_ambiguous` rather than as
+false absence claims.
+
+## Reproduction
+
+```python
+from pathlib import Path
+from merger.lenskit.retrieval.review_eval import run_review_retrieval_baseline
+
+baseline = run_review_retrieval_baseline(
+    index_path=Path("path/to/index.sqlite"),
+    goldset_path=Path("docs/retrieval/review_queries.v1.json"),
+    k=10,
+    # Optional artifacts sharpen miss diagnostics:
+    chunk_index_path=Path("path/to/chunks.jsonl"),
+    canonical_path=Path("path/to/canonical.md"),
+    citation_path=Path("path/to/citation_map.jsonl"),
+)
+```
+
+`run_review_retrieval_baseline` is a thin library wrapper over the existing
+`eval_core.do_eval` plus the diagnostics calibrator. It adds no new CLI, contract,
+runtime behavior, or bundle artifact. Concrete metric values depend on the index
+the baseline is run against and are therefore reproduced on demand rather than
+pinned in this document.
+
+## Tests
+
+`merger/lenskit/tests/test_review_retrieval_metrics.py` proves loading and
+normalization, that all 20 queries flow into the baseline, category aggregation,
+`recall@10` / `MRR` / `zero_hit_ratio` reporting, per-target hit records (query id,
+target, hit status, rank), separate handling of multiple expected targets per
+query, reconciliation of misses with the existing taxonomy, deterministic
+miss-taxonomy counts, and the inference boundaries below. The structural guard
+remains `merger/lenskit/tests/test_review_retrieval_goldset.py`.
+
+## Does not mean / Does not establish
+
+- This baseline measures current lexical retrieval behavior for the review goldset.
+- The report is diagnostic and does not establish review completeness.
+- A hit does not prove answer correctness.
+- A miss does not prove code absence.
+- `recall@10` does not prove ranking sufficiency.
+- Retrieval is not "good", "solved", or "sufficient" because of these numbers.
 
 ## Follow-up
 
-`TASK-AGENT-FRONTDOOR-004` remains open to connect this goldset to deterministic
-`retrieval_eval` metrics, expected-target hit reporting, and miss diagnostics reconciled
-with the existing taxonomy. Ranking improvements remain a separate later slice.
+Ranking improvements, semantic/embedding retrieval, and reranking remain separate
+later slices. This document closes the metric-baseline and miss-diagnostics
+subtask tracked by `TASK-AGENT-FRONTDOOR-004`; it does not promote retrieval
+quality or change retrieval runtime.
