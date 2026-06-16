@@ -239,7 +239,9 @@ def build_review_retrieval_baseline(
                 }
             )
             if not in_top_k:
-                miss_diagnostics.append(record.to_dict())
+                diagnostic_record = record.to_dict()
+                diagnostic_record["primary_diagnosis"] = diagnosis
+                miss_diagnostics.append(diagnostic_record)
 
         query_records.append(
             {

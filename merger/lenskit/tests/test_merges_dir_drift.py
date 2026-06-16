@@ -39,8 +39,7 @@ def test_runner_resolves_and_creates_relative_merges_dir(temp_hub):
     req = JobRequest(
         hub=str(temp_hub),
         repos=["repoA"],
-        merges_dir=rel_path,
-        pre_pull=False,
+        merges_dir=rel_path
     )
     job = Job.create(req)
     job.hub_resolved = str(temp_hub)
@@ -112,8 +111,7 @@ def test_runner_artifact_path_mapping(temp_hub):
 
     req = JobRequest(
         hub=str(temp_hub),
-        repos=["repoA"],
-        pre_pull=False,
+        repos=["repoA"]
     )
     job = Job.create(req)
     job.hub_resolved = str(temp_hub)
@@ -470,7 +468,6 @@ def test_runner_full_snapshot_path_excludes_cache_dirs(temp_hub):
         max_bytes="0",
         output_mode="dual",
         include_hidden=True,
-        pre_pull=False,
     )
     job = Job.create(req)
     job.hub_resolved = str(temp_hub)

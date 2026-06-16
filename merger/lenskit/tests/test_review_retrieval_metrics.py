@@ -353,3 +353,14 @@ def test_unknown_diagnosis_fallback():
     q0 = baseline["queries"][0]
     target_rec = q0["expected_targets"][0]
     assert target_rec["diagnosis"] == "diagnostic_inconclusive"
+
+    # Check that "new_unexpected_diagnosis" is not in target records
+    for q in baseline["queries"]:
+        for rec in q["expected_targets"]:
+            assert rec["diagnosis"] != "new_unexpected_diagnosis"
+
+    # Check that "new_unexpected_diagnosis" is not in miss_diagnostics
+    assert all(
+        rec["primary_diagnosis"] != "new_unexpected_diagnosis"
+        for rec in baseline["miss_diagnostics"]
+    )
