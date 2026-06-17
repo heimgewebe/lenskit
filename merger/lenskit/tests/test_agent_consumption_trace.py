@@ -538,3 +538,76 @@ def test_validator_is_deterministic():
         "unknown_declared_artifacts",
     ):
         assert first[key] == sorted(first[key])
+
+
+# ── Hardening: exact does_not_establish boundary check ───────────────────────
+
+
+def test_answer_compliance_extra_negative_semantics_is_fail():
+    rr = _required_reading_result(recommended=[])
+    ac = _answer_compliance(
+        declared_artifacts=["agent_reading_pack", "canonical_md"],
+        does_not_establish=_NINE + ["answer_safe_without_citations"],
+    )
+    trace = validate_agent_consumption(rr, ac)
+    assert trace["status"] == "fail"
+    assert "missing_negative_semantics" in _codes(trace)
+    # the trace still outputs its own exact nine boundaries
+    assert trace["does_not_establish"] == list(DOES_NOT_ESTABLISH)
+
+
+def test_answer_compliance_unknown_negative_semantics_is_fail():
+    rr = _required_reading_result(recommended=[])
+    ac = _answer_compliance(
+        declared_artifacts=["agent_reading_pack", "canonical_md"],
+        does_not_establish=_NINE[:-1] + ["invented_boundary"],
+    )
+    trace = validate_agent_consumption(rr, ac)
+    assert trace["status"] == "fail"
+    assert "missing_negative_semantics" in _codes(trace)
+
+
+# ── Hardening: diagnostics[].code enum in schema ─────────────────────────────
+
+
+def test_diagnostic_code_unknown_invalid():
+    _require_jsonschema()
+    instance = _minimal_pass_trace()
+    instance["diagnostics"] = [
+        {
+            "code": "invented_diagnostic_code",
+            "severity": "warn",
+            "detail": "This code is not part of the contract.",
+        }
+    ]
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=_load_schema())
+
+
+@pytest.mark.parametrize(
+    "code,severity",
+    [
+        ("task_profile_mismatch", "fail"),
+        ("task_profile_not_applicable", "info"),
+        ("missing_required_artifact", "fail"),
+        ("unread_required_artifact", "fail"),
+        ("missing_recommended_artifact", "warn"),
+        ("unread_recommended_artifact", "warn"),
+        ("unknown_declared_artifact", "warn"),
+        ("missing_negative_semantics", "fail"),
+    ],
+)
+def test_known_diagnostic_codes_are_schema_valid(code, severity):
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_pass_trace()
+    if severity == "fail":
+        instance["status"] = "fail"
+    elif severity == "warn":
+        instance["status"] = "warn"
+    else:
+        instance["status"] = "not_applicable"
+    instance["diagnostics"] = [
+        {"code": code, "severity": severity, "detail": "Known diagnostic code."}
+    ]
+    jsonschema.validate(instance=instance, schema=schema)

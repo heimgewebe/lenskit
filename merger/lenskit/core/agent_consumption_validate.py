@@ -207,14 +207,13 @@ def validate_agent_consumption(
             )
 
     # ── Rule 5: negative semantics ──────────────────────────────────────────
-    ac_negatives = {str(x) for x in (ac.get("does_not_establish") or [])}
-    if not set(DOES_NOT_ESTABLISH).issubset(ac_negatives):
+    ac_negatives = [str(x) for x in (ac.get("does_not_establish") or [])]
+    if sorted(ac_negatives) != sorted(DOES_NOT_ESTABLISH):
         diagnostics.append(
             _diag(
                 "missing_negative_semantics",
                 _FAIL,
-                "Answer compliance does_not_establish is missing one or more of "
-                "the nine required boundaries.",
+                "Answer compliance does_not_establish must contain exactly the nine required boundaries.",
             )
         )
 

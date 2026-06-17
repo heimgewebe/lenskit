@@ -115,8 +115,17 @@
       "properties": {
         "code": {
           "type": "string",
-          "minLength": 1,
-          "description": "Machine-readable diagnostic code, e.g. missing_required_artifact."
+          "enum": [
+            "task_profile_mismatch",
+            "task_profile_not_applicable",
+            "missing_required_artifact",
+            "unread_required_artifact",
+            "missing_recommended_artifact",
+            "unread_recommended_artifact",
+            "unknown_declared_artifact",
+            "missing_negative_semantics"
+          ],
+          "description": "Machine-readable diagnostic code."
         },
         "severity": {
           "type": "string",
