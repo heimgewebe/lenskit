@@ -143,24 +143,26 @@ def test_does_not_establish_with_duplicates_invalid():
     with pytest.raises(ValidationError):
         jsonschema.validate(instance=instance, schema=schema)
 
-def test_arrays_must_have_unique_items():
+def test_declared_artifacts_must_be_unique():
     _require_jsonschema()
     schema = _load_schema()
     instance = _minimal_valid_answer_compliance()
-    
-    # test declared_artifacts
     instance["declared_artifacts"] = ["doc1", "doc1"]
     with pytest.raises(ValidationError):
         jsonschema.validate(instance=instance, schema=schema)
-    instance["declared_artifacts"] = []
 
-    # test unread_required_artifacts
+def test_unread_required_artifacts_must_be_unique():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
     instance["unread_required_artifacts"] = ["doc1", "doc1"]
     with pytest.raises(ValidationError):
         jsonschema.validate(instance=instance, schema=schema)
-    instance["unread_required_artifacts"] = []
 
-    # test unread_recommended_artifacts
+def test_unread_recommended_artifacts_must_be_unique():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
     instance["unread_recommended_artifacts"] = ["doc1", "doc1"]
     with pytest.raises(ValidationError):
         jsonschema.validate(instance=instance, schema=schema)
@@ -221,3 +223,92 @@ def test_top_level_fields_are_declared():
     assert "declared_ranges" in required
     assert not any(f.startswith("used_") for f in required)
     assert not any(f.startswith("used_") for f in schema["properties"])
+
+def test_does_not_establish_unknown_value_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["does_not_establish"][-1] = "invented_boundary"
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+def test_does_not_establish_tenth_value_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["does_not_establish"].append("answer_safe_without_citations")
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+def test_range_ref_empty_object_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["declared_ranges"][0]["range_ref"] = {}
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+def test_range_ref_unknown_shape_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["declared_ranges"][0]["range_ref"] = {"whatever": 123}
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+def test_range_ref_v1_like_shape_valid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["declared_ranges"][0]["range_ref"] = {
+        "file_path": "lenskit-max-example_merge.md",
+        "start_line": 1,
+        "end_line": 3
+    }
+    jsonschema.validate(instance=instance, schema=schema)
+
+def test_range_ref_v2_like_shape_valid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["declared_ranges"][0]["range_ref"] = {
+        "artifact_path": "lenskit-max-example_merge.md",
+        "artifact_line_start": 1,
+        "artifact_line_end": 3,
+        "source_file_path": "merger/lenskit/core/example.py",
+        "source_line_start": 10,
+        "source_line_end": 12
+    }
+    jsonschema.validate(instance=instance, schema=schema)
+
+def test_citation_declaration_missing_purpose_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    del instance["declared_citations"][0]["purpose"]
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+def test_citation_declaration_empty_purpose_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["declared_citations"][0]["purpose"] = ""
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+def test_range_declaration_missing_purpose_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    del instance["declared_ranges"][0]["purpose"]
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+def test_range_declaration_empty_purpose_invalid():
+    _require_jsonschema()
+    schema = _load_schema()
+    instance = _minimal_valid_answer_compliance()
+    instance["declared_ranges"][0]["purpose"] = ""
+    with pytest.raises(ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)

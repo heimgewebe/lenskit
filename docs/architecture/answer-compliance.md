@@ -40,6 +40,8 @@ This contract does not prove:
 
 ## Example
 
+Range declarations accept a minimal v1-like line range or a minimal v2-like artifact/source range shape. Full range resolution is intentionally deferred to the later Agent Consumption Trace validator.
+
 ```json
 {
   "kind": "lenskit.answer_compliance",

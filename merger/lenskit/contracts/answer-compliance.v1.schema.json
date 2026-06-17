@@ -72,21 +72,22 @@
     "citation_declaration": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["citation_id"],
+      "required": ["citation_id", "purpose"],
       "properties": {
         "citation_id": {
           "type": "string",
           "minLength": 1
         },
         "purpose": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       }
     },
     "range_declaration": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["artifact", "range_ref"],
+      "required": ["artifact", "range_ref", "purpose"],
       "properties": {
         "artifact": {
           "type": "string",
@@ -94,10 +95,39 @@
         },
         "range_ref": {
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "oneOf": [
+            {
+              "required": ["file_path", "start_line", "end_line"],
+              "properties": {
+                "file_path": { "type": "string", "minLength": 1 },
+                "start_line": { "type": "integer", "minimum": 1 },
+                "end_line": { "type": "integer", "minimum": 1 }
+              }
+            },
+            {
+              "required": [
+                "artifact_path",
+                "artifact_line_start",
+                "artifact_line_end",
+                "source_file_path",
+                "source_line_start",
+                "source_line_end"
+              ],
+              "properties": {
+                "artifact_path": { "type": "string", "minLength": 1 },
+                "artifact_line_start": { "type": "integer", "minimum": 1 },
+                "artifact_line_end": { "type": "integer", "minimum": 1 },
+                "source_file_path": { "type": "string", "minLength": 1 },
+                "source_line_start": { "type": "integer", "minimum": 1 },
+                "source_line_end": { "type": "integer", "minimum": 1 }
+              }
+            }
+          ]
         },
         "purpose": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -129,9 +159,21 @@
     "does_not_establish_array": {
       "type": "array",
       "minItems": 9,
+      "maxItems": 9,
       "uniqueItems": true,
       "items": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "actual_reading_proven",
+          "answer_correct",
+          "repo_understood",
+          "all_relevant_context_used",
+          "claims_true",
+          "test_sufficiency",
+          "regression_absence",
+          "runtime_behavior",
+          "forensic_ready"
+        ]
       },
       "allOf": [
         { "contains": { "const": "actual_reading_proven" } },
