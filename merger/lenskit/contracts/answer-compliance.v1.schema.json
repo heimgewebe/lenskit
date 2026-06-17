@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://heimgewebe.local/contracts/answer-compliance.v1.schema.json",
   "title": "Answer Compliance Declaration (answer-compliance v1.0)",
-  "description": "Machine-readable declaration of what an answer claims to have used. Declaration layer only; does not prove actual reading, correctness, completeness, runtime behavior, test sufficiency, regression absence, or repo understanding.",
+  "description": "Machine-readable declaration of what an answer claims to have used. Declaration layer only; does not prove actual reading, correctness, completeness, runtime behavior, test sufficiency, regression absence, forensic readiness, or repo understanding.",
   "type": "object",
   "additionalProperties": false,
   "required": [
