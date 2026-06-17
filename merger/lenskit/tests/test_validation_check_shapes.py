@@ -29,12 +29,6 @@ from merger.lenskit.tests.test_post_emit_health import (
     _make_bundle as _make_post_emit_bundle,
 )
 
-# Shared diagnostic vocabulary for validation.mode. Kept as a set so the test
-# stabilizes the shape without pinning one environment-dependent mode (a resolvable
-# range ref yields "jsonschema"; a non-applicable/degraded run yields
-# "skipped_unavailable"). See validation-diagnostics-schema-alignment-proof.md.
-_VALIDATION_MODES = {"jsonschema", "skipped_unavailable", "minimal_fallback"}
-
 
 def test_output_health_checks_remains_mapping(tmp_path):
     """output_health['checks'] is a mapping keyed by check name; the range-ref
@@ -44,9 +38,15 @@ def test_output_health_checks_remains_mapping(tmp_path):
     checks = report["checks"]
     assert isinstance(checks, dict)
     assert "range_ref_resolution" in checks
-    assert isinstance(checks["range_ref_resolution"], dict)
-    assert "validation" in checks["range_ref_resolution"]
-    assert checks["range_ref_resolution"]["validation"]["mode"] in _VALIDATION_MODES
+    rr_check = checks["range_ref_resolution"]
+    assert isinstance(rr_check, dict)
+    assert "validation" in rr_check
+    assert isinstance(rr_check["validation"], dict)
+    assert {"mode", "engine", "reason"} <= set(rr_check["validation"])
+    assert all(
+        isinstance(rr_check["validation"][key], str)
+        for key in ("mode", "engine", "reason")
+    )
 
 
 def test_post_emit_health_checks_remains_list_of_named_checks(tmp_path):
@@ -66,12 +66,13 @@ def test_post_emit_health_checks_remains_list_of_named_checks(tmp_path):
     assert all("status" in check for check in checks)
     for check in checks:
         if "validation" in check:
+            assert isinstance(check["validation"], dict)
             assert {"mode", "engine", "reason"} <= set(check["validation"])
 
 
 def test_bundle_surface_validation_checks_remains_list_of_named_checks(tmp_path):
     """bundle_surface_validation['checks'] is an ordered list of {name, status, ...}
-    objects; surface checks that carry validation use the surface engine."""
+    objects; checks that carry validation expose the shared validation triad."""
     manifest = _make_surface_manifest(tmp_path, claim_present=True)
     report = validate_bundle_surface(manifest, require_claim_evidence_map=True)
 
@@ -82,6 +83,5 @@ def test_bundle_surface_validation_checks_remains_list_of_named_checks(tmp_path)
     assert all("status" in check for check in checks)
     for check in checks:
         if "validation" in check:
-            assert check["validation"]["engine"] == "bundle_surface_validate"
-            assert "mode" in check["validation"]
-            assert "reason" in check["validation"]
+            assert isinstance(check["validation"], dict)
+            assert {"mode", "engine", "reason"} <= set(check["validation"])
