@@ -25,73 +25,25 @@ def _write_file(path: Path, data: bytes) -> str:
 
 
 def _make_chunk_jsonl(tmp_path: Path, chunks: list[dict]) -> tuple[Path, str]:
-    content = "\n".join(json.dumps(c) for c in chunks) + "\n"
-    data = content.encode("utf-8")
-    p = tmp_path / "test.chunk_index.jsonl"
-    sha = _write_file(p, data)
-    return p, sha
+    from merger.lenskit.tests.bundle_fixtures import make_chunk_jsonl
+    return make_chunk_jsonl(tmp_path, chunks)
 
 
 def _make_canonical_md(tmp_path: Path) -> tuple[Path, str]:
-    data = b"# Test merge\n\nSome content.\n"
-    p = tmp_path / "test.md"
-    sha = _write_file(p, data)
-    return p, sha
+    from merger.lenskit.tests.bundle_fixtures import make_canonical_md
+    return make_canonical_md(tmp_path)
 
 
 def _make_dump_index(tmp_path: Path, canonical_name: str, chunk_name: str) -> Path:
-    p = tmp_path / "test.dump_index.json"
-    dump = {
-        "contract": "dump-index",
-        "artifacts": {
-            "canonical_md": {
-                "role": "canonical_md",
-                "path": canonical_name,
-            },
-            "chunk_index_jsonl": {
-                "role": "chunk_index_jsonl",
-                "path": chunk_name,
-            },
-        },
-    }
-    p.write_text(json.dumps(dump), encoding="utf-8")
-    return p
+    from merger.lenskit.tests.bundle_fixtures import make_dump_index
+    return make_dump_index(tmp_path, canonical_name, chunk_name)
 
 
 def _make_sqlite(
     tmp_path: Path, chunks_rows: list[dict], fts_rows: list[dict] | None = None
 ) -> Path:
-    db_path = tmp_path / "test.index.sqlite"
-    conn = sqlite3.connect(str(db_path))
-    c = conn.cursor()
-    c.execute("CREATE TABLE chunks (id TEXT PRIMARY KEY, content TEXT, path TEXT)")
-    try:
-        c.execute(
-            "CREATE VIRTUAL TABLE chunks_fts USING fts5(chunk_id, content, path_tokens)"
-        )
-    except sqlite3.OperationalError as e:
-        conn.close()
-        if "no such module: fts5" in str(e).lower():
-            pytest.skip("SQLite FTS5 not available")
-        raise
-
-    for row in chunks_rows:
-        c.execute(
-            "INSERT INTO chunks VALUES (?, ?, ?)",
-            (row["id"], row["content"], row["path"]),
-        )
-
-    if fts_rows is None:
-        fts_rows = chunks_rows
-    for row in fts_rows:
-        c.execute(
-            "INSERT INTO chunks_fts VALUES (?, ?, ?)",
-            (row["id"], row["content"], row["path"]),
-        )
-
-    conn.commit()
-    conn.close()
-    return db_path
+    from merger.lenskit.tests.bundle_fixtures import make_sqlite
+    return make_sqlite(tmp_path, chunks_rows, fts_rows)
 
 
 def _build_range_ref_for_canonical(
@@ -117,27 +69,12 @@ def _base_kwargs(
     with_sqlite: bool = True,
     with_manifest: bool = True,
 ) -> dict:
-    if chunks is None:
-        chunks = [{"id": "c1", "content": "hello world", "path": "test/a.md"}]
-
-    canonical_md_path, canonical_md_sha = _make_canonical_md(tmp_path)
-    chunk_index_path, chunk_sha = _make_chunk_jsonl(tmp_path, chunks)
-    dump_index_path = _make_dump_index(
-        tmp_path, canonical_md_path.name, chunk_index_path.name
-    )
-    sqlite_index_path = _make_sqlite(tmp_path, chunks) if with_sqlite else None
-
-    return dict(
-        run_id="run-test-1",
-        stem="test",
-        primary_manifest_path=dump_index_path if with_manifest else None,
-        canonical_md_path=canonical_md_path,
-        chunk_index_path=chunk_index_path,
-        dump_index_path=dump_index_path,
-        sqlite_index_path=sqlite_index_path,
-        redact_secrets=False,
-        expected_canonical_md_sha256=canonical_md_sha,
-        expected_chunk_index_sha256=chunk_sha,
+    from merger.lenskit.tests.bundle_fixtures import make_output_health_kwargs
+    return make_output_health_kwargs(
+        tmp_path=tmp_path,
+        chunks=chunks,
+        with_sqlite=with_sqlite,
+        with_manifest=with_manifest,
     )
 
 

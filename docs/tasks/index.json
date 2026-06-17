@@ -218,6 +218,19 @@
         "Keine Producer-/Schema-/Contract-/CLI-Migration und keine checks-Shape-Vereinheitlichung in diesem Slice (bewusstes Nicht-Ziel).",
         "Folge-Optionen bleiben additiv: read-only Normalisierungs-Helper bzw. gemeinsame CheckView; eine echte Schema-Migration nur mit explizitem Kompatibilitätsplan, der den isinstance(dict)-Silent-Degradation-Pfad aller fünf output_health-Dict-Consumer adressiert."
       ]
+    },
+    {
+      "id": "TASK-TEST-INFRA-001",
+      "title": "Bundle/Test Fixture Builder",
+      "status": "done",
+      "description": "Extraktion einer test-only Fixture-Infrastruktur für wiederkehrende Bundle-/Health-/Surface-Testdaten. `test_validation_check_shapes.py` importiert keine privaten Helper mehr direkt aus anderen Testmodulen. Ursprungstests sind schonend angebunden und bewahren exakt ihre etablierten Semantiken.",
+      "evidence": [
+        "merger/lenskit/tests/bundle_fixtures.py",
+        "merger/lenskit/tests/test_validation_check_shapes.py",
+        "merger/lenskit/tests/test_output_health.py",
+        "merger/lenskit/tests/test_post_emit_health.py",
+        "merger/lenskit/tests/test_bundle_surface_validate.py"
+      ]
     }
   ]
 }

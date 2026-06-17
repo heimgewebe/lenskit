@@ -64,85 +64,10 @@ _PACK_LEGACY = (
 _DUMMY_SHA = "0" * 64
 
 
-def _make_manifest(
-    tmp_path,
-    *,
-    claim_present,
-    absence_reason=None,
-    pack_text=_PACK_SUMMARY_PRESENT,
-    include_pack=True,
-    include_runtime=True,
-    include_post_health=True,
-    post_health_status="pass",
-    include_output_health=True,
-):
+def _make_manifest(tmp_path, *args, **kwargs):
     """Write a synthetic but structurally valid bundle manifest + referenced files."""
-    manifest_path = tmp_path / "x.bundle.manifest.json"
-    artifacts = []
-
-    (tmp_path / "x.md").write_text("# canonical\n", encoding="utf-8")
-    artifacts.append(
-        {"role": "canonical_md", "path": "x.md", "sha256": _DUMMY_SHA, "bytes": 12}
-    )
-
-    if include_pack:
-        (tmp_path / "x.pack.md").write_text(pack_text, encoding="utf-8")
-        artifacts.append(
-            {
-                "role": "agent_reading_pack",
-                "path": "x.pack.md",
-                "sha256": _DUMMY_SHA,
-                "bytes": 1,
-            }
-        )
-    if include_output_health:
-        (tmp_path / "x.oh.json").write_text('{"verdict": "pass"}', encoding="utf-8")
-        artifacts.append(
-            {
-                "role": "output_health",
-                "path": "x.oh.json",
-                "sha256": _DUMMY_SHA,
-                "bytes": 1,
-            }
-        )
-    if claim_present:
-        (tmp_path / "x.cem.json").write_text("{}", encoding="utf-8")
-        artifacts.append(
-            {
-                "role": "claim_evidence_map_json",
-                "path": "x.cem.json",
-                "sha256": _DUMMY_SHA,
-                "bytes": 2,
-            }
-        )
-
-    links = {}
-    if absence_reason is not None:
-        links["claim_evidence_map_absence_reason"] = absence_reason
-
-    generator = {"name": "rlens", "version": "dev", "config_sha256": "a" * 64}
-    if include_runtime:
-        generator["runtime"] = {
-            "module": "merger.lenskit.core.merge",
-            "python_version": "3.11.0",
-        }
-
-    manifest = {
-        "kind": "repolens.bundle.manifest",
-        "version": "1.0",
-        "run_id": "run-xyz",
-        "created_at": "2026-06-02T00:00:00Z",
-        "generator": generator,
-        "artifacts": artifacts,
-        "links": links,
-        "capabilities": {"redaction": False},
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-
-    if include_post_health:
-        # A persisted (unregistered) post_emit_health sidecar with a known status.
-        _write_post_health(manifest_path, status=post_health_status)
-    return manifest_path
+    from merger.lenskit.tests.bundle_fixtures import make_surface_manifest
+    return make_surface_manifest(tmp_path, *args, **kwargs)
 
 
 def _check(report, name):

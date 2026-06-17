@@ -14,26 +14,23 @@ suite), and they introduce no new vocabulary or producer behaviour. The audit an
 its consumer inventory live in
 ``docs/proofs/validation-check-shape-consistency-audit.md``.
 
-Fixtures are reused from the producers' own test modules (per the task scope: do
-not duplicate fixture setup).
+Fixtures are imported from a shared test helper module to decouple tests.
 """
 
 from merger.lenskit.core.bundle_surface_validate import validate_bundle_surface
 from merger.lenskit.core.output_health import compute_output_health
 from merger.lenskit.core.post_emit_health import compute_post_emit_health
-from merger.lenskit.tests.test_bundle_surface_validate import (
-    _make_manifest as _make_surface_manifest,
-)
-from merger.lenskit.tests.test_output_health import _base_kwargs
-from merger.lenskit.tests.test_post_emit_health import (
-    _make_bundle as _make_post_emit_bundle,
+from merger.lenskit.tests.bundle_fixtures import (
+    make_output_health_kwargs,
+    make_post_emit_bundle,
+    make_surface_manifest,
 )
 
 
 def test_output_health_checks_remains_mapping(tmp_path):
     """output_health['checks'] is a mapping keyed by check name; the range-ref
     diagnostic is a nested object at checks['range_ref_resolution']['validation']."""
-    report = compute_output_health(**_base_kwargs(tmp_path=tmp_path, with_sqlite=False))
+    report = compute_output_health(**make_output_health_kwargs(tmp_path=tmp_path, with_sqlite=False))
 
     checks = report["checks"]
     assert isinstance(checks, dict)
@@ -54,7 +51,7 @@ def test_post_emit_health_checks_remains_list_of_named_checks(tmp_path):
     A check's ``validation`` is optional, but where present it carries the full
     {mode, engine, reason} triad (the test does not force every check to carry it).
     """
-    manifest = _make_post_emit_bundle(tmp_path)
+    manifest = make_post_emit_bundle(tmp_path)
     report = compute_post_emit_health(str(manifest))
 
     checks = report["checks"]
@@ -75,7 +72,7 @@ def test_post_emit_health_checks_remains_list_of_named_checks(tmp_path):
 def test_bundle_surface_validation_checks_remains_list_of_named_checks(tmp_path):
     """bundle_surface_validation['checks'] is an ordered list of {name, status, ...}
     objects; checks that carry validation expose the shared validation triad."""
-    manifest = _make_surface_manifest(tmp_path, claim_present=True)
+    manifest = make_surface_manifest(tmp_path, claim_present=True)
     report = validate_bundle_surface(manifest, require_claim_evidence_map=True)
 
     checks = report["checks"]
