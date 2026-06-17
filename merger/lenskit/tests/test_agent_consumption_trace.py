@@ -611,3 +611,82 @@ def test_known_diagnostic_codes_are_schema_valid(code, severity):
         {"code": code, "severity": severity, "detail": "Known diagnostic code."}
     ]
     jsonschema.validate(instance=instance, schema=schema)
+
+
+# ── Polish: diagnostics ordered by severity (fail > warn > info) ─────────────
+
+
+def test_diagnostics_are_sorted_by_severity_then_code():
+    # one fail (missing required) and one+ warn (unread recommended, unknown)
+    rr = _required_reading_result(
+        required=["canonical_md"],
+        recommended=["citation_map_jsonl"],
+    )
+    ac = _answer_compliance(
+        declared_artifacts=["mystery_role"],
+        unread_recommended_artifacts=["citation_map_jsonl"],
+    )
+    trace = validate_agent_consumption(rr, ac)
+    severities = [d["severity"] for d in trace["diagnostics"]]
+    assert severities == sorted(
+        severities,
+        key={"fail": 0, "warn": 1, "info": 2}.get,
+    )
+    assert trace["diagnostics"][0]["severity"] == "fail"
+
+
+# ── Polish: _norm_roles scalar string guard ──────────────────────────────────
+
+
+def test_norm_roles_treats_scalar_string_as_single_role():
+    rr = _required_reading_result(required=["canonical_md"], recommended=[])
+    ac = _answer_compliance(declared_artifacts="canonical_md")
+    trace = validate_agent_consumption(rr, ac)
+    assert trace["declared_artifacts"] == ["canonical_md"]
+    assert trace["status"] == "pass"
+
+
+# ── Polish: negative semantics evaluated before not_applicable ───────────────
+
+
+def test_answer_compliance_duplicate_negative_semantics_is_fail():
+    rr = _required_reading_result(recommended=[])
+    ac = _answer_compliance(
+        declared_artifacts=["agent_reading_pack", "canonical_md"],
+        does_not_establish=_NINE[:-1] + ["actual_reading_proven"],
+    )
+    trace = validate_agent_consumption(rr, ac)
+    assert trace["status"] == "fail"
+    assert "missing_negative_semantics" in _codes(trace)
+
+
+def test_invalid_negative_semantics_beats_not_applicable():
+    protocol = default_required_reading_protocol()
+    rr = resolve_required_reading(
+        protocol,
+        available_roles=set(),
+        task_profile="does_not_exist",
+    )
+    ac = _answer_compliance(
+        task_profile="does_not_exist",
+        does_not_establish=_NINE[:-1],
+    )
+    trace = validate_agent_consumption(rr, ac)
+    assert trace["status"] == "fail"
+    codes = _codes(trace)
+    assert "task_profile_not_applicable" in codes
+    assert "missing_negative_semantics" in codes
+
+
+def test_valid_negative_semantics_allows_not_applicable():
+    protocol = default_required_reading_protocol()
+    rr = resolve_required_reading(
+        protocol,
+        available_roles=set(),
+        task_profile="does_not_exist",
+    )
+    ac = _answer_compliance(task_profile="does_not_exist")
+    trace = validate_agent_consumption(rr, ac)
+    assert trace["status"] == "not_applicable"
+    assert "task_profile_not_applicable" in _codes(trace)
+    assert "missing_negative_semantics" not in _codes(trace)

@@ -98,9 +98,25 @@ def validate_agent_consumption(
 
     diagnostics: list[dict] = []
 
+    # ── Negative semantics (contract invariant) ─────────────────────────────
+    # A broken Answer Compliance artifact stays broken even when the task
+    # profile is not applicable: the nine does_not_establish boundaries are a
+    # contract invariant, not a profile question.  Evaluated before the
+    # not_applicable short-circuit so invalid boundaries are never swallowed.
+    if not _has_exact_negative_semantics(ac):
+        diagnostics.append(
+            _diag(
+                "missing_negative_semantics",
+                _FAIL,
+                "Answer compliance does_not_establish must contain exactly the "
+                "nine required boundaries.",
+            )
+        )
+
     # ── Rule 1: task profile resolution ─────────────────────────────────────
-    # not_applicable wins and stops further evaluation: there is no meaningful
-    # expectation to compare against.
+    # not_applicable stops the Soll/Ist comparison (there is no meaningful
+    # expectation to compare against), but a failing contract invariant such as
+    # invalid negative semantics still wins.
     if rr.get("status") == "not_applicable":
         diagnostics.append(
             _diag(
@@ -109,9 +125,14 @@ def validate_agent_consumption(
                 f"No applicable task profile could be resolved for '{task_profile}'.",
             )
         )
+        status = (
+            "fail"
+            if any(d["severity"] == _FAIL for d in diagnostics)
+            else "not_applicable"
+        )
         return _trace(
             task_profile=task_profile,
-            status="not_applicable",
+            status=status,
             required_artifacts=required_artifacts,
             recommended_artifacts=recommended_artifacts,
             declared_artifacts=declared_artifacts,
@@ -206,18 +227,9 @@ def validate_agent_consumption(
                 )
             )
 
-    # ── Rule 5: negative semantics ──────────────────────────────────────────
-    ac_negatives = [str(x) for x in (ac.get("does_not_establish") or [])]
-    if sorted(ac_negatives) != sorted(DOES_NOT_ESTABLISH):
-        diagnostics.append(
-            _diag(
-                "missing_negative_semantics",
-                _FAIL,
-                "Answer compliance does_not_establish must contain exactly the nine required boundaries.",
-            )
-        )
-
-    # ── Rule 6: status priority ─────────────────────────────────────────────
+    # ── Status priority ─────────────────────────────────────────────────────
+    # Negative semantics were already evaluated above, before the
+    # not_applicable short-circuit.
     if any(d["severity"] == _FAIL for d in diagnostics):
         status = "fail"
     elif any(d["severity"] == _WARN for d in diagnostics):
@@ -244,10 +256,32 @@ def validate_agent_consumption(
 
 
 def _norm_roles(value) -> list[str]:
-    """Normalise a role list deterministically: stringify, dedupe, sort."""
+    """Normalise a role list deterministically: stringify, dedupe, sort.
+
+    Defensive only: a scalar string is treated as a single role rather than
+    being decomposed into characters.  No schema validation, no exceptions.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
     if not value:
         return []
     return sorted({str(x) for x in value})
+
+
+def _has_exact_negative_semantics(answer_compliance: dict) -> bool:
+    """True iff Answer Compliance declares exactly the nine required boundaries.
+
+    Rejects missing, extra, unknown, and duplicate values alike.
+    """
+    ac_negatives = [
+        str(x) for x in (answer_compliance.get("does_not_establish") or [])
+    ]
+    return (
+        set(ac_negatives) == set(DOES_NOT_ESTABLISH)
+        and len(ac_negatives) == len(DOES_NOT_ESTABLISH)
+    )
 
 
 def _diag(code: str, severity: str, detail: str, *, artifact: str | None = None) -> dict:
@@ -274,8 +308,14 @@ def _trace(
     epistemic_gaps: list,
     diagnostics: list[dict],
 ) -> dict:
+    severity_weight = {"fail": 0, "warn": 1, "info": 2}
     ordered_diagnostics = sorted(
-        diagnostics, key=lambda d: (d["code"], d.get("artifact", ""))
+        diagnostics,
+        key=lambda d: (
+            severity_weight.get(d.get("severity"), 3),
+            d["code"],
+            d.get("artifact", ""),
+        ),
     )
     return {
         "kind": KIND,
