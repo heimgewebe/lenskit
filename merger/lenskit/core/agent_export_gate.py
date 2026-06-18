@@ -147,6 +147,57 @@ def _find_output_health_verdict(manifest: Dict[str, Any], manifest_dir: Path) ->
     return None
 
 
+def _find_artifact_path(manifest: Dict[str, Any], role: str) -> Optional[str]:
+    """Return the relative path of the first artifact carrying ``role``.
+
+    Returns ``None`` when no artifact declares the role, or when the first
+    matching artifact has no usable non-empty string path.
+    """
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list):
+        return None
+    for art in artifacts:
+        if not isinstance(art, dict) or art.get("role") != role:
+            continue
+        path = art.get("path")
+        if isinstance(path, str) and path:
+            return path
+        return None
+    return None
+
+
+def _read_text_artifact(
+    manifest: Dict[str, Any],
+    manifest_dir: Path,
+    role: str,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Securely read a bundle text artifact's contents by role.
+
+    Returns ``(text, None)`` on success or ``(None, reason)`` otherwise, where
+    reason is a short machine-readable tag (``missing_artifact:<role>`` or
+    ``read_failed:<role>``). Path resolution stays confined to the bundle
+    directory and no IO/decoding exception escapes: an unreadable surface is a
+    warning condition, never a hard error.
+    """
+    rel_path = _find_artifact_path(manifest, role)
+    if rel_path is None:
+        return None, f"missing_artifact:{role}"
+    try:
+        resolved = resolve_secure_path(manifest_dir, rel_path)
+        if not resolved.exists() or not resolved.is_file():
+            return None, f"read_failed:{role}"
+        text = resolved.read_text(encoding="utf-8")
+    except (ValueError, OSError, UnicodeDecodeError):
+        return None, f"read_failed:{role}"
+    return text, None
+
+
+def _has_markdown_heading(text: str, heading: str) -> bool:
+    """Return True when ``text`` contains a level-2 Markdown heading line matching ``heading``."""
+    target = f"## {heading}"
+    return any(line.strip() == target for line in text.splitlines())
+
+
 def _doc_forbidden_inferences(doc: Dict[str, Any]) -> set[str]:
     """Return the optional C2.3 ``forbidden_inferences`` strings of a diagnostic doc."""
     values = doc.get("forbidden_inferences")
@@ -423,6 +474,23 @@ def evaluate_agent_export_gate(
                 "agent-facing export blocked by forbidden inference(s): "
                 + ", ".join(blocking_inferences)
             )
+
+    # Agent-consumption surface advisory. Non-blocking navigation hints only: a
+    # missing or unreadable consumption surface is surfaced as a warning and
+    # never changes status or errors. This adds no truth layer and no
+    # strict-gate semantics; it only makes the agent-consumption strand visible.
+    if agent_facing:
+        if _find_artifact_path(manifest, "agent_entry_manifest") is None:
+            warnings.append("missing_agent_entry_manifest")
+        if _find_artifact_path(manifest, "required_reading_protocol") is None:
+            warnings.append("missing_required_reading_protocol")
+        pack_text, _pack_read_error = _read_text_artifact(
+            manifest, manifest_dir, "agent_reading_pack"
+        )
+        if pack_text is None:
+            warnings.append("cannot_check_answer_compliance_checklist")
+        elif not _has_markdown_heading(pack_text, "ANSWER_COMPLIANCE_CHECKLIST"):
+            warnings.append("missing_answer_compliance_checklist")
 
     return {
         "kind": KIND,
