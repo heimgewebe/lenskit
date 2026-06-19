@@ -130,7 +130,7 @@ Integration oder Runtime-Nutzung.
 
 - harte Durchsetzung des Required Reading Protocol in Consumer- oder Export-Gates
 - automatische Bundle-Emission und Consumer-Integration des Agent Entry Manifest
-- Facet Model
+- automatische Bundle-Emission und Consumer-Integration des Facet Model (v1 Contract/Core/Tests vorhanden)
 - Lens Cards
 - PR Delta Cards
 - Relation Cards
@@ -704,6 +704,17 @@ zu verändern.
 
 ### Slice 11 — Facet Model v1
 
+**Status:** Contract/Core/Tests umgesetzt
+(`merger/lenskit/contracts/lens-facet.v1.schema.json`,
+`merger/lenskit/core/lens_facets.py`,
+`merger/lenskit/tests/test_lens_facets.py`; Proof
+`docs/proofs/facet-model-v1-proof.md`, Task `TASK-LENS-FACET-001`).
+Umgesetzte v1-Taxonomie: `contract`, `test`, `retrieval` — bewusst klein;
+`test` ist die engere additive Form von `test_guard`, die übrigen Kandidaten
+sind begründet zurückgestellt. Nicht umgesetzt: CLI, Bundle-Emission, Lens
+Cards, Befüllung von `possible_facets`. Keine Änderung an `LENS_IDS` oder
+`infer_lens()`.
+
 **Ziel:** Additive Sichtachsen einführen, ohne das genau-eine-Primary-Lens-Modell zu
 ersetzen.
 
@@ -966,14 +977,14 @@ Authority-Promotion oder Antwortkorrektheitsbehauptung enthalten.
 - Bundle-/Manifest-Integration des Entry Manifest
 - Consumption-Trace-Integration in Health-/Export-Gates
 - konkrete Promotion-Schwelle für Retrieval v2
-- Facet Model v1
+- Bundle-/Consumer-Integration des Facet Model v1 (Contract/Core/Tests umgesetzt)
 
 ## 14. Next Unimplemented Architecture Slice
 
-Der nächste noch nicht implementierte Architektur-Slice ist das
-Facet Model v1.
-Voraussetzung ist, dass das Deterministic Lens Model als normative
-Begriffs- und Schichtengrundlage akzeptiert ist.
+Facet Model v1 ist als Contract/Core/Test-Slice umgesetzt (siehe Slice 11),
+auf der akzeptierten normativen Grundlage des Deterministic Lens Model.
+Der nächste noch nicht implementierte Architektur-Slice ist damit Lens Cards v1
+(Slice 12): kleine agentenlesbare Navigationskarten aus Primary Lens und Facets.
 Dieser Blueprint erzeugt dafür keine neue Task-ID.
 
 ## 15. Nicht-normative Contract- und Output-Skizzen

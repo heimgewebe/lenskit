@@ -1,0 +1,232 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.local/schema/lens-facet.v1.schema.json",
+  "title": "Lens Facet Report (lens-facet v1.0)",
+  "description": "Deterministic additive facet assignments for repo paths. A facet is a navigation view-axis derived from a controlled path/suffix rule. Facets are additive (cardinality 0..n per path) and never replace the single Primary Lens. This artifact establishes no truth, correctness, completeness, semantic importance, review priority, security verdict or change impact. canonical_md remains the only content truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "items",
+    "summary",
+    "does_not_establish"
+  ],
+  "properties": {
+    "kind": {
+      "const": "lenskit.lens_facet_report"
+    },
+    "version": {
+      "const": "1.0"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/item"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_count",
+        "target_count",
+        "facet_counts"
+      ],
+      "properties": {
+        "item_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of (path, facet) assignments in items."
+        },
+        "target_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of distinct paths that carry at least one facet."
+        },
+        "facet_counts": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "contract",
+              "test",
+              "retrieval"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "Count of assignments per controlled facet name."
+        }
+      }
+    },
+    "does_not_establish": {
+      "$ref": "#/definitions/does_not_establish"
+    }
+  },
+  "definitions": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "facet",
+        "source_rule",
+        "derivation_type",
+        "does_not_establish"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\s*$)(?!/)(?!\\.\\.?$)(?!.*\\\\)(?!.*(^|/)\\.\\.(/|$)).+"
+        },
+        "facet": {
+          "type": "string",
+          "enum": [
+            "contract",
+            "test",
+            "retrieval"
+          ]
+        },
+        "source_rule": {
+          "type": "string",
+          "enum": [
+            "contract_schema_suffix",
+            "test_module_marker",
+            "retrieval_surface_path"
+          ]
+        },
+        "derivation_type": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "derived",
+            "heuristic"
+          ],
+          "description": "How the assignment was produced. NOT a confidence/probability/quality score and carries no implicit ordering."
+        },
+        "does_not_establish": {
+          "$ref": "#/definitions/does_not_establish"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "facet": {
+                "const": "contract"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_rule": {
+                "const": "contract_schema_suffix"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "facet": {
+                "const": "test"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_rule": {
+                "const": "test_module_marker"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "facet": {
+                "const": "retrieval"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_rule": {
+                "const": "retrieval_surface_path"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "does_not_establish": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 9,
+      "items": {
+        "type": "string",
+        "enum": [
+          "truth",
+          "correctness",
+          "completeness",
+          "runtime_behavior",
+          "test_sufficiency",
+          "regression_absence",
+          "semantic_importance",
+          "review_priority",
+          "change_impact"
+        ]
+      },
+      "allOf": [
+        {
+          "contains": {
+            "const": "truth"
+          }
+        },
+        {
+          "contains": {
+            "const": "correctness"
+          }
+        },
+        {
+          "contains": {
+            "const": "completeness"
+          }
+        },
+        {
+          "contains": {
+            "const": "runtime_behavior"
+          }
+        },
+        {
+          "contains": {
+            "const": "test_sufficiency"
+          }
+        },
+        {
+          "contains": {
+            "const": "regression_absence"
+          }
+        },
+        {
+          "contains": {
+            "const": "semantic_importance"
+          }
+        },
+        {
+          "contains": {
+            "const": "review_priority"
+          }
+        },
+        {
+          "contains": {
+            "const": "change_impact"
+          }
+        }
+      ]
+    }
+  }
+}

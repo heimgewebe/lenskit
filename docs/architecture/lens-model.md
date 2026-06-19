@@ -99,6 +99,9 @@ im Facet-Model-v1-Contract festgelegt.
 Das bestehende Feld `possible_facets` im Primary Lens Audit ist derzeit nur ein leerer
 Platzhalter. Der aktuelle Producer emittiert dort leere Listen. Dieses Feld beweist
 nicht, dass Facet-Zuordnung oder ein Facet Model bereits implementiert ist.
+Das Facet Model v1 ist ein eigener Report (`lenskit.lens_facet_report`,
+`merger/lenskit/contracts/lens-facet.v1.schema.json`) und befüllt `possible_facets`
+nicht; die Verknüpfung beider Flächen bleibt einem späteren Slice vorbehalten.
 
 Der aktuelle Blueprint nennt als erste, nicht finale Kandidaten:
 - `contract`
@@ -109,13 +112,18 @@ Der aktuelle Blueprint nennt als erste, nicht finale Kandidaten:
 - `security`
 - `test_guard`
 
-Die endgültige Facet-Model-v1-Taxonomie bleibt offen.
+Facet Model v1 setzt aus diesen Kandidaten eine bewusst kleine, kontrollierte
+Taxonomie um: `contract`, `test` und `retrieval`. `test` ist die engere,
+additive Form des Kandidaten `test_guard` (der `guard`-Anteil würde die
+`guards` Primary Lens nur wiederholen). Die übrigen Kandidaten
+(`artifact_surface`, `diagnostic`, `claim_boundary`, `security`) sind begründet
+zurückgestellt. Die v1-Taxonomie ist damit ausdrücklich nicht vollständig und
+bleibt erweiterbar.
 
-Insbesondere ist noch zu entscheiden, ob `uncertainty` als Facet, als
-Oberbegriff für konkrete States oder gar nicht als eigener kontrollierter
-Bezeichner modelliert wird. `claim_boundary` kann Facet,
-State oder Negativgrenze sein. Diese Entscheidung gehört in den folgenden
-Facet-Model-v1-Slice.
+`uncertainty` und `claim_boundary` werden in v1 nicht als Facets aufgenommen.
+Ob `uncertainty` ein Facet, ein Oberbegriff für konkrete States oder kein
+eigener kontrollierter Bezeichner ist und welche Rolle `claim_boundary` (Facet,
+State oder Negativgrenze) spielt, bleibt späteren Slices vorbehalten.
 
 `impact`, `test_relevance` und `runtime_causality` sind keine Primary Lenses und keine
 automatisch zugelassenen v1-Facets.
@@ -167,7 +175,9 @@ Signalen eine Zuordnung erzeugt wurde.
 
 Keine dieser Ebenen beweist für sich Wahrheit, Vollständigkeit, semantische
 Wichtigkeit, Runtime-Wirkung oder Review-Relevanz.
-Ob Evidence-Adressen im Facet Model v1 Pflicht werden, bleibt offen.
+Facet Model v1 macht Evidence-Adressen nicht zur Pflicht; `path`, `source_rule`
+und `derivation_type` bilden den nachvollziehbaren Herkunftsnachweis. Ob
+spätere, abgeleitete Facets Evidence-Adressen verlangen, bleibt offen.
 
 ## 7. Relation
 
@@ -380,10 +390,14 @@ Implementiert:
 - `infer_lens()`
 - Primary Lens Audit Contract
 - Primary Lens Audit Core Producer
-- fokussierte Tests für das Primary Lens Audit.
+- fokussierte Tests für das Primary Lens Audit
+- Facet Model v1: Contract (`lens-facet.v1.schema.json`), Core Producer
+  (`lens_facets.py`) und fokussierte Tests, mit der bewusst kleinen Taxonomie
+  `contract`/`test`/`retrieval`.
 
 Nicht implementiert:
-- Facet Model
+- vollständige Facet-Taxonomie (v1 deckt nur drei kontrollierte Facets ab)
+- Befüllung von `possible_facets`
 - Lens Cards
 - Relation Cards
 - Guard Relation Cards
@@ -401,9 +415,9 @@ Sequenz:
 
 ```text
 Primary Lens Audit v1 — Contract/Core/Tests umgesetzt
-→ Lens Model — dieser PR
-→ Facet Model v1 — nächster Code-Slice
-→ Lens Cards v1
+→ Lens Model — umgesetzt
+→ Facet Model v1 — Contract/Core/Tests umgesetzt (Taxonomie bewusst klein)
+→ Lens Cards v1 — nächster Code-Slice
 → PR Delta Cards
 → Relation Cards
 → Guard Relation Cards
@@ -417,24 +431,29 @@ Die folgenden Fragen werden in diesem Dokument nicht entschieden. Sie sind
 dem jeweils genannten Folgeslice oder einer ausdrücklich übergreifenden
 Modellentscheidung zugeordnet.
 
-### Facet Model v1
+### Facet Model v1 — entschieden
 
-**Taxonomie und Semantik**
-- endgültige Facet-v1-Taxonomie
-- `uncertainty` als Facet, State-Oberbegriff oder kein eigener Bezeichner
-- Rolle von `claim_boundary`
+Facet Model v1 ist als Contract/Core/Test-Slice entschieden und umgesetzt
+(siehe Abschnitt 17 und `merger/lenskit/contracts/lens-facet.v1.schema.json`):
 
-**Contract und Datenmodell**
-- JSON-Struktur des Facet Model v1
-- konkrete Feldnamen
-- Target-ID-Modell
-- Bericht versus einzelne Zuordnungen
-- Identität und Deduplizierung von Facet-Zuordnungen
-- Sortierregeln
-- Taxonomie der Ableitungsregeln
-- Evidence-Adressen Pflicht oder optional
-- Verhalten bei unbekannten Facet-Namen
-- konkrete Shape der Negativsemantik
+- Taxonomie: kontrollierte v1-Facets `contract`, `test`, `retrieval`
+  (bewusst unvollständig);
+- Zielidentität: normalisierter repo-relativer POSIX-Pfad;
+- Bericht versus Einzelzuordnung: aggregierter Report mit `(path, facet)`-Items;
+- Zuordnungsidentität: `(path, facet)`, deterministisch dedupliziert;
+- Ableitungsfeld: `derivation_type` mit `direct`/`derived`/`heuristic`
+  (v1 emittiert nur `direct`); kein Confidence Score;
+- Ableitungsregel: kontrolliertes `source_rule` je Zuordnung, genau eine Regel
+  je Facet (keine Regelkollision in v1);
+- Evidence-Policy: keine Pflicht-Evidence in v1;
+- Negativsemantik: die Baseline aus Abschnitt 15 auf Report- und Item-Ebene;
+- unbekannte Facet-Namen werden abgelehnt; ein Pfad darf null Facets tragen.
+
+Weiterhin offen (nicht in v1 entschieden):
+- die vollständige Facet-Taxonomie über die drei v1-Facets hinaus;
+- `uncertainty` als Facet, State-Oberbegriff oder kein eigener Bezeichner;
+- Rolle von `claim_boundary` (Facet, State oder Negativgrenze);
+- ob Evidence-Adressen für spätere, abgeleitete Facets Pflicht werden.
 
 ### Lens Cards v1
 - Kardinalität und Identität von Lens Cards
