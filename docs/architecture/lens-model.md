@@ -12,7 +12,7 @@ Gegenstand, nicht einen neuen Gegenstand und keine neue Wahrheit.
 
 Normativer Kernsatz:
 
-> Eine Lenskit-Linse ist eine deterministische, abgeleitete Sicht auf Repo- oder Bundle-Artefakte. Sie besitzt eine dokumentierte Herkunftsregel und eine explizite Geltungsgrenze. Sie dient der Navigation und erzeugt kein eigenes Wahrheits-, Review-, Sicherheits- oder Impact-Urteil.
+> Eine Lenskit-Linse ist eine deterministische, abgeleitete Sicht auf Repo- oder Bundle-Artefakte. Sie besitzt eine dokumentierte Ableitungsregel und eine explizite Geltungsgrenze. Sie dient der Navigation und erzeugt kein eigenes Wahrheits-, Review-, Sicherheits- oder Impact-Urteil.
 
 Dieses Dokument ist nicht Runtime-Evidence, kein JSON-Schema, kein Implementierungsbeweis,
 kein Bundle-Artefakt, kein Review-Bericht und kein Statusbeweis.
@@ -100,9 +100,7 @@ Das bestehende Feld `possible_facets` im Primary Lens Audit ist derzeit nur ein 
 Platzhalter. Der aktuelle Producer emittiert dort leere Listen. Dieses Feld beweist
 nicht, dass Facet-Zuordnung oder ein Facet Model bereits implementiert ist.
 
-Es existieren konkurrierende Kandidatenlisten:
-
-Repo-naher Blueprint-Kandidatenstand:
+Der aktuelle Blueprint nennt als erste, nicht finale Kandidaten:
 - `contract`
 - `artifact_surface`
 - `diagnostic`
@@ -111,15 +109,11 @@ Repo-naher Blueprint-Kandidatenstand:
 - `security`
 - `test_guard`
 
-Ältere Minimalstart-Idee:
-- `contract`
-- `artifact_surface`
-- `uncertainty`
+Die endgültige Facet-Model-v1-Taxonomie bleibt offen.
 
-Diese Listen sind nicht reconciled und werden in diesem Dokument weder
-zusammengeführt noch als finale Facet-Model-v1-Taxonomie festgelegt.
-
-`uncertainty` kann Facet- oder State-Semantik überlappen. `claim_boundary` kann Facet,
+Insbesondere ist noch zu entscheiden, ob `uncertainty` als Facet, als
+Oberbegriff für konkrete States oder gar nicht als eigener kontrollierter
+Bezeichner modelliert wird. `claim_boundary` kann Facet,
 State oder Negativgrenze sein. Diese Entscheidung gehört in den folgenden
 Facet-Model-v1-Slice.
 

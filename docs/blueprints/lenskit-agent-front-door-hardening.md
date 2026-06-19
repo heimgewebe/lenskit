@@ -104,6 +104,11 @@ oder Patch-Automat zu werden.
 
 ### 3.1 Bereits vorhanden
 
+In diesem Abschnitt bedeutet „vorhanden“, dass eine belegte Repo-Fläche aus
+Contract, Core/Validator/Producer, Dokumentation oder fokussierten Tests
+existiert. Dies impliziert nicht automatisch Bundle-Emission, Consumer-
+Integration oder Runtime-Nutzung.
+
 | Fläche | Aktuelle Rolle | Planungsrelevante Grenze |
 | --- | --- | --- |
 | `canonical_md` | kanonische Inhaltsquelle | bleibt einzige Inhaltswahrheit |
@@ -113,17 +118,18 @@ oder Patch-Automat zu werden.
 | Claim Evidence Map | Evidence-Index | keine Claim-Bewertung |
 | Post-Emit-Health | finale Integritäts-/Oberflächendiagnose | `pass` bedeutet weder `repo_understood` noch `answer_safe_without_citations` |
 | Bundle Surface Validation | Surface-/Link-Konsistenzdiagnose | `pass` bedeutet weder `claims_true` noch `forensic_ready` |
-| Retrieval Eval / Miss Taxonomy | Retrieval-Diagnostik | beweist keine semantische Vollständigkeit |
+| Review Retrieval Goldset / Eval / Miss Taxonomy | versioniertes Review-Messset mit reproduzierbaren Metriken, Baseline und Miss-Diagnostik | diagnostische Oberfläche; beweist weder Review-Vollständigkeit noch ausreichende Retrieval-Qualität |
 | Primary Lenses | `entrypoints`, `core`, `interfaces`, `data_models`, `pipelines`, `ui`, `guards` | Focus-Overlay; keine neuen IDs in diesem Plan |
 | Primary Lens Audit | aufrufbare Contract-/Core-Fläche zur deterministischen Erklärung von `infer_lens()` | Contract/Core/Tests vorhanden; kein CLI, keine automatische Bundle-Emission, keine neue Primary Lens und keine Review-Priorität |
+| Required Reading Protocol | deterministische Auflösung der Pflichtartefakte je Task-Profil | definiert Leseanforderungen; beweist weder tatsächliches Lesen noch Antwortkorrektheit oder Repo-Verständnis |
+| Answer Compliance Contract | maschinenlesbare Selbstdeklaration der für eine Antwort verwendeten Artefakte und Belege | beweist weder tatsächliches Lesen noch Antwortkorrektheit, Vollständigkeit oder Repo-Verständnis |
+| Agent Consumption Trace | deterministische Prüfung deklarierter Nutzung gegen Required-Reading-Erwartungen | beweist kein tatsächliches Lesen, keine Antwortkorrektheit und kein Repo-Verständnis |
+| Agent Entry Manifest Core | Contract, Producer und Tests für einen abgeleiteten Agent-Einstiegsindex | keine belegte automatische Bundle-Emission oder stabile Consumer-Integration; beweist kein Repo-Verständnis |
 
 ### 3.2 Noch nicht als stabile Repo-Fläche vorhanden
 
-- hartes Required Reading je Task-Profil
-- Answer Compliance Contract
-- Agent Consumption Trace
-- Agent Entry Manifest
-- Review-Retrieval-Goldset
+- harte Durchsetzung des Required Reading Protocol in Consumer- oder Export-Gates
+- automatische Bundle-Emission und Consumer-Integration des Agent Entry Manifest
 - Facet Model
 - Lens Cards
 - PR Delta Cards
