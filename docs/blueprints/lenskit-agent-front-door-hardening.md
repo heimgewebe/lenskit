@@ -115,7 +115,7 @@ oder Patch-Automat zu werden.
 | Bundle Surface Validation | Surface-/Link-Konsistenzdiagnose | `pass` bedeutet weder `claims_true` noch `forensic_ready` |
 | Retrieval Eval / Miss Taxonomy | Retrieval-Diagnostik | beweist keine semantische Vollständigkeit |
 | Primary Lenses | `entrypoints`, `core`, `interfaces`, `data_models`, `pipelines`, `ui`, `guards` | Focus-Overlay; keine neuen IDs in diesem Plan |
-| Primary Lens Audit | deterministische Erklärung der bestehenden infer_lens-Heuristik | Contract/Core/Tests vorhanden; keine neue Primary Lens, keine semantische Wichtigkeit, keine automatische Review-Priorität, keine automatische Bundle-Emission |
+| Primary Lens Audit | aufrufbare Contract-/Core-Fläche zur deterministischen Erklärung von `infer_lens()` | Contract/Core/Tests vorhanden; kein CLI, keine automatische Bundle-Emission, keine neue Primary Lens und keine Review-Priorität |
 
 ### 3.2 Noch nicht als stabile Repo-Fläche vorhanden
 
@@ -692,11 +692,14 @@ prüfbar machen, ohne IDs oder Prioritäten zu ändern.
 - `merger/lenskit/core/lens_audit.py`
 - `merger/lenskit/tests/test_primary_lens_audit.py`
 
-**Weiterhin offen oder bewusst nicht Teil des Slices:**
-- keine automatische Bundle-Emission
-- kein CLI-Wiring
-- keine Änderung an LENS_IDS
-- keine Änderung an infer_lens()
+**Bewusst nicht Teil des abgeschlossenen Slices:**
+- automatische Bundle-Emission
+- CLI-Anschluss
+Diese Anschlüsse werden durch den Status nicht als notwendige Folgearbeiten
+festgelegt.
+**Unveränderte Invarianten:**
+- `LENS_IDS` bleibt unverändert
+- `infer_lens()` und seine bestehende Prioritätslogik bleiben unverändert
 
 **Output-Grenze:** Pfad, Primary Lens, matched rule und Negativsemantik; keine Aussage zu
 semantischer Wichtigkeit, Review-Priorität oder vollständigem Kontext.
@@ -715,7 +718,8 @@ zu verändern.
 ersetzen.
 
 **Regelwerk:** Der Facet-Contract muss die in `docs/architecture/lens-model.md`
-festgelegten Schichtengrenzen, Confidence Classes und Negativsemantiken einhalten.
+festgelegten Schichtengrenzen, Ableitungsarten und Negativsemantiken
+einhalten.
 
 **Erste Kandidaten, nicht finale Taxonomie:** `contract`, `artifact_surface`,
 `diagnostic`, `retrieval`, `claim_boundary`, `security`, `test_guard`.

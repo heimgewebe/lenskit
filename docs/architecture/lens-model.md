@@ -1,17 +1,14 @@
----
-doc_type: architecture
-status: active
----
-
 # Deterministic Lens Model
 
 ## 1. Zweck und Scope
 
 Dieses Dokument normiert die Begriffe und Schichtengrenzen der Lenskit-Linsenarchitektur.
-Es ist Architekturdefinition, Begriffsschicht und Grundlage fuer spaetere Contracts.
+Es ist Architekturdefinition, Begriffsschicht und Grundlage für spätere Contracts.
 
-Eine Lens ist etymologisch eine Linse: eine kontrollierte Sicht auf denselben Gegenstand.
-Im Systemkontext ist sie kein neuer Gegenstand und keine neue Wahrheit.
+Das englische `lens` geht auf das lateinische `lens` zurück, das die
+Linsenfrucht bezeichnet; die optische Linse wurde nach ihrer Form benannt.
+Im Systemkontext bezeichnet eine Lens eine kontrollierte Sicht auf denselben
+Gegenstand, nicht einen neuen Gegenstand und keine neue Wahrheit.
 
 Normativer Kernsatz:
 
@@ -19,6 +16,14 @@ Normativer Kernsatz:
 
 Dieses Dokument ist nicht Runtime-Evidence, kein JSON-Schema, kein Implementierungsbeweis,
 kein Bundle-Artefakt, kein Review-Bericht und kein Statusbeweis.
+
+Das Two-Layer Artifact Pattern bestimmt, welche Lens-Flächen nur zeigen und
+welche Quellen Inhalt beweisen.
+Der Agent Consumption Contract bestimmt, welche Flächen für eine Aufgabe
+konsumiert oder deklariert werden; er macht daraus keine Lens-Primitive.
+Das Lens-Modell ordnet Navigation, ersetzt aber weder diese
+Consumption-Regeln noch die bestehenden Authority- und
+Canonicality-Grenzen.
 
 Beziehungen:
 - `docs/blueprints/lenskit-agent-front-door-hardening.md`
@@ -31,22 +36,29 @@ Beziehungen:
 
 ## 2. Invarianten
 
-- Linsen sind abgeleitete Navigation, keine Inhaltsautoritaet.
+- Linsen sind abgeleitete Navigation, keine Inhaltsautorität.
 - `canonical_md` bleibt innerhalb eines Dump-Bundles die einzige Inhaltswahrheit.
 - Eine Primary Lens bleibt single-label.
 - Additive Facets, States, Relations und Task Contexts ersetzen keine Primary Lens.
-- Reihenfolgen in Listen duerfen keine semantische Prioritaet ausdruecken.
-- Unbekannte Begriffe werden nicht still zu bekannten Linsen- oder Facet-Namen umgedeutet.
+- Reihenfolgen in Listen duerfen keine semantische Priorität ausdruecken.
+- Unbekannte Begriffe werden nicht still zu bekannten Primary Lenses, Facets, States oder Relationstypen umgedeutet.
 
 ## 3. Primary Lens
 
 Eine Primary Lens beantwortet:
 
-> Was ist dieser Pfad primaer?
+> Was ist dieser Pfad primär?
 
-Jeder auditierbare Repo-Pfad hat genau eine Primary Lens. Sie beschreibt ausschliesslich
-die primaere technische Rolle des Pfads. Die Primary Lens wird aktuell durch
-`infer_lens()` in `merger/lenskit/core/lenses.py` bestimmt.
+Für jeden vom Modell akzeptierten und an `infer_lens()` übergebenen Repo-Pfad
+liefert die aktuelle Klassifikationsfunktion genau eine Primary Lens.
+Diese Totalität der Klassifikationsfunktion beweist nicht, dass ein konkreter
+Audit alle Repo-Pfade erhalten oder verarbeitet hat.
+
+`infer_lens()` ist die aktuelle Implementierung der Primary-Lens-Zuordnung.
+Das Lens-Modell normiert die Semantik der Primary Lens, nicht die dauerhafte
+Unveränderlichkeit einer einzelnen Python-Funktion.
+Änderungen an IDs, Prioritäten oder Zuordnungsregeln benötigen jedoch einen
+eigenen, kompatibilitätsgeprüften Slice.
 
 Die sieben kanonischen IDs bleiben unveraendert:
 - `entrypoints`
@@ -57,13 +69,13 @@ Die sieben kanonischen IDs bleiben unveraendert:
 - `ui`
 - `guards`
 
-Der Primary Lens Audit erklaert die bestehende `infer_lens()`-Zuordnung ueber
-`matched_rule`. Er ersetzt sie nicht, fuegt keine neue Lens hinzu und bleibt ebenfalls
+Der Primary Lens Audit erklärt die bestehende `infer_lens()`-Zuordnung ueber
+`matched_rule`. Er ersetzt sie nicht, fügt keine neue Lens hinzu und bleibt ebenfalls
 single-label.
 
 Primary Lens beantwortet nicht:
-- Warum ist der Pfad fuer diesen PR wichtig?
-- Was bricht bei einer Aenderung?
+- Warum ist der Pfad für diesen PR wichtig?
+- Was bricht bei einer Änderung?
 - Sind Tests ausreichend?
 - Ist der Code sicher?
 - Ist ein Review vollstaendig?
@@ -72,16 +84,17 @@ Primary Lens beantwortet nicht:
 ## 4. Facet
 
 Ein Facet ist eine additive Sichtachse. Ein Ziel kann null, ein oder mehrere Facets
-tragen. Facets veraendern keine Primary Lens und bilden keine zweite konkurrierende
+tragen. Facets verändern keine Primary Lens und bilden keine zweite konkurrierende
 Primary-Lens-Ebene.
 
-Jede spaetere Facet-Zuordnung muss deterministisch ableitbar sein und mindestens
-folgende Ebenen trennen:
-- `target`
-- `name`
-- `source_rule`
-- `confidence_class`
-- `does_not_establish`
+Jede spätere Facet-Zuordnung muss mindestens folgende Konzepte ausdrücken:
+- eine adressierbare Zielidentität,
+- einen kontrollierten Facet-Bezeichner,
+- eine dokumentierte Ableitungsregel,
+- eine Herkunfts- oder Ableitungsart,
+- explizite Negativsemantik.
+Die konkreten JSON-Feldnamen, die Zieladressierung und die genaue Shape werden
+im Facet-Model-v1-Contract festgelegt.
 
 Das bestehende Feld `possible_facets` im Primary Lens Audit ist derzeit nur ein leerer
 Platzhalter. Der aktuelle Producer emittiert dort leere Listen. Dieses Feld beweist
@@ -98,13 +111,13 @@ Repo-naher Blueprint-Kandidatenstand:
 - `security`
 - `test_guard`
 
-Aeltere Minimalstart-Idee:
+Ältere Minimalstart-Idee:
 - `contract`
 - `artifact_surface`
 - `uncertainty`
 
-Diese Listen sind nicht reconciled und werden hier nicht still zusammengefuehrt. Die
-endgueltige Facet-Model-v1-Taxonomie ist noch offen.
+Diese Listen sind nicht reconciled und werden in diesem Dokument weder
+zusammengeführt noch als finale Facet-Model-v1-Taxonomie festgelegt.
 
 `uncertainty` kann Facet- oder State-Semantik ueberlappen. `claim_boundary` kann Facet,
 State oder Negativgrenze sein. Diese Entscheidung gehoert in den folgenden
@@ -113,41 +126,72 @@ Facet-Model-v1-Slice.
 `impact`, `test_relevance` und `runtime_causality` sind keine Primary Lenses und keine
 automatisch zugelassenen v1-Facets.
 
-## 5. Confidence Class
+Ein Facet-Name autorisiert keine weitergehende Aussage.
 
-`confidence_class` beschreibt die Herkunftsart der Zuordnung. Sie ist keine
-Wahrscheinlichkeit, kein Korrektheitswert und kein numerischer Score.
+Beispiele:
 
-`direct` bedeutet: Die Zuordnung ist direkt aus einer kontrollierten Eigenschaft
-ableitbar, zum Beispiel aus explizitem Pfad, Dateisuffix, Contract-Datei, deklarierter
-Artifact Role oder Manifestwert.
+- `security` würde nur eine kontrollierte Zuordnung zu einer
+  sicherheitsbezogenen Oberfläche ausdrücken, nicht das Vorliegen eines
+  Risikos und nicht die Sicherheit des Ziels.
+- `test_guard` würde nur eine navigative Zuordnung zu Test- oder
+  Guard-Flächen ausdrücken, nicht Testabdeckung, Wirksamkeit oder
+  Test-Suffizienz.
+- `claim_boundary` würde nur eine deklarierte Claim-Grenze sichtbar machen,
+  nicht Wahrheit oder Falschheit eines Claims.
 
-`derived` bedeutet: Die Zuordnung wird deterministisch aus vorhandenen strukturierten
-Signalen abgeleitet.
+## 5. Ableitungsart
 
-`heuristic` bedeutet: Die Zuordnung folgt einer dokumentierten deterministischen Regel,
-ohne semantischen Vollstaendigkeits- oder Wahrheitsbeweis.
+Die Ableitungsart beschreibt, wie eine Zuordnung erzeugt wurde.
+Sie ist unabhängig von den bestehenden Achsen `authority` und
+`canonicality`.
+Sie ist keine Wahrscheinlichkeit, kein Korrektheitswert und kein numerischer
+Confidence Score.
 
-## 6. Source Rule und Evidence Ref
+`direct`
 
-`source_rule` beschreibt, durch welche Regel eine Zuordnung entstand.
+Die Zuordnung wird unmittelbar aus einer expliziten und kontrollierten
+Eigenschaft abgelesen, beispielsweise aus einem Pfad, einem Dateisuffix,
+einem Contract-Typ, einem Manifestwert oder einer deklarierten Artifact Role.
 
-`evidence_ref` adressiert eine konkrete Belegstelle oder ein strukturiertes Artefakt.
+`derived`
 
-`confidence_class` beschreibt die Herkunftsart der Zuordnung.
+Die Zuordnung wird deterministisch aus mehreren strukturierten Signalen
+abgeleitet.
 
-Keine dieser Ebenen beweist fuer sich Wahrheit, Vollstaendigkeit, semantische Wichtigkeit,
-Runtime-Wirkung oder Review-Relevanz. Ob `evidence_ref` in Facet Model v1 Pflicht wird,
-bleibt offen.
+`heuristic`
+
+Die Zuordnung folgt einer dokumentierten deterministischen Regel, ohne
+semantischen Wahrheits-, Vollständigkeits- oder Wichtigkeitsbeweis.
+
+Der Wert `derived` auf der Achse der Ableitungsart ist nicht identisch mit
+`canonicality = derived`.
+- Die Ableitungsart beschreibt, wie eine einzelne Zuordnung entstand.
+- Canonicality beschreibt den Quellenstatus eines Artefakts.
+
+## 6. Ableitungsregel und Evidence-Adresse
+
+Eine Ableitungsregel beschreibt, durch welche kontrollierte Regel eine
+Zuordnung entstand.
+Eine Evidence-Adresse verweist auf eine konkrete Belegstelle oder ein
+strukturiertes Artefakt.
+Die Ableitungsart beschreibt dagegen, auf welche Weise aus den verfügbaren
+Signalen eine Zuordnung erzeugt wurde.
+
+Keine dieser Ebenen beweist für sich Wahrheit, Vollständigkeit, semantische
+Wichtigkeit, Runtime-Wirkung oder Review-Relevanz.
+Ob Evidence-Adressen im Facet Model v1 Pflicht werden, bleibt offen.
 
 ## 7. Relation
 
-Eine Relation ist eine Verbindung zwischen zwei adressierbaren Zielen. Sie benoetigt
-Quelle, Ziel, Typ und Herkunft. Sie kann `direct`, `derived` oder `heuristic` sein.
+Eine Relation ist eine Verbindung zwischen zwei adressierbaren Zielen.
+Eine Relation muss konzeptionell eine Quelle, ein Ziel, einen Relationstyp
+und die Herkunft ihrer Zuordnung ausdrücken.
+Die konkreten Feldnamen, Adressformen und Relationstypen bleiben dem späteren
+Contract vorbehalten. Sie kann `direct`, `derived` oder `heuristic` sein.
 
 Kernsatz:
 
-> Relation beschreibt eine sichtbare Verbindung; sie beweist weder Kausalitaet noch Auswirkung einer Aenderung.
+> Relation beschreibt eine sichtbare Verbindung; sie beweist weder Kausalität noch Auswirkung einer Änderung.
 
 Dieser PR legt keine Relationstyp-Taxonomie fest.
 
@@ -158,21 +202,27 @@ Dateirolle, keine Primary Lens und keine automatische Fehlerbewertung.
 
 Beispielkandidaten, nicht finaler Contract:
 - `missing_evidence`
-- `heuristic_assignment`
 - `unresolved_reference`
+- `ambiguous_target`
+
+Ob eine Zuordnung heuristisch entstand, gehört zur Ableitungsart und wird
+nicht zusätzlich als State dupliziert.
+States beschreiben davon unabhängige Evidenz-, Auflösungs- oder
+Adressierungszustände.
 
 Ein `missing_evidence`-State bedeutet nicht automatisch:
 - Aussage falsch
 - Implementierung defekt
-- Aenderung unsicher
+- Änderung unsicher
 - Test fehlgeschlagen
 
-Ob `uncertainty` als eigenes Facet oder durch konkrete States modelliert wird, ist fuer
-Facet Model v1 noch zu entscheiden.
+Ob `uncertainty` als Facet, als Oberbegriff für konkrete States oder gar nicht
+als eigener kontrollierter Bezeichner modelliert wird, bleibt eine
+Entscheidung des Facet-Model-v1-Slices.
 
 ## 9. Task Context
 
-Task Context erklaert, warum ein Ziel fuer eine konkrete Aufgabe navigativ relevant ist.
+Task Context erklärt, warum ein Ziel für eine konkrete Aufgabe navigativ relevant ist.
 
 Beispiele:
 - `pr_review`
@@ -181,29 +231,32 @@ Beispiele:
 - `security_review`
 - `roadmap_status_claim`
 
-Task Context ist keine dauerhafte Eigenschaft der Datei, veraendert keine Primary Lens,
+Task Context ist keine dauerhafte Eigenschaft der Datei, verändert keine Primary Lens,
 ist nicht dasselbe wie ein Required-Reading-Profil und beweist keinen Review-Befund oder
 Change Impact.
+Task Context ist ein expliziter Input einer aufgabenspezifischen
+Navigationssicht und kein versteckter globaler Zustand.
 
 Required Reading beantwortet:
 
-> Welche Artefakte muessen gelesen werden?
+> Welche Artefakte müssen gelesen werden?
 
 Task Context beantwortet:
 
-> Warum kann dieses Ziel fuer die konkrete Aufgabe relevant sein?
+> Warum kann dieses Ziel für die konkrete Aufgabe relevant sein?
 
 ## 10. Lens Card
 
-Eine Lens Card ist eine kleine abgeleitete Navigationseinheit. Sie kann spaeter Primary
-Lens, Facets, States, Relations und Evidence-Adressen zusammenfuehren. Sie bleibt
+Eine Lens Card ist eine kleine abgeleitete Navigationseinheit. Sie kann später Primary
+Lens, Facets, States, Relations und Evidence-Adressen zusammenführen. Sie bleibt
 regenerierbar und ersetzt keine kanonischen Inhalte.
 
-Authority:
-- `navigation_index`
+Authority: `navigation_index`
+Canonicality: `derived`
 
-Canonicality:
-- `derived`
+Die Authority- und Canonicality-Achsen werden durch das Lens-Modell nicht neu
+definiert. Maßgeblich bleiben die bestehenden Authority-Risk- und
+Two-Layer-Regeln.
 
 Verbotene unqualifizierte Card-Felder oder Claims:
 - `verdict`
@@ -218,10 +271,10 @@ Verbotene unqualifizierte Card-Felder oder Claims:
 
 ## 11. Relation Card und Guard Relation
 
-Eine Relation Card ist eine spaetere Spezialisierung: die kompakte Darstellung einer
-Relation mit Herkunft und Evidence-Grenze. Sie ist kein Kausalitaets- oder Impact-Beweis.
+Eine Relation Card ist eine spätere Spezialisierung: die kompakte Darstellung einer
+Relation mit Herkunft und Evidence-Grenze. Sie ist kein Kausalitäts-- oder Impact-Beweis.
 
-Eine Guard Relation ist eine spaetere Spezialisierung: eine Relation zwischen Ziel und
+Eine Guard Relation ist eine spätere Spezialisierung: eine Relation zwischen Ziel und
 Test-, Validator-, Guard- oder CI-Flaeche. Sie dient Navigation.
 
 Eine Guard Relation beweist nicht:
@@ -235,22 +288,22 @@ Diese Spezialisierungen werden hier nicht implementiert.
 
 ## 12. Abgrenzung zum Agent Consumption Trace
 
-Agent Consumption Trace ist ausserhalb der Lens-Primitiven einzuordnen. Er ist eine
-Consumer-/Compliance-Flaeche und kann spaeter Lens Cards konsumieren.
+Agent Consumption Trace ist außerhalb der Lens-Primitiven einzuordnen. Er ist eine
+Consumer-/Compliance-Flaeche und kann später Lens Cards konsumieren.
 
 Agent Consumption Trace ist kein Facet, keine Relation, kein State und keine Primary Lens.
-Er beweist kein tatsaechliches Lesen und kein Repo-Verstaendnis.
+Er beweist kein tatsächliches Lesen und kein Repo-Verstaendnis.
 
 ## 13. Schichtenmodell
 
-| Schicht | Kardinalitaet | Zweck | Beweist nicht |
+| Schicht | Kardinalität | Beschreibt höchstens | Geltungsgrenze |
 | --- | --- | --- | --- |
-| Primary Lens | genau 1 pro Pfad | primaere technische Rolle | Wichtigkeit, Impact |
-| Facet | 0..n | additive Sichtachsen | Wahrheit, Prioritaet |
-| Relation | 0..n | sichtbare Verbindung | Kausalitaet, Bruch |
-| State | 0..n | epistemischer/Aufloesungszustand | Fehler oder Unsicherheit der Implementierung |
-| Task Context | 0..n pro Aufgabe | aufgabenspezifische Navigation | Review-Befund |
-| Lens Card | abgeleitet | kompakte Navigationsprojektion | Inhaltsautoritaet |
+| Primary Lens | genau 1 je akzeptiertem Pfad | primäre technische Rolle | keine Wichtigkeit, keine Audit-Vollständigkeit, kein Impact |
+| Facet | 0..n | additive Sichtachse | keine Wahrheit, Priorität oder Risikobewertung |
+| Relation | 0..n | sichtbare Verbindung | keine Kausalität oder Bruchbehauptung |
+| State | 0..n | Evidenz-, Auflösungs- oder Adressierungszustand | kein automatisches Fehlerurteil |
+| Task Context | 0..n je Aufgabe | aufgabenspezifische Navigationsrelevanz | kein Review-Befund |
+| Lens Card | abgeleitet | kompakte Navigationsprojektion | keine Inhaltsautorität |
 
 ## 14. Authority und Canonicality
 
@@ -278,39 +331,52 @@ projizieren oder navigativ ordnen.
 
 ## 15. Negativsemantik
 
-Als gemeinsame Mindestgrenze zukuenftiger Lens-/Facet-/Relation-/Card-Artefakte gilt:
+Als gemeinsame Mindestgrenze zukünftiger Lens-/Facet-/Relation-/Card-Artefakte gilt:
 
-```json
-{
-  "does_not_establish": [
-    "truth",
-    "correctness",
-    "completeness",
-    "runtime_behavior",
-    "test_sufficiency",
-    "regression_absence",
-    "semantic_importance",
-    "review_priority",
-    "change_impact"
-  ]
-}
-```
+Die folgende Liste definiert eine gemeinsame semantische Baseline für spätere
+Lens-, Facet-, Relation- und Card-Artefakte.
+Konkrete Contracts müssen äquivalente oder stärkere Negativsemantik
+ausdrücken und dürfen artefaktspezifische Grenzen ergänzen.
+Das Lens-Modell normiert damit die Bedeutung der Grenzen, aber nicht
+zwingend einen identischen JSON-Feldnamen oder eine identische Shape für
+jeden Contract.
 
-Bestehende Contracts verwenden teils andere Feldnamen wie `does_not_mean`,
-`does_not_prove` oder `claim_boundaries`. Dieser PR migriert keine bestehenden
-Contracts. Semantische Grenzen sollen konsistent sein. Feldnamenvereinheitlichung ist
-ein separater Task.
+- `truth`
+- `correctness`
+- `completeness`
+- `runtime_behavior`
+- `test_sufficiency`
+- `regression_absence`
+- `semantic_importance`
+- `review_priority`
+- `change_impact`
+
+Artefaktspezifische Ergänzungen dürfen genannt werden, beispielsweise `causality`, `coverage_completeness` oder `guard_effectiveness`.
+
+Bestehende Contracts verwenden dafür je nach Artefakt unter anderem
+`does_not_establish`, `does_not_mean`, `does_not_prove` oder
+`claim_boundaries`.
+Dieser PR deprecatet, migriert oder vereinheitlicht diese bestehenden
+Contract-Shapes nicht.
 
 ## 16. Determinismus-Invarianten
 
-1. Gleicher Repo-Zustand und gleiche Regeln erzeugen dieselbe Zuordnung.
+1. Gleiche normalisierte Eingaben, gleicher Repo- oder Bundle-Inhalt, gleiche
+   Regel- und Toolversion, gleiche Konfiguration und – wo relevant – gleicher
+   Task Context erzeugen dieselbe fachliche Zuordnung und dieselbe stabil
+   sortierte Ausgabe.
 2. Ausgaben werden stabil sortiert.
 3. Deduplizierung ist deterministisch.
-4. Reihenfolge erzeugt keine semantische Prioritaet.
-5. Keine Netzwerkabfrage ist fuer die Klassifikation erforderlich.
+4. Reihenfolge erzeugt keine semantische Priorität.
+5. Keine Netzwerkabfrage ist für die Klassifikation erforderlich.
 6. Keine LLM-Auswertung ist erforderlich.
 7. Keine Embeddings sind erforderlich.
-8. Keine Systemzeit veraendert die Zuordnung.
+8. Zeitstempel dürfen Metadaten verändern, nicht jedoch die fachliche
+   Zuordnung. Task Context ist ein expliziter Input und kein versteckter
+   globaler Zustand. Repo-Pfade werden vor einer pfadbasierten Zuordnung
+   nach einer contractuell festgelegten, plattformunabhängigen Semantik
+   normalisiert. Die konkrete Normalisierungsregel bleibt dem jeweiligen
+   Contract vorbehalten.
 9. Heuristische Regeln werden explizit benannt.
 10. Unbekannte Begriffe werden nicht still umgedeutet.
 11. Neue Facets aendern keine Primary Lens.
@@ -323,17 +389,20 @@ Implementiert:
 - `infer_lens()`
 - Primary Lens Audit Contract
 - Primary Lens Audit Core Producer
-- fokussierte Primary-Lens-Audit-Tests
+- fokussierte Tests für das Primary Lens Audit.
 
 Nicht implementiert:
 - Facet Model
 - Lens Cards
 - Relation Cards
 - Guard Relation Cards
-- automatische Primary-Lens-Audit-Bundle-Emission
-- verpflichtendes CLI-Wiring fuer den Audit
+- automatische Bundle-Emission
+- CLI-Anschluss
 
-Es wird nicht behauptet, dass jeder Dump bereits ein Primary-Lens-Audit-Sidecar enthaelt.
+Der implementierte Core-Slice ist unabhängig von CLI- oder Bundle-Emission
+nutzbar.
+Diese Anschlüsse werden durch den aktuellen Status weder verlangt noch als
+notwendige technische Schuld behauptet.
 
 ## 18. Sequenzierung
 
@@ -347,33 +416,42 @@ Primary Lens Audit v1 -- Contract/Core/Tests umgesetzt
 -> Relation Cards
 -> Guard Relation Cards
 
-Das Lens-Modell ist Voraussetzung fuer das Facet Model, aber kein Implementierungsbeweis.
+Das Lens-Modell ist Voraussetzung für das Facet Model, aber kein Implementierungsbeweis.
 
 ## 19. Open Decisions for Facet Model v1
 
 Diese Punkte werden in diesem PR nicht entschieden, sofern kein bestehendes Repo-Dokument
 sie bereits eindeutig normiert:
 
-1. endgueltige Facet-v1-Taxonomie
-2. `uncertainty` als Facet oder State-Modell
-3. Rolle von `claim_boundary`
-4. genaue JSON-Struktur
-5. Bericht versus einzelne Zuordnungen
-6. Identitaet und Deduplizierung
-7. Sortierregeln
-8. erlaubte `source_rule`-Taxonomie
-9. Evidence-Refs Pflicht oder optional
-10. Target-ID-Modell
-11. Verhalten bei unbekannten Facet-Namen
-12. Bundle-/Manifest-Sichtbarkeit
-13. CLI
-14. automatische Emission
-15. Feldnamen fuer Negativsemantik
+**Taxonomie und Semantik**
+- endgültige Facet-v1-Taxonomie
+- `uncertainty` als Facet, State-Oberbegriff oder kein eigener Bezeichner
+- Rolle von `claim_boundary`
+- kontrollierte State-Bezeichner
+- kontrollierte Relationstypen
+
+**Contract und Datenmodell**
+- JSON-Struktur des Facet Model v1
+- konkrete Feldnamen
+- Target-ID-Modell
+- Bericht versus einzelne Zuordnungen
+- Identität und Deduplizierung
+- Sortierregeln
+- Taxonomie der Ableitungsregeln
+- Evidence-Adressen Pflicht oder optional
+- Verhalten bei unbekannten Facet-Namen
+- konkrete Shape der Negativsemantik
+
+**Operationalisierung**
+- CLI
+- automatische Emission
+- Bundle-/Manifest-Sichtbarkeit
+- mögliche Artifact Role
 
 ## 20. Non-goals
 
 - keine neuen Primary Lenses
-- keine Aenderung an `infer_lens()`
+- keine Änderung an `infer_lens()`
 - keine gemeinsame Rule Engine
 - kein Facet-Contract
 - kein Facet-Code
