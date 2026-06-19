@@ -115,6 +115,7 @@ oder Patch-Automat zu werden.
 | Bundle Surface Validation | Surface-/Link-Konsistenzdiagnose | `pass` bedeutet weder `claims_true` noch `forensic_ready` |
 | Retrieval Eval / Miss Taxonomy | Retrieval-Diagnostik | beweist keine semantische Vollständigkeit |
 | Primary Lenses | `entrypoints`, `core`, `interfaces`, `data_models`, `pipelines`, `ui`, `guards` | Focus-Overlay; keine neuen IDs in diesem Plan |
+| Primary Lens Audit | deterministische Erklärung der bestehenden infer_lens-Heuristik | Contract/Core/Tests vorhanden; keine neue Primary Lens, keine semantische Wichtigkeit, keine automatische Review-Priorität |
 
 ### 3.2 Noch nicht als stabile Repo-Fläche vorhanden
 
@@ -123,7 +124,6 @@ oder Patch-Automat zu werden.
 - Agent Consumption Trace
 - Agent Entry Manifest
 - Review-Retrieval-Goldset
-- Primary Lens Audit
 - Facet Model
 - Lens Cards
 - PR Delta Cards
@@ -685,14 +685,18 @@ Repo-Verständnis noch Antwortsicherheit.
 **Ziel:** Die bestehende heuristische Zuordnung zu den sieben Primary Lenses sichtbar und
 prüfbar machen, ohne IDs oder Prioritäten zu ändern.
 
-**Planungskandidaten:**
+**Status:** Contract, Core Producer und fokussierte Tests sind implementiert.
 
-```text
-merger/lenskit/contracts/primary-lens-audit.v1.schema.json
-merger/lenskit/core/lens_audit.py
-merger/lenskit/tests/test_primary_lens_audit.py
-docs/architecture/lens-model.md
-```
+**Belege (Evidence):**
+- `merger/lenskit/contracts/primary-lens-audit.v1.schema.json`
+- `merger/lenskit/core/lens_audit.py`
+- `merger/lenskit/tests/test_primary_lens_audit.py`
+
+**Weiterhin offen oder bewusst nicht Teil des Slices:**
+- keine automatische Bundle-Emission
+- kein CLI-Wiring
+- keine Änderung an LENS_IDS
+- keine Änderung an infer_lens()
 
 **Output-Grenze:** Pfad, Primary Lens, matched rule und Negativsemantik; keine Aussage zu
 semantischer Wichtigkeit, Review-Priorität oder vollständigem Kontext.
@@ -709,6 +713,9 @@ zu verändern.
 
 **Ziel:** Additive Sichtachsen einführen, ohne das genau-eine-Primary-Lens-Modell zu
 ersetzen.
+
+**Regelwerk:** Der Facet-Contract muss die in `docs/architecture/lens-model.md`
+festgelegten Schichtengrenzen und Negativsemantiken einhalten.
 
 **Erste Kandidaten:** `contract`, `artifact_surface`, `diagnostic`, `retrieval`,
 `claim_boundary`, `security`, `test_guard`.
