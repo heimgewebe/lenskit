@@ -392,9 +392,9 @@ def test_string_inputs_are_lexically_strict(raw):
 
 
 def test_pure_posix_path_has_already_lost_redundant_lexical_spelling():
-    # Die Zusammenführung geschieht bereits beim Erzeugen des PurePosixPath.
-    # _normalize_path() erhält die ursprüngliche Zeichenfolge nicht mehr.
-    # Der Test dokumentiert eine Eingabegrenze, keine gewünschte stille Stringnormalisierung.
+    # pathlib collapses these spellings while constructing PurePosixPath.
+    # _normalize_path() no longer receives the original lexical representation.
+    # This test documents an input-object boundary, not desired string normalization.
     assert _normalize_path(PurePosixPath("./a")) == "a"
     assert _normalize_path(PurePosixPath("a//b")) == "a/b"
     assert _normalize_path(PurePosixPath("a/./b")) == "a/b"

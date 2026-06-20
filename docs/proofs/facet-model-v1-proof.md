@@ -182,15 +182,21 @@ test_eval_capability.py`); the rules were not widened to manufacture overlaps.
 
 ## CI gate
 
-`.github/workflows/lens-model.yml` is a failure-enforcing, path-scoped CI gate
-that, on changes to the lens core/contracts/tests, the lens-model doc, the
-requirements files or `pytest.ini`, installs `merger/lenskit/requirements.txt` +
-`requirements-dev.txt`, asserts `jsonschema` is importable (so contract tests run
-rather than skip), meta-validates the contract, runs `test_lenses.py` +
-`test_primary_lens_audit.py` + `test_lens_facets.py`, and runs ruff on the facet
-code and tests. The job fails the run on any failing step; whether that blocks
-merge depends on branch-protection configuration, which this proof does not
-assert (only `pytest.ini` is tracked — there is no nested test config).
+`.github/workflows/lens-model.yml` is a failure-enforcing, path-scoped CI gate.
+Changes to lens core, contracts, tests, the lens-model architecture document,
+the Facet Model proof, the front-door blueprint, requirements files,
+`pytest.ini`, or the workflow itself trigger the gate. Documentation changes
+re-run the associated code, contract, schema and lint checks; the workflow does
+not semantically validate the truth or completeness of the proof or blueprint
+text.
+
+The gate installs `merger/lenskit/requirements.txt` + `requirements-dev.txt`,
+asserts `jsonschema` is importable (so contract tests run rather than skip),
+meta-validates the contract, runs `test_lenses.py` + `test_primary_lens_audit.py` +
+`test_lens_facets.py`, and runs ruff on the facet code and tests. The job fails
+the run on any failing step; whether that blocks merge depends on
+branch-protection configuration, which this proof does not assert (only
+`pytest.ini` is tracked — there is no nested test config).
 
 ## Validation
 

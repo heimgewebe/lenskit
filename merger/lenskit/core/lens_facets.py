@@ -81,12 +81,19 @@ def _normalize_path(path: str | PurePosixPath) -> str:
     """Return the host-independent canonical repo-relative POSIX path.
 
     Accepts only ``str`` or ``PurePosixPath``. String inputs are lexically strict
-    and never silently normalized (non-canonical inputs like ``./a``, ``a/./b``,
-    ``a//b``, backslashes, or Windows drive prefixes are rejected rather than
-    rewritten). Native ``Path`` on POSIX hosts is accepted merely due to its
-    type relationship to ``PurePosixPath``; it carries no portable cross-platform
-    guarantee. Any other type — notably ``PureWindowsPath`` — raises ``TypeError``
-    rather than being silently coerced.
+    and are never silently normalized: non-canonical spellings such as ``./a``,
+    ``a/./b`` or ``a//b`` are rejected.
+
+    A ``PurePosixPath`` has already been interpreted by ``pathlib`` before this
+    function receives it. Only its ``as_posix()`` representation remains visible,
+    so an earlier redundant lexical spelling cannot be reconstructed or rejected
+    here. This is a boundary of the input object, not normalization performed by
+    Lenskit.
+
+    Native ``Path`` is accepted on POSIX hosts only through its type relationship
+    to ``PurePosixPath`` and carries no portable cross-platform guarantee.
+    ``PureWindowsPath`` and native Windows paths are rejected with ``TypeError``
+    rather than silently converted to POSIX semantics.
     """
     if isinstance(path, str):
         raw = path
