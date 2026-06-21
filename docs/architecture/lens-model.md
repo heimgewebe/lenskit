@@ -446,17 +446,15 @@ Facet Model v1 ist als Contract/Core/Test-Slice entschieden und umgesetzt
   nicht rekonstruierbar. Natives `Path` wird auf POSIX nur durch seine
   Typverwandtschaft zu `PurePosixPath` akzeptiert (keine portable
   Cross-Platform-Garantie). `PureWindowsPath` wird weiterhin mit `TypeError`
-  abgelehnt. ASCII-Steuerzeichen (U+0000–U+001F, U+007F) und einzelne
-  Surrogate-Codepunkte (U+D800–U+DFFF) werden auf dieser v1-Pfadfläche in Core
-  und Schema abgelehnt; gewöhnliche Nicht-ASCII-Unicode-Namen (z.B. `ü`, `é`,
-  CJK, Emoji) bleiben gültig. Das ist eine Artefakt-Grenzentscheidung der
-  Facet-v1-Fläche, keine globale Lenskit-Dateinamenpolitik: die
-  Source-Acquisition-/Atlas-Schicht dekodiert Git-Ausgaben und Dateinamen
-  bewusst mit `errors="surrogateescape"`
-  (`merger/lenskit/service/source_acquisition.py`,
-  `merger/lenskit/adapters/atlas.py`) und bewahrt dort gerade solche
-  surrogate-escaped Namen. Das Schema prüft nur die emittierte
-  Stringrepräsentation;
+  abgelehnt. ASCII-Steuerzeichen (U+0000–U+001F, U+007F) werden auf dieser
+  v1-Pfadfläche abgelehnt. Beim Surrogat-Zeichenmodell unterscheiden Core und
+  Schema bewusst: der Python-Core lehnt jeden Surrogat-Codepunkt in direkt
+  übergebenen Runtime-Strings ab; das JSON-Schema lehnt ungepaarte
+  UTF-16-Surrogat-Codeeinheiten ab, lässt gültige Unicode-Zeichen einschließlich
+  Emoji (gültige Surrogatpaare) jedoch zu. Diese Entscheidung gilt nur für die
+  Facet-v1-Artefaktoberfläche, nicht als globale Lenskit-Dateinamenpolitik;
+  Begründung, Validator-Portabilität (Python vs. ECMAScript) und Belege stehen im
+  Proof. Das Schema prüft nur die emittierte Stringrepräsentation;
 - Aufrufgrenze: `produce_facet_report()` erwartet ein Iterable mehrerer
   Pfadwerte; ein einzelner pfadartiger Wert (`str`, `bytes`, `bytearray`,
   `os.PathLike`) wird mit `TypeError` abgelehnt statt zeichenweise iteriert

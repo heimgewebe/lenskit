@@ -45,6 +45,7 @@ _REAL_GOLDSET = [
     ("merger/lenskit/tests/test_primary_lens_audit.py", {"test": "test_module_marker"}),
     ("merger/lenskit/frontends/webui/tests/test_materialize.js", {"test": "test_module_marker"}),
     ("merger/lenskit/frontends/webui/tests/test_pre_pull_payload.js", {"test": "test_module_marker"}),
+    ("merger/lenskit/tests/test_lens_facet_pattern_ecma.js", {"test": "test_module_marker"}),
     # retrieval: real controlled retrieval surfaces, including a retrieval fixture
     # (Variant A: a retrieval-related surface, not a production-status claim).
     ("merger/lenskit/retrieval/review_eval.py", {"retrieval": "retrieval_surface_path"}),
@@ -108,10 +109,17 @@ _VALID_PATHS = [
 ]
 
 
-# Paths rejected for *content* reasons (not grammar): ASCII control characters
-# and lone surrogate code points. Kept in two tables so the failure cause stays
-# explicit and core <-> schema parity is asserted per cause. This is the Facet v1
-# artifact-boundary policy, not a global Lenskit filename policy.
+# Paths rejected for *content* reasons (not grammar). Two causes, kept in two
+# tables so the failure cause stays explicit and core <-> schema parity is
+# asserted per cause. This is the Facet v1 artifact-boundary policy, not a global
+# Lenskit filename policy.
+#
+# Terminology: the Python core rejects any surrogate *code point* present in a
+# runtime string; the JSON Schema rejects *unpaired* UTF-16 surrogate *code
+# units* and accepts valid pairs (e.g. emoji; see _VALID_UNICODE_PATHS). Python's
+# re/jsonschema operate on code points, so they accept emoji regardless of the
+# pattern and cannot observe an ECMAScript-only mis-rejection -- that parity is
+# guarded by merger/lenskit/tests/test_lens_facet_pattern_ecma.js.
 _ASCII_CONTROL_PATHS = [
     "a\x00b",  # NUL
     "a\tb",    # TAB  (U+0009)
@@ -122,14 +130,19 @@ _ASCII_CONTROL_PATHS = [
     "a\n",     # a final newline is still a control character
 ]
 
+# Unpaired surrogate code units (lone high or low). Valid surrogate *pairs* are
+# deliberately absent: they encode ordinary scalars such as emoji and must be
+# accepted (see _VALID_UNICODE_PATHS).
 _SURROGATE_PATHS = [
-    "x_\ud800_y.txt",  # first high surrogate
-    "x_\udcff_y.txt",  # a low surrogate
-    "x_\udfff_y.txt",  # last surrogate
+    "x_\ud800_y.txt",  # lone high surrogate
+    "x_\udcff_y.txt",  # lone low surrogate
+    "x_\udfff_y.txt",  # lone low surrogate (last)
 ]
 
 # Non-ASCII Unicode that MUST stay valid: the control/surrogate policy must not
-# over-reject ordinary international or emoji filenames.
+# over-reject ordinary international or emoji filenames. The emoji is an astral
+# scalar (a UTF-16 surrogate pair) -- exactly the case a naive surrogate class
+# would wrongly reject in an ECMAScript validator.
 _VALID_UNICODE_PATHS = [
     "docs/überblick.md",
     "docs/évidence.md",
@@ -426,8 +439,11 @@ def test_string_inputs_are_lexically_strict(raw):
 
 # --------------------------------------------------------------------------- #
 # Path content policy (Facet v1 artifact boundary): ASCII control characters and
-# lone surrogate code points are rejected by BOTH the core and the schema, while
-# ordinary non-ASCII Unicode stays valid. Parity is asserted per cause.
+# unpaired surrogates are rejected by BOTH the core and the schema, while ordinary
+# non-ASCII Unicode (incl. emoji) stays valid. Parity is asserted per cause. The
+# ECMAScript-specific surrogate-pair behaviour is guarded separately by
+# test_lens_facet_pattern_ecma.js -- Python validators see code points and cannot
+# observe it here.
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("bad_path", _ASCII_CONTROL_PATHS)
 def test_core_rejects_ascii_control_paths(bad_path):
@@ -442,7 +458,7 @@ def test_core_rejects_surrogate_paths(bad_path):
 
 
 @pytest.mark.parametrize("bad_path", _ASCII_CONTROL_PATHS + _SURROGATE_PATHS)
-def test_schema_rejects_control_and_surrogate_item_paths(bad_path):
+def test_schema_rejects_control_and_unpaired_surrogate_item_paths(bad_path):
     jsonschema = pytest.importorskip("jsonschema")
     item = _valid_item()
     item["path"] = bad_path
@@ -460,6 +476,22 @@ def test_schema_accepts_non_ascii_unicode_item_paths(good_path):
     jsonschema = pytest.importorskip("jsonschema")
     item = _valid_item()
     item["path"] = good_path
+    jsonschema.validate(instance=_report_with_item(item), schema=_schema())
+
+
+def test_json_decoded_surrogate_pair_is_accepted_by_schema():
+    # A JSON document encodes an astral scalar as a UTF-16 surrogate-pair escape;
+    # json.loads recombines it into one code point (emoji) before validation, and
+    # the schema accepts it. Documents the decode-then-validate path the
+    # ECMAScript pattern must honour for valid pairs (not just lone surrogates).
+    # The escape text "\\ud83d\\udd0d" is assembled so this source file holds no
+    # literal \\uXXXX escape (which would itself be a code point, not the text).
+    pair_json = '"docs/' + "\\u" + "d83d" + "\\u" + "dd0d" + '.md"'
+    decoded = json.loads(pair_json)
+    assert decoded == "docs/🔍.md"
+    jsonschema = pytest.importorskip("jsonschema")
+    item = _valid_item()
+    item["path"] = decoded
     jsonschema.validate(instance=_report_with_item(item), schema=_schema())
 
 
