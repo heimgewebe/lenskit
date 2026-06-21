@@ -13,10 +13,11 @@ exclusion, host-independent path identity, v1 contract uniqueness, CI coverage)
 and a follow-up review pass that added a control-character/surrogate path-content
 policy, a producer collection boundary, and a deprecation-safe `jsonschema`
 version probe in CI, and a portability pass that defined one explicit Facet v1
-Unicode-scalar path policy enforced identically by the Python core and by the JSON
-Schema under ECMAScript Unicode-regex semantics (the `u` flag, matching Ajv's
-default): control/C1, line/paragraph separators, the BOM, whitespace-only paths
-and surrogates are rejected, while emoji and other astral scalars stay valid. A
+Unicode-scalar path policy enforced by the Python core and by the JSON Schema
+under ECMAScript Unicode-regex semantics (the `u` flag, matching Ajv's default),
+identical for normative JSON-decoded Unicode-scalar paths: control/C1,
+line/paragraph separators, the BOM, whitespace-only paths and surrogates are
+rejected, while emoji and other astral scalars stay valid. A
 dedicated Node parity gate guards the ECMAScript surface.
 
 - Task: `TASK-LENS-FACET-001`
@@ -166,12 +167,14 @@ truncate a grammar check.
 surrogate *code point* in a runtime string (it sees code points). The JSON Schema
 models JSON strings and is validated by ECMAScript engines; the repo runs Ajv
 (`scripts/jsonl-validate.sh`), which compiles `pattern` with the `u` flag by
-default (`unicodeRegExp: true`). Under `u`, a single `U+D800–U+DFFF` class accepts
-a valid astral scalar (an emoji is one code point) yet still rejects an unpaired
-surrogate *code unit* — so the contract uses that one simple class instead of
-three manual surrogate-pair lookaheads. A JSON-decoded surrogate pair becomes one
-scalar and is accepted; a Python string holding two adjacent surrogate *code
-points* is not a decoded scalar and is rejected by both core and schema.
+default (`unicodeRegExp: true`). Under `u`, the surrogate class `U+D800–U+DFFF`
+does not match a valid astral scalar (an emoji is one code point) but still
+matches an unpaired surrogate *code unit*; the surrounding negative lookahead
+therefore permits valid scalars and rejects surrogate values — so the contract
+uses that one simple class inside a negative lookahead instead of three manual
+surrogate-pair lookaheads. A JSON-decoded surrogate pair becomes one scalar and
+is accepted; a Python string holding two adjacent surrogate *code points* is not
+a decoded scalar and is rejected by both core and schema.
 
 Because Python validators see code points and cannot observe the ECMAScript
 behaviour, parity is guarded by a Node test,
@@ -289,12 +292,12 @@ was changed.
 
 - `node merger/lenskit/tests/test_lens_facet_pattern_ecma.js` → ECMAScript Unicode parity OK
 - `node --check merger/lenskit/tests/test_lens_facet_pattern_ecma.js` → syntax OK
-- `python -m pytest -q merger/lenskit/tests/test_lens_facets.py` → 192 passed
+- `python -m pytest -q merger/lenskit/tests/test_lens_facets.py` → 194 passed
   (incl. control/C1/separator/BOM/whitespace-only/surrogate core↔schema parity per
   cause; accepted non-ASCII Unicode incl. emoji, combining marks and a ZWJ
   sequence; JSON-decoded surrogate-pair acceptance vs. two-code-point rejection;
   and the producer collection-boundary cases)
-- `python -m pytest -q merger/lenskit/tests/test_lenses.py merger/lenskit/tests/test_primary_lens_audit.py merger/lenskit/tests/test_lens_facets.py` → 245 passed
+- `python -m pytest -q merger/lenskit/tests/test_lenses.py merger/lenskit/tests/test_primary_lens_audit.py merger/lenskit/tests/test_lens_facets.py` → 247 passed
 - `python -m pytest -q merger/lenskit/tests/test_contract_version_guards.py merger/lenskit/tests/test_link_integrity.py` → 6 passed
 - `python -m pytest -q merger/lenskit/tests/test_anti_hallucination_lint.py` → 33 passed (contracts dir green incl. ECMA-portable schema)
 - `python -m pytest -q merger/lenskit/tests/test_planning_registration_ratchet.py` → 101 passed

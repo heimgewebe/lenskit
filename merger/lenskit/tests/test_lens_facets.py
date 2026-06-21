@@ -152,6 +152,7 @@ _C1_SEPARATOR_BOM_PATHS = [
     "a" + chr(0x2028) + "b",  # line separator embedded
     chr(0x2028),              # line separator only
     "a" + chr(0x2029) + "b",  # paragraph separator embedded
+    chr(0x2029),              # paragraph separator only
     "a" + chr(0xFEFF) + "b",  # BOM / ZWNBSP embedded
     chr(0xFEFF),              # BOM only
 ]

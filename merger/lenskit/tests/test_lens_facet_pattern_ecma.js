@@ -9,9 +9,11 @@
 // the agreed Facet v1 path policy. It does NOT execute Ajv and makes no claim
 // that Ajv validated the schema; it only checks the same regex semantics.
 //
-// Under `u`, an astral scalar (e.g. an emoji) is one code point, so a simple
-// `[\uD800-\uDFFF]` class accepts emoji yet still rejects unpaired surrogate code
-// units. The test uses only Node built-ins (no npm, no Ajv) and never re-declares
+// Under `u`, the surrogate class `[\uD800-\uDFFF]` does not match a valid astral
+// scalar such as an emoji (one code point), but it still matches an unpaired
+// surrogate value; the schema's surrounding negative lookahead therefore permits
+// valid scalars and rejects surrogate values. The test uses only Node built-ins
+// (no npm, no Ajv) and never re-declares
 // the regex — it reads it from the schema file. It is a real test_*.js, so the
 // facet model itself classifies it as `test`.
 
@@ -63,10 +65,13 @@ const rejected = [
   // C1 controls (including NEL U+0085)
   "a" + cc(0x80) + "b",
   "a" + cc(0x85) + "b",
+  cc(0x85), // NEL only
   "a" + cc(0x9f) + "b",
   // line/paragraph separators and BOM
   "a" + cc(0x2028) + "b",
+  cc(0x2028), // line separator only
   "a" + cc(0x2029) + "b",
+  cc(0x2029), // paragraph separator only
   "a" + cc(0xfeff) + "b",
   cc(0xfeff),
   // unpaired UTF-16 surrogate code units
