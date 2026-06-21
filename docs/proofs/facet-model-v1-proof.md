@@ -12,9 +12,12 @@ pass that closed the dump-confirmed gaps (real test classification, fixture
 exclusion, host-independent path identity, v1 contract uniqueness, CI coverage)
 and a follow-up review pass that added a control-character/surrogate path-content
 policy, a producer collection boundary, and a deprecation-safe `jsonschema`
-version probe in CI, followed by a portability pass that made the schema path
-pattern ECMAScript-portable (rejecting only *unpaired* UTF-16 surrogates so valid
-emoji pass under Ajv/Node as well as Python) with a dedicated Node parity gate.
+version probe in CI, and a portability pass that defined one explicit Facet v1
+Unicode-scalar path policy enforced identically by the Python core and by the JSON
+Schema under ECMAScript Unicode-regex semantics (the `u` flag, matching Ajv's
+default): control/C1, line/paragraph separators, the BOM, whitespace-only paths
+and surrogates are rejected, while emoji and other astral scalars stay valid. A
+dedicated Node parity gate guards the ECMAScript surface.
 
 - Task: `TASK-LENS-FACET-001`
 - Branch: `claude/affectionate-hamilton-tvda1d`
@@ -84,7 +87,7 @@ What was not ideal and was corrected in the hardening pass:
 | Excluded candidates | `artifact_surface`, `diagnostic`, `claim_boundary`, `security`, `uncertainty`, `guard` (the guard half of `test_guard`) | new decision (deferred) |
 | Input model / types | repo-relative path; accepts only `str` or `PurePosixPath`, else `TypeError` (a `PureWindowsPath` is rejected, not coerced) | repo-conventional + hardening |
 | Target identity | host-independent canonical repo-relative POSIX path | new decision (hardened grammar) |
-| Path content policy | reject ASCII control chars (U+0000–U+001F, U+007F) in core+schema; core rejects all surrogate code points, schema rejects only *unpaired* UTF-16 surrogate code units (valid pairs/emoji accepted); ordinary non-ASCII Unicode stays valid | new decision (Facet v1 artifact boundary; ECMAScript-portable) |
+| Path content policy | one explicit Unicode-scalar policy in core+schema: reject control/C1 (U+0000–U+001F, U+007F–U+009F), line/paragraph separators (U+2028/U+2029), BOM (U+FEFF), whitespace-only, and surrogates (core: any surrogate code point; schema under ECMAScript `u`-mode: unpaired UTF-16 code units); emoji and other astral scalars stay valid | new decision (Facet v1 artifact boundary; ECMAScript Unicode-portable) |
 | Collection boundary | `produce_facet_report()` requires an iterable of many paths; a single path-like (`str`/`bytes`/`bytearray`/`os.PathLike`) raises `TypeError`; generators supported | new decision (producer API) |
 | Report vs single assignment | aggregated assignment report with per-`(path, facet)` items | repo-conventional (mirrors primary-lens-audit) |
 | Root kind / version | `lenskit.lens_facet_report` / `1.0` | repo-conventional |
@@ -102,7 +105,7 @@ What was not ideal and was corrected in the hardening pass:
 | Negative semantics | the 9-term lens-family baseline, fixed canonical order, at report and item level | lens-model §15 |
 | Summary | `item_count`, `target_count`, `facet_counts` (producer-computed; schema checks shape only) | repo-conventional |
 | Report type | assignment report (not evaluation/coverage); facet-free paths are not emitted | new decision (documented) |
-| CI gate | `.github/workflows/lens-model.yml` (path-scoped; jsonschema required; Node ECMAScript pattern-parity check) | new decision |
+| CI gate | `.github/workflows/lens-model.yml` (path-scoped; `timeout-minutes`; jsonschema required; Node ECMAScript Unicode pattern-parity check) | new decision |
 
 ## Facet semantics
 
@@ -138,35 +141,48 @@ In particular, `PureWindowsPath` (and native `Path` on Windows) is
 **rejected with `TypeError`**. The grammar is enforced in core, while the
 schema checks only the emitted string representation:
 
-- rejected (both surfaces): empty/whitespace, leading `/`, trailing `/`, `./a`,
-  `a/./b`, `a//b`, `.`/`..` components, backslash, Windows drive prefix (`C:/`,
-  `c:/`), and ASCII control characters (U+0000–U+001F, U+007F, incl. a trailing
-  newline).
+- rejected (both surfaces, identically): empty, whitespace-only, leading `/`,
+  trailing `/`, `./a`, `a/./b`, `a//b`, `.`/`..` components, backslash, Windows
+  drive prefix (`C:/`, `c:/`); control and C1 characters (U+0000–U+001F,
+  U+007F–U+009F, incl. NEL U+0085), line/paragraph separators (U+2028/U+2029),
+  the BOM (U+FEFF), and surrogates.
 - accepted: e.g. `.github/workflows/ci.yml`, `merger/lenskit/core/lenses.py`,
   `a`, `a.b`, `a-b/c_d.schema.json`, and ordinary non-ASCII Unicode — including
-  astral scalars — such as `docs/überblick.md`, `docs/évidence.md`,
-  `docs/分析.md`, `docs/🔍.md`.
+  combining marks, CJK and astral scalars (emoji, ZWJ sequences) — such as
+  `docs/überblick.md`, `docs/分析.md`, `docs/🔍.md`.
 
-**Surrogate handling differs by surface, by design.** The Python core rejects any
-surrogate *code point* in a runtime string (it operates on code points, so any
-value in U+D800–U+DFFF is caught directly). The JSON Schema models JSON strings
-and rejects only *unpaired* UTF-16 surrogate *code units*, while accepting valid
-surrogate pairs — i.e. ordinary scalars such as emoji. This split is required for
-**validator portability**: a JSON-Schema `pattern` is ECMA-262 and is applied by
-ECMAScript-based validators (the repo already runs Ajv in
-`scripts/jsonl-validate.sh`) over UTF-16 code units, where an emoji is a surrogate
-pair. A blanket surrogate class spanning U+D800–U+DFFF is green under Python's
-`re` (code points) yet rejects valid emoji under ECMAScript, so the contract now
-rejects only *unpaired* high/low surrogates (lone high, lone low, a low at string
-start, a high at string end). Because Python validators cannot observe this,
-parity is guarded by a Node test,
+**One explicit character policy, decided before the regex.** The earlier policy
+was implicit and leaked runtime differences: Python `str.strip()`/`\s` and
+ECMAScript `\s`/`.` disagree on which characters count as whitespace or line
+terminators. Measured on the previous pattern, embedded U+2028/U+2029 were
+*accepted* by Python `re`/`jsonschema` but *rejected* by Node (ECMAScript `.`
+does not cross a line separator), and U+0085/U+FEFF were decided oppositely by the
+two runtimes. The new contract makes the forbidden set explicit and identical in
+core and schema, and converts every full-string scan from `.*`/`.+` (which stop
+at line terminators in ECMAScript) to `[\s\S]`-based scans so a separator cannot
+truncate a grammar check.
+
+**Surrogates: code points vs unpaired code units.** The Python core rejects any
+surrogate *code point* in a runtime string (it sees code points). The JSON Schema
+models JSON strings and is validated by ECMAScript engines; the repo runs Ajv
+(`scripts/jsonl-validate.sh`), which compiles `pattern` with the `u` flag by
+default (`unicodeRegExp: true`). Under `u`, a single `U+D800–U+DFFF` class accepts
+a valid astral scalar (an emoji is one code point) yet still rejects an unpaired
+surrogate *code unit* — so the contract uses that one simple class instead of
+three manual surrogate-pair lookaheads. A JSON-decoded surrogate pair becomes one
+scalar and is accepted; a Python string holding two adjacent surrogate *code
+points* is not a decoded scalar and is rejected by both core and schema.
+
+Because Python validators see code points and cannot observe the ECMAScript
+behaviour, parity is guarded by a Node test,
 `merger/lenskit/tests/test_lens_facet_pattern_ecma.js`, which loads the pattern
-directly from the schema (no copied regex, no npm/Ajv dependency — Node built-ins
-only) and runs an accept/reject matrix: emoji and an explicit surrogate pair are
-accepted; every unpaired-surrogate and control case is rejected. The Python `re`
-parity for control characters and *lone* surrogates is asserted per cause in
-`test_lens_facets.py`; a JSON-decode test there also confirms a surrogate-pair
-escape recombines to the emoji and validates.
+straight from the schema (no copied regex; Node built-ins only — no npm, no Ajv),
+compiles it with `new RegExp(pattern, "u")` (asserting `regex.unicode`), and runs
+an accept/reject matrix (emoji, an explicit surrogate pair and a ZWJ sequence
+accepted; control/C1/separator/BOM/whitespace-only/unpaired-surrogate cases
+rejected). The test does **not** execute Ajv and claims no Ajv run — it only
+matches ECMAScript Unicode-regex semantics. Core↔Python-schema parity per cause is
+asserted in `test_lens_facets.py`.
 
 Rejecting these inputs is a **Facet v1 artifact-boundary decision for this path
 surface, not a global Lenskit filename policy**. Other subsystems deliberately
@@ -228,11 +244,12 @@ freshness-enforced after later repository additions or deletions.
 - real multi-facet targets: **0**
 
 The projection run also asserts that every tracked path is accepted by the
-producer and that the produced report validates against the schema. The Node
-ECMAScript test `merger/lenskit/tests/test_lens_facet_pattern_ecma.js` is a newly
-tracked `test_*.js` path, so relative to the previous snapshot it adds exactly one
-tracked path, one facet item and one `test` target (568→569, 273→274, `test`
-200→201); all other counts are unchanged.
+producer and that the produced report validates against the schema. With the
+stricter Unicode-scalar policy this re-confirms that none of the 569 tracked paths
+carries a control/C1, separator, BOM or surrogate character — a pre-change
+inventory over `git ls-files -z` found zero such paths and zero whitespace-only
+paths, so no existing tracked file is excluded by the new policy. This pass adds
+no new tracked file, so the counts are unchanged from the previous snapshot.
 
 There are currently no real multi-facet paths in the repo. Multi-facet support
 is genuine producer capability, exercised only by clearly labelled **synthetic
@@ -270,13 +287,14 @@ All commands are run from the repository root. Tool versions are a local
 representative of CI (which installs the pinned version), and no dependency file
 was changed.
 
-- `node merger/lenskit/tests/test_lens_facet_pattern_ecma.js` → ECMAScript parity OK
+- `node merger/lenskit/tests/test_lens_facet_pattern_ecma.js` → ECMAScript Unicode parity OK
 - `node --check merger/lenskit/tests/test_lens_facet_pattern_ecma.js` → syntax OK
-- `python -m pytest -q merger/lenskit/tests/test_lens_facets.py` → 161 passed
-  (incl. control/unpaired-surrogate core↔schema parity per cause, accepted
-  non-ASCII Unicode incl. emoji, JSON-decoded surrogate-pair acceptance, and the
-  producer collection-boundary cases)
-- `python -m pytest -q merger/lenskit/tests/test_lenses.py merger/lenskit/tests/test_primary_lens_audit.py merger/lenskit/tests/test_lens_facets.py` → 214 passed
+- `python -m pytest -q merger/lenskit/tests/test_lens_facets.py` → 192 passed
+  (incl. control/C1/separator/BOM/whitespace-only/surrogate core↔schema parity per
+  cause; accepted non-ASCII Unicode incl. emoji, combining marks and a ZWJ
+  sequence; JSON-decoded surrogate-pair acceptance vs. two-code-point rejection;
+  and the producer collection-boundary cases)
+- `python -m pytest -q merger/lenskit/tests/test_lenses.py merger/lenskit/tests/test_primary_lens_audit.py merger/lenskit/tests/test_lens_facets.py` → 245 passed
 - `python -m pytest -q merger/lenskit/tests/test_contract_version_guards.py merger/lenskit/tests/test_link_integrity.py` → 6 passed
 - `python -m pytest -q merger/lenskit/tests/test_anti_hallucination_lint.py` → 33 passed (contracts dir green incl. ECMA-portable schema)
 - `python -m pytest -q merger/lenskit/tests/test_planning_registration_ratchet.py` → 101 passed
@@ -284,7 +302,14 @@ was changed.
 - `python scripts/check_no_test_stubs.py` → OK
 - `ruff check merger/lenskit/core/lens_facets.py merger/lenskit/tests/test_lens_facets.py` → All checks passed
 - `Draft7Validator.check_schema(...)` on the contract → meta-valid; a Python+Node accept/reject matrix over the in-file pattern → parity OK
-- repository projection over `git ls-files -z` → all tracked paths accepted; report validates against the schema
+- before/after diagnosis matrix over Core, Python `re`, Python `jsonschema`, Node
+  (no `u`) and Node (`u`): **before**, Python and Node disagreed — embedded
+  U+2028/U+2029 were accepted by Python but rejected by Node, and U+0085/U+FEFF
+  were decided oppositely; **after**, Core, Python `re`, Python `jsonschema` and
+  Node (`u`) decide every normative case identically (Node without `u` is
+  diagnostic only, not a gate). The current pattern compiles with `new
+  RegExp(pattern, "u")` (`regex.unicode === true`)
+- repository projection over `git ls-files -z` → all 569 tracked paths accepted; report validates against the schema
 - `git diff --check` → clean
 - workflow YAML parses; `yamllint`/`actionlint` are not installed in this environment (gap noted; not installed for a single run)
 

@@ -446,14 +446,16 @@ Facet Model v1 ist als Contract/Core/Test-Slice entschieden und umgesetzt
   nicht rekonstruierbar. Natives `Path` wird auf POSIX nur durch seine
   Typverwandtschaft zu `PurePosixPath` akzeptiert (keine portable
   Cross-Platform-Garantie). `PureWindowsPath` wird weiterhin mit `TypeError`
-  abgelehnt. ASCII-Steuerzeichen (U+0000–U+001F, U+007F) werden auf dieser
-  v1-Pfadfläche abgelehnt. Beim Surrogat-Zeichenmodell unterscheiden Core und
-  Schema bewusst: der Python-Core lehnt jeden Surrogat-Codepunkt in direkt
-  übergebenen Runtime-Strings ab; das JSON-Schema lehnt ungepaarte
-  UTF-16-Surrogat-Codeeinheiten ab, lässt gültige Unicode-Zeichen einschließlich
-  Emoji (gültige Surrogatpaare) jedoch zu. Diese Entscheidung gilt nur für die
-  Facet-v1-Artefaktoberfläche, nicht als globale Lenskit-Dateinamenpolitik;
-  Begründung, Validator-Portabilität (Python vs. ECMAScript) und Belege stehen im
+  abgelehnt. Core und Schema setzen EINE Facet-v1-Unicode-Skalar-Pfadpolicy
+  durch: Steuer- und C1-Zeichen (U+0000–U+001F, U+007F–U+009F, inkl. NEL U+0085),
+  Zeilen-/Absatztrenner (U+2028/U+2029), die BOM (U+FEFF) und reine
+  Whitespace-Pfade sind ausgeschlossen. Beim Surrogat-Zeichenmodell unterscheiden
+  Core und Schema bewusst: der Python-Core lehnt jeden Surrogat-Codepunkt in
+  Runtime-Strings ab; die ECMAScript-Unicode-Regex-Validierung (u-Flag, wie Ajvs
+  Default `unicodeRegExp`) lehnt ungepaarte UTF-16-Surrogat-Einheiten ab. Gültige
+  internationale Unicode- und astrale Skalare (z. B. Emoji, ZWJ-Sequenzen)
+  bleiben zulässig. Diese Entscheidung gilt nur für die Facet-v1-Artefaktfläche,
+  nicht als globale Lenskit-Dateinamenpolitik; Begründung und Belege stehen im
   Proof. Das Schema prüft nur die emittierte Stringrepräsentation;
 - Aufrufgrenze: `produce_facet_report()` erwartet ein Iterable mehrerer
   Pfadwerte; ein einzelner pfadartiger Wert (`str`, `bytes`, `bytearray`,

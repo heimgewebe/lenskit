@@ -8,10 +8,11 @@ name: Lens Model
 # The job fails the run on any failing step; whether that blocks merge depends on
 # branch-protection configuration, which this workflow does not assert. Runs only
 # when those surfaces change. jsonschema is installed so the contract tests run
-# here rather than skip (portable runtimes may still degrade). Node additionally
-# validates the schema path pattern under ECMAScript regex semantics (the
-# Ajv-style consumer runtime), which Python's re cannot observe. Distinct from the
-# ruff lint (lint.yml) and the contract lint (anti-hallucination-lint.yml).
+# here rather than skip (portable runtimes may still degrade). Node validates the
+# actual schema path pattern with ECMAScript Unicode-regex semantics matching
+# Ajv's default pattern compilation mode (unicodeRegExp); it does not run Ajv.
+# This is the surface Python's re cannot observe. Distinct from the ruff lint
+# (lint.yml) and the contract lint (anti-hallucination-lint.yml).
 
 on:
   push:
@@ -56,9 +57,15 @@ on:
 permissions:
   contents: read
 
+# Match the repo-wide convention in sibling workflows so any JavaScript GitHub
+# Action runs on Node 24.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   lens-model:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -99,7 +106,7 @@ jobs:
           print("lens-facet.v1 schema: meta-valid")
           PY
 
-      - name: Validate lens-facet path pattern in ECMAScript (Node)
+      - name: Validate lens-facet path pattern in ECMAScript Unicode mode (Node)
         run: node merger/lenskit/tests/test_lens_facet_pattern_ecma.js
 
       - name: Run lens model tests

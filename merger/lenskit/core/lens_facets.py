@@ -77,14 +77,31 @@ _RETRIEVAL_SEGMENT = "retrieval"
 
 _WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
 
-# ASCII C0 control characters (U+0000–U+001F) and DEL (U+007F). Rejected on the
-# Facet v1 path surface; this is an artifact-boundary decision, not a global
-# Lenskit filename policy (other subsystems handle odd filenames differently).
-_CONTROL_CHARACTER_RE = re.compile(r"[\x00-\x1f\x7f]")
+# Facet v1 path character policy (artifact-boundary, NOT a global Lenskit
+# filename policy — Source Acquisition and Atlas keep observing odd real names).
+# Forbidden anywhere: C0 controls (U+0000-U+001F), DEL + C1 controls
+# (U+007F-U+009F), line/paragraph separators (U+2028/U+2029) and the BOM/ZWNBSP
+# (U+FEFF). These are control, line-breaking or invisible boundary characters
+# that corrupt logs, proofs and text navigation. The set is explicit so that
+# Python and ECMAScript validators decide identically (not via str.strip(), \s
+# or ., whose membership differs by runtime).
+_FORBIDDEN_PATH_CHARACTER_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\ufeff]")
+
+# A non-empty path consisting solely of these space characters is invalid. C0/C1,
+# U+2028/U+2029 and U+FEFF are already excluded by the forbidden-character rule.
+_WHITESPACE_ONLY_RE = re.compile(
+    r"^[\x20\xa0\u1680\u2000-\u200a\u202f\u205f\u3000]+$"
+)
 
 
 def _contains_surrogate_code_point(value: str) -> bool:
-    """True if any character is a lone surrogate code point (U+D800–U+DFFF)."""
+    """True if any character is a surrogate code point (U+D800-U+DFFF).
+
+    The Facet v1 schema rejects unpaired UTF-16 surrogate code units; the Python
+    runtime sees code points, so the core rejects any surrogate code point present
+    in the string. A normally JSON-decoded astral scalar (e.g. an emoji) is a
+    single non-surrogate code point and is accepted.
+    """
     return any(0xD800 <= ord(character) <= 0xDFFF for character in value)
 
 
@@ -93,10 +110,11 @@ def _normalize_path(path: str | PurePosixPath) -> str:
 
     Accepts only ``str`` or ``PurePosixPath``. String inputs are lexically strict
     and are never silently normalized: non-canonical spellings such as ``./a``,
-    ``a/./b`` or ``a//b`` are rejected. ASCII control characters
-    (U+0000–U+001F, U+007F) and lone surrogate code points (U+D800–U+DFFF) are
-    rejected on this Facet v1 path surface; this is an artifact-boundary
-    decision and does not change how other Lenskit subsystems handle filenames.
+    ``a/./b`` or ``a//b`` are rejected. Control characters (U+0000-U+001F,
+    U+007F-U+009F), line/paragraph separators (U+2028/U+2029), the BOM (U+FEFF),
+    whitespace-only paths and surrogate code points (U+D800-U+DFFF) are rejected
+    on this Facet v1 path surface; this is an artifact-boundary decision and does
+    not change how other Lenskit subsystems handle filenames.
 
     A ``PurePosixPath`` has already been interpreted by ``pathlib`` before this
     function receives it. Only its ``as_posix()`` representation remains visible,
@@ -119,12 +137,15 @@ def _normalize_path(path: str | PurePosixPath) -> str:
             f"got {type(path).__name__}"
         )
 
-    if not raw.strip():
+    if raw == "":
         raise ValueError("lens facet path must not be empty")
-    if _CONTROL_CHARACTER_RE.search(raw):
+    if _FORBIDDEN_PATH_CHARACTER_RE.search(raw):
         raise ValueError(
-            "lens facet path must not contain ASCII control characters"
+            "lens facet path must not contain control, line-separator, or BOM "
+            "characters"
         )
+    if _WHITESPACE_ONLY_RE.match(raw):
+        raise ValueError("lens facet path must not be whitespace-only")
     if _contains_surrogate_code_point(raw):
         raise ValueError(
             "lens facet path must not contain surrogate code points"

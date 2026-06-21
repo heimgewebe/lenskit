@@ -139,6 +139,32 @@ _SURROGATE_PATHS = [
     "x_\udfff_y.txt",  # lone low surrogate (last)
 ]
 
+# C1 controls (including NEL U+0085), line/paragraph separators (U+2028/U+2029)
+# and the BOM (U+FEFF). These were previously accepted when embedded -- Python's
+# str.strip()/\s and ECMAScript's \s/. disagreed about them -- so v1 now forbids
+# them explicitly and identically in core and schema. Built via chr() so the
+# source stays plain ASCII.
+_C1_SEPARATOR_BOM_PATHS = [
+    "a" + chr(0x80) + "b",    # C1 control
+    "a" + chr(0x85) + "b",    # NEL (U+0085)
+    "a" + chr(0x9F) + "b",    # C1 control
+    chr(0x85),                # NEL only
+    "a" + chr(0x2028) + "b",  # line separator embedded
+    chr(0x2028),              # line separator only
+    "a" + chr(0x2029) + "b",  # paragraph separator embedded
+    "a" + chr(0xFEFF) + "b",  # BOM / ZWNBSP embedded
+    chr(0xFEFF),              # BOM only
+]
+
+# Non-empty paths made up solely of space characters are invalid (runtime-neutral
+# whitespace-only rule; C0/C1, U+2028/U+2029 and U+FEFF are handled above).
+_WHITESPACE_ONLY_PATHS = [
+    "   ",                       # ASCII spaces
+    chr(0xA0),                   # NBSP only
+    chr(0x3000),                 # ideographic space only
+    chr(0x2000) + chr(0x2009),   # mixed Unicode spaces
+]
+
 # Non-ASCII Unicode that MUST stay valid: the control/surrogate policy must not
 # over-reject ordinary international or emoji filenames. The emoji is an astral
 # scalar (a UTF-16 surrogate pair) -- exactly the case a naive surrogate class
@@ -148,6 +174,10 @@ _VALID_UNICODE_PATHS = [
     "docs/évidence.md",
     "docs/分析.md",
     "docs/🔍.md",
+    "docs/a" + chr(0x0301) + ".md",  # 'a' + combining acute accent
+    "docs/"
+    + chr(0x1F468) + chr(0x200D) + chr(0x1F469) + chr(0x200D) + chr(0x1F467)
+    + ".md",  # ZWJ family emoji sequence
 ]
 
 
@@ -438,10 +468,11 @@ def test_string_inputs_are_lexically_strict(raw):
 
 
 # --------------------------------------------------------------------------- #
-# Path content policy (Facet v1 artifact boundary): ASCII control characters and
-# unpaired surrogates are rejected by BOTH the core and the schema, while ordinary
-# non-ASCII Unicode (incl. emoji) stays valid. Parity is asserted per cause. The
-# ECMAScript-specific surrogate-pair behaviour is guarded separately by
+# Path content policy (Facet v1 artifact boundary): control/C1 characters, line
+# and paragraph separators, the BOM, whitespace-only paths and surrogates are
+# rejected by BOTH the core and the schema, while ordinary non-ASCII Unicode
+# (incl. emoji and ZWJ sequences) stays valid. Parity is asserted per cause. The
+# ECMAScript Unicode-mode behaviour is guarded separately by
 # test_lens_facet_pattern_ecma.js -- Python validators see code points and cannot
 # observe it here.
 # --------------------------------------------------------------------------- #
@@ -451,14 +482,34 @@ def test_core_rejects_ascii_control_paths(bad_path):
         _normalize_path(bad_path)
 
 
+@pytest.mark.parametrize("bad_path", _C1_SEPARATOR_BOM_PATHS)
+def test_core_rejects_c1_separator_and_bom_paths(bad_path):
+    with pytest.raises(ValueError, match="control, line-separator, or BOM"):
+        _normalize_path(bad_path)
+
+
+@pytest.mark.parametrize("bad_path", _WHITESPACE_ONLY_PATHS)
+def test_core_rejects_whitespace_only_paths(bad_path):
+    with pytest.raises(ValueError, match="whitespace-only"):
+        _normalize_path(bad_path)
+
+
 @pytest.mark.parametrize("bad_path", _SURROGATE_PATHS)
 def test_core_rejects_surrogate_paths(bad_path):
     with pytest.raises(ValueError, match="surrogate"):
         _normalize_path(bad_path)
 
 
-@pytest.mark.parametrize("bad_path", _ASCII_CONTROL_PATHS + _SURROGATE_PATHS)
-def test_schema_rejects_control_and_unpaired_surrogate_item_paths(bad_path):
+_FORBIDDEN_CONTENT_PATHS = (
+    _ASCII_CONTROL_PATHS
+    + _C1_SEPARATOR_BOM_PATHS
+    + _WHITESPACE_ONLY_PATHS
+    + _SURROGATE_PATHS
+)
+
+
+@pytest.mark.parametrize("bad_path", _FORBIDDEN_CONTENT_PATHS)
+def test_schema_rejects_forbidden_content_item_paths(bad_path):
     jsonschema = pytest.importorskip("jsonschema")
     item = _valid_item()
     item["path"] = bad_path
@@ -493,6 +544,21 @@ def test_json_decoded_surrogate_pair_is_accepted_by_schema():
     item = _valid_item()
     item["path"] = decoded
     jsonschema.validate(instance=_report_with_item(item), schema=_schema())
+
+
+def test_two_surrogate_code_points_are_rejected_by_core_and_schema():
+    # A directly-constructed Python string with two adjacent surrogate code points
+    # is NOT a normally decoded astral scalar (json.loads would have combined a
+    # real escape pair into a single code point). Core and schema both reject it,
+    # in contrast to the decoded-emoji case above.
+    two_surrogates = chr(0xD83D) + chr(0xDD0D)
+    with pytest.raises(ValueError, match="surrogate"):
+        _normalize_path(two_surrogates)
+    jsonschema = pytest.importorskip("jsonschema")
+    item = _valid_item()
+    item["path"] = two_surrogates
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=_report_with_item(item), schema=_schema())
 
 
 def test_pure_posix_path_has_already_lost_redundant_lexical_spelling():
