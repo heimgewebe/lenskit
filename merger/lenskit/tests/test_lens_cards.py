@@ -5,7 +5,6 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 
-import merger.lenskit.core.lens_cards as lens_cards
 from merger.lenskit.core.lens_cards import (
     AUTHORITY,
     CANONICALITY,
@@ -373,7 +372,9 @@ def test_producer_uses_public_primary_lens_explanation(monkeypatch: pytest.Monke
         calls.append(path)
         return "ui", "controlled-existing-rule"
 
-    monkeypatch.setattr(lens_cards, "explain_primary_lens", fake_explain)
+    monkeypatch.setattr(
+        "merger.lenskit.core.lens_cards.explain_primary_lens", fake_explain
+    )
 
     card = produce_lens_card("docs/page.md")
 
@@ -397,7 +398,9 @@ def test_producer_uses_public_infer_facets(monkeypatch: pytest.MonkeyPatch) -> N
             }
         ]
 
-    monkeypatch.setattr(lens_cards, "infer_facets", fake_infer)
+    monkeypatch.setattr(
+        "merger.lenskit.core.lens_cards.infer_facets", fake_infer
+    )
 
     card = produce_lens_card("docs/page.md")
 

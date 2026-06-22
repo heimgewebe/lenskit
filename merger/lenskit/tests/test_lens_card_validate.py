@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from merger.lenskit.core.lens_card_validate import validate_lens_card
+import merger.lenskit.core.lens_card_validate as validator_mod
 from merger.lenskit.core.lens_cards import produce_lens_card
 from merger.lenskit.core.lens_facets import FACET_SOURCE_RULES, V1_DERIVATION_TYPE
 
@@ -23,11 +23,25 @@ def _check(result: dict, name: str) -> dict:
 
 def test_producer_card_validates_successfully() -> None:
     card = produce_lens_card("merger/lenskit/contracts/lens-card.v1.schema.json")
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "pass"
-    assert _check(result, "schema_validation")["status"] == "pass"
-    assert _check(result, "producer_coherence")["status"] == "pass"
+    schema_check = _check(result, "schema_validation")
+    assert schema_check["status"] == "pass"
+    assert schema_check["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
+
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["status"] == "pass"
+    assert coherence_check["validation"] == {
+        "mode": "structural_precheck",
+        "engine": "lens_card_validate",
+        "reason": "producer_coherence_check",
+    }
+
     assert result["dependencies"]["jsonschema"]["available"] is True
     assert "truth" in result["does_not_establish"]
     assert "repo_understood" in result["does_not_establish"]
@@ -39,78 +53,103 @@ def test_producer_card_validates_successfully() -> None:
 def test_known_but_wrong_primary_lens_fails() -> None:
     card = produce_lens_card("merger/lenskit/contracts/lens-card.v1.schema.json")
     card["primary_lens"] = "core"
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
-    mismatch = _check(result, "producer_coherence")["mismatches"][0]
+    coherence_check = _check(result, "producer_coherence")
+    mismatch = coherence_check["mismatches"][0]
     assert mismatch["field"] == "primary_lens"
+    assert coherence_check["validation"] == {
+        "mode": "structural_precheck",
+        "engine": "lens_card_validate",
+        "reason": "producer_coherence_check",
+    }
 
 
 def test_known_but_wrong_facet_fails() -> None:
     card = produce_lens_card("merger/lenskit/contracts/lens-card.v1.schema.json")
     card["facets"] = [_facet("test")]
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
-    assert _check(result, "producer_coherence")["status"] == "fail"
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["status"] == "fail"
+    assert coherence_check["validation"] == {
+        "mode": "structural_precheck",
+        "engine": "lens_card_validate",
+        "reason": "producer_coherence_check",
+    }
 
 
 def test_incomplete_facet_list_fails() -> None:
     card = produce_lens_card("merger/lenskit/retrieval/test_eval_capability.py")
     assert len(card["facets"]) == 2
     card["facets"] = card["facets"][:1]
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
-    assert _check(result, "producer_coherence")["mismatches"][0]["field"] == "facets"
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["mismatches"][0]["field"] == "facets"
+    assert coherence_check["validation"] == {
+        "mode": "structural_precheck",
+        "engine": "lens_card_validate",
+        "reason": "producer_coherence_check",
+    }
 
 
 def test_extra_facet_assignment_fails() -> None:
     card = produce_lens_card("merger/lenskit/core/lenses.py")
     card["facets"] = [_facet("retrieval")]
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
-    assert _check(result, "producer_coherence")["mismatches"][0]["field"] == "facets"
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["mismatches"][0]["field"] == "facets"
 
 
 def test_wrong_matched_rule_fails() -> None:
     card = produce_lens_card("merger/lenskit/core/lenses.py")
     card["matched_rule"] = "core: wrong but non-empty controlled-looking rule"
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
-    assert _check(result, "producer_coherence")["mismatches"][0]["field"] == "matched_rule"
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["mismatches"][0]["field"] == "matched_rule"
 
 
 def test_wrong_navigation_ref_fails() -> None:
     card = produce_lens_card("merger/lenskit/core/lenses.py")
     card["navigation_refs"] = [{"kind": "repo_path", "target": "docs/other.md"}]
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
-    assert _check(result, "producer_coherence")["mismatches"][0]["field"] == (
-        "navigation_refs"
-    )
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["mismatches"][0]["field"] == "navigation_refs"
 
 
 def test_unsorted_facets_fail() -> None:
     card = produce_lens_card("merger/lenskit/retrieval/test_eval_capability.py")
     card["facets"] = list(reversed(card["facets"]))
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
-    assert _check(result, "producer_coherence")["mismatches"][0]["field"] == "facets"
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["mismatches"][0]["field"] == "facets"
 
 
 def test_forbidden_fields_fail_schema_validation() -> None:
     card = produce_lens_card("merger/lenskit/core/lenses.py")
     card["confidence_class"] = "high"
-    result = validate_lens_card(card)
+    result = validator_mod.validate_lens_card(card)
 
     assert result["status"] == "fail"
     schema_check = _check(result, "schema_validation")
     assert schema_check["status"] == "fail"
+    assert schema_check["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "available",
+    }
     assert schema_check["errors"][0]["validator"] == "additionalProperties"
 
 
@@ -120,8 +159,8 @@ def test_error_order_is_deterministic() -> None:
     card["version"] = "2.0"
     card["confidence_class"] = "high"
 
-    first = validate_lens_card(copy.deepcopy(card))
-    second = validate_lens_card(copy.deepcopy(card))
+    first = validator_mod.validate_lens_card(copy.deepcopy(card))
+    second = validator_mod.validate_lens_card(copy.deepcopy(card))
 
     assert first == second
     assert first["status"] == "fail"
@@ -130,8 +169,6 @@ def test_error_order_is_deterministic() -> None:
 def test_missing_jsonschema_degrades_machine_readably_and_never_passes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import merger.lenskit.core.lens_card_validate as validator_mod
-
     original_import_module = validator_mod.importlib.import_module
 
     def fake_import_module(name: str):
@@ -141,13 +178,55 @@ def test_missing_jsonschema_degrades_machine_readably_and_never_passes(
 
     monkeypatch.setattr(validator_mod.importlib, "import_module", fake_import_module)
 
-    result = validate_lens_card(
+    result = validator_mod.validate_lens_card(
         produce_lens_card("merger/lenskit/contracts/lens-card.v1.schema.json")
     )
 
     assert result["status"] == "fail"
     assert result["dependencies"]["jsonschema"]["available"] is False
     assert result["dependencies"]["jsonschema"]["effect"] == "validation_degraded"
+
     schema_check = _check(result, "schema_validation")
     assert schema_check["status"] == "fail"
-    assert schema_check["validation"]["reason"] == "dependency_missing"
+    assert schema_check["validation"] == {
+        "mode": "skipped_unavailable",
+        "engine": "jsonschema",
+        "reason": "dependency_unavailable",
+    }
+
+    # keine Producer-Kohärenzprüfung nach dem Schema-Skip
+    assert not any(check["name"] == "producer_coherence" for check in result["checks"])
+
+
+def test_invalid_schema_passed_fails_gracefully() -> None:
+    card = produce_lens_card("merger/lenskit/contracts/lens-card.v1.schema.json")
+    result = validator_mod.validate_lens_card(card, schema={"type": "invalid_type"})
+
+    assert result["status"] == "fail"
+    schema_check = _check(result, "schema_validation")
+    assert schema_check["status"] == "fail"
+    assert schema_check["validation"] == {
+        "mode": "jsonschema",
+        "engine": "jsonschema",
+        "reason": "schema_invalid",
+    }
+
+
+def test_producer_exception_caught(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_produce(*args, **kwargs):
+        raise ValueError("simulated crash")
+
+    monkeypatch.setattr("merger.lenskit.core.lens_card_validate.produce_lens_card", fake_produce)
+
+    card = produce_lens_card("merger/lenskit/contracts/lens-card.v1.schema.json")
+    result = validator_mod.validate_lens_card(card)
+
+    assert result["status"] == "fail"
+    coherence_check = _check(result, "producer_coherence")
+    assert coherence_check["status"] == "fail"
+    assert "simulated crash" in coherence_check["detail"]
+    assert coherence_check["validation"] == {
+        "mode": "structural_precheck",
+        "engine": "lens_card_validate",
+        "reason": "producer_coherence_check",
+    }

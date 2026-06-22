@@ -89,10 +89,9 @@ Corrected from older planning sketches:
 
 ## Card cardinality and identity
 
-Lens Card v1 uses exactly one Card per accepted repo path. `path` is the v1
-identity because the Facet Model v1 path surface already defines a canonical
-repo-relative POSIX path identity, including Unicode-scalar and non-canonical
-lexeme rejection.
+Lens Card v1 uses exactly one Card per accepted repo path. `path` is the Lens Card v1 identity within one explicit repository context.
+An accepted repo path is a path accepted by the controlled lexical path model.
+It does not establish file existence, tracked-file membership, readability, or successful resolution against a particular repository snapshot.
 
 No separate Card ID is introduced. A second ID would duplicate the path identity
 without adding a controlled reference model in this slice.

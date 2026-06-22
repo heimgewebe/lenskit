@@ -30,8 +30,8 @@ _SCHEMA_PATH = (
 _STATUS_WEIGHT = {"pass": 0, "warn": 1, "fail": 2}
 
 
-def _validation(mode: str, reason: str) -> dict[str, str]:
-    return {"mode": mode, "engine": ENGINE, "reason": reason}
+def _validation(mode: str, engine: str, reason: str) -> dict[str, str]:
+    return {"mode": mode, "engine": engine, "reason": reason}
 
 
 def _check(
@@ -40,6 +40,7 @@ def _check(
     detail: str,
     *,
     mode: str,
+    engine: str,
     reason: str,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -47,7 +48,7 @@ def _check(
         "name": name,
         "status": status,
         "detail": detail,
-        "validation": _validation(mode, reason),
+        "validation": _validation(mode, engine, reason),
     }
     if extra:
         result.update(extra)
@@ -119,8 +120,9 @@ def validate_lens_card(
                 "schema_validation",
                 "fail",
                 "jsonschema is unavailable; Lens Card full validation cannot run",
-                mode="structural_precheck",
-                reason="dependency_missing",
+                mode="skipped_unavailable",
+                engine="jsonschema",
+                reason="dependency_unavailable",
                 extra={"error": import_error or "jsonschema unavailable"},
             )
         )
@@ -139,6 +141,7 @@ def validate_lens_card(
                 "fail",
                 f"lens-card schema could not be used: {type(exc).__name__}: {exc}",
                 mode="jsonschema",
+                engine="jsonschema",
                 reason="schema_invalid",
             )
         )
@@ -151,6 +154,7 @@ def validate_lens_card(
                 "fail",
                 f"lens-card schema validation failed with {len(errors)} error(s)",
                 mode="jsonschema",
+                engine="jsonschema",
                 reason="available",
                 extra={"errors": _schema_errors(errors)},
             )
@@ -163,6 +167,7 @@ def validate_lens_card(
             "pass",
             "lens-card schema validation passed",
             mode="jsonschema",
+            engine="jsonschema",
             reason="available",
         )
     )
@@ -176,6 +181,7 @@ def validate_lens_card(
                 "fail",
                 f"could not recompute Lens Card from path: {type(exc).__name__}: {exc}",
                 mode="structural_precheck",
+                engine="lens_card_validate",
                 reason="producer_coherence_check",
             )
         )
@@ -205,6 +211,7 @@ def validate_lens_card(
                 "fail",
                 "Lens Card does not match the controlled producer output",
                 mode="structural_precheck",
+                engine="lens_card_validate",
                 reason="producer_coherence_check",
                 extra={"mismatches": mismatches},
             )
@@ -216,6 +223,7 @@ def validate_lens_card(
                 "pass",
                 "Lens Card matches the controlled producer output",
                 mode="structural_precheck",
+                engine="lens_card_validate",
                 reason="producer_coherence_check",
             )
         )

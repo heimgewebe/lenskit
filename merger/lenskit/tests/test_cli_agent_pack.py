@@ -76,8 +76,13 @@ def test_cli_agent_pack_json_ok(tmp_path, capsys):
         "## SIDECAR_USAGE_RULES",
         "## ANSWER_COMPLIANCE_CHECKLIST",
         "## DO_NOT_CLAIM",
+        "## LENS_CARD_GUIDANCE",
     ):
         assert section in body
+
+    # Verify non-emission boundary: Lens Cards are NOT emitted directly in the Reading Pack
+    assert '"kind": "lenskit.lens_card"' not in body
+    assert "lenskit.lens_card" not in body
 
 
 def test_cli_agent_pack_human_ok(tmp_path, capsys):

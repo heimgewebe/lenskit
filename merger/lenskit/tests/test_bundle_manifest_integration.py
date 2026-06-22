@@ -762,11 +762,13 @@ def test_agent_reading_pack_emitted_schema_valid_and_hashed(tmp_path):
         "## SIDECAR_USAGE_RULES",
         "## ANSWER_COMPLIANCE_CHECKLIST",
         "## DO_NOT_CLAIM",
+        "## LENS_CARD_GUIDANCE",
         "`change_impact`",
         "relation or path proximity alone does not prove change impact",
     ):
         assert marker in body, f"emitted agent_reading_pack missing v1.1 marker: {marker}"
     assert "NAVIGATION, NOT TRUTH" in body
+    assert '"kind": "lenskit.lens_card"' not in body
     assert data["run_id"] in body
     # The pack must never list its own role as bundle content.
     assert "| agent_reading_pack |" not in body
