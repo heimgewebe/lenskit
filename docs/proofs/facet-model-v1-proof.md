@@ -22,7 +22,7 @@ dedicated Node parity gate guards the ECMAScript surface.
 
 - Task: `TASK-LENS-FACET-001`
 - Implementation PR: #788 (merged)
-- Branch: `claude/affectionate-hamilton-tvda1d`
+- Implementation branch: `claude/affectionate-hamilton-tvda1d`
 - Goal: introduce additive facet *view-axes* derived from controlled
   path/suffix rules, without replacing the single Primary Lens.
 
@@ -317,6 +317,31 @@ was changed.
 - `git diff --check` → clean
 - workflow YAML parses; `yamllint`/`actionlint` are not installed in this environment (gap noted; not installed for a single run)
 
+## Post-merge verification
+
+After implementation PR #788 was merged into `main`, the defined
+contract/core/test slice was verified again from the current main-derived
+reconciliation checkout.
+
+The following local checks were executed against the unchanged implementation:
+
+- `node --check merger/lenskit/tests/test_lens_facet_pattern_ecma.js` → syntax OK
+- `node merger/lenskit/tests/test_lens_facet_pattern_ecma.js` → ECMAScript Unicode parity OK
+- `python -m pytest -q -ra merger/lenskit/tests/test_lens_facets.py` → 194 passed, 0 skipped
+- combined lens tests → 247 passed, 0 skipped
+- `Draft7Validator.check_schema(...)` → meta-valid
+- planning registration ratchet → 0 new findings
+- link integrity and anti-hallucination lint → passed
+
+No contract tests were skipped; `jsonschema` was available.
+
+This post-merge verification is local verification of the defined
+contract/core/test slice. It does not claim that this reconciliation PR's remote
+CI has completed, nor does it establish consumer integration, CLI or bundle
+emission, `possible_facets` population, Lens Cards, relations, retrieval
+improvement, complete taxonomy, full review coverage or repository-wide
+regression absence.
+
 ## Claim boundary
 
 This slice does **not** establish: completeness of the facet taxonomy (3 of many
@@ -326,4 +351,7 @@ outside the checked surfaces; or that facets are consumed anywhere (no bundle
 emission, no CLI, no `possible_facets` population, no Lens Cards). The `test`
 facet does not assert runner collection, execution, pass, or coverage.
 
-The Facet Model v1 contract/core/test slice is merged and post-merge verified. TASK-LENS-FACET-001 is complete. Consumer integration, CLI, bundle emission, possible_facets population, Lens Cards, relations and later taxonomy expansion remain separate follow-up work and are not implied by this completion.
+The Facet Model v1 contract/core/test slice is merged and post-merge verified.
+TASK-LENS-FACET-001 is complete. Consumer integration, CLI, bundle emission,
+`possible_facets` population, Lens Cards, relations and later taxonomy expansion
+remain separate follow-up work and are not implied by this completion.
