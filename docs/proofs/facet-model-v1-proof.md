@@ -1,6 +1,6 @@
 # Facet Model v1 Proof
 
-Status: implemented / contract-core-test slice proof.
+Status: implemented / merged / post-merge verified contract-core-test slice proof.
 
 ## Purpose and scope
 
@@ -21,6 +21,7 @@ rejected, while emoji and other astral scalars stay valid. A
 dedicated Node parity gate guards the ECMAScript surface.
 
 - Task: `TASK-LENS-FACET-001`
+- Implementation PR: #788 (merged)
 - Branch: `claude/affectionate-hamilton-tvda1d`
 - Goal: introduce additive facet *view-axes* derived from controlled
   path/suffix rules, without replacing the single Primary Lens.
@@ -58,7 +59,7 @@ What was right and is preserved: define the normative lens model first; keep
 Primary Lens single-label and facets strictly additive (0..n); build no Lens
 Cards / Relations / retrieval integration before the contract; defer open terms
 (`uncertainty`, `claim_boundary`, `security`); separate `derivation_type` from
-confidence language; keep the task `in-progress` until merge and post-merge task reconciliation.
+confidence language; keep the task `in-progress` through implementation review and merge, then close it only after post-merge verification and task reconciliation.
 
 What was not ideal and was corrected in the hardening pass:
 
@@ -325,6 +326,4 @@ outside the checked surfaces; or that facets are consumed anywhere (no bundle
 emission, no CLI, no `possible_facets` population, no Lens Cards). The `test`
 facet does not assert runner collection, execution, pass, or coverage.
 
-This PR presents the smallest evidenced Facet Model v1 slice for review.
-Merge approval, task completion, consumer integration and Lens Cards remain a
-separate review and reconciliation step.
+The Facet Model v1 contract/core/test slice is merged and post-merge verified. TASK-LENS-FACET-001 is complete. Consumer integration, CLI, bundle emission, possible_facets population, Lens Cards, relations and later taxonomy expansion remain separate follow-up work and are not implied by this completion.
