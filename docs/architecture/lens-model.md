@@ -334,7 +334,8 @@ Er beweist kein tatsächliches Lesen und kein Repo-Verständnis.
 
 ## 13. Schichtenmodell
 
-Alle Schichten beziehen sich implizit auf einen expliziten einzelnen Repository-Kontext.
+Soweit eine Schicht Repo-Pfade adressiert, gelten diese innerhalb eines
+expliziten einzelnen Repository-Kontexts.
 
 | Schicht | Kardinalität | Beschreibt höchstens | Geltungsgrenze |
 | --- | --- | --- | --- |
@@ -438,8 +439,8 @@ Implementiert:
 - Lens Card v1: Single-Card-Contract (`lens-card.v1.schema.json`),
   deterministischer Einzel-/Batch-Producer (`lens_cards.py`), semantischer
   Validator (`lens_card_validate.py`) und fokussierte Tests. Eine Card steht für
-  genau einen akzeptierten Pfad. `path` ist die Identität innerhalb eines einzelnen 
-  Repository-Kontexts. Die Card projiziert Primary Lens plus Facets. Ein akzeptierter 
+  genau einen akzeptierten Pfad. `path` ist die Identität innerhalb eines einzelnen
+  Repository-Kontexts. Die Card projiziert Primary Lens plus Facets. Ein akzeptierter
   Repo-Pfad beweist weder Dateiexistenz noch Git-Tracking.
 
 Nicht implementiert:

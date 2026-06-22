@@ -270,7 +270,7 @@ Local validation snapshot on this branch:
 - Focused Ruff on new Card core/tests and Pack changes -> all checks passed.
 - Repository projection over staged branch paths -> 575 Cards, projection pass.
 
-Broader final validation is recorded in the PR validation section.
+Broader final validation was executed separately from this focused proof snapshot.
 
 ## Claim boundary
 
