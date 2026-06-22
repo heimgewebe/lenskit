@@ -192,11 +192,11 @@ checks, `validation.mode/engine/reason` and dependency diagnostics.
 
 ## Dependency-degradation boundary
 
-`jsonschema` is imported lazily. If unavailable, module import still succeeds
-and validation returns `status: fail` with a machine-readable
-`dependency_missing` check and `dependencies.jsonschema.effect =
-validation_degraded`. Missing `jsonschema` never produces `pass` and no
-mini-schema interpreter is built.
+If `jsonschema` is unavailable, validation remains fail-closed and returns
+`status: fail`. The `schema_validation` check records
+`mode=skipped_unavailable`, `engine=jsonschema` and
+`reason=dependency_unavailable`. This states that full schema validation did not
+run; it does not classify the Lens Card itself as schema-invalid.
 
 CI installs `jsonschema`, so contract tests are expected to run there rather
 than skip.

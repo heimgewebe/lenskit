@@ -181,7 +181,7 @@ def validate_lens_card(
                 "fail",
                 f"could not recompute Lens Card from path: {type(exc).__name__}: {exc}",
                 mode="structural_precheck",
-                engine="lens_card_validate",
+                engine=ENGINE,
                 reason="producer_coherence_check",
             )
         )
@@ -211,7 +211,7 @@ def validate_lens_card(
                 "fail",
                 "Lens Card does not match the controlled producer output",
                 mode="structural_precheck",
-                engine="lens_card_validate",
+                engine=ENGINE,
                 reason="producer_coherence_check",
                 extra={"mismatches": mismatches},
             )
@@ -223,7 +223,7 @@ def validate_lens_card(
                 "pass",
                 "Lens Card matches the controlled producer output",
                 mode="structural_precheck",
-                engine="lens_card_validate",
+                engine=ENGINE,
                 reason="producer_coherence_check",
             )
         )

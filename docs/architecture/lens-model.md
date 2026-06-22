@@ -247,10 +247,16 @@ Task Context beantwortet:
 
 Eine Lens Card ist eine kleine abgeleitete Navigationseinheit. Lens Card v1 ist
 als Contract/Core/Validation/Test-Slice umgesetzt und beschreibt genau eine Card
-für genau einen akzeptierten Repo-Pfad. `path` ist die v1-Identität; ein separater
-Card-ID-Begriff wird nicht eingeführt. Eine Batch-Ausgabe ist nur eine
-deterministisch sortierte In-Memory-Liste einzelner Cards, kein Reportcontainer
-und kein Persistenzformat.
+für genau einen akzeptierten Repo-Pfad. `path` ist die Lens-Card-v1-Identität
+innerhalb eines expliziten einzelnen Repository-Kontexts; ein separater
+Card-ID-Begriff wird nicht eingeführt.
+
+Ein akzeptierter Repo-Pfad ist ein Pfad, den das kontrollierte lexikalische
+Pfadmodell akzeptiert. Daraus folgen weder Dateiexistenz noch Git-Tracking,
+Lesbarkeit oder erfolgreiche Auflösung gegen einen bestimmten Snapshot.
+
+Eine Batch-Ausgabe ist nur eine deterministisch sortierte In-Memory-Liste einzelner
+Cards, kein Reportcontainer und kein Persistenzformat.
 
 Lens Card v1 komponiert bestehende Flächen:
 - `primary_lens` und `matched_rule` stammen aus der öffentlichen Primary-Lens-
@@ -328,6 +334,8 @@ Er beweist kein tatsächliches Lesen und kein Repo-Verständnis.
 
 ## 13. Schichtenmodell
 
+Alle Schichten beziehen sich implizit auf einen expliziten einzelnen Repository-Kontext.
+
 | Schicht | Kardinalität | Beschreibt höchstens | Geltungsgrenze |
 | --- | --- | --- | --- |
 | Primary Lens | genau 1 je akzeptiertem Pfad | primäre technische Rolle | keine Wichtigkeit, keine Audit-Vollständigkeit, kein Impact |
@@ -335,7 +343,7 @@ Er beweist kein tatsächliches Lesen und kein Repo-Verständnis.
 | Relation | 0..n | sichtbare Verbindung | keine Kausalität oder Bruchbehauptung |
 | State | 0..n | Evidenz-, Auflösungs- oder Adressierungszustand | kein automatisches Fehlerurteil |
 | Task Context | 0..n je Aufgabe | aufgabenspezifische Navigationsrelevanz | kein Review-Befund |
-| Lens Card | genau 1 je akzeptiertem Pfad | kompakte Primary-Lens-/Facet-Navigationsprojektion | keine Inhaltsautorität, keine Evidence, kein Review- oder Impact-Urteil |
+| Lens Card | genau 1 je akzeptiertem Pfad | kompakte Primary-Lens-/Facet-Navigationsprojektion | keine Inhaltsautorität, keine Evidence, kein Review- oder Impact-Urteil, kein Dateiexistenzbeweis |
 
 ## 14. Authority und Canonicality
 
@@ -430,7 +438,9 @@ Implementiert:
 - Lens Card v1: Single-Card-Contract (`lens-card.v1.schema.json`),
   deterministischer Einzel-/Batch-Producer (`lens_cards.py`), semantischer
   Validator (`lens_card_validate.py`) und fokussierte Tests. Eine Card steht für
-  genau einen akzeptierten Pfad und projiziert Primary Lens plus Facets.
+  genau einen akzeptierten Pfad. `path` ist die Identität innerhalb eines einzelnen 
+  Repository-Kontexts. Die Card projiziert Primary Lens plus Facets. Ein akzeptierter 
+  Repo-Pfad beweist weder Dateiexistenz noch Git-Tracking.
 
 Nicht implementiert:
 - vollständige Facet-Taxonomie (v1 deckt nur drei kontrollierte Facets ab)
@@ -536,7 +546,7 @@ umgesetzt:
 
 - Contract-Einheit: genau eine Lens Card.
 - Kardinalität: genau eine Card pro akzeptiertem Repo-Pfad.
-- Identität: `path`.
+- Identität: `path` (Identität innerhalb eines expliziten einzelnen Repository-Kontexts. Kein Dateiexistenzbeweis).
 - zusätzliche Card-ID: keine.
 - Primary Lens: Projektion aus der bestehenden öffentlichen Erklärfunktion,
   inklusive `matched_rule`.

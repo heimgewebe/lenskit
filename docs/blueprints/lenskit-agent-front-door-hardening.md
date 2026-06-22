@@ -758,7 +758,13 @@ nicht als semantische Wahrheit oder Review-Priorität behandelt.
 
 **Ziel:** Kleine agentenlesbare Navigationseinheiten aus Primary Lens und Facets erzeugen.
 Lens Card v1 beschreibt genau eine Card pro akzeptiertem Repo-Pfad; `path` ist
-die v1-Identität. Die Card ist `authority=navigation_index` und
+die Lens-Card-v1-Identität innerhalb eines expliziten einzelnen Repository-Kontexts.
+
+Ein akzeptierter Repo-Pfad ist ein Pfad, den das kontrollierte lexikalische
+Pfadmodell akzeptiert. Daraus folgen weder Dateiexistenz noch Git-Tracking,
+Lesbarkeit oder erfolgreiche Auflösung gegen einen bestimmten Snapshot.
+
+Die Card ist `authority=navigation_index` und
 `canonicality=derived`.
 
 **Planungskandidaten:**

@@ -41,6 +41,7 @@ name: Lens Model
       - "merger/lenskit/tests/test_agent_reading_pack.py"
       - "merger/lenskit/tests/test_agent_reading_pack_usage_rules.py"
       - "merger/lenskit/tests/test_cli_agent_pack.py"
+      - "merger/lenskit/tests/test_bundle_manifest_integration.py"
       - "docs/architecture/lens-model.md"
       - "docs/proofs/facet-model-v1-proof.md"
       - "docs/proofs/lens-card-v1-proof.md"
@@ -70,6 +71,7 @@ name: Lens Model
       - "merger/lenskit/tests/test_agent_reading_pack.py"
       - "merger/lenskit/tests/test_agent_reading_pack_usage_rules.py"
       - "merger/lenskit/tests/test_cli_agent_pack.py"
+      - "merger/lenskit/tests/test_bundle_manifest_integration.py"
       - "docs/architecture/lens-model.md"
       - "docs/proofs/facet-model-v1-proof.md"
       - "docs/proofs/lens-card-v1-proof.md"
@@ -152,7 +154,8 @@ jobs:
             merger/lenskit/tests/test_lens_card_validate.py \
             merger/lenskit/tests/test_agent_reading_pack.py \
             merger/lenskit/tests/test_agent_reading_pack_usage_rules.py \
-            merger/lenskit/tests/test_cli_agent_pack.py
+            merger/lenskit/tests/test_cli_agent_pack.py \
+            merger/lenskit/tests/test_bundle_manifest_integration.py::test_agent_reading_pack_emitted_schema_valid_and_hashed
 
       - name: Ruff (lens model core and tests)
         run: |
@@ -166,4 +169,5 @@ jobs:
             merger/lenskit/tests/test_lens_card_validate.py \
             merger/lenskit/tests/test_agent_reading_pack.py \
             merger/lenskit/tests/test_agent_reading_pack_usage_rules.py \
-            merger/lenskit/tests/test_cli_agent_pack.py
+            merger/lenskit/tests/test_cli_agent_pack.py \
+            merger/lenskit/tests/test_bundle_manifest_integration.py
