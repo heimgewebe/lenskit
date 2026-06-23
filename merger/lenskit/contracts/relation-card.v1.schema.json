@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://heimgewebe.tools/contracts/relation-card.v1.schema.json",
   "title": "Relation Card v1",
-  "description": "A Relation Card is a single deterministic navigation projection of one already-detected local Python import edge taken from an architecture.graph.v1 mapping (edge_type=import, evidence_level=S1, file->file). Relation Cards are a derived navigation index over an existing graph; they do not detect relations themselves. A Relation Card establishes no truth, correctness, completeness, runtime behavior, test sufficiency, regression absence, semantic importance, review priority, change impact, runtime dependency, causality or security assessment. The static S1 heuristic derivation stays visible and is never upgraded to a proven runtime or causal dependency. External module nodes are not represented as cards.",
+  "description": "A Relation Card is a single deterministic navigation projection of one already-detected local import edge taken from an architecture.graph.v1 mapping (edge_type=import, evidence_level=S1, file-to-file). Relation Cards are a derived navigation index over an existing graph; they do not detect relations themselves. A Relation Card establishes no truth, correctness, completeness, runtime behavior, test sufficiency, regression absence, semantic importance, review priority, change impact, runtime dependency, causality or security assessment. The static S1 heuristic derivation stays visible and is never upgraded to a proven runtime or causal dependency. External module nodes are not represented as cards.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -1,7 +1,7 @@
-"""Relation Cards v1 — deterministic projection of local Python import edges.
+"""Relation Cards v1 — deterministic projection of local import edges from architecture.graph.v1.
 
 A Relation Card is a compact navigation object that projects exactly one
-already-detected local Python import edge from an ``architecture.graph.v1``
+already-detected local import edge from an ``architecture.graph.v1``
 mapping. This producer **does not detect relations**: it reads a graph mapping
 that was produced elsewhere (``merger/lenskit/architecture/import_graph.py``) and
 projects the supported subset of its edges into schema-shaped cards.
@@ -235,7 +235,7 @@ def _project_evidence(
 ) -> dict[str, Any]:
     """Carry the source edge evidence over verbatim, without extension or upgrade.
 
-    The evidence of a Python AST import edge is located in the importing
+    The evidence of a projected local import edge is located in the importing
     (source) file. A mismatch between ``evidence.source_path`` and the source
     file node path is an inconsistent source and fails closed.
     """

@@ -1,6 +1,6 @@
-"""Producer and contract tests for Relation Cards v1.
+"""Tests for the relation cards producer v1.
 
-Relation Cards are a deterministic projection of already-detected local Python
+Relation Cards are a deterministic projection of already-detected local
 import edges from an ``architecture.graph.v1`` mapping. These tests use small
 inline graph mappings for precise control plus the real architecture import-graph
 golden fixture for an integration check; they never build a second, incompatible

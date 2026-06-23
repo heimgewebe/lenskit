@@ -231,23 +231,34 @@ python3 -m pytest -q merger/lenskit/tests/test_anti_hallucination_lint.py
 → 43 passed
 
 # 4) Vollständiger Lens-Model-Testlauf
-Ausgeführt durch:
+Befehlsquelle:
 .github/workflows/lens-model.yml
+
+Lokale Ausführung:
+isolierter Worktree ../lenskit-relation-cards-harden
+
+Workflow-Referenz:
 Job: lens-model
 Step: Run lens model tests
-PR-Head-SHA: 8b153298ce51df6cc50cac1a8e23830d87ada4b7
-Ergebnis: 546 passed
 
+Ergebnis:
+546 passed
 # 5) Schema-Metavalidierung (draft-07), inkl. relation-card.v1.schema.json
 → lens-facet/lens-card/pr-delta-card/relation-card: meta-valid
 
 # 6) Ruff (Lens-Model-Core + Tests)
-Ausgeführt durch:
+Befehlsquelle:
 .github/workflows/lens-model.yml
+
+Lokale Ausführung:
+isolierter Worktree ../lenskit-relation-cards-harden
+
+Workflow-Referenz:
 Job: lens-model
 Step: Ruff (lens model core and tests)
-PR-Head-SHA: 8b153298ce51df6cc50cac1a8e23830d87ada4b7
-Ergebnis: All checks passed!
+
+Ergebnis:
+All checks passed!
 
 # 7) ECMAScript-Pfadpattern-Parität (relation-card in die Parität aufgenommen)
 node merger/lenskit/tests/test_lens_facet_pattern_ecma.js
@@ -281,9 +292,12 @@ Umgebung: `jsonschema 4.26.0`, `pytest 8.3.4`, `ruff 0.15.8`, `node` (ECMAScript
 `u`-Flag-Parität). Die Befehle wurden tatsächlich ausgeführt; die obigen
 Ergebnisse sind real.
 
-Hinweis zur Umgebung: Die Auftragsvorlage nennt `/home/alex/repos/lenskit`,
-`gh` CLI und Branch `feat/relation-cards-v1`. Tatsächliche Umgebung:
-`/home/user/lenskit`, GitHub über MCP (kein `gh`), und die Harness schreibt den
-Branch `claude/focused-rubin-2q6f4j` zwingend vor. Entwicklung erfolgt daher auf
-`claude/focused-rubin-2q6f4j` (== `origin/main`, sauber; kein separates Worktree
-nötig); der Draft-PR trägt den vorgesehenen Titel `feat(lens): add relation cards v1`.
+Hinweis zur Umgebung: Die ursprüngliche Implementierung wurde auf dem durch die Session vorgegebenen
+Branch claude/focused-rubin-2q6f4j erstellt.
+
+Die nachfolgende Härtung erfolgte in einem isolierten Git-Worktree
+../lenskit-relation-cards-harden, der vom damaligen Remote-PR-Head
+8b153298ce51df6cc50cac1a8e23830d87ada4b7 abgeleitet wurde.
+
+Der Härtungscommit wurde nach erneuter Remote-Head-Prüfung ohne Force-Push
+auf den bestehenden PR-Branch übertragen.
