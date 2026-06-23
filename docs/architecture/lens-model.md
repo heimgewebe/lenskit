@@ -444,8 +444,6 @@ Implementiert:
   Repo-Pfad beweist weder Dateiexistenz noch Git-Tracking.
 - PR Delta Cards v1 — umgesetzt. Der definierte Slice ist auf main gemergt und post-merge verifiziert.
 
-In Umsetzung:
-
 Nicht implementiert:
 - vollständige Facet-Taxonomie (v1 deckt nur drei kontrollierte Facets ab)
 - Befüllung von `possible_facets`
