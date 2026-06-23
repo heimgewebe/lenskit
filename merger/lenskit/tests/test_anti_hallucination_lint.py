@@ -180,6 +180,18 @@ def test_l3_passes_with_does_not_mean_boundary():
     assert [f for f in findings if f.rule == "L3"] == []
 
 
+def test_l3_passes_with_does_not_establish_boundary():
+    schema = {
+        "type": "object",
+        "properties": {
+            "authority": {"type": "string", "const": "diagnostic_signal"},
+            "does_not_establish": {"type": "array", "items": {"type": "string"}},
+        },
+    }
+    findings = lint_contract_schema(schema, contract_name="ok.schema.json")
+    assert [f for f in findings if f.rule == "L3"] == []
+
+
 def test_l3_passes_with_claim_boundaries():
     schema = {
         "type": "object",
@@ -210,6 +222,18 @@ def test_l3_rejects_does_not_prove_boundary_with_wrong_type():
         "properties": {
             "authority": {"type": "string", "const": "diagnostic_signal"},
             "does_not_prove": {"type": "object"},
+        },
+    }
+    findings = lint_contract_schema(schema, contract_name="bad.schema.json")
+    assert any(f.rule == "L3" and f.severity == "error" for f in findings)
+
+
+def test_l3_rejects_does_not_establish_boundary_with_wrong_type():
+    schema = {
+        "type": "object",
+        "properties": {
+            "authority": {"type": "string", "const": "diagnostic_signal"},
+            "does_not_establish": {"type": "string"},
         },
     }
     findings = lint_contract_schema(schema, contract_name="bad.schema.json")

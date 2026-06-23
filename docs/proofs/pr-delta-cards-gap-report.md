@@ -25,9 +25,10 @@ Genau eine PR Delta Card pro Dateieintrag (`files[]`) in der Source-Delta-Strukt
 
 ## 6. Identitäts- und Provenienzentscheidung
 - **Identität**: `path` innerhalb eines expliziten Delta-Kontexts (`source_kind`, `source_version`, `repo`, `generated_at`). Es ist keine universelle Identität oder GitHub-PR-Identität.
-- **Provenienz**: PR Delta Cards v1 enthalten keine Hashprovenienz.
-Verifizierte Artefakthash-Provenienz bleibt einer späteren
-Bundle-/Manifest-Integration vorbehalten.
+- **Provenienz**: PR Delta Cards v1 enthalten keine Hashfelder und behaupten keine
+Hashprovenienz. Eine mögliche spätere Bundle-/Manifest-Integration ist
+nicht Teil dieses Slices und wird durch diesen PR weder implementiert
+noch zugesichert.
 
 ## 7. Outputshape-Entscheidung
 Wir wählen eine flache kontrollierte Projektion.

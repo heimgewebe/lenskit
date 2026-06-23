@@ -817,9 +817,10 @@ noch Review-Priorität.
 
 **Ziel:** Bereits vorhandene PR-Schau-/Delta-Daten kontrolliert auf die Lens-Card-Produktion projizieren.
 
-**Inhalt:** Pfad, Change-Status, Primary Lens, Facets, expliziter Delta-Kontext. Keine Hashprovenienz in v1.
-Verifizierte Artefakthash-Provenienz bleibt einer späteren
-Bundle-/Manifest-Integration vorbehalten.
+**Inhalt:** Pfad, Change-Status, Primary Lens, Facets, expliziter Delta-Kontext. PR Delta Cards v1 enthalten keine Hashfelder und behaupten keine
+Hashprovenienz. Eine mögliche spätere Bundle-/Manifest-Integration ist
+nicht Teil dieses Slices und wird durch diesen PR weder implementiert
+noch zugesichert.
 Unterstützt wird ein bereits geladenes,
 pr-schau-delta.v1-konformes Mapping.
 Dieser Slice enthält keinen Delta-Dateiloader und keinen Bundleadapter.

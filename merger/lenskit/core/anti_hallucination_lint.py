@@ -14,7 +14,7 @@ Implemented (blocking):
   self-declares an authority class that warns-but-does-not-prove
   (``diagnostic_signal``, ``runtime_observation``, or the
   ``agent_context_projection`` session authority) MUST declare a machine-readable
-  boundary declaration at the root (``does_not_prove`` / ``does_not_mean`` arrays,
+  boundary declaration at the root (``does_not_prove`` / ``does_not_mean`` / ``does_not_establish`` arrays,
   or a ``claim_boundaries`` object). Known, deliberately deferred gaps are tracked in
   :data:`DEFERRED_BOUNDARY_CONTRACTS` and reported as non-blocking ``deferred``
   findings rather than silently ignored or force-fixed.
@@ -92,7 +92,11 @@ BOUNDARY_REQUIRING_AUTHORITIES: frozenset[str] = frozenset(
 )
 AUTHORITY_FIELD_NAMES: tuple[str, ...] = ("authority", "session_authority")
 BOUNDARY_ARRAY_PROPERTY_NAMES: frozenset[str] = frozenset(
-    {"does_not_prove", "does_not_mean"}
+    {
+        "does_not_prove",
+        "does_not_mean",
+        "does_not_establish",
+    }
 )
 BOUNDARY_OBJECT_PROPERTY_NAMES: frozenset[str] = frozenset(
     {"claim_boundaries"}
@@ -330,15 +334,24 @@ def _schema_declares_type(schema_node: object, expected_type: str) -> bool:
     )
 
 
+def _resolve_schema_node(schema: object, node: object) -> object:
+    if isinstance(node, dict) and "$ref" in node and isinstance(schema, dict):
+        ref_path = node["$ref"]
+        if ref_path.startswith("#/definitions/"):
+            def_name = ref_path.split("/")[-1]
+            return schema.get("definitions", {}).get(def_name, node)
+    return node
+
+
 def _has_root_boundary(schema: object) -> bool:
     props = _root_properties(schema)
 
     for name in BOUNDARY_ARRAY_PROPERTY_NAMES:
-        if _schema_declares_type(props.get(name), "array"):
+        if _schema_declares_type(_resolve_schema_node(schema, props.get(name)), "array"):
             return True
 
     for name in BOUNDARY_OBJECT_PROPERTY_NAMES:
-        if _schema_declares_type(props.get(name), "object"):
+        if _schema_declares_type(_resolve_schema_node(schema, props.get(name)), "object"):
             return True
 
     return False
@@ -376,7 +389,7 @@ def _check_l3(schema: object, contract_name: str) -> list[LintFinding]:
             message=(
                 f"self-declares {fname}={const} (boundary-requiring authority) but declares "
                 f"no valid root boundary declaration ({boundary_names}). Add a "
-                f"does_not_prove / does_not_mean array or a claim_boundaries object, "
+                f"does_not_prove / does_not_mean / does_not_establish array or a claim_boundaries object, "
                 f"or register an explicit deferral with rationale in "
                 f"DEFERRED_BOUNDARY_CONTRACTS."
             ),

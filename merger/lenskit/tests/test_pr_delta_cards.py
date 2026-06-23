@@ -264,14 +264,16 @@ class TestSingleProduction:
         _assert_card_schema_valid(card)
 
     def test_controlled_lens_card(self, monkeypatch):
-        import merger.lenskit.core.pr_delta_cards as core_mod
         called = False
+        from merger.lenskit.core.lens_cards import produce_lens_card
         def fake_produce(*args, **kwargs):
             nonlocal called
             called = True
-            from merger.lenskit.core.lens_cards import produce_lens_card
             return produce_lens_card(*args, **kwargs)
-        monkeypatch.setattr(core_mod, "produce_lens_card", fake_produce)
+        monkeypatch.setattr(
+            f"{produce_pr_delta_card.__module__}.produce_lens_card",
+            fake_produce,
+        )
         produce_pr_delta_card(_valid_source_delta(), "src/main.py")
         assert called
 
@@ -290,9 +292,6 @@ class TestSingleProduction:
 
 class TestContractParity:
     def test_schema_parity(self):
-        import json
-        from pathlib import Path
-
         contracts_dir = Path("merger/lenskit/contracts")
         pr_schau = json.loads((contracts_dir / "pr-schau-delta.v1.schema.json").read_text())
         lens_card = json.loads((contracts_dir / "lens-card.v1.schema.json").read_text())

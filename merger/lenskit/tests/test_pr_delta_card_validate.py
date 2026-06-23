@@ -149,10 +149,12 @@ class TestPRDeltaCardValidate:
     def test_controlled_producer_exception(self, monkeypatch):
         delta = _valid_source_delta()
         card = produce_pr_delta_cards(delta)[0]
-        import merger.lenskit.core.pr_delta_card_validate as val_mod
         def fake_produce(*args, **kwargs):
             raise RuntimeError("Fake error")
-        monkeypatch.setattr(val_mod, "produce_pr_delta_card", fake_produce)
+        monkeypatch.setattr(
+            f"{validate_pr_delta_card.__module__}.produce_pr_delta_card",
+            fake_produce,
+        )
         val = validate_pr_delta_card(card, source_delta=delta)
         assert val["status"] == "fail"
         assert "Fake error" in str(val["checks"])

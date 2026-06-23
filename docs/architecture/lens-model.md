@@ -576,7 +576,10 @@ PR Delta Cards v1 ist als Contract/Core/Validation/Test-Slice im Draft-PR implem
 
 - Identität: `path` innerhalb eines expliziten Delta-Kontexts.
 - Keine GitHub-PR-Identität oder Commitidentität wird als Wahrheit behauptet.
-- Kein Hash als Identität oder Provenienz in v1.
+- PR Delta Cards v1 enthalten keine Hashfelder und behaupten keine
+  Hashprovenienz. Eine mögliche spätere Bundle-/Manifest-Integration ist
+  nicht Teil dieses Slices und wird durch diesen PR weder implementiert
+  noch zugesichert.
 - Flache Projektion der `produce_lens_card(path)`-Werte.
 - Change-Status ist strikt kontrolliert (`added`, `changed`, `removed`).
 - Keine Impact-, Risiko- oder Reviewbehauptungen.
