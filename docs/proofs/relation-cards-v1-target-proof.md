@@ -235,7 +235,7 @@ Befehlsquelle:
 .github/workflows/lens-model.yml
 
 Lokale Ausführung:
-isolierter Worktree ../lenskit-relation-cards-harden
+isolierter Reparatur-Worktree für PR #796
 
 Workflow-Referenz:
 Job: lens-model
@@ -251,7 +251,7 @@ Befehlsquelle:
 .github/workflows/lens-model.yml
 
 Lokale Ausführung:
-isolierter Worktree ../lenskit-relation-cards-harden
+isolierter Reparatur-Worktree für PR #796
 
 Workflow-Referenz:
 Job: lens-model
@@ -301,3 +301,6 @@ Die nachfolgende Härtung erfolgte in einem isolierten Git-Worktree
 
 Der Härtungscommit wurde nach erneuter Remote-Head-Prüfung ohne Force-Push
 auf den bestehenden PR-Branch übertragen.
+
+Die abschließende Reparatur des Evidence-Preservation-Guards und die erneute
+Gate-Ausführung erfolgten in einem separaten Reparatur-Worktree für PR #796.
