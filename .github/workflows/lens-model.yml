@@ -28,15 +28,20 @@ name: Lens Model
       - "merger/lenskit/core/lens_facets.py"
       - "merger/lenskit/core/lens_cards.py"
       - "merger/lenskit/core/lens_card_validate.py"
+      - "merger/lenskit/core/pr_delta_cards.py"
+      - "merger/lenskit/core/pr_delta_card_validate.py"
       - "merger/lenskit/core/agent_reading_pack.py"
       - "merger/lenskit/contracts/primary-lens-audit.v1.schema.json"
       - "merger/lenskit/contracts/lens-facet.v1.schema.json"
       - "merger/lenskit/contracts/lens-card.v1.schema.json"
+      - "merger/lenskit/contracts/pr-delta-card.v1.schema.json"
       - "merger/lenskit/tests/test_lenses.py"
       - "merger/lenskit/tests/test_primary_lens_audit.py"
       - "merger/lenskit/tests/test_lens_facets.py"
       - "merger/lenskit/tests/test_lens_cards.py"
       - "merger/lenskit/tests/test_lens_card_validate.py"
+      - "merger/lenskit/tests/test_pr_delta_cards.py"
+      - "merger/lenskit/tests/test_pr_delta_card_validate.py"
       - "merger/lenskit/tests/test_lens_facet_pattern_ecma.js"
       - "merger/lenskit/tests/test_agent_reading_pack.py"
       - "merger/lenskit/tests/test_agent_reading_pack_usage_rules.py"
@@ -45,6 +50,7 @@ name: Lens Model
       - "docs/architecture/lens-model.md"
       - "docs/proofs/facet-model-v1-proof.md"
       - "docs/proofs/lens-card-v1-proof.md"
+      - "docs/proofs/pr-delta-cards-gap-report.md"
       - "docs/blueprints/lenskit-agent-front-door-hardening.md"
       - "merger/lenskit/requirements.txt"
       - "requirements-dev.txt"
@@ -58,15 +64,20 @@ name: Lens Model
       - "merger/lenskit/core/lens_facets.py"
       - "merger/lenskit/core/lens_cards.py"
       - "merger/lenskit/core/lens_card_validate.py"
+      - "merger/lenskit/core/pr_delta_cards.py"
+      - "merger/lenskit/core/pr_delta_card_validate.py"
       - "merger/lenskit/core/agent_reading_pack.py"
       - "merger/lenskit/contracts/primary-lens-audit.v1.schema.json"
       - "merger/lenskit/contracts/lens-facet.v1.schema.json"
       - "merger/lenskit/contracts/lens-card.v1.schema.json"
+      - "merger/lenskit/contracts/pr-delta-card.v1.schema.json"
       - "merger/lenskit/tests/test_lenses.py"
       - "merger/lenskit/tests/test_primary_lens_audit.py"
       - "merger/lenskit/tests/test_lens_facets.py"
       - "merger/lenskit/tests/test_lens_cards.py"
       - "merger/lenskit/tests/test_lens_card_validate.py"
+      - "merger/lenskit/tests/test_pr_delta_cards.py"
+      - "merger/lenskit/tests/test_pr_delta_card_validate.py"
       - "merger/lenskit/tests/test_lens_facet_pattern_ecma.js"
       - "merger/lenskit/tests/test_agent_reading_pack.py"
       - "merger/lenskit/tests/test_agent_reading_pack_usage_rules.py"
@@ -75,6 +86,7 @@ name: Lens Model
       - "docs/architecture/lens-model.md"
       - "docs/proofs/facet-model-v1-proof.md"
       - "docs/proofs/lens-card-v1-proof.md"
+      - "docs/proofs/pr-delta-cards-gap-report.md"
       - "docs/blueprints/lenskit-agent-front-door-hardening.md"
       - "merger/lenskit/requirements.txt"
       - "requirements-dev.txt"
@@ -133,6 +145,7 @@ jobs:
           for path in [
               Path("merger/lenskit/contracts/lens-facet.v1.schema.json"),
               Path("merger/lenskit/contracts/lens-card.v1.schema.json"),
+              Path("merger/lenskit/contracts/pr-delta-card.v1.schema.json"),
           ]:
               schema = json.loads(
                   path.read_text(encoding="utf-8")
@@ -152,6 +165,8 @@ jobs:
             merger/lenskit/tests/test_lens_facets.py \
             merger/lenskit/tests/test_lens_cards.py \
             merger/lenskit/tests/test_lens_card_validate.py \
+            merger/lenskit/tests/test_pr_delta_cards.py \
+            merger/lenskit/tests/test_pr_delta_card_validate.py \
             merger/lenskit/tests/test_agent_reading_pack.py \
             merger/lenskit/tests/test_agent_reading_pack_usage_rules.py \
             merger/lenskit/tests/test_cli_agent_pack.py \
@@ -163,10 +178,14 @@ jobs:
             merger/lenskit/core/lens_facets.py \
             merger/lenskit/core/lens_cards.py \
             merger/lenskit/core/lens_card_validate.py \
+            merger/lenskit/core/pr_delta_cards.py \
+            merger/lenskit/core/pr_delta_card_validate.py \
             merger/lenskit/core/agent_reading_pack.py \
             merger/lenskit/tests/test_lens_facets.py \
             merger/lenskit/tests/test_lens_cards.py \
             merger/lenskit/tests/test_lens_card_validate.py \
+            merger/lenskit/tests/test_pr_delta_cards.py \
+            merger/lenskit/tests/test_pr_delta_card_validate.py \
             merger/lenskit/tests/test_agent_reading_pack.py \
             merger/lenskit/tests/test_agent_reading_pack_usage_rules.py \
             merger/lenskit/tests/test_cli_agent_pack.py \

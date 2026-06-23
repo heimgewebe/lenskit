@@ -442,6 +442,7 @@ Implementiert:
   genau einen akzeptierten Pfad. `path` ist die Identität innerhalb eines einzelnen
   Repository-Kontexts. Die Card projiziert Primary Lens plus Facets. Ein akzeptierter
   Repo-Pfad beweist weder Dateiexistenz noch Git-Tracking.
+- PR Delta Cards v1: Contract/Core/Validation/Test-Slice. Projiziert bestehendes PR-Schau-Delta kontrolliert auf die bestehende Lens-Card-Produktion. Keine Behauptung von GitHub-PR-Identität, Commitidentität, Hunks, Symbole, Relationen, Risiko oder Impact.
 
 Nicht implementiert:
 - vollständige Facet-Taxonomie (v1 deckt nur drei kontrollierte Facets ab)
@@ -467,7 +468,7 @@ Primary Lens Audit v1 — Contract/Core/Tests umgesetzt
 → Lens Model — umgesetzt
 → Facet Model v1 — Contract/Core/Tests umgesetzt (Taxonomie bewusst klein)
 → Lens Cards v1 — Contract/Core/Validation/Tests umgesetzt
-→ PR Delta Cards
+→ PR Delta Cards v1 — Contract/Core/Validation/Tests umgesetzt
 → Relation Cards
 → Guard Relation Cards
 ```
@@ -565,8 +566,20 @@ Weiterhin offen:
 - Relations
 - States
 - Task Contexts
-- PR Delta Cards
 - Retrieval-Nutzung
+
+### PR Delta Cards v1 — entschieden
+
+PR Delta Cards v1 ist als Contract/Core/Validation/Test-Slice entschieden und
+umgesetzt:
+
+- Identität: `path` innerhalb eines expliziten Delta-Kontexts.
+- Keine GitHub-PR-Identität oder Commitidentität wird als Wahrheit behauptet.
+- Optionaler Hash wird nur als Provenienz (`source_provenance`) übernommen.
+- Flache Projektion der `produce_lens_card(path)`-Werte.
+- Change-Status ist strikt kontrolliert (`added`, `changed`, `removed`).
+- Keine Impact-, Risiko- oder Reviewbehauptungen.
+- Standalone-Delta.json-Unterstützung (keine Bundle-Infrastruktur hier).
 
 ### Relation Cards und Guard Relation Cards
 - kontrollierte Relationstypen
