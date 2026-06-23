@@ -173,24 +173,37 @@ class TestPRDeltaCardValidate:
         assert "kind" in errors[0]["message"] or "version" in errors[0]["message"]
 
     def test_missing_source_format_capability_fails_validation(self, monkeypatch):
-        import jsonschema
+        from merger.lenskit.core import pr_delta_cards
+
         delta = _valid_source_delta()
         card = produce_pr_delta_cards(delta)[0]
 
-        class MissingDateTimeFormatChecker:
-            checkers: dict[str, object] = {}
+        def fail_source_format_checker(_jsonschema):
+            raise pr_delta_cards.SourceValidationError(
+                "jsonschema date-time format validation is unavailable; "
+                "install jsonschema[format-nongpl]"
+            )
 
         monkeypatch.setattr(
-            jsonschema,
-            "FormatChecker",
-            MissingDateTimeFormatChecker,
+            pr_delta_cards,
+            "_source_format_checker",
+            fail_source_format_checker,
         )
 
         result = validate_pr_delta_card(card, source_delta=delta)
 
         assert result["status"] == "fail"
-        assert any(
-            check["name"] == "source_producer_coherence"
-            and check["status"] == "fail"
+
+        coherence_checks = [
+            check
             for check in result["checks"]
+            if check["name"] == "source_producer_coherence"
+        ]
+
+        assert len(coherence_checks) == 1
+        assert coherence_checks[0]["status"] == "fail"
+        assert (
+            coherence_checks[0]["validation"]["reason"]
+            == "producer_coherence_check"
         )
+        assert "date-time format validation is unavailable" in coherence_checks[0]["detail"]
