@@ -807,23 +807,27 @@ noch Review-Priorität.
 
 ### Slice 13 — PR Delta Cards v1
 
-**Ziel:** Bereits vorhandene PR-Schau-/Delta-Daten in Lens-Card-Navigation übersetzen.
+**Status:** im Draft-PR implementiert; Merge und Post-Merge-Reconciliation ausstehend
+(`merger/lenskit/contracts/pr-delta-card.v1.schema.json`,
+`merger/lenskit/core/pr_delta_cards.py`,
+`merger/lenskit/core/pr_delta_card_validate.py`,
+`merger/lenskit/tests/test_pr_delta_cards.py`,
+`merger/lenskit/tests/test_pr_delta_card_validate.py`; Proof
+`docs/proofs/pr-delta-cards-gap-report.md`, Task `TASK-PR-DELTA-CARD-001`).
 
-**Planungskandidaten:**
+**Ziel:** Bereits vorhandene PR-Schau-/Delta-Daten kontrolliert auf die Lens-Card-Produktion projizieren.
 
-```text
-merger/lenskit/core/pr_delta_cards.py
-merger/lenskit/tests/test_pr_delta_cards.py
-docs/proofs/pr-delta-cards-gap-report.md
-```
+**Inhalt:** Pfad, Change-Status, Primary Lens, Facets, expliziter Delta-Kontext. PR Delta Cards v1 enthalten keine Hashfelder und behaupten keine
+Hashprovenienz. Eine mögliche spätere Bundle-/Manifest-Integration ist
+nicht Teil dieses Slices und wird durch diesen PR weder implementiert
+noch zugesichert.
+Unterstützt wird ein bereits geladenes,
+pr-schau-delta.v1-konformes Mapping.
+Dieser Slice enthält keinen Delta-Dateiloader und keinen Bundleadapter.
 
-**Möglicher Inhalt:** geänderte Datei, Primary Lens, Facets, Contract-/Test-Guard-
-Relationen sowie fehlende Hunk-/Symbol-Unterstützung.
+**Nicht-Ziele:** Kein Review-Verdict, kein Patch-Vorschlag, keine Impact-Wahrheit. Keine Behauptung über GitHub-PR-Identität, Commitidentität, Hunks oder Relationen. Keine CLI- oder Bundle-Integration.
 
-**Nicht-Ziele:** kein Review-Verdict, kein Patch-Vorschlag, keine Risk-Wertung ohne
-eigenen Contract und keine Impact-Wahrheit.
-
-**Akzeptanz:** PR-Deltas werden navigierbar, ohne automatische Findings zu erzeugen.
+**Akzeptanz:** Bereits geladene, pr-schau-delta.v1-konforme Mappings können deterministisch in PR Delta Cards projiziert werden, ohne automatische Findings zu erzeugen.
 
 **Komplexität:** mittel.
 

@@ -443,6 +443,9 @@ Implementiert:
   Repository-Kontexts. Die Card projiziert Primary Lens plus Facets. Ein akzeptierter
   Repo-Pfad beweist weder Dateiexistenz noch Git-Tracking.
 
+In Umsetzung:
+- PR Delta Cards v1 — im Draft-PR als Contract/Core/Validation/Test-Slice implementiert; Merge und Post-Merge-Reconciliation ausstehend.
+
 Nicht implementiert:
 - vollständige Facet-Taxonomie (v1 deckt nur drei kontrollierte Facets ab)
 - Befüllung von `possible_facets`
@@ -467,7 +470,7 @@ Primary Lens Audit v1 — Contract/Core/Tests umgesetzt
 → Lens Model — umgesetzt
 → Facet Model v1 — Contract/Core/Tests umgesetzt (Taxonomie bewusst klein)
 → Lens Cards v1 — Contract/Core/Validation/Tests umgesetzt
-→ PR Delta Cards
+→ PR Delta Cards v1 — in Umsetzung
 → Relation Cards
 → Guard Relation Cards
 ```
@@ -565,8 +568,23 @@ Weiterhin offen:
 - Relations
 - States
 - Task Contexts
-- PR Delta Cards
 - Retrieval-Nutzung
+
+### PR Delta Cards v1 — in Umsetzung
+
+PR Delta Cards v1 ist als Contract/Core/Validation/Test-Slice im Draft-PR implementiert:
+
+- Identität: `path` innerhalb eines expliziten Delta-Kontexts.
+- Keine GitHub-PR-Identität oder Commitidentität wird als Wahrheit behauptet.
+- PR Delta Cards v1 enthalten keine Hashfelder und behaupten keine
+  Hashprovenienz. Eine mögliche spätere Bundle-/Manifest-Integration ist
+  nicht Teil dieses Slices und wird durch diesen PR weder implementiert
+  noch zugesichert.
+- Flache Projektion der `produce_lens_card(path)`-Werte.
+- Change-Status ist strikt kontrolliert (`added`, `changed`, `removed`).
+- Keine Impact-, Risiko- oder Reviewbehauptungen.
+- Unterstützung bereits geladener pr-schau-delta.v1-konformer Mappings;
+  keine Delta-Datei-, CLI- oder Bundle-Integration.
 
 ### Relation Cards und Guard Relation Cards
 - kontrollierte Relationstypen
