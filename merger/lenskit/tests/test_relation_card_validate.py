@@ -287,7 +287,25 @@ class TestEvidencePreservation:
         assert any(m["field"] == "does_not_establish" for m in preservation["mismatches"])
 
 
-class TestDependencyLayer:
+
+    def test_additional_claim_field_caught_under_permissive_schema(self):
+        graph = _graph()
+        card = _card(graph)
+        card["impact"] = "high"
+
+        val = validate_relation_card(
+            card,
+            source_graph=graph,
+            schema={"type": "object"},
+        )
+
+        assert val["status"] == "fail"
+        assert _check(val, "schema_validation")["status"] == "pass"
+        assert _check(val, "source_producer_coherence")["status"] == "pass"
+        preservation = _check(val, "evidence_preservation")
+        assert preservation["status"] == "fail"
+        assert preservation["unexpected_fields"] == ["impact"]
+
     def test_missing_jsonschema_fails_closed(self, monkeypatch):
         import sys
 
