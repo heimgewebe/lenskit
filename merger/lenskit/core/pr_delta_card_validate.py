@@ -248,7 +248,10 @@ def _assemble(
         "checks": checks,
         "dependencies": jsonschema_dependency(
             available=jsonschema_available,
-            required_for=["pr_delta_card_schema"],
+            required_for=[
+                "pr_delta_card_schema",
+                "pr_schau_delta_source_schema",
+            ],
         ),
         "does_not_establish": list(VALIDATOR_DOES_NOT_ESTABLISH),
     }

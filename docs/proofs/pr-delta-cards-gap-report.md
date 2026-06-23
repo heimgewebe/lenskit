@@ -4,7 +4,9 @@
 delta.json wird durch die bestehende PR-Schau-Erzeugung produziert.
 Der PR-Delta-Card-Batchproducer akzeptiert ein bereits geladenes,
 vollständig gegen pr-schau-delta.v1 validiertes Mapping.
-Dieser Slice lädt weder Dateien noch Bundles.
+Dieser Slice lädt keine Delta-Payloads und keine PR-Schau-Bundles.
+Das repositoryeigene pr-schau-delta.v1-Schema wird für die
+Contractvalidierung aus dem Contracts-Verzeichnis geladen.
 
 ## 2. Vorhandene Lens-Card-Source
 `merger/lenskit/core/lens_cards.py` bietet `produce_lens_card(path)`, welche einen gegebenen String-Pfad verarbeitet, den `Facet Model v1` Produzenten `infer_facets` aufruft, den Pfad validiert und eine normierte Lens-Card erstellt.

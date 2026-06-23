@@ -580,7 +580,8 @@ PR Delta Cards v1 ist als Contract/Core/Validation/Test-Slice im Draft-PR implem
 - Flache Projektion der `produce_lens_card(path)`-Werte.
 - Change-Status ist strikt kontrolliert (`added`, `changed`, `removed`).
 - Keine Impact-, Risiko- oder Reviewbehauptungen.
-- Standalone-Delta.json-Unterstützung (keine Bundle-Infrastruktur hier).
+- Unterstützung bereits geladener pr-schau-delta.v1-konformer Mappings;
+  keine Delta-Datei-, CLI- oder Bundle-Integration.
 
 ### Relation Cards und Guard Relation Cards
 - kontrollierte Relationstypen

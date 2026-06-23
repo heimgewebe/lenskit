@@ -1,6 +1,4 @@
-import pytest
-import json
-from pathlib import Path
+
 from merger.lenskit.core.pr_delta_cards import produce_pr_delta_cards
 from merger.lenskit.core.pr_delta_card_validate import validate_pr_delta_card
 
@@ -136,6 +134,11 @@ class TestPRDeltaCardValidate:
         assert val["status"] == "fail"
         assert any(c["validation"]["reason"] == "dependency_unavailable" for c in val["checks"])
 
+        req = val["dependencies"]["jsonschema"]["required_for"]
+        assert "pr_delta_card_schema" in req
+        assert "pr_schau_delta_source_schema" in req
+        assert len(req) == 2
+
     def test_invalid_card_schema(self, monkeypatch):
         delta = _valid_source_delta()
         card = produce_pr_delta_cards(delta)[0]
@@ -161,4 +164,8 @@ class TestPRDeltaCardValidate:
         del card["version"]
         val = validate_pr_delta_card(card, source_delta=delta)
         errors = [c.get("errors", []) for c in val["checks"] if c["name"] == "schema_validation" and c["status"] == "fail"][0]
-        assert "kind" in str(errors) # Should be sorted first
+        paths = [e["path"] for e in errors]
+        validators = [e["validator"] for e in errors]
+        assert paths == ["$", "$"]
+        assert validators == ["required", "required"]
+        assert "kind" in errors[0]["message"] or "version" in errors[0]["message"]

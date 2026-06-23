@@ -817,7 +817,12 @@ noch Review-Priorität.
 
 **Ziel:** Bereits vorhandene PR-Schau-/Delta-Daten kontrolliert auf die Lens-Card-Produktion projizieren.
 
-**Inhalt:** Pfad, Change-Status, Primary Lens, Facets, expliziter Delta-Kontext. Optionale Provenienz (Hash). Standalone-Delta.json unterstützt.
+**Inhalt:** Pfad, Change-Status, Primary Lens, Facets, expliziter Delta-Kontext. Keine Hashprovenienz in v1.
+Verifizierte Artefakthash-Provenienz bleibt einer späteren
+Bundle-/Manifest-Integration vorbehalten.
+Unterstützt wird ein bereits geladenes,
+pr-schau-delta.v1-konformes Mapping.
+Dieser Slice enthält keinen Delta-Dateiloader und keinen Bundleadapter.
 
 **Nicht-Ziele:** Kein Review-Verdict, kein Patch-Vorschlag, keine Impact-Wahrheit. Keine Behauptung über GitHub-PR-Identität, Commitidentität, Hunks oder Relationen. Keine CLI- oder Bundle-Integration.
 

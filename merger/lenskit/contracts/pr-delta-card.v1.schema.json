@@ -35,7 +35,12 @@
     "delta_context": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source_kind", "source_version", "repo", "generated_at"],
+      "required": [
+        "source_kind",
+        "source_version",
+        "repo",
+        "generated_at"
+      ],
       "properties": {
         "source_kind": {
           "const": "repolens.pr_schau.delta"
@@ -44,8 +49,7 @@
           "const": 1
         },
         "repo": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         },
         "generated_at": {
           "type": "string",
@@ -58,7 +62,11 @@
     },
     "change_status": {
       "type": "string",
-      "enum": ["added", "changed", "removed"]
+      "enum": [
+        "added",
+        "changed",
+        "removed"
+      ]
     },
     "primary_lens": {
       "type": "string",
@@ -127,7 +135,8 @@
           ]
         },
         "derivation_type": {
-          "const": "direct"
+          "const": "direct",
+          "description": "Lens Card v1 only projects Facet Model v1 direct assignments."
         }
       },
       "allOf": [
@@ -203,22 +212,54 @@
       "maxItems": 16,
       "additionalItems": false,
       "items": [
-        { "const": "truth" },
-        { "const": "correctness" },
-        { "const": "completeness" },
-        { "const": "runtime_behavior" },
-        { "const": "test_sufficiency" },
-        { "const": "regression_absence" },
-        { "const": "semantic_importance" },
-        { "const": "review_priority" },
-        { "const": "change_impact" },
-        { "const": "github_pull_request_identity" },
-        { "const": "commit_identity" },
-        { "const": "rename_identity" },
-        { "const": "hunk_identity" },
-        { "const": "symbol_impact" },
-        { "const": "causality" },
-        { "const": "risk" }
+        {
+          "const": "truth"
+        },
+        {
+          "const": "correctness"
+        },
+        {
+          "const": "completeness"
+        },
+        {
+          "const": "runtime_behavior"
+        },
+        {
+          "const": "test_sufficiency"
+        },
+        {
+          "const": "regression_absence"
+        },
+        {
+          "const": "semantic_importance"
+        },
+        {
+          "const": "review_priority"
+        },
+        {
+          "const": "change_impact"
+        },
+        {
+          "const": "github_pull_request_identity"
+        },
+        {
+          "const": "commit_identity"
+        },
+        {
+          "const": "rename_identity"
+        },
+        {
+          "const": "hunk_identity"
+        },
+        {
+          "const": "symbol_impact"
+        },
+        {
+          "const": "causality"
+        },
+        {
+          "const": "risk"
+        }
       ]
     }
   }

@@ -37,8 +37,15 @@ DOES_NOT_ESTABLISH = (
 
 _SOURCE_SCHEMA_PATH = Path(__file__).parent.parent / "contracts" / "pr-schau-delta.v1.schema.json"
 
-class SourceValidationError(Exception):
-    pass
+class SourceValidationError(ValueError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        errors: list[dict[str, str]] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.errors = errors or []
 
 def _load_jsonschema():
     try:
@@ -50,6 +57,28 @@ def _load_jsonschema():
 def _load_source_schema() -> Mapping[str, Any]:
     return json.loads(_SOURCE_SCHEMA_PATH.read_text(encoding="utf-8"))
 
+def _schema_error_path(error: Any) -> str:
+    parts = [str(part) for part in error.path]
+    return "$" if not parts else "$." + ".".join(parts)
+
+def _source_schema_errors(errors: list[Any]) -> list[dict[str, str]]:
+    ordered = sorted(
+        errors,
+        key=lambda e: (
+            tuple(str(part) for part in e.path),
+            tuple(str(part) for part in e.schema_path),
+            e.message,
+        ),
+    )
+    return [
+        {
+            "path": _schema_error_path(e),
+            "validator": str(e.validator),
+            "message": e.message,
+        }
+        for e in ordered
+    ]
+
 def _validate_source_delta(source_delta: Mapping[str, Any]) -> None:
     jsonschema = _load_jsonschema()
     schema = _load_source_schema()
@@ -58,10 +87,14 @@ def _validate_source_delta(source_delta: Mapping[str, Any]) -> None:
     jsonschema.Draft202012Validator.check_schema(schema)
     
     validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
-    errors = sorted(validator.iter_errors(source_delta), key=lambda e: (e.path, e.schema_path, e.message))
+    raw_errors = list(validator.iter_errors(source_delta))
     
-    if errors:
-        raise SourceValidationError(f"Source delta validation failed: {errors[0].message}")
+    if raw_errors:
+        structured_errors = _source_schema_errors(raw_errors)
+        raise SourceValidationError(
+            f"Source delta validation failed with {len(structured_errors)} error(s)",
+            errors=structured_errors
+        )
         
     summary = source_delta["summary"]
     counts = {"added": 0, "changed": 0, "removed": 0}
@@ -90,7 +123,12 @@ def _project_pr_delta_card(
     path = file_entry["path"]
     status = file_entry["status"]
 
-    lens_card = produce_lens_card(path)
+    try:
+        lens_card = produce_lens_card(path)
+    except (TypeError, ValueError) as exc:
+        raise SourceValidationError(
+            f"Source delta path is not accepted by Lens Card v1: {path!r}"
+        ) from exc
 
     return {
         "kind": KIND,
