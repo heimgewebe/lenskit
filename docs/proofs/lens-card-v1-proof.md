@@ -292,3 +292,9 @@ It also does not establish a complete taxonomy, a new Artifact Role, CLI
 availability, bundle/manifest emission, consumer integration, `possible_facets`
 population, Relations, States, Task Contexts, PR Delta Cards or retrieval
 ranking.
+
+## Post-Merge Reconciliation
+
+Verified after merging PR #790 on `main`:
+- The `contracts-validate` workflow was fixed and successfully validated the `lens-card.v1.json` fixture against the corresponding schema.
+- TASK-LENS-CARD-001 has been marked as `done`.
