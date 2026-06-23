@@ -45,8 +45,8 @@
       "description": "Imported local repository file (the architecture.graph.v1 edge dst file node)."
     },
     "source_rule": {
-      "const": "python_ast_import",
-      "description": "The deterministic source rule that produced the underlying edge: Python AST import extraction (import_graph.py)."
+      "const": "architecture_graph_import_edge",
+      "description": "The source rule that produced the card: projection of a local import edge from the given architecture.graph.v1 mapping. The card consumes architecture.graph.v1 and does not itself prove which implementation produced that graph."
     },
     "derivation_type": {
       "const": "heuristic",
@@ -67,7 +67,7 @@
     "repo_path": {
       "type": "string",
       "minLength": 1,
-      "description": "`path` is the Lens Card v1 identity within one explicit repository context. An accepted repo path is a path accepted by the controlled lexical path model. It does not establish file existence, tracked-file membership, readability, or successful resolution against a particular repository snapshot. Must use exactly the Facet v1 path pattern.",
+      "description": "`path` is a repository-relative endpoint address within one explicit repository context. An accepted repo path is a path accepted by the controlled lexical path model. It does not establish file existence, tracked-file membership, readability, or successful resolution against a particular repository snapshot. Must use exactly the Facet v1 path pattern.",
       "pattern": "^(?![\\s\\S]*[\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029\\uFEFF])(?![\\s\\S]*[\\uD800-\\uDFFF])(?![\\u0020\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+$)(?![A-Za-z]:)(?!/)(?![\\s\\S]*//)(?![\\s\\S]*/$)(?![\\s\\S]*\\\\)(?![\\s\\S]*(?:^|/)\\.\\.?(?:/|$))[\\s\\S]+$"
     },
     "endpoint": {

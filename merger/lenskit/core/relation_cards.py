@@ -38,7 +38,7 @@ VERSION = "1.0"
 AUTHORITY = "navigation_index"
 CANONICALITY = "derived"
 RELATION = "imports"
-SOURCE_RULE = "python_ast_import"
+SOURCE_RULE = "architecture_graph_import_edge"
 DERIVATION_TYPE = "heuristic"
 EVIDENCE_LEVEL = "S1"
 
@@ -140,6 +140,63 @@ def _validate_source_graph(graph_mapping: Mapping[str, Any]) -> None:
         raise SourceValidationError(
             f"Source graph validation failed with {len(structured)} error(s)",
             errors=structured,
+        )
+
+
+def _validate_source_graph_integrity(graph_mapping: Mapping[str, Any]) -> None:
+    nodes = graph_mapping.get("nodes", [])
+    edges = graph_mapping.get("edges", [])
+
+    seen_nodes: set[str] = set()
+    duplicate_nodes: set[str] = set()
+
+    for node in nodes:
+        if isinstance(node, Mapping):
+            node_id = node.get("node_id")
+            if isinstance(node_id, str):
+                if node_id in seen_nodes:
+                    duplicate_nodes.add(node_id)
+                else:
+                    seen_nodes.add(node_id)
+
+    errors = []
+    if duplicate_nodes:
+        for dup in sorted(duplicate_nodes):
+            errors.append({
+                "path": "$.nodes",
+                "validator": "unique_node_id",
+                "message": f"duplicate node_id: {dup}"
+            })
+
+    missing_src: set[str] = set()
+    missing_dst: set[str] = set()
+
+    for edge in edges:
+        if isinstance(edge, Mapping):
+            src = edge.get("src")
+            dst = edge.get("dst")
+            if isinstance(src, str) and src not in seen_nodes:
+                missing_src.add(src)
+            if isinstance(dst, str) and dst not in seen_nodes:
+                missing_dst.add(dst)
+
+    for src in sorted(missing_src):
+        errors.append({
+            "path": "$.edges",
+            "validator": "edge_reference",
+            "message": f"edge src does not resolve: {src}"
+        })
+    for dst in sorted(missing_dst):
+        errors.append({
+            "path": "$.edges",
+            "validator": "edge_reference",
+            "message": f"edge dst does not resolve: {dst}"
+        })
+
+    if errors:
+        raise SourceValidationError(
+            f"Source graph integrity failed with {len(errors)} error(s)",
+            errors=errors
         )
 
 
@@ -286,6 +343,7 @@ def produce_relation_cards(graph_mapping: Mapping[str, Any]) -> list[dict[str, A
         raise TypeError("graph_mapping must be a mapping")
 
     _validate_source_graph(graph_mapping)
+    _validate_source_graph_integrity(graph_mapping)
     node_index = _node_index(graph_mapping)
 
     cards: list[dict[str, Any]] = []

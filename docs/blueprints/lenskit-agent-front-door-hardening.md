@@ -841,7 +841,7 @@ keine Guard-Relation-Arbeit (Slice 15) vorweggenommen.
 behaupten.
 
 **v1-Scope (umgesetzt):** ausschließlich `imports` — deterministische Projektion
-lokaler `file → file`-Python-`import`-Kanten (`edge_type=import`,
+lokaler `file → file`-`import`-Kanten (`edge_type=import`,
 `evidence_level=S1`) aus einem bereits geladenen `architecture.graph.v1`-Mapping.
 Relation Cards erkennen keine Beziehungen selbst; externe `module:`-Nodes sind
 ausgeschlossen; `S1`/`heuristic` bleiben sichtbar. Eine Source-aware Validierung

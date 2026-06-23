@@ -446,7 +446,7 @@ Implementiert:
 
 In Umsetzung (Draft-PR, nicht abgeschlossen):
 - Relation Cards v1 — bewusst begrenzter imports-only Slice: deterministische
-  Projektion lokaler Python-`import`-Kanten (`file → file`, `edge_type=import`,
+  Projektion lokaler `import`-Kanten (`file → file`, `edge_type=import`,
   `evidence_level=S1`) aus einem bereits geladenen `architecture.graph.v1`-Mapping
   in `relation-card.v1` Navigation Cards (Contract/Core/Validation/Tests). Relation
   Cards erkennen keine Beziehungen selbst; externe `module:`-Nodes sind

@@ -216,6 +216,49 @@ class TestCoherenceLayer:
         assert coherence["status"] == "fail"
         assert "synthetic producer failure" in coherence["detail"]
 
+    def test_empty_card_permissive_schema_fails_structurally(self):
+        graph = _graph()
+        val = validate_relation_card({}, source_graph=graph, schema={"type": "object"})
+        assert val["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["validation"]["reason"] == "producer_coherence_check"
+
+    def test_missing_source_permissive_schema_fails_structurally(self):
+        graph = _graph()
+        card = _card(graph)
+        del card["source"]
+        val = validate_relation_card(card, source_graph=graph, schema={"type": "object"})
+        assert val["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["validation"]["reason"] == "producer_coherence_check"
+
+    def test_missing_source_path_permissive_schema_fails_structurally(self):
+        graph = _graph()
+        card = _card(graph)
+        del card["source"]["path"]
+        val = validate_relation_card(card, source_graph=graph, schema={"type": "object"})
+        assert val["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["validation"]["reason"] == "producer_coherence_check"
+
+    def test_target_not_mapping_permissive_schema_fails_structurally(self):
+        graph = _graph()
+        card = _card(graph)
+        card["target"] = "not-a-mapping"
+        val = validate_relation_card(card, source_graph=graph, schema={"type": "object"})
+        assert val["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["validation"]["reason"] == "producer_coherence_check"
+
+    def test_evidence_not_mapping_permissive_schema_fails_structurally(self):
+        graph = _graph()
+        card = _card(graph)
+        card["evidence"] = "not-a-mapping"
+        val = validate_relation_card(card, source_graph=graph, schema={"type": "object"})
+        assert val["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["status"] == "fail"
+        assert _check(val, "source_producer_coherence")["validation"]["reason"] == "producer_coherence_check"
+
 
 class TestEvidencePreservation:
     def test_upgrade_caught_under_permissive_schema(self):

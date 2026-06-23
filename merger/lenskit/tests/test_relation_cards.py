@@ -123,8 +123,11 @@ class TestProducer:
     def test_relation_is_imports(self):
         assert _valid_card()["relation"] == "imports"
 
-    def test_source_rule_is_python_ast_import(self):
-        assert _valid_card()["source_rule"] == "python_ast_import"
+    def test_source_rule_is_architecture_graph_import_edge(self):
+        assert _valid_card()["source_rule"] == "architecture_graph_import_edge"
+
+    def test_source_rule_does_not_assert_python_ast(self):
+        assert "python_ast_import" not in _valid_card().values()
 
     def test_derivation_type_is_heuristic(self):
         assert _valid_card()["derivation_type"] == "heuristic"
@@ -229,6 +232,39 @@ class TestProducer:
         del graph["coverage"]
         with pytest.raises(SourceValidationError):
             produce_relation_cards(graph)
+
+    def test_duplicate_node_id_fails_closed(self):
+        graph = _graph([_file_node("a.py"), _file_node("a.py")], [])
+        with pytest.raises(SourceValidationError) as exc:
+            produce_relation_cards(graph)
+        assert exc.value.errors[0]["validator"] == "unique_node_id"
+        assert exc.value.errors[0]["message"] == "duplicate node_id: file:a.py"
+
+    def test_duplicate_node_id_failure_is_independent_of_node_order(self):
+        graph1 = _graph([_node("file:a.py", "file", path="x"), _node("file:a.py", "file", path="y")], [])
+        graph2 = _graph([_node("file:a.py", "file", path="y"), _node("file:a.py", "file", path="x")], [])
+
+        with pytest.raises(SourceValidationError) as exc1:
+            produce_relation_cards(graph1)
+        with pytest.raises(SourceValidationError) as exc2:
+            produce_relation_cards(graph2)
+
+        assert exc1.value.errors[0]["message"] == "duplicate node_id: file:a.py"
+        assert exc2.value.errors[0]["message"] == "duplicate node_id: file:a.py"
+
+    def test_dangling_edge_src_fails_closed(self):
+        graph = _graph([_file_node("b.py")], [_edge("file:a.py", "file:b.py")])
+        with pytest.raises(SourceValidationError) as exc:
+            produce_relation_cards(graph)
+        assert exc.value.errors[0]["validator"] == "edge_reference"
+        assert exc.value.errors[0]["message"] == "edge src does not resolve: file:a.py"
+
+    def test_dangling_edge_dst_fails_closed(self):
+        graph = _graph([_file_node("a.py")], [_edge("file:a.py", "file:b.py")])
+        with pytest.raises(SourceValidationError) as exc:
+            produce_relation_cards(graph)
+        assert exc.value.errors[0]["validator"] == "edge_reference"
+        assert exc.value.errors[0]["message"] == "edge dst does not resolve: file:b.py"
 
     def test_unknown_edge_type_fails_source_validation(self):
         graph = _file_to_file_graph()

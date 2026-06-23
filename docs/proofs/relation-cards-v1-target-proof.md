@@ -86,13 +86,17 @@ eingeführt.
 ### Source Rule / Ableitungsart
 
 ```text
-relation        = imports           (const)
-source_rule     = python_ast_import (const)
-derivation_type = heuristic         (const)
-evidence_level  = S1                (const)
-authority       = navigation_index  (const)
-canonicality    = derived           (const)
+relation        = imports                        (const)
+source_rule     = architecture_graph_import_edge (const)
+derivation_type = heuristic                      (const)
+evidence_level  = S1                             (const)
+authority       = navigation_index               (const)
+canonicality    = derived                        (const)
 ```
+
+Der aktuelle Repo-Graphproducer verwendet Python-AST.
+Die Relation Card selbst trägt jedoch keine Python-AST-Provenienz,
+weil architecture.graph.v1 diese Herkunft nicht contractuell enthält.
 
 `derivation_type = heuristic` ist bewusst gewählt (nicht `direct`): Der
 zugrunde liegende Importgraph ist ein statisches S1-Heuristik-Artefakt
@@ -214,7 +218,7 @@ Ausgeführte Befehle und reale Ergebnisse (lokal, `jsonschema 4.26.0`,
 # 1) Fokussierte Relation-Card-Tests
 python3 -m pytest -q merger/lenskit/tests/test_relation_cards.py \
                      merger/lenskit/tests/test_relation_card_validate.py
-→ 67 passed
+→ 77 passed
 
 # 2) Graphregressionen
 python3 -m pytest -q merger/lenskit/tests/test_architecture_import_graph.py \
@@ -226,21 +230,24 @@ python3 -m pytest -q merger/lenskit/tests/test_architecture_import_graph.py \
 python3 -m pytest -q merger/lenskit/tests/test_anti_hallucination_lint.py
 → 43 passed
 
-# 4) Vollständiger Lens-Model-Testlauf (exakte Befehlsliste aus
-#    .github/workflows/lens-model.yml, inkl. test_relation_cards.py und
-#    test_relation_card_validate.py)
-python3 -m pytest -q merger/lenskit/tests/test_lenses.py ... \
-                     merger/lenskit/tests/test_relation_cards.py \
-                     merger/lenskit/tests/test_relation_card_validate.py ...
-→ 534 passed
+# 4) Vollständiger Lens-Model-Testlauf
+Ausgeführt durch:
+.github/workflows/lens-model.yml
+Job: lens-model
+Step: Run lens model tests
+PR-Head-SHA: 8b153298ce51df6cc50cac1a8e23830d87ada4b7
+Ergebnis: 546 passed
 
 # 5) Schema-Metavalidierung (draft-07), inkl. relation-card.v1.schema.json
 → lens-facet/lens-card/pr-delta-card/relation-card: meta-valid
 
-# 6) Ruff (Lens-Model-Core + Tests, inkl. relation_cards.py /
-#    relation_card_validate.py / Tests)
-ruff check ...
-→ All checks passed!
+# 6) Ruff (Lens-Model-Core + Tests)
+Ausgeführt durch:
+.github/workflows/lens-model.yml
+Job: lens-model
+Step: Ruff (lens model core and tests)
+PR-Head-SHA: 8b153298ce51df6cc50cac1a8e23830d87ada4b7
+Ergebnis: All checks passed!
 
 # 7) ECMAScript-Pfadpattern-Parität (relation-card in die Parität aufgenommen)
 node merger/lenskit/tests/test_lens_facet_pattern_ecma.js

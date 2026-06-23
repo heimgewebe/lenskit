@@ -185,12 +185,7 @@ def _schema_check(
     )
 
 
-def _find_projected_match(
-    card: Mapping[str, Any], expected_cards: list[dict[str, Any]]
-) -> dict[str, Any] | None:
-    identity = card_identity(card)
-    matches = [c for c in expected_cards if card_identity(c) == identity]
-    return matches[0] if len(matches) == 1 else None
+
 
 
 def validate_relation_card(
@@ -264,7 +259,24 @@ def validate_relation_card(
         )
         return _assemble(checks, jsonschema_available=jsonschema_available)
 
-    match = _find_projected_match(card, expected_cards)
+    try:
+        identity = card_identity(card)
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        checks.append(
+            _check(
+                "source_producer_coherence",
+                "fail",
+                f"Relation Card is structurally incomplete and missing identity fields: {type(exc).__name__}",
+                mode="structural_precheck",
+                engine=ENGINE,
+                reason="producer_coherence_check",
+            )
+        )
+        return _assemble(checks, jsonschema_available=jsonschema_available)
+
+    matches = [c for c in expected_cards if card_identity(c) == identity]
+    match = matches[0] if len(matches) == 1 else None
+
     if match is None:
         checks.append(
             _check(
@@ -275,9 +287,9 @@ def validate_relation_card(
                 engine=ENGINE,
                 reason="producer_coherence_check",
                 extra={
-                    "source": card.get("source"),
-                    "target": card.get("target"),
-                    "evidence": card.get("evidence"),
+                    "source": card.get("source") if isinstance(card, Mapping) else None,
+                    "target": card.get("target") if isinstance(card, Mapping) else None,
+                    "evidence": card.get("evidence") if isinstance(card, Mapping) else None,
                 },
             )
         )
