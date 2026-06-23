@@ -1,0 +1,33 @@
+{
+  "kind": "lenskit.lens_card",
+  "version": "1.0",
+  "authority": "navigation_index",
+  "canonicality": "derived",
+  "path": "docs/architecture/lens-model.md",
+  "primary_lens": "core",
+  "matched_rule": "core_docs",
+  "facets": [
+    {
+      "facet": "contract",
+      "source_rule": "contract_schema_suffix",
+      "derivation_type": "direct"
+    }
+  ],
+  "navigation_refs": [
+    {
+      "kind": "repo_path",
+      "target": "docs/architecture/lens-model.md"
+    }
+  ],
+  "does_not_establish": [
+    "truth",
+    "correctness",
+    "completeness",
+    "runtime_behavior",
+    "test_sufficiency",
+    "regression_absence",
+    "semantic_importance",
+    "review_priority",
+    "change_impact"
+  ]
+}

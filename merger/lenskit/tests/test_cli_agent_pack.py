@@ -76,8 +76,15 @@ def test_cli_agent_pack_json_ok(tmp_path, capsys):
         "## SIDECAR_USAGE_RULES",
         "## ANSWER_COMPLIANCE_CHECKLIST",
         "## DO_NOT_CLAIM",
+        "## LENS_CARD_GUIDANCE",
     ):
         assert section in body
+
+    # The exact serialization boundary below proves a specific string is absent,
+    # it does not formally prove artifact non-emission.
+    assert '"kind": "lenskit.lens_card"' not in body
+    assert "does not claim that any Lens Card artifact is present" in body
+    assert "automatic bundle, manifest or consumer integration is outside" in body
 
 
 def test_cli_agent_pack_human_ok(tmp_path, capsys):
