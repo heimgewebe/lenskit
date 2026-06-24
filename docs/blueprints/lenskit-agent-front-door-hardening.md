@@ -878,8 +878,13 @@ Pfade/IDs auf.
 `docs/proofs/guard-relation-cards-v1a-target-proof.md`.
 Ein persistierter `tests_by_name`-Contract bleibt mangels eines aktuell implementierten
 oder verbindlich spezifizierten Consumers und eines semantisch bewerteten
-Goldsets zurückgestellt. Die übrigen Guard-Relation-Kandidaten wurden
-dadurch nicht bewertet.
+Goldsets zurückgestellt.
+
+**Target-Proof `validates_schema`:** diagnosis-only untersucht in
+`docs/proofs/guard-relation-cards-v1b-validates-schema-target-proof.md`.
+Der Proof trennt direkte und delegierte Instanzvalidierung von
+Schema-Metavalidierung, Load-only- und Reference-only-Fällen.
+Eine Contract- oder Persistenzentscheidung wird nicht vorweggenommen.
 
 **Ziel:** Tests und Guards formal mit Code, Contracts und Surfaces verbinden.
 
