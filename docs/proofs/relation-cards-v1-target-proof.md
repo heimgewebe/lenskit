@@ -1,7 +1,6 @@
 # Relation Cards v1 — Target Proof
 
-Status: **in Umsetzung** (Draft-PR). Der Task `TASK-RELATION-CARD-001` bleibt
-`in-progress` bis Merge und Post-Merge-Reconciliation.
+Status: **abgeschlossen** (Post-Merge). Der Task `TASK-RELATION-CARD-001` ist abgeschlossen und post-merge verifiziert (PR #796, `f12d9e6d`).
 
 Dieser Slice führt eine bewusst kleine, imports-only Relation-Card-Projektion ein:
 

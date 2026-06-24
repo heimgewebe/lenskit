@@ -478,7 +478,7 @@ Primary Lens Audit v1 — Contract/Core/Tests umgesetzt
 → Facet Model v1 — Contract/Core/Tests umgesetzt (Taxonomie bewusst klein)
 → Lens Cards v1 — Contract/Core/Validation/Tests umgesetzt
 → PR Delta Cards v1 — Contract/Core/Validation/Tests umgesetzt
-→ Relation Cards v1 — imports-only Contract/Core/Validation/Test-Slice im Draft-PR
+→ Relation Cards v1 — imports-only Contract/Core/Validation/Test-Slice gemergt und post-merge verifiziert
 → Guard Relation Cards
 ```
 
