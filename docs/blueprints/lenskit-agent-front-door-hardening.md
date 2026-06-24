@@ -876,7 +876,7 @@ Pfade/IDs auf.
 
 **Target-Proof `tests_by_name`:** diagnosis-only untersucht in
 `docs/proofs/guard-relation-cards-v1a-target-proof.md`.
-Ein persistierter Contract bleibt mangels eines aktuell implementierten
+Ein persistierter `tests_by_name`-Contract bleibt mangels eines aktuell implementierten
 oder verbindlich spezifizierten Consumers und eines semantisch bewerteten
 Goldsets zurückgestellt. Die übrigen Guard-Relation-Kandidaten wurden
 dadurch nicht bewertet.

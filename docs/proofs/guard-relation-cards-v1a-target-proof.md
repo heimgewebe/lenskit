@@ -20,16 +20,22 @@ Es ist **kein Produktionscode** enthalten. Der Scope ist strikt auf die Untersuc
 
 ## Exakte Klassifikationsmethode
 
-Die Testklassifikation nutzt zwingend die bestehende öffentliche API `infer_facets` aus `merger/lenskit/core/lens_facets.py`. Das Inventar für die nachfolgenden Resolver-Messungen stammt aus `git ls-files` und wird vor der Auswertung dedupliziert und sortiert.
+Die Testklassifikation nutzt zwingend die bestehende öffentliche API `infer_facets` aus `merger/lenskit/core/lens_facets.py`. Das Inventar für die nachfolgenden Resolver-Messungen stammt aus dem Git-Baum des dokumentierten Base-Commits und wird vor der Auswertung dedupliziert und sortiert. Der PR-Branch und seine neu hinzugefügte Proof-Datei sind nicht Bestandteil der Messung.
 
 ## Regel-Treffer versus eindeutige Pfade
 
 Ein Pfad kann potenziell mehrere Namensregeln erfüllen (obwohl dies hier nicht auftrat). Ein Pfad, der durch das Segment `fixtures` ausgeschlossen wird, gilt nicht als Testpfad.
-Die Diskrepanz von bisherigen Messungen (209) zur korrekten Zahl (207) lag in einer unsauberen manuellen Klassifikation (Substring-Matching statt strikter API-Nutzung und fehlendem Fixture-Ausschluss von `test_*.js` Dateien in `merger/lenskit/frontends/webui/tests/fixtures/`). Unter Verwendung der echten `infer_facets` API ergeben sich exakt 207 eindeutige kontrollierte Testpfade.
+
+Die frühere Zahl 209 beruhte auf einer nicht erhaltenen manuellen bzw. substringbasierten Messung und ist deshalb nicht vollständig forensisch rekonstruierbar. Die aktuelle, an den Base-Commit gebundene API-Messung ergibt:
+- 208 rohe Markerpfade;
+- 1 durch das Segment `fixtures` ausgeschlossenen Raw-Marker;
+- 207 kontrollierte Testpfade.
+
+Als mögliche zusätzliche Treffer einer unspezifischen Substring-Suche wurden `merger/lenskit/tests/_test_constants.py` und `scripts/check_no_test_stubs.py` identifiziert. Ohne das damalige Skript werden diese jedoch nicht als bewiesene Ursache der alten Zahl dargestellt.
 
 ## Marker-Verteilung und Überschneidungen
 
-- **Gesamtzahl getrackter Pfade**: 590
+- **Gesamtzahl getrackter Pfade**: 589
 - **Eindeutige kontrollierte Testpfade**: 207
 - **Rohe Marker-Treffer**:
   - `test_*.py`: 202
@@ -37,7 +43,7 @@ Die Diskrepanz von bisherigen Messungen (209) zur korrekten Zahl (207) lag in ei
   - `*_test.py`: 0
   - `*.test.ts`: 0
   - `*.spec.ts`: 0
-- **Fixture-Ausschlüsse**: 18 Dateien besitzen das Segment `fixtures`, davon 1 Datei, die einen raw-Marker erfüllt und daher ausgeschlossen wurde.
+- **Fixture-Ausschlüsse**: 19 Dateien besitzen das Segment `fixtures`, davon 1 Datei, die einen raw-Marker erfüllt und daher ausgeschlossen wurde. Der ausgeschlossene Pfad ist `merger/lenskit/tests/fixtures/architecture_import_graph/test_c.py`.
 - **Markerüberschneidungen**: 0
 
 ## Exakte Resolveralgorithmen
@@ -85,7 +91,7 @@ Eine Registry speichert explizite Zuordnungen. Ihre semantische Qualität hängt
 | --- | --- | --- | --- |
 | A. Globaler Basename | 42 | 165 | 0 |
 | B. Kontrollierte Root-Paare | 30 | 177 | 0 |
-| C. Relativer Spiegel | 3 | 204 | 0 |
+| C. Relativer Spiegel | 0 | 207 | 0 |
 
 (Für jede Variante gilt: `matched` + `unmatched` + `ambiguous` == 207 kontrollierte Testpfade)
 
@@ -172,7 +178,11 @@ Keine bidirektionale Persistenz wird empfohlen.
 
 ## Contractoptionen & Entscheidung
 
-**Entscheidung: Ein persistierter tests_by_name-Contract wird vorerst zurückgestellt.**
+Das Gate für einen persistierten `tests_by_name`-Contract ist vorerst geschlossen.
+
+Ein On-Demand-Matcher ist kein unmittelbarer Folgetask, bleibt aber eine mögliche spätere Evaluationsmaßnahme.
+
+Andere Guard-Relation-Kandidaten und deren mögliche Implementierung wurden in diesem Proof nicht bewertet.
 
 Begründung:
 - Kein aktiver oder verbindlich spezifizierter Consumer.
@@ -180,7 +190,6 @@ Begründung:
 - Persistenzbedarf nicht belegt.
 - Richtung und Identität hängen vom Consumer ab.
 
-Gate für einen persistierten tests_by_name-Contract: geschlossen.
 Falls später ein persistierter Contract entsteht, müssen Identität, Source-Kohärenz und Jsonschema-Ausfallverhalten separat entschieden werden. Dieser Proof entscheidet diese Punkte nicht abschließend.
 
 ## Bedingte Alternative On-Demand-Matcher
@@ -195,8 +204,26 @@ Es fehlt eine verbindliche Consumerfrage, die `tests_by_name` benötigt und den 
 
 ## Negativsemantik
 
-Die Negativsemantik der Lens-Karten bleibt erhalten. Die Evidenzstufe `S1` aus `architecture.graph.v1` wird nicht übernommen, da `S1` bei Relation Cards die übernommene Evidenzprovenienz für Importkanten ist. Ein Namensmatch besitzt diese Herkunft nicht. Die Negativsemantik muss als vorgeschlagene Grenze für einen möglichen späteren Contract gekennzeichnet werden.
+Die Negativsemantik der Lens-Karten bleibt erhalten. Die Evidenzstufe `S1` aus `architecture.graph.v1` wird nicht übernommen, da `S1` bei Relation Cards die übernommene Evidenzprovenienz für Importkanten ist. Ein Namensmatch besitzt diese Herkunft nicht.
+
+Für einen möglichen späteren `tests_by_name`-Contract wäre mindestens folgende Negativsemantik erforderlich:
+
+- `test_sufficiency`
+- `regression_absence`
+- `runtime_correctness`
+
+Eine strukturelle Namenszuordnung behauptet damit weder, dass der Test ausreicht, noch dass er Regressionen ausschließt oder Runtime-Korrektheit beweist.
+
+Diese Liste ist eine vorgeschlagene Contractgrenze. Dieser Proof führt keinen Contract ein.
 
 ## Reproduktionshinweise
 
-Das Python-Skript nutzt `git ls-files` als Inventar, klassifiziert diese via `merger/lenskit/core/lens_facets.py` (`infer_facets`), schließt Testpfade als Target-Ziele aus und wendet dann deterministisch die Namensderivationen auf die deduplizierte Pfadliste an. Mehrdeutige Treffer (`ambiguous`) werden getrennt von fehlenden Matches (`unmatched`) gezählt.
+Das Inventar wird mit
+`git ls-tree -r --name-only 58b8453ba6e355ab361743da75466dd6b0cc19a6`
+direkt aus dem Git-Baum des dokumentierten Base-Commits gewonnen.
+
+Die Testklassifikation erfolgt über `infer_facets()`. Vor der Messung
+wurde verifiziert, dass `merger/lenskit/core/lens_facets.py` gegenüber
+diesem Base-Commit unverändert ist.
+
+Das Skript klassifiziert die Pfade via `infer_facets`, schließt Testpfade als Target-Ziele aus und wendet dann deterministisch die Namensderivationen auf die deduplizierte Pfadliste an. Mehrdeutige Treffer (`ambiguous`) werden getrennt von fehlenden Matches (`unmatched`) gezählt.
