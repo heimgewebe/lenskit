@@ -335,6 +335,15 @@
         "weitere Relationstypen (mentions/validates/tests/documents/produces/consumes/same_surface) nicht implementiert",
         "Guard Relation Cards nicht implementiert"
       ]
+    },
+    {
+      "id": "TASK-GUARD-RELATION-DESIGN-001",
+      "title": "Guard Relation Cards v1a Target Proof",
+      "status": "in-progress",
+      "description": "Diagnosis-only Target-Proof für tests_by_name. Auf dem untersuchten Snapshot wurden strukturell eindeutige Basename-Kandidaten gemessen; ihre semantische Präzision ist ohne Goldset nicht belegt. Kein aktuell implementierter oder verbindlich spezifizierter Consumer benötigt eine persistierte Card. Ein persistierter tests_by_name-Contract bleibt daher zurückgestellt. Andere Guard-Relation-Kandidaten wurden nicht bewertet. Status in-progress bis Merge und Post-Merge-Reconciliation.",
+      "evidence": [
+        "docs/proofs/guard-relation-cards-v1a-target-proof.md"
+      ]
     }
   ]
 }
