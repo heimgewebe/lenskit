@@ -339,8 +339,8 @@
     {
       "id": "TASK-GUARD-RELATION-DESIGN-001",
       "title": "Guard Relation Cards v1a Target Proof",
-      "status": "in-progress",
-      "description": "Diagnosis-only Target-Proof für tests_by_name. Auf dem untersuchten Snapshot wurden strukturell eindeutige Basename-Kandidaten gemessen; ihre semantische Präzision ist ohne Goldset nicht belegt. Kein aktuell implementierter oder verbindlich spezifizierter Consumer benötigt eine persistierte Card. Ein persistierter tests_by_name-Contract bleibt daher zurückgestellt. Andere Guard-Relation-Kandidaten wurden nicht bewertet. Status in-progress bis Merge und Post-Merge-Reconciliation.",
+      "status": "done",
+      "description": "Diagnosis-only Target-Proof für tests_by_name; gemergt via PR #798 (Merge-Commit 05bbd0d6), der Target-Proof liegt auf main. Ein persistierter tests_by_name-Contract wurde mangels verbindlichem Consumer zurückgestellt; andere Guard-Relation-Kandidaten blieben unbewertet; tatsächlicher Consumer- oder Retrievalnutzen wurde nicht belegt. Status done: Merge und Post-Merge-Reconciliation abgeschlossen.",
       "evidence": [
         "docs/proofs/guard-relation-cards-v1a-target-proof.md"
       ]
