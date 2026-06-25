@@ -309,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     require(args.base_sha == manifest["base"], "base mismatch")
 
-    tree_oid = git(args.repo, "rev-parse", f"{args.base_sha}^{{tree}}“).strip()
+    tree_oid = git(args.repo, "rev-parse", f"{args.base_sha}^{{tree}}").strip()
     raw = git(args.repo, "ls-tree", "-r", "--name-only", args.base_sha).splitlines()
     paths = sorted(set(raw))
     require([len(paths), inventory_sha(paths)] == manifest["inv"], "inventory mismatch")
@@ -487,7 +487,8 @@ def main(argv: list[str] | None = None) -> int:
             "snapshot_keys_unique",
         ],
         "limitations": [
-            "Validators reached only through a project-local loader (_load_jsonschema / importlib.import_module) are manual_source_review, not derived_ast.",
+            "Validators reached only through a project-local loader "
+            "(_load_jsonschema / importlib.import_module) are manual_source_review, not derived_ast.",
             "Intermodular alias passing, dynamic wrappers and non-jsonschema validators are out of grammar.",
             "External (metarepo) schema targets are not resolved against any external snapshot.",
             "load_only / path_reference_only callsites are not inventoried.",
