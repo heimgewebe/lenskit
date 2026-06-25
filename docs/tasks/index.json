@@ -349,9 +349,11 @@
       "id": "TASK-GUARD-RELATION-VALIDATES-SCHEMA-DESIGN-001",
       "title": "Guard Relation Cards v1b validates_schema Target Proof",
       "status": "in-progress",
-      "description": "Diagnosis-only Target-Proof für validates_schema. Untersucht direkte und delegierte Instanzvalidierung gegen JSON-Schema-Contract-Dateien; trennt Schema-Metavalidierung, Load-only- und Reference-only-Fälle. Kein persistierter Contract ohne Consumer. Andere Guard-Relation-Kandidaten wurden nicht bewertet.",
+      "description": "Diagnosis-only Target-Proof für validates_schema. Reproduzierbare Callsite-Flow-Identität für Instanzvalidierungs-Beziehungen (24 Flows über 17 Module gegen 18 Schema-Ziele); trennt direkte/delegierte Engine-Aufrufe, Schema-Bindung, Schema-Metavalidierung, bedingte Schemaauswahl und externe Zielpfade. Kein persistierter Contract ohne Consumer. Andere Guard-Relation-Kandidaten wurden nicht bewertet.",
       "evidence": [
-        "docs/proofs/guard-relation-cards-v1b-validates-schema-target-proof.md"
+        "docs/proofs/guard-relation-cards-v1b-validates-schema-target-proof.md",
+        "docs/proofs/guard-relation-cards-v1b-validates-schema-audit.json",
+        "docs/proofs/_repro/guard_relation_validates_schema_audit.py"
       ]
     }
   ]

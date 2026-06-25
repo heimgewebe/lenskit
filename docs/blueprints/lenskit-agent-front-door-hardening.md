@@ -882,9 +882,11 @@ Goldsets zurückgestellt.
 
 **Target-Proof `validates_schema`:** diagnosis-only untersucht in
 `docs/proofs/guard-relation-cards-v1b-validates-schema-target-proof.md`.
-Der Proof trennt direkte und delegierte Instanzvalidierung von
-Schema-Metavalidierung, Load-only- und Reference-only-Fällen.
-Eine Contract- oder Persistenzentscheidung wird nicht vorweggenommen.
+Der Proof dokumentiert reproduzierbare Instanzvalidierungs-Flows,
+Schema-Meta-Guards, bedingte Schemaauswahl und externe Zielpfade.
+Ein persistierter Contract wird mangels verbindlichem Consumer und belegtem
+Persistenzvorteil zurückgestellt. Die übrigen Guard-Relation-Kandidaten
+wurden dadurch nicht bewertet.
 
 **Ziel:** Tests und Guards formal mit Code, Contracts und Surfaces verbinden.
 
