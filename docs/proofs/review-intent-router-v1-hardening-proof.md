@@ -37,6 +37,8 @@ Regression tests cover:
 
 The pre-commit focused suite passed 89 retrieval, evaluation, graph, audit, schema, and compatibility tests. Ruff and `git diff --check` passed for the changed surface.
 
+The regenerated clean snapshot is bound to bundle manifest SHA-256 `5a503d05a6dbd38ca5574659436b711dd41887e24cf80b828ec83b33908c19b5` and implementation commit `f1d34debaae6bbce0ce74803b2747ee41bfab931`. All nine gates pass. Query Recall is 100%, while expected-target recall is explicitly reported as 50% (30 of 60), preventing those two measurements from being conflated.
+
 ## Does not establish
 
 - Retrieval results are relevant, correct, sufficient, or complete.
