@@ -400,6 +400,27 @@
         "No CLI, service API, bundle, manifest, or consumer integration.",
         "The commit-bound goldset audit does not establish quality for unmeasured query classes."
       ]
+    },
+    {
+      "id": "TASK-RETRIEVAL-REVIEW-INTENT-HARDEN-002",
+      "title": "Review-Intent Router v1 candidate/provenance hardening",
+      "status": "in-progress",
+      "description": "Hardens the merged opt-in Review-Intent Router with adaptive unique-path candidate collection, truthful legacy fallback accounting, manifest-bound audit provenance, and global/per-category expected-target recall gates. The legacy default query path remains unchanged; default promotion and CLI/service/bundle/consumer integration remain outside this slice.",
+      "evidence": [
+        "merger/lenskit/retrieval/review_query.py",
+        "merger/lenskit/retrieval/eval_core.py",
+        "merger/lenskit/retrieval/review_eval.py",
+        "merger/lenskit/contracts/retrieval-eval.v1.schema.json",
+        "scripts/proofs/review_intent_router_audit.py",
+        "merger/lenskit/tests/test_review_query_hardening.py",
+        "merger/lenskit/tests/test_review_intent_router_audit.py",
+        "docs/proofs/review-intent-router-v1-hardening-proof.md"
+      ],
+      "missing_evidence": [
+        "Commit-bound regenerated audit artifact for the hardened implementation.",
+        "Default promotion is not approved; default_promoted remains false.",
+        "No CLI, service API, bundle emission, manifest consumer, or retrieval default integration."
+      ]
     }
   ]
 }
