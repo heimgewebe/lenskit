@@ -51,7 +51,6 @@ def _write_current_sources(base_path, run_id: str, sha256: str) -> None:
 
 def test_bundle_manifest_graph_uses_current_bundle_provenance(tmp_path, monkeypatch):
     import merger.lenskit.core.merge as merge_mod
-    from merger.lenskit.core.merge import ExtrasConfig, scan_repo, write_reports_v2
     from merger.lenskit.tests._test_constants import make_generator_info
 
     repo_dir = tmp_path / "repo1"
@@ -95,10 +94,10 @@ def test_bundle_manifest_graph_uses_current_bundle_provenance(tmp_path, monkeypa
 
     monkeypatch.setattr(merge_mod, "build_derived_artifacts", build_with_current_sources)
 
-    artifacts = write_reports_v2(
+    artifacts = merge_mod.write_reports_v2(
         merges_dir=merges_dir,
         hub=hub,
-        repo_summaries=[scan_repo(repo_dir)],
+        repo_summaries=[merge_mod.scan_repo(repo_dir)],
         detail="full",
         mode="unified",
         max_bytes=100000,
@@ -106,7 +105,7 @@ def test_bundle_manifest_graph_uses_current_bundle_provenance(tmp_path, monkeypa
         code_only=False,
         split_size=0,
         debug=True,
-        extras=ExtrasConfig.from_csv("architecture")[0],
+        extras=merge_mod.ExtrasConfig.from_csv("architecture")[0],
         output_mode="dual",
         generator_info=make_generator_info(),
     )
@@ -127,7 +126,6 @@ def test_bundle_manifest_graph_uses_current_bundle_provenance(tmp_path, monkeypa
     assert graph_entry["canonicality"] == "derived"
     assert graph_entry["regenerable"] is True
     assert graph_entry["staleness_sensitive"] is True
-
 
     eval_entries = [
         artifact
