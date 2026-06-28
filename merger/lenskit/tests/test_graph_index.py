@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from merger.lenskit.architecture import graph_index as graph_index_module
 from merger.lenskit.architecture import graph_source_validation
 from merger.lenskit.architecture.graph_index import (
     GraphIndexCompilationError,
@@ -67,6 +68,21 @@ def _entrypoints(run_id="run-1", sha=SHA_A):
                 "evidence_level": "S1",
             }
         ],
+    }
+
+
+def _graph_index(run_id="run-1", sha=SHA_A):
+    return {
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": run_id,
+        "canonical_dump_index_sha256": sha,
+        "distances": {},
+        "metrics": {
+            "entrypoint_count": 0,
+            "nodes_reachable": 0,
+            "unreachable_nodes": 0,
+        },
     }
 
 
@@ -206,6 +222,30 @@ def test_graph_loader_keeps_existing_status_contract(tmp_path):
     invalid = tmp_path / "invalid.json"
     invalid.write_text('{"distances": {}}', encoding="utf-8")
     assert load_graph_index(tmp_path, "invalid.json")["status"] == "invalid_schema"
+
+
+def test_graph_loader_fails_closed_without_jsonschema(tmp_path, monkeypatch):
+    graph_path = tmp_path / "graph-index.json"
+    graph_path.write_text(json.dumps(_graph_index()), encoding="utf-8")
+    monkeypatch.setattr(graph_index_module, "jsonschema", None)
+
+    result = load_graph_index(tmp_path, graph_path.name)
+
+    assert result == {"status": "validation_unavailable", "graph": None}
+
+
+def test_graph_loader_fails_closed_without_schema_file(tmp_path, monkeypatch):
+    graph_path = tmp_path / "graph-index.json"
+    graph_path.write_text(json.dumps(_graph_index()), encoding="utf-8")
+    monkeypatch.setattr(
+        graph_index_module,
+        "_GRAPH_INDEX_SCHEMA_PATH",
+        tmp_path / "missing.schema.json",
+    )
+
+    result = load_graph_index(tmp_path, graph_path.name)
+
+    assert result == {"status": "validation_unavailable", "graph": None}
 
 
 def test_graph_loader_rejects_absolute_path(tmp_path):
