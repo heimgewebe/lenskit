@@ -2,7 +2,7 @@
 
 ## Scope
 
-This audit records the implemented Architecture Graph surface on `origin/main` at commit `6f3e4e01`. It changes no producer, contract, ranking rule, bundle surface, or default. It does not establish runtime causality or graph completeness.
+This audit records the implemented Architecture Graph surface on the clean `origin/main` base commit `6f3e4e01`. It is a commit-pinned diagnosis, not a self-updating description of later PR heads. It changes no producer, contract, ranking rule, bundle surface, or default. It does not establish runtime causality or graph completeness.
 
 ## Executive finding
 
@@ -34,7 +34,7 @@ The architecture CLI exposes `--entrypoints`, `--import-graph`, and `--graph-ind
 
 The normal merge path does not call the Graph or Entrypoints producers. It only compiles a Graph Index when sibling files named `<stem>.architecture_graph.json` and `<stem>.entrypoints.json` already exist. When compiled, the Graph Index is registered as `graph_index_json`, `authority=retrieval_index`, `canonicality=derived`, regenerable and staleness-sensitive. Integration tests cover registration and missing-prerequisite fallback.
 
-The uploaded full dump for this project contains no Graph Index artifact, consistent with the ordinary pipeline not producing the prerequisites.
+The historical bundle `lenskit-max-260626-2038`, generated from commit `05bbd0d608afa8faf581887a455d4dcf6fa15ae9`, contains no Graph Index artifact. It predates the audited commit `6f3e4e01`; therefore it is context only, not current-state evidence for this audit.
 
 ## Validation and stale behavior
 
