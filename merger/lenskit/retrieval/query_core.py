@@ -367,12 +367,11 @@ def execute_query(
         if graph_index_path:
             graph_root = index_path.resolve().parent
             if graph_index_path.is_absolute():
-                graph_resolved = graph_index_path.resolve()
-                if graph_resolved.parent != graph_root:
+                if graph_index_path.parent != graph_root:
                     raise RuntimeError(
                         "Graph Index and SQLite index must share one directory"
                     )
-                graph_relative_path = graph_resolved.name
+                graph_relative_path = graph_index_path.name
             else:
                 if graph_index_path.parent != Path("."):
                     raise RuntimeError(
