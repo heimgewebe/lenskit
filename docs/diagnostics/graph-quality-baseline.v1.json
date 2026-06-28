@@ -38,7 +38,7 @@
       },
       {
         "id": "absolute-from-test",
-        "source": "tests/test_service.py",
+        "source": "tests/service_case.py",
         "target": "core/service.py",
         "found": false
       },
@@ -83,7 +83,7 @@
         "found": false
       },
       {
-        "path": "tests/test_service.py",
+        "path": "tests/service_case.py",
         "expected": "test",
         "actual": "unknown",
         "found": false

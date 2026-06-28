@@ -37,6 +37,14 @@ def test_goldset_references_existing_fixture_sources():
         assert case["import_form"] in source
 
 
+def test_fixture_python_files_are_not_pytest_collectable():
+    _, fixture_root = _load()
+
+    for path in fixture_root.rglob("*.py"):
+        assert not path.name.startswith("test_")
+        assert not path.name.endswith("_test.py")
+
+
 def test_goldset_has_nontrivial_coverage():
     goldset, _ = _load()
 
@@ -104,7 +112,7 @@ def test_baseline_exposes_case_level_gaps():
         "cli/main.py",
         "core/service.py",
         "core/utils.py",
-        "tests/test_service.py",
+        "tests/service_case.py",
         "scripts/worker.py",
     }
 

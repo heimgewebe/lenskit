@@ -17,7 +17,7 @@
     },
     {
       "id": "absolute-from-test",
-      "source": "tests/test_service.py",
+      "source": "tests/service_case.py",
       "target": "core/service.py",
       "import_form": "from core.service import run"
     },
@@ -54,7 +54,7 @@
       "expected": "core"
     },
     {
-      "path": "tests/test_service.py",
+      "path": "tests/service_case.py",
       "expected": "test"
     },
     {
