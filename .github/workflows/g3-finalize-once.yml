@@ -62,6 +62,6 @@ jobs:
           rm -f g3-patch.log g3-tests.log
           git config user.name lenskit-g3-finalizer
           git config user.email lenskit-g3-finalizer@users.noreply.github.com
-          git add -A
+          git add merger docs scripts
           git commit -m "feat(graph): produce bundle-bound sources for single repos"
           git push origin HEAD:feat/graph-bundle-source-production
