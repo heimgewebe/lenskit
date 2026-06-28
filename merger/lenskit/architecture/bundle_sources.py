@@ -85,8 +85,9 @@ def _eligible_python_paths(chunk_index_path: Path, repo_name: str) -> tuple[str,
                     )
                 normalized = rel_path.as_posix()
                 source_range = item.get("source_range")
-                source_declared = not isinstance(source_range, Mapping) or (
-                    source_range.get("status") == "declared"
+                source_declared = (
+                    isinstance(source_range, Mapping)
+                    and source_range.get("status") == "declared"
                 )
                 full_contact = (
                     item.get("source_status", "full") == "full"
@@ -215,4 +216,5 @@ def ensure_bundle_graph_sources(
             f"failed to produce bundle-bound graph sources: {exc}"
         ) from exc
 
-    return BundleGraphSources(graph_path, entrypoints_path, "produced")
+    reason = None if selected_paths else "no eligible full-contact Python sources"
+    return BundleGraphSources(graph_path, entrypoints_path, "produced", reason)
