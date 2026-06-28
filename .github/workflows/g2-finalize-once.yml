@@ -37,7 +37,7 @@ jobs:
       - name: Apply deterministic G2 finalization
         run: |
           set -o pipefail
-          python3 scripts/finalize_graph_g2_once.py 2>&1 | tee g2-finalizer.log
+          python3 scripts/finalize_graph_g2_once_v2.py 2>&1 | tee g2-finalizer.log
 
       - name: Upload finalizer diagnostics
         if: always()
@@ -91,7 +91,9 @@ jobs:
       - name: Remove one-time machinery
         run: |
           rm scripts/finalize_graph_g2_once.py
+          rm scripts/finalize_graph_g2_once_v2.py
           rm .github/workflows/g2-finalize-once.yml
+          rm -f g2-finalizer.log
 
       - name: Commit verified finalization
         run: |
