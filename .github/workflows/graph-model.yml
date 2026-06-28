@@ -21,6 +21,7 @@ name: Graph Model
       - "merger/lenskit/tests/test_graph_e2e.py"
       - "merger/lenskit/tests/test_graph_rerank.py"
       - "merger/lenskit/tests/test_graph_eval.py"
+      - "merger/lenskit/tests/test_retrieval_query.py"
       - "docs/architecture/graph-runtime-contract.md"
       - "docs/diagnostics/graph-current-state-audit.md"
       - "docs/proofs/graph-provenance-coherent-compilation-proof.md"
@@ -49,6 +50,7 @@ name: Graph Model
       - "merger/lenskit/tests/test_graph_e2e.py"
       - "merger/lenskit/tests/test_graph_rerank.py"
       - "merger/lenskit/tests/test_graph_eval.py"
+      - "merger/lenskit/tests/test_retrieval_query.py"
       - "docs/architecture/graph-runtime-contract.md"
       - "docs/diagnostics/graph-current-state-audit.md"
       - "docs/proofs/graph-provenance-coherent-compilation-proof.md"
@@ -122,6 +124,7 @@ jobs:
             merger/lenskit/tests/test_graph_e2e.py \
             merger/lenskit/tests/test_graph_rerank.py \
             merger/lenskit/tests/test_graph_eval.py \
+            merger/lenskit/tests/test_retrieval_query.py \
             2>&1 | tee graph-model-tests.log
 
       - name: Upload failing test diagnostics
@@ -139,9 +142,12 @@ jobs:
             merger/lenskit/architecture/graph_index.py \
             merger/lenskit/architecture/graph_source_validation.py \
             merger/lenskit/cli/cmd_architecture.py \
+            merger/lenskit/retrieval/query_core.py \
             merger/lenskit/tests/test_graph_index.py \
             merger/lenskit/tests/test_graph_bundle_integration.py \
             merger/lenskit/tests/test_graph_bundle_manifest_provenance.py \
             merger/lenskit/tests/test_cli_architecture_graph_index.py \
             merger/lenskit/tests/test_graph_current_state_audit.py \
-            merger/lenskit/tests/test_graph_e2e.py
+            merger/lenskit/tests/test_graph_e2e.py \
+            merger/lenskit/tests/test_graph_rerank.py \
+            merger/lenskit/tests/test_retrieval_query.py

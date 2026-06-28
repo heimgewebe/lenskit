@@ -79,3 +79,7 @@ This slice does not establish:
 - automatic source-artifact production;
 - default Graph Index use in retrieval;
 - regression absence outside the executed checks.
+
+## Retrieval path boundary
+
+An explicitly selected Graph Index is constrained to the SQLite index artifact directory. The query runtime performs only lexical checks on the caller value and passes a filename to the root-bounded loader. This prevents an arbitrary caller-controlled path from reaching the file-open expression while preserving explicit missing-file errors and diagnostic fallback for invalid graph contents.
