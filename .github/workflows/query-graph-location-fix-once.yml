@@ -1,0 +1,86 @@
+---
+name: Query Graph Location Fix Once
+
+"on":
+  push:
+    branches:
+      - fix/graph-provenance-coherence
+    paths:
+      - ".github/workflows/query-graph-location-fix-once.yml"
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/graph-provenance-coherence
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bind Graph Index to index directory
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          file = Path("merger/lenskit/retrieval/query_core.py")
+          text = file.read_text(encoding="utf-8")
+          old = '''        if graph_index_path:
+              if not graph_index_path.exists():
+                  raise RuntimeError(f"Explicitly provided graph index file does not exist: {graph_index_path}")
+              res = load_graph_index(graph_index_path, expected_sha256=expected_sha256)
+          '''.replace("          ", "")
+          new = '''        if graph_index_path:
+              graph_root = index_path.resolve().parent
+              graph_resolved = graph_index_path.resolve()
+              if graph_resolved.parent != graph_root:
+                  raise RuntimeError(
+                      "Graph Index and SQLite index must share one directory"
+                  )
+              res = load_graph_index(
+                  graph_root,
+                  graph_resolved.name,
+                  expected_sha256=expected_sha256,
+              )
+          '''.replace("          ", "")
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one loader block, found {text.count(old)}")
+          file.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Install dependencies
+        run: |
+          pip install -r merger/lenskit/requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Verify
+        run: |
+          python -m pytest -q \
+            merger/lenskit/tests/test_graph_index.py \
+            merger/lenskit/tests/test_graph_rerank.py \
+            merger/lenskit/tests/test_graph_e2e.py \
+            merger/lenskit/tests/test_retrieval_query.py
+          ruff check \
+            merger/lenskit/architecture/graph_index.py \
+            merger/lenskit/retrieval/query_core.py \
+            merger/lenskit/tests/test_graph_index.py
+          git diff --check
+
+      - name: Commit verified query boundary
+        run: |
+          set -euo pipefail
+          git config user.name "lenskit-g2-finalizer"
+          git config user.email "lenskit-g2-finalizer@users.noreply.github.com"
+          git add merger/lenskit/retrieval/query_core.py
+          git commit -m "fix(graph): bind retrieval graph to index directory"
+          git push origin HEAD:fix/graph-provenance-coherence
