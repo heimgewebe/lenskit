@@ -8,6 +8,7 @@ try:
 except ImportError:
     jsonschema = None
 
+from ..core.path_security import resolve_secure_path
 from .graph_source_validation import (
     GraphIndexCompilationError,
     load_source,
@@ -18,10 +19,17 @@ logger = logging.getLogger(__name__)
 
 
 def load_graph_index(
-    path: Path,
+    root: Path,
+    relative_path: str,
     expected_sha256: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Load and validate a graph index while preserving the status contract."""
+    """Load a graph index through a root-bounded relative path."""
+
+    try:
+        path = resolve_secure_path(root, relative_path)
+    except ValueError as exc:
+        logger.warning("Graph index path rejected: %s", exc)
+        return {"status": "invalid_path", "graph": None}
 
     if not path.exists():
         return {"status": "not_found", "graph": None}
