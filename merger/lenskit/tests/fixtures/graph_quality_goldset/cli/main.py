@@ -1,0 +1,6 @@
+from core.service import run
+import requests
+
+
+if __name__ == "__main__":
+    run()
