@@ -2,8 +2,10 @@
 
 ## Status and purpose
 
-This document is the normative boundary for Lenskit's deterministic core. It is
-an architecture contract, not runtime evidence, a bundle artifact, a health
+This document is the normative boundary for Lenskit's promoted/default
+deterministic execution path and its authoritative artifacts. It is not a claim
+that every module currently present in the repository belongs to that core. It
+is an architecture contract, not runtime evidence, a bundle artifact, a health
 report, a review result, or proof that an implementation matches the contract.
 Concrete claims must still resolve to the current repository and, for a bundle,
 to its `canonical_md` and associated provenance.
@@ -102,7 +104,8 @@ validation into a successful full validation.
 
 ## Core exclusions
 
-The deterministic core does not contain or require:
+The promoted/default deterministic core path does not invoke, depend on, or use
+as authority:
 
 - LLM inference or LLM advisory decisions;
 - embeddings;
@@ -114,8 +117,11 @@ The deterministic core does not contain or require:
 - automatic commits, branches, pull requests, merges, or CI approval;
 - a repository mirror, worktree manager, or writable MCP control plane.
 
-Read-only adapters may later expose existing artifacts, but an adapter must not
-become a second source of truth or a hidden mutation layer.
+Existing opt-in semantic/embedding compatibility paths are outside this core
+boundary. Their presence in the repository does not make them core dependencies
+or eligible for default promotion. Read-only adapters may later expose existing
+artifacts, but an adapter must not become a second source of truth or a hidden
+mutation layer.
 
 ## Change gates
 
@@ -132,7 +138,8 @@ A change belongs in the deterministic core only when all applicable gates hold:
 6. **Provenance gate:** snapshot-bound claims bind to the relevant manifest,
    hashes, ranges, and source state.
 7. **Scope gate:** no review verdict, patch automation, LLM, embedding, or hidden
-   network dependency enters under a navigation or diagnostic label.
+   network dependency enters the promoted deterministic core under a navigation
+   or diagnostic label.
 
 ## Existing controlled surfaces
 
