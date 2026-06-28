@@ -129,6 +129,25 @@ def test_bundle_manifest_graph_uses_current_bundle_provenance(tmp_path, monkeypa
     assert graph_entry["regenerable"] is True
     assert graph_entry["staleness_sensitive"] is True
 
+
+    source_expectations = {
+        ArtifactRole.ARCHITECTURE_GRAPH_JSON.value: "architecture.graph",
+        ArtifactRole.ENTRYPOINTS_JSON.value: "entrypoints",
+    }
+    for role, contract_id in source_expectations.items():
+        entries = [
+            artifact
+            for artifact in manifest["artifacts"]
+            if artifact.get("role") == role
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry["contract"] == {"id": contract_id, "version": "v1"}
+        assert entry["authority"] == "diagnostic_signal"
+        assert entry["canonicality"] == "diagnostic"
+        assert entry["regenerable"] is True
+        assert entry["staleness_sensitive"] is True
+
     eval_entries = [
         artifact
         for artifact in manifest["artifacts"]

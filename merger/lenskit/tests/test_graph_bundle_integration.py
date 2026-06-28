@@ -3,6 +3,8 @@ import json
 
 import pytest
 
+from merger.lenskit.architecture import bundle_sources
+from merger.lenskit.architecture.bundle_sources import BundleGraphSourceError
 from merger.lenskit.architecture.graph_index import GraphIndexCompilationError
 from merger.lenskit.core.constants import ArtifactRole
 from merger.lenskit.core.merge import build_derived_artifacts
@@ -160,6 +162,19 @@ def test_graph_bundle_auto_produces_bound_sources_for_single_repo(tmp_path):
         "if __name__ == '__main__':\n    print('hello')\n",
         encoding="utf-8",
     )
+    args["chunk_path"].write_text(
+        json.dumps(
+            {
+                "repo": "repo1",
+                "path": "main.py",
+                "source_status": "full",
+                "truncated": False,
+                "source_range": {"status": "declared"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     args["repo_summaries"] = [{"root": repo_root, "name": "repo1"}]
 
     derived_paths = build_derived_artifacts(**args)
@@ -175,7 +190,10 @@ def test_graph_bundle_auto_produces_bound_sources_for_single_repo(tmp_path):
     assert graph["run_id"] == entrypoints["run_id"] == "test_run"
     assert graph["canonical_dump_index_sha256"] == dump_sha
     assert entrypoints["canonical_dump_index_sha256"] == dump_sha
-    assert graph["nodes"][0]["repo"] == "repo1"
+    file_nodes = [node for node in graph["nodes"] if node["kind"] == "file"]
+    assert [(node["path"], node["repo"]) for node in file_nodes] == [
+        ("main.py", "repo1")
+    ]
     compiled = json.loads(graph_index.read_text(encoding="utf-8"))
     assert compiled["distances"]["file:main.py"] == 0
     derived = json.loads(
@@ -183,3 +201,17 @@ def test_graph_bundle_auto_produces_bound_sources_for_single_repo(tmp_path):
     )
     assert ArtifactRole.ARCHITECTURE_GRAPH_JSON.value in derived["artifacts"]
     assert ArtifactRole.ENTRYPOINTS_JSON.value in derived["artifacts"]
+
+
+def test_graph_bundle_propagates_source_production_failure(tmp_path, monkeypatch):
+    base, _, args = _setup(tmp_path)
+
+    def fail_production(**kwargs):
+        raise BundleGraphSourceError("simulated source production failure")
+
+    monkeypatch.setattr(bundle_sources, "ensure_bundle_graph_sources", fail_production)
+
+    with pytest.raises(BundleGraphSourceError, match="simulated source production"):
+        build_derived_artifacts(**args)
+
+    assert not base.with_suffix(".graph_index.json").exists()

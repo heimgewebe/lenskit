@@ -13,6 +13,12 @@ receive the actual bundle run ID and finalized dump-index SHA-256. The graph's
 `generated_at` is replaced with the merge clock value, and file nodes carry the
 repository name.
 
+The producer derives its Python source set from the emitted chunk index rather
+than rescanning the complete repository. Only paths with full source contact,
+without truncation and with declared source coordinates, are materialized into a
+temporary filtered tree for static analysis. Redacted, truncated, unverifiable,
+or out-of-scope files cannot silently influence the retrieval Graph Index.
+
 Existing source pairs remain supported. Partial pairs are not silently repaired;
 the provenance-coherent compiler fails closed. Multi-repository automatic
 production is explicitly skipped because the current Graph Index identity uses

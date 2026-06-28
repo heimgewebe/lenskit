@@ -5024,7 +5024,10 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
     entrypoints_path = None
     graph_index_path = None
     try:
-        from ..architecture.bundle_sources import ensure_bundle_graph_sources
+        from ..architecture.bundle_sources import (
+            BundleGraphSourceError,
+            ensure_bundle_graph_sources,
+        )
         from ..architecture.graph_index import (
             GraphIndexCompilationError,
             compile_graph_index,
@@ -5034,6 +5037,7 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
         dump_sha256 = _compute_file_sha256(dump_index_path)
         source_result = ensure_bundle_graph_sources(
             base_path=base_path,
+            chunk_index_path=chunk_path,
             repo_summaries=repo_summaries,
             run_id=run_id,
             canonical_dump_index_sha256=dump_sha256,
@@ -5041,6 +5045,12 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
         )
         architecture_graph_path = source_result.graph_path
         entrypoints_path = source_result.entrypoints_path
+        if debug and source_result.reason:
+            print(
+                f"Graph source production {source_result.status}: "
+                f"{source_result.reason}",
+                file=sys.stderr,
+            )
 
         for source_path in (architecture_graph_path, entrypoints_path):
             if source_path.exists() and source_path not in derived_paths:
@@ -5065,11 +5075,12 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
                 f"Skipping graph artifacts: architecture modules not available ({e})",
                 file=sys.stderr,
             )
-    except GraphIndexCompilationError:
+    except (BundleGraphSourceError, GraphIndexCompilationError):
         raise
     except Exception as e:
         if debug:
             print(f"Error producing graph artifacts: {e}", file=sys.stderr)
+        raise
 
     # Write Derived Manifest
     derived_map = {}
@@ -5994,7 +6005,8 @@ def write_reports_v2(
             if output_mode in ("retrieval", "dual") and chunk_path:
                 # Build derived/transient retrieval artifacts AFTER dump_index is finalized
                 derived_paths = build_derived_artifacts(
-                    dump_index_path, chunk_path, base_name_func, repo_run_id, hub, generator_info, [s_name], debug, repo_summaries=[s]
+                    dump_index_path, chunk_path, base_name_func, repo_run_id, hub, generator_info, [s_name], debug,
+                    repo_summaries=[s] if len(repo_summaries) == 1 else None,
                 )
                 out_paths.extend(derived_paths)
 

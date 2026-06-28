@@ -62,24 +62,15 @@
               "description": "Dotted import path of the core generator module that produced the bundle."
             },
             "module_file": {
-              "type": [
-                "string",
-                "null"
-              ],
+              "type": ["string", "null"],
               "description": "Absolute filesystem path of the generator module. Null when redacted."
             },
             "package_root": {
-              "type": [
-                "string",
-                "null"
-              ],
+              "type": ["string", "null"],
               "description": "Filesystem root of the installed generator package. Null when redacted."
             },
             "python_executable": {
-              "type": [
-                "string",
-                "null"
-              ],
+              "type": ["string", "null"],
               "description": "Interpreter that ran the generator. Null when redacted."
             },
             "python_version": {
@@ -87,17 +78,11 @@
               "description": "Python version string of the generating interpreter."
             },
             "git_commit": {
-              "type": [
-                "string",
-                "null"
-              ],
+              "type": ["string", "null"],
               "description": "Git commit of the generator package working tree, or null if unavailable."
             },
             "git_dirty": {
-              "type": [
-                "boolean",
-                "null"
-              ],
+              "type": ["boolean", "null"],
               "description": "Whether the generator package working tree had uncommitted changes, or null if unavailable."
             }
           },
@@ -470,9 +455,7 @@
                 }
               },
               "not": {
-                "required": [
-                  "risk_class"
-                ]
+                "required": ["risk_class"]
               }
             }
           },
@@ -601,9 +584,7 @@
                 }
               },
               "not": {
-                "required": [
-                  "risk_class"
-                ]
+                "required": ["risk_class"]
               }
             }
           },
