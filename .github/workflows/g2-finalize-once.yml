@@ -56,6 +56,7 @@ jobs:
 
       - name: Focused graph tests
         run: |
+          set -o pipefail
           python -m pytest -q \
             merger/lenskit/tests/test_graph_index.py \
             merger/lenskit/tests/test_graph_bundle_integration.py \
@@ -64,7 +65,17 @@ jobs:
             merger/lenskit/tests/test_graph_current_state_audit.py \
             merger/lenskit/tests/test_graph_e2e.py \
             merger/lenskit/tests/test_graph_rerank.py \
-            merger/lenskit/tests/test_graph_eval.py
+            merger/lenskit/tests/test_graph_eval.py \
+            2>&1 | tee g2-tests.log
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g2-test-diagnostics
+          path: g2-tests.log
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Ruff
         run: |
@@ -94,7 +105,7 @@ jobs:
           rm scripts/finalize_graph_g2_once_v2.py
           rm scripts/finalize_graph_g2_once_v3.py
           rm .github/workflows/g2-finalize-once.yml
-          rm -f g2-finalizer.log
+          rm -f g2-finalizer.log g2-tests.log
 
       - name: Commit verified finalization
         run: |
