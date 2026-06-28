@@ -22,7 +22,19 @@ def test_source_roots_example_validates():
 
 @pytest.mark.parametrize(
     "root",
-    ["", ".", "./src", "../src", "src/../pkg", "/src", "src\\pkg", "src//pkg"],
+    [
+        "",
+        ".",
+        "./src",
+        "../src",
+        "src/./pkg",
+        "src/../pkg",
+        "src/.",
+        "/src",
+        "src\\pkg",
+        "src//pkg",
+        "src/",
+    ],
 )
 def test_source_roots_reject_noncanonical_paths(root):
     payload = {
