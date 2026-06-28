@@ -22,6 +22,8 @@ The Graph Index compiler previously loaded `architecture.graph.v1` and `entrypoi
 
 If `jsonschema` is unavailable, compilation fails closed. It does not emit a supposedly validated Graph Index under degraded validation capability.
 
+The retrieval loader also fails closed when validation support or its packaged schema is unavailable, returning `validation_unavailable` and no graph object.
+
 ## Diagnostics
 
 `GraphIndexCompilationError` exposes deterministic machine-readable fields:
