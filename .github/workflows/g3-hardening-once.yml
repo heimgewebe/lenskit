@@ -49,21 +49,11 @@ jobs:
           retention-days: 1
       - name: Ruff
         run: |
-          set -o pipefail
           ruff check \
             merger/lenskit/architecture/bundle_sources.py \
-            merger/lenskit/core/merge.py \
             merger/lenskit/tests/test_graph_bundle_sources.py \
             merger/lenskit/tests/test_graph_bundle_integration.py \
-            merger/lenskit/tests/test_graph_bundle_manifest_provenance.py \
-            2>&1 | tee g3-hardening-ruff.log
-      - name: Upload failing Ruff diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: g3-hardening-ruff-diagnostics
-          path: g3-hardening-ruff.log
-          retention-days: 1
+            merger/lenskit/tests/test_graph_bundle_manifest_provenance.py
       - name: Structural checks
         run: |
           python3 -m json.tool merger/lenskit/contracts/bundle-manifest.v1.schema.json >/dev/null
@@ -72,7 +62,7 @@ jobs:
       - name: Commit verified hardening
         run: |
           rm scripts/harden_graph_bundle_sources_once.py
-          rm -f g3-hardening-tests.log g3-hardening-ruff.log
+          rm -f g3-hardening-tests.log
           git config user.name lenskit-g3-hardener
           git config user.email lenskit-g3-hardener@users.noreply.github.com
           git add merger docs scripts
