@@ -4,18 +4,10 @@
   "title": "Lenskit Architecture Source Roots v1",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "kind",
-    "version",
-    "roots"
-  ],
+  "required": ["kind", "version", "roots"],
   "properties": {
-    "kind": {
-      "const": "lenskit.architecture.source_roots"
-    },
-    "version": {
-      "const": "1.0"
-    },
+    "kind": {"const": "lenskit.architecture.source_roots"},
+    "version": {"const": "1.0"},
     "roots": {
       "type": "array",
       "minItems": 1,
@@ -23,7 +15,13 @@
       "items": {
         "type": "string",
         "minLength": 1,
-        "pattern": "^(?!/)(?!\\./)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.\\.(?:/|$))(?!\\.$).+$"
+        "allOf": [
+          {"not": {"pattern": "^/"}},
+          {"not": {"pattern": "\\\\"}},
+          {"not": {"pattern": "//"}},
+          {"not": {"pattern": "(^|/)\\.{1,2}(/|$)"}},
+          {"not": {"pattern": "/$"}}
+        ]
       }
     }
   }
