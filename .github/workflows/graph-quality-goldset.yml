@@ -77,3 +77,18 @@ jobs:
 
       - name: Structural checks
         run: git diff --check
+
+      - name: Generate task registration preview
+        run: |
+          python3 scripts/register_graph_goldset_v2.py
+          python3 -m json.tool docs/tasks/index.json >/dev/null
+          git diff --check
+
+      - name: Upload task registration preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-goldset-task-registration
+          path: |
+            docs/tasks/board.md
+            docs/tasks/index.json
+          retention-days: 1
