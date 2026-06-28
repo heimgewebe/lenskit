@@ -6,6 +6,13 @@ on:
       - fix/graph-provenance-coherence
     paths:
       - .github/workflows/g2-finalize-once.yml
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
