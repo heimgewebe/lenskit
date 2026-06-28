@@ -1,0 +1,46 @@
+name: G3 Finalize Once
+
+on:
+  push:
+    branches: [feat/graph-bundle-source-production]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/graph-bundle-source-production
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/finalize_graph_bundle_sources_once.py
+      - run: |
+          pip install -r merger/lenskit/requirements.txt
+          pip install -r requirements-dev.txt
+      - run: |
+          python -m pytest -q \
+            merger/lenskit/tests/test_graph_bundle_sources.py \
+            merger/lenskit/tests/test_graph_bundle_integration.py \
+            merger/lenskit/tests/test_graph_bundle_manifest_provenance.py \
+            merger/lenskit/tests/test_graph_index.py \
+            merger/lenskit/tests/test_graph_e2e.py
+          ruff check \
+            merger/lenskit/architecture/bundle_sources.py \
+            merger/lenskit/core/constants.py \
+            merger/lenskit/tests/test_graph_bundle_sources.py \
+            merger/lenskit/tests/test_graph_bundle_integration.py
+          python3 -m json.tool docs/tasks/index.json >/dev/null
+          git diff --check
+      - run: |
+          rm scripts/finalize_graph_bundle_sources_once.py
+          git config user.name lenskit-g3-finalizer
+          git config user.email lenskit-g3-finalizer@users.noreply.github.com
+          git add -A
+          git commit -m "feat(graph): produce bundle-bound sources for single repos"
+          git push origin HEAD:feat/graph-bundle-source-production
