@@ -223,6 +223,8 @@ AGENT_CONTRACT_VERSION = "v2"
 ARTIFACT_CONTRACT_REGISTRY = {
     ArtifactRole.INDEX_SIDECAR_JSON: {"id": AGENT_CONTRACT_NAME, "version": AGENT_CONTRACT_VERSION},
     ArtifactRole.RETRIEVAL_EVAL_JSON: {"id": "retrieval-eval", "version": "v1"},
+    ArtifactRole.ARCHITECTURE_GRAPH_JSON: {"id": "architecture.graph", "version": "v1"},
+    ArtifactRole.ENTRYPOINTS_JSON: {"id": "entrypoints", "version": "v1"},
     ArtifactRole.GRAPH_INDEX_JSON: {"id": "architecture.graph_index", "version": "v1"},
     ArtifactRole.PR_DELTA_JSON: {"id": "pr-schau-delta", "version": "1.0"},
     ArtifactRole.CITATION_MAP_JSONL: {"id": "citation-map", "version": "v1"},
@@ -279,6 +281,20 @@ ARTIFACT_AUTHORITY_REGISTRY = {
         "staleness_sensitive": True,
     },
     ArtifactRole.OUTPUT_HEALTH: {
+        "authority": "diagnostic_signal",
+        "canonicality": "diagnostic",
+        "risk_class": "diagnostic",
+        "regenerable": True,
+        "staleness_sensitive": True,
+    },
+    ArtifactRole.ARCHITECTURE_GRAPH_JSON: {
+        "authority": "diagnostic_signal",
+        "canonicality": "diagnostic",
+        "risk_class": "diagnostic",
+        "regenerable": True,
+        "staleness_sensitive": True,
+    },
+    ArtifactRole.ENTRYPOINTS_JSON: {
         "authority": "diagnostic_signal",
         "canonicality": "diagnostic",
         "risk_class": "diagnostic",
@@ -4967,7 +4983,7 @@ def generate_derived_manifest(base_name_func, run_id, dump_sha256, artifacts_map
     out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
     return out_path
 
-def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug) -> List[Path]:
+def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug, repo_summaries=None) -> List[Path]:
     derived_paths = []
     sqlite_index_path = None
     eval_json_path = None
@@ -5003,34 +5019,57 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
         if debug:
             print(f"Skipping retrieval artifacts: retrieval modules not available ({e})", file=sys.stderr)
 
-    # Generate Graph Index Artifact
+    # Generate bundle-bound Graph source artifacts and compile the Graph Index.
+    architecture_graph_path = None
+    entrypoints_path = None
     graph_index_path = None
     try:
+        from ..architecture.bundle_sources import ensure_bundle_graph_sources
         from ..architecture.graph_index import (
             GraphIndexCompilationError,
             compile_graph_index,
         )
-        arch_graph_path = base_name_func(part_suffix="").with_suffix(".architecture_graph.json")
-        entrypoints_path = base_name_func(part_suffix="").with_suffix(".entrypoints.json")
 
-        if arch_graph_path.exists() or entrypoints_path.exists():
+        base_path = base_name_func(part_suffix="")
+        dump_sha256 = _compute_file_sha256(dump_index_path)
+        source_result = ensure_bundle_graph_sources(
+            base_path=base_path,
+            repo_summaries=repo_summaries,
+            run_id=run_id,
+            canonical_dump_index_sha256=dump_sha256,
+            generated_at=clock.now_utc().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        )
+        architecture_graph_path = source_result.graph_path
+        entrypoints_path = source_result.entrypoints_path
+
+        for source_path in (architecture_graph_path, entrypoints_path):
+            if source_path.exists() and source_path not in derived_paths:
+                derived_paths.append(source_path)
+
+        if architecture_graph_path.exists() or entrypoints_path.exists():
             graph_index_data = compile_graph_index(
-                arch_graph_path,
+                architecture_graph_path,
                 entrypoints_path,
                 expected_run_id=run_id,
-                expected_canonical_sha256=_compute_file_sha256(dump_index_path),
+                expected_canonical_sha256=dump_sha256,
             )
-            graph_index_path = base_name_func(part_suffix="").with_suffix(".graph_index.json")
-            graph_index_path.write_text(json.dumps(graph_index_data, indent=2, sort_keys=True), encoding="utf-8")
+            graph_index_path = base_path.with_suffix(".graph_index.json")
+            graph_index_path.write_text(
+                json.dumps(graph_index_data, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
             derived_paths.append(graph_index_path)
     except ImportError as e:
         if debug:
-            print(f"Skipping graph index artifact: architecture module not available ({e})", file=sys.stderr)
+            print(
+                f"Skipping graph artifacts: architecture modules not available ({e})",
+                file=sys.stderr,
+            )
     except GraphIndexCompilationError:
         raise
     except Exception as e:
         if debug:
-            print(f"Error compiling graph index artifact: {e}", file=sys.stderr)
+            print(f"Error producing graph artifacts: {e}", file=sys.stderr)
 
     # Write Derived Manifest
     derived_map = {}
@@ -5038,6 +5077,10 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
         derived_map[ArtifactRole.SQLITE_INDEX.value] = sqlite_index_path
     if eval_json_path and eval_json_path.exists():
         derived_map[ArtifactRole.RETRIEVAL_EVAL_JSON.value] = eval_json_path
+    if architecture_graph_path and architecture_graph_path.exists():
+        derived_map[ArtifactRole.ARCHITECTURE_GRAPH_JSON.value] = architecture_graph_path
+    if entrypoints_path and entrypoints_path.exists():
+        derived_map[ArtifactRole.ENTRYPOINTS_JSON.value] = entrypoints_path
     if graph_index_path and graph_index_path.exists():
         derived_map[ArtifactRole.GRAPH_INDEX_JSON.value] = graph_index_path
 
@@ -5822,7 +5865,7 @@ def write_reports_v2(
         if output_mode in ("retrieval", "dual") and chunk_path:
             # Build derived/transient retrieval artifacts AFTER dump_index is finalized
             derived_paths = build_derived_artifacts(
-                dump_index_path, chunk_path, base_name_func, run_id, hub, generator_info, repo_names, debug
+                dump_index_path, chunk_path, base_name_func, run_id, hub, generator_info, repo_names, debug, repo_summaries=repo_summaries
             )
             out_paths.extend(derived_paths)
 
@@ -5951,7 +5994,7 @@ def write_reports_v2(
             if output_mode in ("retrieval", "dual") and chunk_path:
                 # Build derived/transient retrieval artifacts AFTER dump_index is finalized
                 derived_paths = build_derived_artifacts(
-                    dump_index_path, chunk_path, base_name_func, repo_run_id, hub, generator_info, [s_name], debug
+                    dump_index_path, chunk_path, base_name_func, repo_run_id, hub, generator_info, [s_name], debug, repo_summaries=[s]
                 )
                 out_paths.extend(derived_paths)
 
@@ -5965,6 +6008,8 @@ def write_reports_v2(
         and not p.name.endswith(".dump_index.json")
         and not p.name.endswith(".derived_index.json")
         and not p.name.endswith(".retrieval_eval.json")
+        and not p.name.endswith(".architecture_graph.json")
+        and not p.name.endswith(".entrypoints.json")
     ]
 
     dump_indices = [p for p in out_paths if p.name.endswith(".dump_index.json")]
@@ -5972,6 +6017,8 @@ def write_reports_v2(
     # Extract specific derived artifacts
     sqlite_indices = sorted([p for p in out_paths if p.name.endswith(".index.sqlite")], key=lambda p: p.name)
     retrieval_evals = sorted([p for p in out_paths if p.name.endswith(".retrieval_eval.json")], key=lambda p: p.name)
+    architecture_graphs = sorted([p for p in out_paths if p.name.endswith(".architecture_graph.json")], key=lambda p: p.name)
+    entrypoint_documents = sorted([p for p in out_paths if p.name.endswith(".entrypoints.json")], key=lambda p: p.name)
     graph_indices = sorted([p for p in out_paths if p.name.endswith(".graph_index.json")], key=lambda p: p.name)
     derived_manifests = sorted([p for p in out_paths if p.name.endswith(".derived_index.json")], key=lambda p: p.name)
 
@@ -6099,6 +6146,18 @@ def write_reports_v2(
         _add_artifact(sqlite_indices[-1], ArtifactRole.SQLITE_INDEX, "application/octet-stream")
     if retrieval_evals:
         _add_artifact(retrieval_evals[-1], ArtifactRole.RETRIEVAL_EVAL_JSON, "application/json")
+    if architecture_graphs:
+        _add_artifact(
+            architecture_graphs[-1],
+            ArtifactRole.ARCHITECTURE_GRAPH_JSON,
+            "application/json",
+        )
+    if entrypoint_documents:
+        _add_artifact(
+            entrypoint_documents[-1],
+            ArtifactRole.ENTRYPOINTS_JSON,
+            "application/json",
+        )
     if graph_indices:
         _add_artifact(graph_indices[-1], ArtifactRole.GRAPH_INDEX_JSON, "application/json")
     if derived_manifests:

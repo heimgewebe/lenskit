@@ -78,6 +78,7 @@ def test_bundle_manifest_graph_uses_current_bundle_provenance(tmp_path, monkeypa
         generator_info,
         repo_names,
         debug,
+        repo_summaries=None,
     ):
         dump_sha = hashlib.sha256(dump_index_path.read_bytes()).hexdigest()
         _write_current_sources(base_name_func(part_suffix=""), run_id, dump_sha)
@@ -90,6 +91,7 @@ def test_bundle_manifest_graph_uses_current_bundle_provenance(tmp_path, monkeypa
             generator_info,
             repo_names,
             debug,
+            repo_summaries=repo_summaries,
         )
 
     monkeypatch.setattr(merge_mod, "build_derived_artifacts", build_with_current_sources)

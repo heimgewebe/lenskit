@@ -62,15 +62,24 @@
               "description": "Dotted import path of the core generator module that produced the bundle."
             },
             "module_file": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Absolute filesystem path of the generator module. Null when redacted."
             },
             "package_root": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Filesystem root of the installed generator package. Null when redacted."
             },
             "python_executable": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Interpreter that ran the generator. Null when redacted."
             },
             "python_version": {
@@ -78,11 +87,17 @@
               "description": "Python version string of the generating interpreter."
             },
             "git_commit": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Git commit of the generator package working tree, or null if unavailable."
             },
             "git_dirty": {
-              "type": ["boolean", "null"],
+              "type": [
+                "boolean",
+                "null"
+              ],
               "description": "Whether the generator package working tree had uncommitted changes, or null if unavailable."
             }
           },
@@ -117,6 +132,8 @@
               "retrieval_eval_json",
               "derived_manifest_json",
               "delta_json",
+              "architecture_graph_json",
+              "entrypoints_json",
               "graph_index_json",
               "architecture_summary",
               "output_health",
@@ -281,6 +298,8 @@
                     "index_sidecar_json",
                     "retrieval_eval_json",
                     "delta_json",
+                    "architecture_graph_json",
+                    "entrypoints_json",
                     "graph_index_json",
                     "architecture_summary"
                   ]
@@ -451,7 +470,9 @@
                 }
               },
               "not": {
-                "required": ["risk_class"]
+                "required": [
+                  "risk_class"
+                ]
               }
             }
           },
@@ -531,6 +552,35 @@
             }
           },
           {
+            "$comment": "lenskit.graph-source-roles",
+            "if": {
+              "properties": {
+                "role": {
+                  "enum": [
+                    "architecture_graph_json",
+                    "entrypoints_json"
+                  ]
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_signal"
+                },
+                "canonicality": {
+                  "const": "diagnostic"
+                },
+                "risk_class": {
+                  "const": "diagnostic"
+                }
+              }
+            }
+          },
+          {
             "if": {
               "properties": {
                 "role": {
@@ -551,7 +601,9 @@
                 }
               },
               "not": {
-                "required": ["risk_class"]
+                "required": [
+                  "risk_class"
+                ]
               }
             }
           },

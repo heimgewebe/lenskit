@@ -516,6 +516,23 @@
         "Automatic Graph and Entrypoints source production remains a separate G3 slice.",
         "No graph completeness, runtime causality, retrieval benefit, test sufficiency, or default-ranking claim is established."
       ]
+    },
+    {
+      "id": "TASK-GRAPH-BUNDLE-SOURCES-001",
+      "title": "Single-Repo Bundle-Bound Graph Sources",
+      "status": "done",
+      "description": "Produces architecture graph and entrypoint source artifacts with the current bundle identity for single-repository outputs.",
+      "evidence": [
+        "merger/lenskit/architecture/bundle_sources.py",
+        "merger/lenskit/core/merge.py",
+        "merger/lenskit/tests/test_graph_bundle_sources.py",
+        "merger/lenskit/tests/test_graph_bundle_integration.py",
+        "docs/proofs/graph-bundle-source-production-proof.md"
+      ],
+      "missing_evidence": [
+        "Multi-repository graph identity and aggregation remain out of scope.",
+        "No graph completeness, runtime causality, retrieval benefit, or default-ranking claim is established."
+      ]
     }
   ]
 }
