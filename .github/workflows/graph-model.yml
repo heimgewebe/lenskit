@@ -85,8 +85,10 @@ jobs:
       - name: Require jsonschema
         run: |
           python - <<'PY'
+          from importlib.metadata import version
           import jsonschema
-          print("jsonschema", jsonschema.__version__)
+
+          print("jsonschema", version("jsonschema"))
           PY
 
       - name: Validate graph schemas
@@ -102,13 +104,15 @@ jobs:
               Path("merger/lenskit/contracts/entrypoints.v1.schema.json"),
           )
           for path in paths:
-              schema = json.loads(path.read_text(encoding="utf-8"))
+              with path.open(encoding="utf-8") as handle:
+                  schema = json.load(handle)
               Draft7Validator.check_schema(schema)
               print(f"{path.name}: meta-valid")
           PY
 
       - name: Run graph model tests
         run: |
+          set -o pipefail
           python -m pytest -q \
             merger/lenskit/tests/test_graph_index.py \
             merger/lenskit/tests/test_graph_bundle_integration.py \
@@ -117,7 +121,17 @@ jobs:
             merger/lenskit/tests/test_graph_current_state_audit.py \
             merger/lenskit/tests/test_graph_e2e.py \
             merger/lenskit/tests/test_graph_rerank.py \
-            merger/lenskit/tests/test_graph_eval.py
+            merger/lenskit/tests/test_graph_eval.py \
+            2>&1 | tee graph-model-tests.log
+
+      - name: Upload failing test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-model-test-diagnostics
+          path: graph-model-tests.log
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Ruff
         run: |
