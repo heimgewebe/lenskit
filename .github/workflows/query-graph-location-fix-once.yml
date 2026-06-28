@@ -83,18 +83,34 @@ jobs:
           pip install -r merger/lenskit/requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Verify
+      - name: Run focused tests
         run: |
+          set -o pipefail
           python -m pytest -q \
             merger/lenskit/tests/test_graph_index.py \
             merger/lenskit/tests/test_graph_rerank.py \
             merger/lenskit/tests/test_graph_e2e.py \
-            merger/lenskit/tests/test_retrieval_query.py
+            merger/lenskit/tests/test_retrieval_query.py \
+            2>&1 | tee query-graph-tests.log
+
+      - name: Upload failing test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: query-graph-test-diagnostics
+          path: query-graph-tests.log
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Ruff
+        run: |
           ruff check \
             merger/lenskit/architecture/graph_index.py \
             merger/lenskit/retrieval/query_core.py \
             merger/lenskit/tests/test_graph_index.py
-          git diff --check
+
+      - name: Diff check
+        run: git diff --check
 
       - name: Commit verified query boundary
         run: |
