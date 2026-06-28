@@ -26,7 +26,7 @@ name: Graph Quality Goldset
       - ".github/workflows/graph-quality-goldset.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -37,64 +37,43 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feat/graph-goldset-v2
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: |
           pip install -r merger/lenskit/requirements.txt
           pip install -r requirements-dev.txt
+
       - name: Validate JSON surfaces
         run: |
           python3 -m json.tool docs/retrieval/graph_quality_goldset.v1.json >/dev/null
           python3 -m json.tool docs/diagnostics/graph-quality-baseline.v1.json >/dev/null
+
       - name: Run graph quality tests
         run: |
+          set -o pipefail
           python -m pytest -q \
             merger/lenskit/tests/test_graph_quality_goldset.py \
-            merger/lenskit/tests/test_architecture_import_graph.py
+            merger/lenskit/tests/test_architecture_import_graph.py \
+            2>&1 | tee graph-quality-goldset-tests.log
+
+      - name: Upload failing diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-quality-goldset-diagnostics
+          path: graph-quality-goldset-tests.log
+          if-no-files-found: warn
+          retention-days: 1
+
       - name: Ruff
         run: |
           ruff check \
             merger/lenskit/architecture/graph_quality_eval.py \
             merger/lenskit/tests/test_graph_quality_goldset.py
-      - name: Generate registration
-        run: |
-          python3 scripts/register_graph_goldset_v2.py
-          python3 -m json.tool docs/tasks/index.json >/dev/null
-          git diff --check
-      - name: Apply generated files and restore branch
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const branch = 'feat/graph-goldset-v2';
-            for (const path of ['docs/tasks/board.md', 'docs/tasks/index.json']) {
-              const current = await github.rest.repos.getContent({owner, repo, path, ref: branch});
-              await github.rest.repos.createOrUpdateFileContents({
-                owner, repo, path, branch,
-                sha: current.data.sha,
-                message: 'docs(tasks): register packaging edge-case goldset',
-                content: fs.readFileSync(path).toString('base64'),
-              });
-            }
-            const workflow = '.github/workflows/graph-quality-goldset.yml';
-            const currentWorkflow = await github.rest.repos.getContent({owner, repo, path: workflow, ref: branch});
-            const mainWorkflow = await github.rest.repos.getContent({owner, repo, path: workflow, ref: 'main'});
-            await github.rest.repos.createOrUpdateFileContents({
-              owner, repo, path: workflow, branch,
-              sha: currentWorkflow.data.sha,
-              message: 'ci: restore graph quality workflow',
-              content: mainWorkflow.data.content,
-            });
-            const helper = 'scripts/register_graph_goldset_v2.py';
-            const helperFile = await github.rest.repos.getContent({owner, repo, path: helper, ref: branch});
-            await github.rest.repos.deleteFile({
-              owner, repo, path: helper, branch,
-              sha: helperFile.data.sha,
-              message: 'chore: remove completed registration helper',
-            });
+
+      - name: Structural checks
+        run: git diff --check
