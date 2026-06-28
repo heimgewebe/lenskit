@@ -60,6 +60,7 @@ def test_produces_sources_from_full_contact_retrieval_paths(tmp_path):
     result = _ensure(tmp_path)
 
     assert result.status == "produced"
+    assert result.reason is None
     graph = json.loads(result.graph_path.read_text(encoding="utf-8"))
     entrypoints = json.loads(result.entrypoints_path.read_text(encoding="utf-8"))
     assert graph["run_id"] == entrypoints["run_id"] == "run-1"
@@ -89,13 +90,13 @@ def test_excludes_truncated_or_unverifiable_chunk_sources(tmp_path):
                 "path": "excluded.py",
                 "source_status": "full",
                 "truncated": False,
-                "source_range": {"status": "unavailable"},
             },
         ],
     )
 
     result = _ensure(tmp_path, summaries=[repo], chunk_index=chunk_index)
 
+    assert result.reason == "no eligible full-contact Python sources"
     graph = json.loads(result.graph_path.read_text(encoding="utf-8"))
     entrypoints = json.loads(result.entrypoints_path.read_text(encoding="utf-8"))
     assert graph["nodes"] == []
