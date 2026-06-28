@@ -16,7 +16,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/upload-artifact@v4
+      - name: Export exact branch test source
+        uses: actions/upload-artifact@v4
         with:
           name: relation-test-source
           path: merger/lenskit/tests/test_relation_cards.py
