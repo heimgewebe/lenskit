@@ -3,6 +3,8 @@ name: Export Relation Test Once
 "on":
   push:
     branches: [feat/graph-resolution-v1]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
