@@ -50,7 +50,8 @@ def test_graph_audit_keeps_historical_stale_ranking_finding_after_g1_fix() -> No
 
     assert 'graph_status in ("ok", "stale_or_mismatched")' not in query_source
     assert 'graph_status == "ok"' in query_source
-    assert 'graph_status = "stale_or_mismatched"' in runtime_contract
+    assert "`stale_or_mismatched`" in runtime_contract
+    assert "Ranking fällt auf Baseline zurück" in runtime_contract
     assert "still uses a Graph Index" in audit
     assert "Ignore mismatched Graph Indexes" in audit
     assert (
