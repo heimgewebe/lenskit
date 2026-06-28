@@ -111,6 +111,29 @@ def test_graph_bundle_fails_closed_on_provenance_mismatch(tmp_path):
     assert not base.with_suffix(".graph_index.json").exists()
 
 
+@pytest.mark.parametrize(
+    ("missing_suffix", "expected_source"),
+    [
+        (".architecture_graph.json", "architecture_graph"),
+        (".entrypoints.json", "entrypoints"),
+    ],
+)
+def test_graph_bundle_fails_closed_with_partial_sources(
+    tmp_path,
+    missing_suffix,
+    expected_source,
+):
+    base, _, args = _setup(tmp_path)
+    base.with_suffix(missing_suffix).unlink()
+
+    with pytest.raises(GraphIndexCompilationError) as caught:
+        build_derived_artifacts(**args)
+
+    assert caught.value.code == "source_not_found"
+    assert caught.value.source == expected_source
+    assert not base.with_suffix(".graph_index.json").exists()
+
+
 def test_graph_bundle_fallback_without_sources(tmp_path):
     base, _, args = _setup(tmp_path)
     base.with_suffix(".architecture_graph.json").unlink()
