@@ -38,6 +38,7 @@ Schema errors use stable JSON paths. Diagnostic volume is bounded; omitted error
 The bundle path still does not generate graph or entrypoint source documents. This preserves the G2/G3 boundary.
 
 - If both prerequisite sources are absent, the existing clean fallback remains: no Graph Index is emitted.
+- If exactly one prerequisite exists, the missing companion source is a fail-closed `source_not_found` error; no Graph Index is written.
 - If both sources exist but validation or provenance coherence fails, the error propagates and no Graph Index is written.
 - If both sources are valid and explicitly bound to the current run and dump index, the derived Graph Index is emitted and registered as a derived retrieval index.
 
@@ -57,7 +58,9 @@ Focused tests cover:
 - current-bundle run/hash mismatch;
 - missing `jsonschema` fail-closed behavior;
 - deterministic schema diagnostics;
-- conditional bundle emission and missing-source fallback;
+- conditional bundle emission;
+- missing-both-sources fallback;
+- missing-single-source fail-closed behavior for each source role;
 - bundle-manifest registration with current provenance;
 - structured CLI failure output;
 - graph end-to-end compilation with schema-valid sources;
