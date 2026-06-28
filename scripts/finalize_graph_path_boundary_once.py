@@ -9,7 +9,10 @@ def read(path: str) -> str:
 
 
 def write(path: str, content: str) -> None:
-    (ROOT / path).write_text(content, encoding="utf-8")
+    (ROOT / path).write_text(
+        content.rstrip() + "\n",
+        encoding="utf-8",
+    )
 
 
 def patch_workflow() -> None:
