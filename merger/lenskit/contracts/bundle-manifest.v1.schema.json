@@ -117,6 +117,8 @@
               "retrieval_eval_json",
               "derived_manifest_json",
               "delta_json",
+              "architecture_graph_json",
+              "entrypoints_json",
               "graph_index_json",
               "architecture_summary",
               "output_health",
@@ -281,6 +283,8 @@
                     "index_sidecar_json",
                     "retrieval_eval_json",
                     "delta_json",
+                    "architecture_graph_json",
+                    "entrypoints_json",
                     "graph_index_json",
                     "architecture_summary"
                   ]
@@ -510,6 +514,35 @@
               "properties": {
                 "role": {
                   "const": "retrieval_eval_json"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authority": {
+                  "const": "diagnostic_signal"
+                },
+                "canonicality": {
+                  "const": "diagnostic"
+                },
+                "risk_class": {
+                  "const": "diagnostic"
+                }
+              }
+            }
+          },
+          {
+            "$comment": "lenskit.graph-source-roles",
+            "if": {
+              "properties": {
+                "role": {
+                  "enum": [
+                    "architecture_graph_json",
+                    "entrypoints_json"
+                  ]
                 }
               },
               "required": [
