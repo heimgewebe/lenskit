@@ -63,6 +63,11 @@ _OUTPUT_HEALTH = ArtifactRole.OUTPUT_HEALTH.value
 _CITATION_MAP = ArtifactRole.CITATION_MAP_JSONL.value
 _CLAIM_EVIDENCE_MAP = ArtifactRole.CLAIM_EVIDENCE_MAP_JSON.value
 _SELF_ROLE = ArtifactRole.AGENT_READING_PACK.value
+_AGENT_ENTRY_MANIFEST = ArtifactRole.AGENT_ENTRY_MANIFEST.value
+_EXPORT_SAFETY_REPORT = "export_safety_report"
+_LENS_CARD_ROLES = ("lens_cards_jsonl", "lens_card_jsonl", "lens_cards")
+_PR_DELTA_CARD_ROLES = ("pr_delta_cards_jsonl", "pr_delta_card_jsonl", "pr_delta_cards")
+_RELATION_CARD_ROLES = ("relation_cards_jsonl", "relation_card_jsonl", "relation_cards")
 
 
 class AgentReadingPackError(Exception):
@@ -371,6 +376,31 @@ def _yn(value: Optional[bool]) -> str:
     return "yes" if value else "no"
 
 
+def _artifact_by_role(model: PackModel, role: str) -> Optional[ArtifactView]:
+    for artifact in model.artifacts:
+        if artifact.role == role:
+            return artifact
+    return None
+
+
+def _artifacts_by_roles(model: PackModel, roles: Tuple[str, ...]) -> Tuple[ArtifactView, ...]:
+    role_set = set(roles)
+    return tuple(artifact for artifact in model.artifacts if artifact.role in role_set)
+
+
+def _append_artifact_bullet(lines: List[str], artifact: ArtifactView) -> None:
+    lines.append(
+        "- `{role}`: `{path}` "
+        "(authority=`{authority}`, canonicality=`{canonicality}`, sha256=`{sha}`)".format(
+            role=_md_cell(artifact.role),
+            path=_md_cell(artifact.path),
+            authority=_md_cell(artifact.authority),
+            canonicality=_md_cell(artifact.canonicality),
+            sha=_md_cell(artifact.sha256[:12]),
+        )
+    )
+
+
 _ROLE_GUIDE = {
     _CANONICAL_MD: "the ONLY source of truth — read exact bytes/lines from here",
     _CHUNK_INDEX: "retrieval index: byte/line ranges per chunk for precise navigation",
@@ -379,6 +409,7 @@ _ROLE_GUIDE = {
     _OUTPUT_HEALTH: "diagnostic self-test: trust the bundle only if verdict=pass",
     _CITATION_MAP: "stable citation_id → canonical byte/line range mapping",
     _CLAIM_EVIDENCE_MAP: "claim → declared evidence_refs map (navigation/evidence index, not truth)",
+    _AGENT_ENTRY_MANIFEST: "machine-readable agent front door (navigation index, not truth)",
     "index_sidecar_json": "navigation index sidecar (repolens-agent contract)",
     "derived_manifest_json": "registry of derived artifacts",
     "graph_index_json": "import/entry-point graph for graph-aware retrieval",
@@ -505,6 +536,167 @@ def render_agent_reading_pack(model: PackModel) -> str:
     )
     lines.append("")
 
+
+    # ── AGENT_ENTRY_MANIFEST ─────────────────────────────────────────────
+    lines.append("## AGENT_ENTRY_MANIFEST")
+    entry_manifest = _artifact_by_role(model, _AGENT_ENTRY_MANIFEST)
+    if entry_manifest is not None:
+        _append_artifact_bullet(lines, entry_manifest)
+        lines.append(
+            "- role: machine-readable front door for agents; navigation only, not content truth."
+        )
+    else:
+        lines.append(
+            "- `agent_entry_manifest` is not visible in this Reading Pack's manifest snapshot. "
+            "For finalized bundles, inspect the final `bundle_manifest.artifacts` for "
+            "role=`agent_entry_manifest`."
+        )
+        lines.append(
+            "- reason: this pack may be emitted before the Agent Entry Manifest to avoid "
+            "circular hash claims. Absence here is not evidence that the final bundle lacks it."
+        )
+    lines.append(
+        "- does_not_establish: repo understanding, answer correctness, all relevant "
+        "context use, forensic readiness or claim truth."
+    )
+    lines.append("")
+
+    # ── AGENT_CONSUMPTION_CONTRACTS ─────────────────────────────────────
+    lines.append("## AGENT_CONSUMPTION_CONTRACTS")
+    lines.append(
+        "Known machine-readable agent-consumption surfaces. These are accountability "
+        "and navigation aids; they do not prove actual reading or understanding."
+    )
+    lines.append("- `required-reading-protocol.v1`: task profile → required/recommended roles.")
+    lines.append("- `answer-compliance.v1`: answer-side declaration of artifacts, ranges and non-claims.")
+    lines.append("- `agent-consumption-trace.v1`: comparison of required reading and declared consumption.")
+    lines.append(
+        "- CLI: `python3 -m merger.lenskit.cli.main agent-consumption required "
+        "--task-profile <profile> ...`"
+    )
+    lines.append(
+        "- CLI: `python3 -m merger.lenskit.cli.main agent-consumption validate-trace ...`"
+    )
+    lines.append(
+        "- does_not_establish: actual_reading_proven, answer_correct, repo_understood, "
+        "all_relevant_context_used or claims_true."
+    )
+    lines.append("")
+
+    # ── EXPORT_SAFETY_REPORT ────────────────────────────────────────────
+    lines.append("## EXPORT_SAFETY_REPORT")
+    export_safety = _artifact_by_role(model, _EXPORT_SAFETY_REPORT)
+    if export_safety is not None:
+        _append_artifact_bullet(lines, export_safety)
+    else:
+        lines.append(
+            "- No bundle-registered `export_safety_report` artifact is present in this manifest."
+        )
+    lines.append(
+        "- Export-safety reports are diagnostic policy checks. They do not prove "
+        "secret absence, PII absence, public-share safety, repo understanding or forensic readiness."
+    )
+    lines.append("")
+
+    # ── LENS_CARD_INDEX ─────────────────────────────────────────────────
+    lines.append("## LENS_CARD_INDEX")
+    lens_card_artifacts = _artifacts_by_roles(model, _LENS_CARD_ROLES)
+    if lens_card_artifacts:
+        for artifact in lens_card_artifacts:
+            _append_artifact_bullet(lines, artifact)
+    else:
+        lines.append(
+            "- No bundle-registered Lens Card artifact is present in this manifest."
+        )
+    lines.append(
+        "- Lens Cards, when present, are path navigation units derived from Primary "
+        "Lens and Facet data. They do not prove truth, impact, safety, coverage or review completeness."
+    )
+    lines.append("")
+
+    # ── PR_DELTA_CARD_INDEX ─────────────────────────────────────────────
+    lines.append("## PR_DELTA_CARD_INDEX")
+    pr_delta_card_artifacts = _artifacts_by_roles(model, _PR_DELTA_CARD_ROLES)
+    if pr_delta_card_artifacts:
+        for artifact in pr_delta_card_artifacts:
+            _append_artifact_bullet(lines, artifact)
+    else:
+        lines.append(
+            "- No bundle-registered PR Delta Card artifact is present in this manifest."
+        )
+        if _artifact_by_role(model, "delta_json") is not None:
+            lines.append(
+                "- `delta_json` is present; it is the source diagnostic surface, not a card index."
+            )
+    lines.append(
+        "- PR Delta Cards, when present, describe file-level navigation deltas only. "
+        "They do not prove review findings, breakage, safety or required fixes."
+    )
+    lines.append("")
+
+    # ── RELATION_CARD_INDEX ─────────────────────────────────────────────
+    lines.append("## RELATION_CARD_INDEX")
+    relation_card_artifacts = _artifacts_by_roles(model, _RELATION_CARD_ROLES)
+    if relation_card_artifacts:
+        for artifact in relation_card_artifacts:
+            _append_artifact_bullet(lines, artifact)
+    else:
+        lines.append(
+            "- No bundle-registered Relation Card artifact is present in this manifest."
+        )
+    lines.append(
+        "- Relation Cards, when present, expose formal or heuristic links. They do "
+        "not prove impact, causality, test sufficiency, runtime behavior or regression absence."
+    )
+    lines.append("")
+
+    # ── GRAPH_DIAGNOSTICS ───────────────────────────────────────────────
+    lines.append("## GRAPH_DIAGNOSTICS")
+    graph_roles = (
+        ArtifactRole.ARCHITECTURE_GRAPH_JSON.value,
+        ArtifactRole.ENTRYPOINTS_JSON.value,
+        ArtifactRole.GRAPH_INDEX_JSON.value,
+    )
+    graph_artifacts = _artifacts_by_roles(model, graph_roles)
+    if graph_artifacts:
+        for artifact in graph_artifacts:
+            _append_artifact_bullet(lines, artifact)
+    else:
+        lines.append("- No graph diagnostic artifacts are present in this manifest.")
+    lines.append(
+        "- Graph artifacts are diagnostic/navigation surfaces. They do not prove "
+        "runtime call reachability, architecture completeness, dependency causality or change impact."
+    )
+    lines.append("")
+
+    # ── RETRIEVAL_DIAGNOSTICS ───────────────────────────────────────────
+    lines.append("## RETRIEVAL_DIAGNOSTICS")
+    retrieval_roles = (_CHUNK_INDEX, _SQLITE_INDEX, ArtifactRole.RETRIEVAL_EVAL_JSON.value)
+    retrieval_artifacts = _artifacts_by_roles(model, retrieval_roles)
+    if retrieval_artifacts:
+        for artifact in retrieval_artifacts:
+            _append_artifact_bullet(lines, artifact)
+    else:
+        lines.append("- No retrieval diagnostic artifacts are present in this manifest.")
+    lines.append(
+        "- Inspect `retrieval_eval_json` and `miss_taxonomy` when reviewing retrieval quality. "
+        "A retrieval diagnostic does not prove relevant content is absent or semantically irrelevant."
+    )
+    lines.append("")
+
+    # ── WHAT_THIS_DOES_NOT_PROVE ────────────────────────────────────────
+    lines.append("## WHAT_THIS_DOES_NOT_PROVE")
+    lines.append("This Reading Pack v2 index surface does not prove:")
+    lines.append("- `truth`")
+    lines.append("- `repo_understood`")
+    lines.append("- `answer_correct`")
+    lines.append("- `answer_safe_without_citations`")
+    lines.append("- `all_relevant_context_used`")
+    lines.append("- `test_sufficiency`")
+    lines.append("- `runtime_behavior`")
+    lines.append("- `regression_absence`")
+    lines.append("- `forensic_ready`")
+    lines.append("")
     # ── LENS_CARD_GUIDANCE ───────────────────────────────────────────────
     lines.append("## LENS_CARD_GUIDANCE")
     lines.append(
