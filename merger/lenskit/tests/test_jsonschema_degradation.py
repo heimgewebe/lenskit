@@ -108,17 +108,18 @@ from pathlib import Path
 import logging
 logging.basicConfig(level=logging.WARNING)
 
-result = gi.load_graph_index(Path("{graph_path}"))
-if result["status"] == "ok" and "graph" in result:
+result = gi.load_graph_index(Path("{tmp_path}"), "graph.json")
+if result["status"] == "validation_unavailable" and result["graph"] is None:
     print("Success")
 else:
+    print(f"Wrong result: {{result}}")
     sys.exit(1)
 """
     repo_root = get_repo_root()
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=get_test_env(), cwd=repo_root)
     assert result.returncode == 0
     assert "Success" in result.stdout
-    assert "Schema validation skipped" in result.stderr
+    assert "Graph index validation unavailable" in result.stderr
 
 def test_federation_degradation(tmp_path):
     code = f"""

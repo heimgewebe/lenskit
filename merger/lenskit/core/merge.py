@@ -5023,6 +5023,7 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
     architecture_graph_path = None
     entrypoints_path = None
     graph_index_path = None
+    source_result = None
     try:
         from ..architecture.bundle_sources import (
             BundleGraphSourceError,
@@ -5052,9 +5053,6 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
                 file=sys.stderr,
             )
 
-        for source_path in (architecture_graph_path, entrypoints_path):
-            if source_path.exists() and source_path not in derived_paths:
-                derived_paths.append(source_path)
 
         if architecture_graph_path.exists() or entrypoints_path.exists():
             graph_index_data = compile_graph_index(
@@ -5068,6 +5066,9 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
                 json.dumps(graph_index_data, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
+            for source_path in (architecture_graph_path, entrypoints_path):
+                if source_path.exists() and source_path not in derived_paths:
+                    derived_paths.append(source_path)
             derived_paths.append(graph_index_path)
     except ImportError as e:
         if debug:
@@ -5075,7 +5076,28 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
                 f"Skipping graph artifacts: architecture modules not available ({e})",
                 file=sys.stderr,
             )
-    except (BundleGraphSourceError, GraphIndexCompilationError):
+    except GraphIndexCompilationError as e:
+        if getattr(e, "code", None) == "validation_unavailable":
+            if debug:
+                print(
+                    "Skipping graph artifacts: graph index validation unavailable "
+                    f"({e})",
+                    file=sys.stderr,
+                )
+            if source_result is not None and source_result.produced:
+                for source_path in (architecture_graph_path, entrypoints_path):
+                    if source_path is None:
+                        continue
+                    try:
+                        source_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            architecture_graph_path = None
+            entrypoints_path = None
+            graph_index_path = None
+        else:
+            raise
+    except BundleGraphSourceError:
         raise
     except Exception as e:
         if debug:
