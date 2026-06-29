@@ -112,7 +112,7 @@ result = gi.load_graph_index(Path("{tmp_path}"), "graph.json")
 if result["status"] == "validation_unavailable" and result["graph"] is None:
     print("Success")
 else:
-    print(f"Wrong result: {result}")
+    print(f"Wrong result: {{result}}")
     sys.exit(1)
 """
     repo_root = get_repo_root()
