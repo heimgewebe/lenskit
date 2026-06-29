@@ -78,6 +78,8 @@ Akzeptanz: stdout und `--out` funktionieren; Manifest-Registrierung ist determin
 
 ### TASK-AGENT-READING-PACK-V2-INDEX-001 - Agent Reading Pack v2 Indexes
 
+Status: umgesetzt. Das Reading Pack indexiert Agent Entry, Consumption Contracts, Export Safety, Cards, Relations, Graph und Retrieval als Navigation ohne Review-/Truth-Claims.
+
 Ziel: Das Agent Reading Pack indexiert vorhandene Agent-, Card-, Relation-, Export-, Graph- und Retrieval-Artefakte, ohne sie inhaltlich zu ersetzen.
 
 Neue Abschnitte: `AGENT_ENTRY_MANIFEST`, `AGENT_CONSUMPTION_CONTRACTS`, `EXPORT_SAFETY_REPORT`, `LENS_CARD_INDEX`, `PR_DELTA_CARD_INDEX`, `RELATION_CARD_INDEX`, `GRAPH_DIAGNOSTICS`, `RETRIEVAL_DIAGNOSTICS`, `WHAT_THIS_DOES_NOT_PROVE`.

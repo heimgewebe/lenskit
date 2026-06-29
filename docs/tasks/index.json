@@ -647,6 +647,21 @@
         "Agent Reading Pack v2 indexing remains a separate follow-up.",
         "No agent adoption, answer correctness, repo understanding, retrieval quality or forensic readiness is established."
       ]
+    },
+    {
+      "id": "TASK-AGENT-READING-PACK-V2-INDEX-001",
+      "title": "Agent Reading Pack v2 Indexes",
+      "status": "done",
+      "description": "Extends the Agent Reading Pack as a pure navigation index over agent entry, agent-consumption contracts, export safety, Lens Card, PR Delta Card, Relation Card, graph diagnostics and retrieval diagnostics surfaces. The pack may point to and explain artifact roles, but it does not summarize reviews, propose fixes or establish truth, completeness, runtime behavior, retrieval quality, repo understanding or forensic readiness.",
+      "evidence": [
+        "merger/lenskit/core/agent_reading_pack.py",
+        "merger/lenskit/tests/test_agent_reading_pack.py",
+        "docs/roadmap/lenskit-agent-operationalization-roadmap.md"
+      ],
+      "missing_evidence": [
+        "No consumer default, retrieval ranking, card emission or export-safety wiring is implemented by this slice.",
+        "The emitted pack remains navigation_index/derived and does not prove agent adoption or answer correctness."
+      ]
     }
   ]
 }

@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 from merger.lenskit.core.agent_reading_pack import (
+    ArtifactView,
     HealthSummary,
     PackModel,
     _md_cell,
@@ -953,3 +954,86 @@ def test_agent_pack_governance_block_is_valid_json(tmp_path):
         "architecture_truth",
         "complete_context",
     ]
+
+def test_agent_reading_pack_v2_index_sections_present(tmp_path):
+    manifest = _make_bundle(tmp_path)
+    report = produce_agent_reading_pack(str(manifest))
+    assert report["status"] == "ok"
+
+    body = Path(report["output_path"]).read_text(encoding="utf-8")
+
+    expected_headings = (
+        "AGENT_ENTRY_MANIFEST",
+        "AGENT_CONSUMPTION_CONTRACTS",
+        "EXPORT_SAFETY_REPORT",
+        "LENS_CARD_INDEX",
+        "PR_DELTA_CARD_INDEX",
+        "RELATION_CARD_INDEX",
+        "GRAPH_DIAGNOSTICS",
+        "RETRIEVAL_DIAGNOSTICS",
+        "WHAT_THIS_DOES_NOT_PROVE",
+    )
+    for heading in expected_headings:
+        assert f"## {heading}" in body
+
+    entry_section = _section(body, "AGENT_ENTRY_MANIFEST")
+    assert "not visible in this Reading Pack's manifest snapshot" in entry_section
+    assert "circular hash claims" in entry_section
+    assert "Absence here is not evidence" in entry_section
+
+    boundary_section = _section(body, "WHAT_THIS_DOES_NOT_PROVE")
+    for boundary in (
+        "truth",
+        "repo_understood",
+        "answer_safe_without_citations",
+        "test_sufficiency",
+        "runtime_behavior",
+        "regression_absence",
+        "forensic_ready",
+    ):
+        assert f"`{boundary}`" in boundary_section
+
+def test_agent_reading_pack_v2_indexes_present_artifacts():
+    artifacts = (
+        ArtifactView("agent_entry_manifest", "demo.agent_entry_manifest.json", "navigation_index", "derived", 123, "a" * 64),
+        ArtifactView("lens_cards_jsonl", "demo.lens_cards.jsonl", "navigation_index", "derived", 234, "b" * 64),
+        ArtifactView("pr_delta_cards_jsonl", "demo.pr_delta_cards.jsonl", "navigation_index", "derived", 345, "c" * 64),
+        ArtifactView("relation_cards_jsonl", "demo.relation_cards.jsonl", "navigation_index", "derived", 456, "d" * 64),
+        ArtifactView("architecture_graph_json", "demo.architecture_graph.json", "diagnostic_signal", "diagnostic", 567, "e" * 64),
+        ArtifactView("retrieval_eval_json", "demo.retrieval_eval.json", "diagnostic_signal", "diagnostic", 678, "f" * 64),
+    )
+    model = PackModel(
+        run_id="r2",
+        created_at="2026-06-29T00:00:00Z",
+        generator_name="g",
+        generator_version="2",
+        redaction=False,
+        fts5_bm25=True,
+        artifacts=artifacts,
+        health=HealthSummary(present=False),
+        top_files=(),
+        indexed_chunk_count=0,
+        repo_ids=(),
+        bundle_manifest_path="demo.bundle.manifest.json",
+        canonical_md_path="demo.md",
+        chunk_index_path=None,
+        dump_index_path=None,
+        sqlite_index_path=None,
+        citation_map_path=None,
+        claim_evidence_map_path=None,
+        claim_count=None,
+        claim_evidence_ref_count=None,
+        claim_requires_live_check_count=None,
+        absent_notes=(),
+    )
+
+    body = render_agent_reading_pack(model)
+
+    assert "demo.agent_entry_manifest.json" in _section(body, "AGENT_ENTRY_MANIFEST")
+    assert "demo.lens_cards.jsonl" in _section(body, "LENS_CARD_INDEX")
+    assert "demo.pr_delta_cards.jsonl" in _section(body, "PR_DELTA_CARD_INDEX")
+    assert "demo.relation_cards.jsonl" in _section(body, "RELATION_CARD_INDEX")
+    assert "demo.architecture_graph.json" in _section(body, "GRAPH_DIAGNOSTICS")
+    assert "demo.retrieval_eval.json" in _section(body, "RETRIEVAL_DIAGNOSTICS")
+    assert "not content truth" in _section(body, "AGENT_ENTRY_MANIFEST")
+    assert "do not prove impact" in _section(body, "RELATION_CARD_INDEX")
