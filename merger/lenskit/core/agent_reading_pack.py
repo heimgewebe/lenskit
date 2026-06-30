@@ -726,9 +726,8 @@ def render_agent_reading_pack(model: PackModel) -> str:
         "change impact."
     )
     lines.append(
-        "This Reading Pack does not claim that any Lens Card artifact is present in "
-        "the bundle; automatic bundle, manifest or consumer integration is outside "
-        "the current Lens Card v1 slice."
+        "When `lens_cards_jsonl` is present in the bundle manifest, treat it as "
+        "a path-navigation artifact only; it still does not replace canonical reads."
     )
     lines.append("")
 

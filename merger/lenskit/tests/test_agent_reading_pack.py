@@ -345,8 +345,8 @@ def test_agent_reading_pack_lens_card_guidance_is_static_and_bounded(tmp_path):
     assert "repo understanding" in section
     assert "review completeness" in section
     assert "change impact" in section
-    assert "does not claim that any Lens Card artifact is present" in section
-    assert "automatic bundle, manifest or consumer integration is outside" in section
+    assert "path-navigation artifact only" in section
+    assert "does not replace canonical reads" in section
 
 
 def test_agent_pack_retrieval_quality_review_mentions_miss_taxonomy(tmp_path):

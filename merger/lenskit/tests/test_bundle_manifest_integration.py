@@ -788,17 +788,47 @@ def test_agent_reading_pack_emitted_schema_valid_and_hashed(tmp_path):
     ):
         assert marker in body, f"emitted agent_reading_pack missing v1.1 marker: {marker}"
     assert "NAVIGATION, NOT TRUTH" in body
-    # The exact serialization boundary below proves a specific string is absent,
-    # it does not formally prove artifact non-emission.
-    assert '"kind": "lenskit.lens_card"' not in body
-    assert "does not claim that any Lens Card artifact is present" in body
-    assert "automatic bundle, manifest or consumer integration is outside" in body
+    assert "## LENS_CARD_INDEX" in body
+    assert "lens_cards_jsonl" in body
+    assert "path-navigation artifact only" in body
     assert data["run_id"] in body
     # The pack must never list its own role as bundle content.
     assert "| agent_reading_pack |" not in body
     # It should reference the bundle's truth anchor and health verdict.
     assert "## OUTPUT_HEALTH_SUMMARY" in body
     assert "## TOP_CHUNK_SPANS" in body
+
+
+
+def test_lens_cards_jsonl_bundle_artifact_is_emitted(tmp_path):
+    artifacts, data, manifest_dir = _make_minimal_bundle(tmp_path)
+
+    entry = _artifact_by_role(data, ArtifactRole.LENS_CARDS_JSONL.value)
+    assert entry is not None
+    assert entry["content_type"] == "application/x-ndjson"
+    assert entry["contract"] == {"id": "lens-card", "version": "v1"}
+    assert entry["interpretation"] == {"mode": "contract"}
+    assert entry["authority"] == "navigation_index"
+    assert entry["canonicality"] == "derived"
+    assert entry["risk_class"] == "navigation"
+    assert entry["regenerable"] is True
+    assert entry["staleness_sensitive"] is True
+
+    assert artifacts.lens_cards is not None
+    lens_cards_path = manifest_dir / entry["path"]
+    assert lens_cards_path == artifacts.lens_cards
+    assert lens_cards_path.exists()
+    assert entry["bytes"] == lens_cards_path.stat().st_size
+    assert entry["sha256"] == _sha256_file(lens_cards_path)
+
+    cards = [json.loads(line) for line in lens_cards_path.read_text(encoding="utf-8").splitlines()]
+    assert len(cards) == 1
+    card = cards[0]
+    assert card["kind"] == "lenskit.lens_card"
+    assert card["authority"] == "navigation_index"
+    assert card["canonicality"] == "derived"
+    assert card["path"] == "file1.txt"
+    assert "change_impact" in card["does_not_establish"]
 
 
 def test_bundle_manifest_canonical_dump_index_sha_matches_dump_index_artifact(tmp_path):
