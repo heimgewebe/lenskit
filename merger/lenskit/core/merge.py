@@ -231,6 +231,7 @@ ARTIFACT_CONTRACT_REGISTRY = {
     ArtifactRole.CLAIM_EVIDENCE_MAP_JSON: {"id": "claim-evidence-map", "version": "v1"},
     ArtifactRole.AGENT_ENTRY_MANIFEST: {"id": "agent-entry-manifest", "version": "v1"},
     ArtifactRole.EXPORT_SAFETY_REPORT: {"id": "export-safety-report", "version": "v1"},
+    ArtifactRole.LENS_CARDS_JSONL: {"id": "lens-card", "version": "v1"},
 }
 
 ARTIFACT_AUTHORITY_REGISTRY = {
@@ -341,6 +342,13 @@ ARTIFACT_AUTHORITY_REGISTRY = {
         "authority": "diagnostic_signal",
         "canonicality": "diagnostic",
         "risk_class": "diagnostic",
+        "regenerable": True,
+        "staleness_sensitive": True,
+    },
+    ArtifactRole.LENS_CARDS_JSONL: {
+        "authority": "navigation_index",
+        "canonicality": "derived",
+        "risk_class": "navigation",
         "regenerable": True,
         "staleness_sensitive": True,
     },
@@ -606,6 +614,7 @@ class MergeArtifacts:
     claim_evidence_map: Optional[Path] = None
     agent_reading_pack: Optional[Path] = None
     agent_entry_manifest: Optional[Path] = None
+    lens_cards: Optional[Path] = None
     other: List[Path] = None
 
     def __post_init__(self):
@@ -643,6 +652,8 @@ class MergeArtifacts:
             paths.append(self.agent_reading_pack)
         if self.agent_entry_manifest and self.agent_entry_manifest not in paths:
             paths.append(self.agent_entry_manifest)
+        if self.lens_cards and self.lens_cards not in paths:
+            paths.append(self.lens_cards)
         if self.bundle_manifest:
             paths.append(self.bundle_manifest)
 
@@ -6216,6 +6227,39 @@ def write_reports_v2(
     if derived_manifests:
         _add_artifact(derived_manifests[-1], ArtifactRole.DERIVED_MANIFEST_JSON, "application/json")
 
+
+    def _write_lens_cards_jsonl(base_manifest_path: Path) -> Optional[Path]:
+        """Emit Lens Cards v1 as deterministic JSONL navigation."""
+        from .lens_cards import produce_lens_cards
+
+        paths: List[str] = []
+        for summary in repo_summaries:
+            for fi in summary.get("files", []):
+                if getattr(fi, "is_text", False):
+                    paths.append(fi.rel_path.as_posix())
+        if not paths:
+            return None
+        cards = produce_lens_cards(paths)
+        if not cards:
+            return None
+        out_path = base_manifest_path.with_name(
+            base_manifest_path.name.replace(".bundle.manifest.json", ".lens_cards.jsonl")
+        )
+        text = "".join(json.dumps(card, sort_keys=True) + "\n" for card in cards)
+        _write_text_atomic(out_path, text)
+        return out_path
+
+    lens_cards_path = _write_lens_cards_jsonl(bundle_manifest_path)
+    if lens_cards_path is not None:
+        out_paths.append(lens_cards_path)
+        if lens_cards_path not in other_paths:
+            other_paths.append(lens_cards_path)
+        _add_artifact(
+            lens_cards_path,
+            ArtifactRole.LENS_CARDS_JSONL,
+            "application/x-ndjson",
+        )
+
     # Write output health report BEFORE the bundle manifest is finalized.
     # In this implementation, health checks are anchored to already-materialized primary artifacts
     # (especially dump_index), not to the final bundle manifest entry itself.
@@ -6571,6 +6615,7 @@ def write_reports_v2(
             claim_evidence_map=claim_evidence_map_path,
             agent_reading_pack=agent_reading_pack_path,
             agent_entry_manifest=agent_entry_manifest_path,
+            lens_cards=lens_cards_path,
             other=other_paths
         )
     else:
@@ -6589,5 +6634,6 @@ def write_reports_v2(
             claim_evidence_map=claim_evidence_map_path,
             agent_reading_pack=agent_reading_pack_path,
             agent_entry_manifest=agent_entry_manifest_path,
+            lens_cards=lens_cards_path,
             other=other_paths
         )

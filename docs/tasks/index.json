@@ -699,6 +699,25 @@
       "missing_evidence": [
         "This smoke is diagnostic only."
       ]
+    },
+    {
+      "id": "TASK-CARD-BUNDLE-EMISSION-001",
+      "title": "Lens Card Bundle Emission",
+      "status": "done",
+      "description": "Emits Lens Cards v1 as a bundle-registered lens_cards_jsonl navigation artifact. This wires the existing Lens Card producer into the standard bundle manifest and Agent Reading Pack index without adding review, impact or truth claims. PR Delta Card and Relation Card bundle emission remain follow-up slices.",
+      "evidence": [
+        "merger/lenskit/core/constants.py",
+        "merger/lenskit/core/merge.py",
+        "merger/lenskit/core/agent_reading_pack.py",
+        "merger/lenskit/contracts/bundle-manifest.v1.schema.json",
+        "merger/lenskit/tests/test_bundle_manifest_integration.py",
+        "merger/lenskit/tests/test_agent_reading_pack.py",
+        "merger/lenskit/tests/test_cli_agent_pack.py"
+      ],
+      "missing_evidence": [
+        "PR Delta Cards and Relation Cards are not emitted by this slice.",
+        "Lens Cards remain navigation_index/derived and do not prove change impact, truth, review completeness or runtime behavior."
+      ]
     }
   ]
 }
