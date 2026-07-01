@@ -32,6 +32,7 @@ _AGENT_ENTRY_MANIFEST_SCHEMA_PATH = (
 )
 _PR_DELTA_CARD_SCHEMA_PATH = _CONTRACTS_DIR / "pr-delta-card.v1.schema.json"
 _CONCEPT_CARD_SCHEMA_PATH = _CONTRACTS_DIR / "concept-card.v1.schema.json"
+_RELATION_CARD_SCHEMA_PATH = _CONTRACTS_DIR / "relation-card.v1.schema.json"
 _REAL_DOC_FRESHNESS_REGISTRY_PATH = (
     Path(__file__).resolve().parents[3] / "docs" / "doc-freshness-registry.yml"
 )
@@ -692,6 +693,33 @@ def _make_minimal_bundle(tmp_path, *, output_mode: str = "dual", delta_meta=None
     return artifacts, data, manifest_dir
 
 
+def _make_python_import_bundle(tmp_path):
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    (src_dir / "a.py").write_text("import b\n", encoding="utf-8")
+    (src_dir / "b.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    hub_dir = tmp_path / "hub"
+    hub_dir.mkdir()
+
+    artifacts = write_reports_v2(
+        merges_dir=out_dir,
+        hub=hub_dir,
+        repo_summaries=[scan_repo(src_dir)],
+        detail="test",
+        mode="gesamt",
+        max_bytes=1000,
+        plan_only=False,
+        code_only=False,
+        extras=MockExtras(),
+        output_mode="dual",
+        generator_info=make_generator_info(),
+    )
+    data = json.loads(artifacts.bundle_manifest.read_text(encoding="utf-8"))
+    return artifacts, data, artifacts.bundle_manifest.parent
+
 def _valid_pr_delta_source(*, files=None):
     if files is None:
         files = [
@@ -910,6 +938,60 @@ def test_concept_cards_jsonl_bundle_artifact_is_emitted(tmp_path):
     assert "## CONCEPT_CARD_INDEX" in pack_body
     assert concept_cards_path.name in pack_body
     assert "semantic importance" in pack_body
+
+
+def test_relation_cards_jsonl_bundle_artifact_is_emitted_for_graph_source(tmp_path):
+    artifacts, data, manifest_dir = _make_python_import_bundle(tmp_path)
+
+    entry = _artifact_by_role(data, ArtifactRole.RELATION_CARDS_JSONL.value)
+    assert entry is not None
+    assert entry["content_type"] == "application/x-ndjson"
+    assert entry["contract"] == {"id": "relation-card", "version": "v1"}
+    assert entry["interpretation"] == {"mode": "contract"}
+    assert entry["authority"] == "navigation_index"
+    assert entry["canonicality"] == "derived"
+    assert entry["risk_class"] == "navigation"
+    assert entry["regenerable"] is True
+    assert entry["staleness_sensitive"] is True
+
+    assert artifacts.relation_cards is not None
+    cards_path = manifest_dir / entry["path"]
+    assert cards_path == artifacts.relation_cards
+    assert cards_path.exists()
+    assert entry["bytes"] == cards_path.stat().st_size
+    assert entry["sha256"] == _sha256_file(cards_path)
+
+    cards = [json.loads(line) for line in cards_path.read_text(encoding="utf-8").splitlines()]
+    assert len(cards) >= 1
+    schema = json.loads(_RELATION_CARD_SCHEMA_PATH.read_text(encoding="utf-8"))
+    for card in cards:
+        jsonschema.Draft7Validator(
+            schema,
+            format_checker=jsonschema.FormatChecker(),
+        ).validate(card)
+        assert card["kind"] == "lenskit.relation_card"
+        assert card["authority"] == "navigation_index"
+        assert card["canonicality"] == "derived"
+        assert card["relation"] == "imports"
+        assert card["source"]["path"] == "a.py"
+        assert card["target"]["path"] == "b.py"
+        assert "runtime_dependency" in card["does_not_establish"]
+        assert "causality" in card["does_not_establish"]
+        assert "security_assessment" in card["does_not_establish"]
+
+    assert artifacts.agent_reading_pack is not None
+    pack_body = artifacts.agent_reading_pack.read_text(encoding="utf-8")
+    assert "## RELATION_CARD_INDEX" in pack_body
+    assert cards_path.name in pack_body
+    assert "test sufficiency" in pack_body
+
+
+def test_relation_cards_jsonl_is_absent_without_supported_graph_edge(tmp_path):
+    artifacts, data, manifest_dir = _make_minimal_bundle(tmp_path)
+
+    assert _artifact_by_role(data, ArtifactRole.RELATION_CARDS_JSONL.value) is None
+    assert artifacts.relation_cards is None
+    assert not list(manifest_dir.glob("*.relation_cards.jsonl"))
 
 
 def test_pr_delta_bundle_artifacts_are_emitted_for_valid_source(tmp_path):
@@ -1246,6 +1328,13 @@ def test_c22_correct_per_role_risk_class_is_valid():
                                                 "canonicality": "derived",
                                                 "regenerable": True,
                                                 "staleness_sensitive": True}),
+        "relation_cards_jsonl":("navigation",  {"contract": {"id": "relation-card", "version": "v1"},
+                                                "interpretation": {"mode": "contract"},
+                                                "content_type": "application/x-ndjson",
+                                                "authority": "navigation_index",
+                                                "canonicality": "derived",
+                                                "regenerable": True,
+                                                "staleness_sensitive": True}),
         "pr_delta_cards_jsonl":("diagnostic",  {"contract": {"id": "pr-delta-card", "version": "v1"},
                                                 "interpretation": {"mode": "contract"},
                                                 "content_type": "application/x-ndjson",
@@ -1293,15 +1382,18 @@ def test_c22_wrong_per_role_risk_class_is_invalid():
         "architecture_summary",
         "delta_json",
         "concept_cards_jsonl",
+        "relation_cards_jsonl",
         "pr_delta_cards_jsonl",
     ):
         if role == "pr_delta_cards_jsonl":
             contract_id = "pr-delta-card"
         elif role == "concept_cards_jsonl":
             contract_id = "concept-card"
+        elif role == "relation_cards_jsonl":
+            contract_id = "relation-card"
         else:
             contract_id = "x"
-        artifact = _artifact(role, risk_class="diagnostic" if role == "concept_cards_jsonl" else "navigation",
+        artifact = _artifact(role, risk_class="diagnostic" if (role.endswith("cards_jsonl") and not role.startswith("pr_delta")) else "navigation",
                              contract={"id": contract_id, "version": "v1"},
                              interpretation={"mode": "contract"})
         if role == "pr_delta_cards_jsonl":
@@ -1313,6 +1405,14 @@ def test_c22_wrong_per_role_risk_class_is_invalid():
                 "staleness_sensitive": True,
             })
         elif role == "concept_cards_jsonl":
+            artifact.update({
+                "content_type": "application/x-ndjson",
+                "authority": "navigation_index",
+                "canonicality": "derived",
+                "regenerable": True,
+                "staleness_sensitive": True,
+            })
+        elif role == "relation_cards_jsonl":
             artifact.update({
                 "content_type": "application/x-ndjson",
                 "authority": "navigation_index",
@@ -1382,6 +1482,7 @@ _EXPECTED_RISK_CLASS_BY_ROLE = {
     ArtifactRole.CLAIM_EVIDENCE_MAP_JSON.value: "evidence_index",
     ArtifactRole.AGENT_READING_PACK.value: "navigation",
     ArtifactRole.CONCEPT_CARDS_JSONL.value: "navigation",
+    ArtifactRole.RELATION_CARDS_JSONL.value: "navigation",
 }
 
 _RETRIEVAL_INDEX_ROLES = (

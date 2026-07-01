@@ -233,6 +233,7 @@ ARTIFACT_CONTRACT_REGISTRY = {
     ArtifactRole.EXPORT_SAFETY_REPORT: {"id": "export-safety-report", "version": "v1"},
     ArtifactRole.LENS_CARDS_JSONL: {"id": "lens-card", "version": "v1"},
     ArtifactRole.CONCEPT_CARDS_JSONL: {"id": "concept-card", "version": "v1"},
+    ArtifactRole.RELATION_CARDS_JSONL: {"id": "relation-card", "version": "v1"},
     ArtifactRole.PR_DELTA_CARDS_JSONL: {"id": "pr-delta-card", "version": "v1"},
 }
 
@@ -362,6 +363,13 @@ ARTIFACT_AUTHORITY_REGISTRY = {
         "staleness_sensitive": True,
     },
     ArtifactRole.CONCEPT_CARDS_JSONL: {
+        "authority": "navigation_index",
+        "canonicality": "derived",
+        "risk_class": "navigation",
+        "regenerable": True,
+        "staleness_sensitive": True,
+    },
+    ArtifactRole.RELATION_CARDS_JSONL: {
         "authority": "navigation_index",
         "canonicality": "derived",
         "risk_class": "navigation",
@@ -639,6 +647,7 @@ class MergeArtifacts:
     agent_entry_manifest: Optional[Path] = None
     lens_cards: Optional[Path] = None
     concept_cards: Optional[Path] = None
+    relation_cards: Optional[Path] = None
     delta_json: Optional[Path] = None
     pr_delta_cards: Optional[Path] = None
     other: List[Path] = None
@@ -682,6 +691,8 @@ class MergeArtifacts:
             paths.append(self.lens_cards)
         if self.concept_cards and self.concept_cards not in paths:
             paths.append(self.concept_cards)
+        if self.relation_cards and self.relation_cards not in paths:
+            paths.append(self.relation_cards)
         if self.delta_json and self.delta_json not in paths:
             paths.append(self.delta_json)
         if self.pr_delta_cards and self.pr_delta_cards not in paths:
@@ -6320,6 +6331,44 @@ def write_reports_v2(
             "application/x-ndjson",
         )
 
+
+
+    def _write_relation_cards_jsonl(
+        base_manifest_path: Path,
+        graph_path: Optional[Path],
+    ) -> Optional[Path]:
+        """Emit Relation Cards v1 as deterministic JSONL navigation."""
+        if graph_path is None or not graph_path.exists():
+            return None
+        from .relation_cards import produce_relation_cards
+
+        graph_data = json.loads(graph_path.read_text(encoding="utf-8"))
+        cards = produce_relation_cards(graph_data)
+        if not cards:
+            return None
+        out_path = base_manifest_path.with_name(
+            base_manifest_path.name.replace(
+                ".bundle.manifest.json", ".relation_cards.jsonl"
+            )
+        )
+        text = "".join(json.dumps(card, sort_keys=True) + "\n" for card in cards)
+        _write_text_atomic(out_path, text)
+        return out_path
+
+    relation_cards_path = _write_relation_cards_jsonl(
+        bundle_manifest_path,
+        architecture_graphs[-1] if architecture_graphs else None,
+    )
+    if relation_cards_path is not None:
+        out_paths.append(relation_cards_path)
+        if relation_cards_path not in other_paths:
+            other_paths.append(relation_cards_path)
+        _add_artifact(
+            relation_cards_path,
+            ArtifactRole.RELATION_CARDS_JSONL,
+            "application/x-ndjson",
+        )
+
     def _write_delta_json(
         base_manifest_path: Path,
         source_delta: Dict[str, Any],
@@ -6740,6 +6789,7 @@ def write_reports_v2(
             agent_entry_manifest=agent_entry_manifest_path,
             lens_cards=lens_cards_path,
             concept_cards=concept_cards_path,
+            relation_cards=relation_cards_path,
             delta_json=delta_json_path,
             pr_delta_cards=pr_delta_cards_path,
             other=other_paths
@@ -6762,6 +6812,7 @@ def write_reports_v2(
             agent_entry_manifest=agent_entry_manifest_path,
             lens_cards=lens_cards_path,
             concept_cards=concept_cards_path,
+            relation_cards=relation_cards_path,
             delta_json=delta_json_path,
             pr_delta_cards=pr_delta_cards_path,
             other=other_paths

@@ -418,6 +418,7 @@ _ROLE_GUIDE = {
     "architecture_summary": "diagnostic high-level architecture snapshot",
     "delta_json": "diagnostic change delta vs a prior run",
     "concept_cards_jsonl": "Concept Card navigation index over explicit task concepts, dependencies, failures and queries",
+    "relation_cards_jsonl": "Relation Card navigation index over supported local import edges",
 }
 
 
