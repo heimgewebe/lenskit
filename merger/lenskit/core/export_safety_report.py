@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from merger.lenskit.core.check_view import compact_check_projection
+
 _DOES_NOT_ESTABLISH = [
     "claims_true",
     "answer_safe_without_citations",
@@ -46,11 +48,10 @@ def _observe_redaction(post_emit_health: Any, output_health: Any) -> Tuple[bool 
 
     oh = _as_dict(output_health)
     if oh:
-        checks = _as_dict(oh.get("checks"))
-        if checks is not None:
-            enabled = _bool_or_none(checks.get("redact_secrets_enabled"))
-            if enabled is not None:
-                return enabled, "output_health"
+        checks_projection = compact_check_projection(oh)
+        enabled = _bool_or_none(checks_projection.get("redact_secrets_enabled"))
+        if enabled is not None:
+            return enabled, "output_health"
 
         enabled = _bool_or_none(oh.get("redact_secrets_enabled"))
         if enabled is not None:
@@ -221,7 +222,7 @@ def build_export_safety_report(
             detail = f"post_emit_health is required for profile {profile} but status is {post_emit_status}"
             if post_emit_unknown_status:
                 detail = f"post_emit_health is required for profile {profile} but raw status '{raw_post_emit_status}' is unknown and normalized to error"
-                
+
             checks.append(
                 {
                     "name": "post_emit_health_status",

@@ -204,6 +204,35 @@ def test_export_safety_report_ignores_malformed_optional_inputs(schema):
     assert report["agent_export_gate_required"] is False
 
 
+
+def test_export_safety_report_output_health_bad_checks_shape_does_not_claim_redaction(schema):
+    report = build_export_safety_report(
+        profile="local-private",
+        output_health={
+            "checks": [{"name": "redact_secrets_enabled", "status": "pass"}],
+        },
+    )
+
+    _validate(report, schema)
+    assert report["status"] == "pass"
+    assert report["redaction_observed"] is None
+    assert report["redaction_source"] is None
+
+
+def test_export_safety_report_output_health_top_level_fallback_survives_bad_checks_shape(schema):
+    report = build_export_safety_report(
+        profile="local-private",
+        output_health={
+            "checks": [],
+            "redact_secrets_enabled": True,
+        },
+    )
+
+    _validate(report, schema)
+    assert report["status"] == "pass"
+    assert report["redaction_observed"] is True
+    assert report["redaction_source"] == "output_health"
+
 def test_export_safety_report_unknown_profile_fails_with_machine_readable_report(schema):
     report = build_export_safety_report(profile="moon-export")
     _validate(report, schema)
