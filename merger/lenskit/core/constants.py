@@ -27,6 +27,7 @@ class ArtifactRole(str, Enum):
     EXPORT_SAFETY_REPORT = "export_safety_report"
     LENS_CARDS_JSONL = "lens_cards_jsonl"
     CONCEPT_CARDS_JSONL = "concept_cards_jsonl"
+    RELATION_CARDS_JSONL = "relation_cards_jsonl"
     PR_DELTA_CARDS_JSONL = "pr_delta_cards_jsonl"
 
 

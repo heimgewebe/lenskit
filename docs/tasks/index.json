@@ -343,14 +343,11 @@
         "docs/proofs/relation-cards-v1-target-proof.md"
       ],
       "missing_evidence": [
-        "Merge ausstehend",
-        "Post-Merge-Reconciliation ausstehend",
-        "automatische Emission nicht vorhanden",
-        "Bundle-/Manifest-Integration nicht vorhanden",
-        "Consumer-Nutzung nicht belegt",
-        "Retrieval-Nutzung nicht belegt",
-        "weitere Relationstypen (mentions/validates/tests/documents/produces/consumes/same_surface) nicht implementiert",
-        "Guard Relation Cards nicht implementiert"
+        "CLI command and direct consumer integration are outside this task.",
+        "Retrieval use is not established.",
+        "Further relation types (mentions/validates/tests/documents/produces/consumes/same_surface) remain unimplemented.",
+        "Guard Relation Cards remain separate target-proof/design slices.",
+        "Actual agent usefulness or retrieval usefulness is not established."
       ]
     },
     {
@@ -782,6 +779,24 @@
         "Custom external Concept Card registries, CLI commands and consumer integration are not introduced by this slice.",
         "Concept Cards remain navigation_index/derived and do not prove truth, completeness, semantic importance, review priority, runtime dependency, causality, security assessment, change impact or consumer adoption.",
         "Relation Cards are not emitted by this slice."
+      ]
+    },
+    {
+      "id": "TASK-RELATION-CARD-BUNDLE-EMISSION-001",
+      "title": "Relation Card Bundle Emission",
+      "status": "done",
+      "description": "Emits Relation Cards v1 as a bundle-registered relation_cards_jsonl navigation artifact when a valid bundle architecture graph contains supported local import edges. Absent graph input or no supported edges emits no artifact. Invalid graph input fails closed via the existing Relation Card producer. The slice does not add new relation detection, relation types, CLI commands, retrieval use or consumer integration.",
+      "evidence": [
+        "merger/lenskit/core/constants.py",
+        "merger/lenskit/core/merge.py",
+        "merger/lenskit/core/agent_reading_pack.py",
+        "merger/lenskit/contracts/bundle-manifest.v1.schema.json",
+        "merger/lenskit/tests/test_bundle_manifest_integration.py"
+      ],
+      "missing_evidence": [
+        "No new relation detection is introduced; source graph production remains the upstream evidence surface.",
+        "Only supported imports/S1/local file-to-file edges are projected.",
+        "No CLI command, retrieval integration, default consumer behavior, runtime dependency, causality, security assessment, change impact or agent adoption is established."
       ]
     }
   ]
