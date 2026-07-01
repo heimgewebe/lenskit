@@ -882,6 +882,24 @@
         "The inventory does not prove that any future migration is correct.",
         "Adjacent validator/governance check namespaces remain separate adapter decisions."
       ]
+    },
+    {
+      "id": "TASK-EXPORT-SAFETY-CHECKVIEW-CONSUMER-001",
+      "title": "Export Safety CheckView Consumer",
+      "status": "done",
+      "description": "Migrates the export-safety output_health redaction read path to compact_check_projection(report), preserving post_emit_health priority, top-level output_health fallback, schema output and report semantics. This is the first narrow runtime consumer migration selected by the CheckView consumer inventory.",
+      "evidence": [
+        "merger/lenskit/core/export_safety_report.py",
+        "merger/lenskit/tests/test_export_safety_report.py",
+        "docs/proofs/export-safety-checkview-consumer-proof.md",
+        "docs/tasks/board.md",
+        "docs/tasks/index.json"
+      ],
+      "missing_evidence": [
+        "No broad migration of output_health consumers is implemented.",
+        "No producer normalization or schema migration is implemented.",
+        "No secret absence, PII absence, runtime correctness or forensic readiness is established."
+      ]
     }
   ]
 }
