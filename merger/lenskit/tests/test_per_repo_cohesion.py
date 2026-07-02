@@ -24,6 +24,7 @@ _BUNDLE_LEVEL_JSON_SUFFIXES = (
     ".graph_index.json",
     ".bundle_health.post.json",
     ".bundle_surface_validation.json",
+    ".agent_entry_manifest.json",
 )
 
 

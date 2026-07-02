@@ -3,9 +3,9 @@ ai_context_version: 1.1
 
 project:
   name: lenskit
-  summary: RepoLens Merger & Scanner (epistemischer Kern) plus zugehörige Tooling-Skripte.
+  summary: RepoLens Merger & Scanner (epistemischer Kern) – erzeugt strukturierte, zitierbare Repository-Bundles für LLM-Agents.
   role: merger_scanner_epistemic_core
-  primary_language: bash
+  primary_language: python
   visibility: internal
 
 heimgewebe:
@@ -13,34 +13,43 @@ heimgewebe:
   fleet:
     enabled: true
   wgx:
-    profile_expected: false
+    profile_expected: true
     guard_smoke_expected: false
 
 interfaces:
-  consumes: ["CI/local shell"]
-  produces: ["pinned binaries in tools/bin/*"]
+  consumes: ["local repository working copies", "rLens HTTP API requests"]
+  produces: ["canonical_md bundles", "chunk/dump/sqlite indexes", "bundle manifests & health reports"]
 
 boundaries:
   not_responsible_for:
-    - "Project semantics; only tooling."
+    - "Cross-Repo-Föderation als abgeschlossene Wahrheitsschicht (partial/minimal, siehe docs/architecture/inconsistencies.md)."
+    - "Review-/Truth-Verdicts: Artefakte sind Navigation/Diagnose, canonical_md bleibt die einzige Wahrheitsquelle."
 
 dependencies:
   internal: []
   external:
-    - name: curl
-    - name: bash
-      version: ">=4"
+    - name: python
+      version: ">=3.11"
+    - name: fastapi
+    - name: pydantic
+    - name: jsonschema
 
 architecture:
   entrypoints:
-    - scripts/tools/*-pin.sh
+    - merger/lenskit/frontends/pythonista/repolens.py
+    - merger/lenskit/cli/main.py
+    - merger/lenskit/service/app.py
   key_paths:
-    - path: scripts/tools/yq-pin.sh
-      purpose: Install/pin yq v4
+    - path: merger/lenskit/core/merge.py
+      purpose: Merge-Pipeline (scan → chunk → emit)
+    - path: merger/lenskit/contracts/
+      purpose: JSON-Schema-Contracts der Artefakte
+    - path: docs/tasks/board.md
+      purpose: Task-Board (Status + Evidence)
   data_flow:
-    input: CI & local setup
-    processing: download/pin utilities
-    output: tools/bin/*
+    input: Repository-Arbeitskopien (Hub) & Job-Requests
+    processing: scan → chunk → emit (Markdown + JSON-Sidecars) + Health-/Surface-Validierung
+    output: merges/*-Bundles (canonical_md, Indexe, Manifeste, Reports)
 
 conventions:
   branching: "main, feature/*"
@@ -48,10 +57,12 @@ conventions:
   ci_platform: github_actions
 
 documentation:
-  runbook: docs/runbook.md
+  runbook: docs/GETTING_STARTED.md
 
 ai_guidance:
   do:
-    - fail fast on missing commands; provide actionable hints
+    - Diagnose-first – erst Target-Proof, dann ändern (siehe CONTRIBUTING.md)
+    - Frontend-Parität wahren (tools/parity_guard.py nach JobRequest-Änderungen)
   dont:
-    - silently skip version mismatches
+    - Diagnose-/Navigationsartefakte als Wahrheitsschicht behandeln (canonical_md bleibt Truth)
+    - Pfade/Begriffe erfinden – Rollennamen folgen bundle-manifest.v1.schema.json

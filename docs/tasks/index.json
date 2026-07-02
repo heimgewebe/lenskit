@@ -989,6 +989,160 @@
         "No forensic_preflight or smoke-script migration is implemented.",
         "The closure proof does not prove all remaining raw readers correct."
       ]
+    },
+    {
+      "id": "TASK-OPS-CTL-006",
+      "title": "Planning Ratchet Auto-Remediation",
+      "status": "done",
+      "description": "Adds --prune-baseline auto-remediation to the planning registration ratchet: default dry-run, only --write removes exactly currently-resolved baseline entries. New findings are never added. Invalid exceptions, control errors, unreadable baselines and a mutating write that would remove the last baseline entry block fail-closed (exit 2); an already empty baseline is an unchanged no-op (exit 0). No PR comment write permissions; contents: read is preserved.",
+      "evidence": [
+        "scripts/docmeta/check_planning_registration.py",
+        "scripts/docmeta/tests/test_check_planning_registration.py",
+        "merger/lenskit/contracts/planning-registration-report.v1.schema.json",
+        ".github/workflows/task-index.yml",
+        "docs/proofs/planning-ratchet-auto-remediation-proof.md"
+      ]
+    },
+    {
+      "id": "TASK-DOCS-PROOF-001",
+      "title": "Portable validation diagnostics proof",
+      "status": "done",
+      "description": "Documents the portable validation diagnostics; no production code or schema change.",
+      "evidence": [
+        "docs/proofs/portable-validation-diagnostics-proof.md"
+      ]
+    },
+    {
+      "id": "TASK-RLENS-UX-RESTART-001",
+      "title": "Explicit rLens Service Restart Control",
+      "status": "done",
+      "description": "Separates browser hard-refresh from the optional local service restart. POST /api/admin/restart is default-off (RLENS_ENABLE_SERVICE_RESTART=1), loopback+auth gated, validates RLENS_SERVICE_UNIT fail-closed, blocks while jobs are running and schedules the restart decoupled via systemd-run --user --on-active=1s. No git pull, no auto-restart, no remote admin.",
+      "evidence": [
+        "merger/lenskit/service/app.py",
+        "merger/lenskit/tests/test_service_admin_restart.py",
+        "merger/lenskit/frontends/webui/index.html",
+        "merger/lenskit/frontends/webui/app.js",
+        "merger/lenskit/frontends/webui/tests/test_admin_restart_button.js",
+        "docs/service-api.md",
+        "docs/systemd/rlens.service"
+      ]
+    },
+    {
+      "id": "TASK-SERVICE-002",
+      "title": "rLens Pre-Pull vor Merge (bounded repo-sync mutation)",
+      "status": "done",
+      "description": "Two-phase fast-forward-only pre-pull (plan/apply) across all surfaces; effective_pre_pull = pre_pull and not plan_only; opt-out via pre_pull flag (default on). Writes pre_pull_report.json on effective pre-pull success/hard-fail; no report on skipped pre-pull. Cloning missing repos, full omnipull integration and self-repo auto-restart remain explicit non-goals.",
+      "evidence": [
+        "merger/lenskit/service/repo_sync.py",
+        "merger/lenskit/service/models.py",
+        "merger/lenskit/service/runner.py",
+        "merger/lenskit/service/app.py",
+        "merger/lenskit/cli/cmd_rlens_client.py",
+        "merger/lenskit/frontends/webui/index.html",
+        "merger/lenskit/frontends/webui/app.js",
+        "merger/lenskit/frontends/pythonista/repolens.py",
+        "tools/parity_guard.py",
+        "merger/lenskit/tests/test_repo_sync.py",
+        "merger/lenskit/tests/test_service_runner_pre_pull.py",
+        "merger/lenskit/tests/test_service_reuse.py",
+        "merger/lenskit/tests/test_cli_rlens_client.py",
+        "merger/lenskit/tests/test_pythonista_pre_pull.py",
+        "merger/lenskit/frontends/webui/tests/test_pre_pull_payload.js",
+        "docs/service-api.md"
+      ]
+    },
+    {
+      "id": "TASK-SERVICE-003",
+      "title": "rLens Source Acquisition Remote Snapshot",
+      "status": "done",
+      "description": "Source modes local_current/local_ff/remote_snapshot. No git pull always: the no-upstream case is solved via remote_snapshot + default_branch (origin/HEAD, fallback origin/main) without mutating the local working tree, upstream or branch. Remote snapshot is a job-bound content projection (isolated bare cache + git archive), not a hub clone. Writes source_acquisition_report.json (schema lenskit.source_acquisition_report.v1) with provenance. Cloning missing repos remains a separate task; submodules/LFS are not expanded (report warnings).",
+      "evidence": [
+        "merger/lenskit/service/source_acquisition.py",
+        "merger/lenskit/service/models.py",
+        "merger/lenskit/service/runner.py",
+        "merger/lenskit/service/app.py",
+        "merger/lenskit/cli/cmd_rlens_client.py",
+        "merger/lenskit/frontends/webui/index.html",
+        "merger/lenskit/frontends/webui/app.js",
+        "merger/lenskit/frontends/pythonista/repolens.py",
+        "tools/parity_guard.py",
+        "merger/lenskit/tests/test_source_acquisition.py",
+        "merger/lenskit/tests/test_service_runner_pre_pull.py",
+        "merger/lenskit/tests/test_cli_rlens_client.py",
+        "merger/lenskit/tests/test_pythonista_pre_pull.py",
+        "merger/lenskit/frontends/webui/tests/test_pre_pull_payload.js",
+        "docs/blueprints/rlens-source-acquisition-blueprint.md",
+        "docs/service-api.md"
+      ]
+    },
+    {
+      "id": "TASK-VALIDATION-DIAG-002A",
+      "title": "Validation diagnostics schema alignment proof",
+      "status": "done",
+      "description": "Inventories validation.mode, validation.engine and validation.reason across OH/PEH/BSV; separates schema-valid, producer-emitted, reserved and obsolete/unendorsed (range_ref_minimal); no production code, schema or test change.",
+      "evidence": [
+        "docs/proofs/validation-diagnostics-schema-alignment-proof.md"
+      ]
+    },
+    {
+      "id": "TASK-VALIDATION-DIAG-002B",
+      "title": "Validation diagnostics regression gaps",
+      "status": "done",
+      "description": "Closes test gaps for actually emitted validation diagnostics: OH/PEH negative schema cases, complete persistence assertions for mode/engine/reason, legacy compatibility and BSV persistence without production code or schema change.",
+      "evidence": [
+        "merger/lenskit/tests/test_output_health.py",
+        "merger/lenskit/tests/test_post_emit_health.py",
+        "merger/lenskit/tests/test_bundle_surface_validate.py"
+      ]
+    },
+    {
+      "id": "TASK-VALIDATION-DEPS-001",
+      "title": "Runtime dependency diagnostics inventory",
+      "status": "done",
+      "description": "Adds an additive top-level dependencies.jsonschema inventory for OH/PEH so runtime capabilities (full_validation_available vs. validation_degraded) are machine-readable; required_for is report-local and breaks neither check-local validation diagnostics nor legacy reports.",
+      "evidence": [
+        "merger/lenskit/core/dependency_diagnostics.py",
+        "merger/lenskit/core/output_health.py",
+        "merger/lenskit/core/post_emit_health.py",
+        "merger/lenskit/contracts/output-health.v1.schema.json",
+        "merger/lenskit/contracts/post-emit-health.v1.schema.json",
+        "merger/lenskit/tests/test_output_health.py",
+        "merger/lenskit/tests/test_post_emit_health.py"
+      ]
+    },
+    {
+      "id": "TASK-REPO-FULL-AUDIT-001",
+      "title": "Repository Complete Audit 2026-07",
+      "status": "done",
+      "description": "Full-repo audit: fixes stale tests (pre-pull report artifact drift in test_merges_dir_drift.py, missing .agent_entry_manifest.json suffix in test_per_repo_cohesion.py), adds a conftest skip hook for browser-marked tests without pytest-playwright, introduces the full-suite CI gate test-suite.yml (pytest full run + WebUI JS tests), reconciles board/index task registries, corrects the copied-from-heimgewebe/tools metadata in .ai-context.yml and .wgx/profile.yml, and records the audit in docs/architecture/inconsistencies.md. Deferred items are registered as open tasks; the audit does not prove absence of further defects.",
+      "evidence": [
+        "docs/proofs/repo-complete-audit-2026-07-proof.md",
+        "docs/architecture/inconsistencies.md",
+        ".github/workflows/test-suite.yml",
+        "merger/lenskit/tests/test_merges_dir_drift.py",
+        "merger/lenskit/tests/test_per_repo_cohesion.py",
+        "merger/lenskit/tests/conftest.py",
+        ".ai-context.yml",
+        ".wgx/profile.yml"
+      ]
+    },
+    {
+      "id": "TASK-CI-CONTRACTS-PATHS-001",
+      "title": "contracts-validate.yml Path Filter Reconciliation",
+      "status": "open",
+      "description": "contracts-validate.yml triggers on json/**, proto/** and fixtures/** which do not exist in this repository; the actual contracts live under merger/lenskit/contracts/**. Decide whether the workflow should cover the real contract paths, be documented as intentional metarepo template overhead, or be removed.",
+      "evidence": [
+        ".github/workflows/contracts-validate.yml"
+      ]
+    },
+    {
+      "id": "TASK-LINT-RUFF-SCOPE-001",
+      "title": "Ruff Lint Scope Ratchet",
+      "status": "open",
+      "description": "CI lint gates only F401/F811; a full ruff run reports ~120 findings outside the gate (E701, E402, E741, E731 and friends) and there is no ruff config file, so local runs diverge from CI. Introduce a checked-in ruff configuration mirroring the CI selection and decide on a stepwise ratchet for the wider rule set.",
+      "evidence": [
+        ".github/workflows/lint.yml"
+      ]
     }
   ]
 }
