@@ -163,6 +163,26 @@ def test_compile_rejects_sibling_dump_index_hash_mismatch(tmp_path):
     assert caught.value.source == "expected_provenance"
 
 
+def test_compile_rejects_sibling_dump_index_run_id_mismatch(tmp_path):
+    dump_path = tmp_path / "bundle.dump_index.json"
+    dump_path.write_text(
+        json.dumps({"contract": "dump-index", "run_id": "expected-run"}),
+        encoding="utf-8",
+    )
+    dump_sha = hashlib.sha256(dump_path.read_bytes()).hexdigest()
+    graph_path, entrypoints_path = _write_bundle_sources(
+        tmp_path,
+        graph=_graph(run_id="source-run", sha=dump_sha),
+        entrypoints=_entrypoints(run_id="source-run", sha=dump_sha),
+    )
+
+    with pytest.raises(GraphIndexCompilationError) as caught:
+        compile_graph_index(graph_path, entrypoints_path)
+
+    assert caught.value.code == "bundle_provenance_mismatch"
+    assert caught.value.source == "expected_provenance"
+
+
 def test_compile_rejects_unusable_sibling_dump_index(tmp_path):
     dump_path = tmp_path / "bundle.dump_index.json"
     dump_path.write_text(json.dumps({"contract": "dump-index"}), encoding="utf-8")
