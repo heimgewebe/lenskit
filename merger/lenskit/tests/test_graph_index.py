@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -96,6 +97,16 @@ def _write(tmp_path, graph=None, entrypoints=None):
     return graph_path, entrypoints_path
 
 
+def _write_bundle_sources(tmp_path, stem="bundle", graph=None, entrypoints=None):
+    graph_path = tmp_path / f"{stem}.architecture_graph.json"
+    entrypoints_path = tmp_path / f"{stem}.entrypoints.json"
+    graph_path.write_text(json.dumps(graph or _graph()), encoding="utf-8")
+    entrypoints_path.write_text(
+        json.dumps(entrypoints or _entrypoints()), encoding="utf-8"
+    )
+    return graph_path, entrypoints_path
+
+
 def test_compile_graph_index_requires_coherent_validated_sources(tmp_path):
     graph_path, entrypoints_path = _write(tmp_path)
 
@@ -116,6 +127,71 @@ def test_compile_graph_index_requires_coherent_validated_sources(tmp_path):
         "nodes_reachable": 2,
         "unreachable_nodes": 0,
     }
+
+
+def test_compile_infers_expected_bundle_provenance_from_sibling_dump_index(tmp_path):
+    dump_path = tmp_path / "bundle.dump_index.json"
+    dump_path.write_text(
+        json.dumps({"contract": "dump-index", "run_id": "run-1"}),
+        encoding="utf-8",
+    )
+    dump_sha = hashlib.sha256(dump_path.read_bytes()).hexdigest()
+    graph_path, entrypoints_path = _write_bundle_sources(
+        tmp_path,
+        graph=_graph(sha=dump_sha),
+        entrypoints=_entrypoints(sha=dump_sha),
+    )
+
+    result = compile_graph_index(graph_path, entrypoints_path)
+
+    assert result["run_id"] == "run-1"
+    assert result["canonical_dump_index_sha256"] == dump_sha
+
+
+def test_compile_rejects_sibling_dump_index_hash_mismatch(tmp_path):
+    dump_path = tmp_path / "bundle.dump_index.json"
+    dump_path.write_text(
+        json.dumps({"contract": "dump-index", "run_id": "run-1"}),
+        encoding="utf-8",
+    )
+    graph_path, entrypoints_path = _write_bundle_sources(tmp_path)
+
+    with pytest.raises(GraphIndexCompilationError) as caught:
+        compile_graph_index(graph_path, entrypoints_path)
+
+    assert caught.value.code == "bundle_provenance_mismatch"
+    assert caught.value.source == "expected_provenance"
+
+
+def test_compile_rejects_unusable_sibling_dump_index(tmp_path):
+    dump_path = tmp_path / "bundle.dump_index.json"
+    dump_path.write_text(json.dumps({"contract": "dump-index"}), encoding="utf-8")
+    graph_path, entrypoints_path = _write_bundle_sources(tmp_path)
+
+    with pytest.raises(GraphIndexCompilationError) as caught:
+        compile_graph_index(graph_path, entrypoints_path)
+
+    assert caught.value.code == "bundle_provenance_unavailable"
+    assert caught.value.source == "expected_provenance"
+
+
+def test_compile_keeps_explicit_expected_provenance_override(tmp_path):
+    dump_path = tmp_path / "bundle.dump_index.json"
+    dump_path.write_text(
+        json.dumps({"contract": "dump-index", "run_id": "other-run"}),
+        encoding="utf-8",
+    )
+    graph_path, entrypoints_path = _write_bundle_sources(tmp_path)
+
+    result = compile_graph_index(
+        graph_path,
+        entrypoints_path,
+        expected_run_id="run-1",
+        expected_canonical_sha256=SHA_A,
+    )
+
+    assert result["run_id"] == "run-1"
+    assert result["canonical_dump_index_sha256"] == SHA_A
 
 
 @pytest.mark.parametrize("source", ["graph", "entrypoints"])
