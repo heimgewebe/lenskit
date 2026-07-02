@@ -104,10 +104,16 @@ def _infer_bundle_provenance(
         return None, None
 
     try:
-        with dump_index_path.open(encoding="utf-8") as handle:
-            dump_index = json.load(handle)
+        raw_dump_index = dump_index_path.read_bytes()
+        dump_index = json.loads(raw_dump_index.decode("utf-8"))
         run_id = dump_index["run_id"]
-    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+    ) as exc:
         raise GraphIndexCompilationError(
             "bundle_provenance_unavailable",
             f"sibling dump index is unusable: {dump_index_path}",
@@ -122,7 +128,7 @@ def _infer_bundle_provenance(
             source="expected_provenance",
         )
 
-    digest = hashlib.sha256(dump_index_path.read_bytes()).hexdigest()
+    digest = hashlib.sha256(raw_dump_index).hexdigest()
     return run_id, digest
 
 
