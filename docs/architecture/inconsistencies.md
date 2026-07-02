@@ -83,3 +83,33 @@ Offene Punkte tragen eine klare Folgeaktion und wurden bewusst **nicht** blind g
 ### Nicht-Befunde (geprüft, kein Handlungsbedarf)
 - Produktionscode ist auf den CI-relevanten Regeln (`F401`, `F811`) sauber; die ~136 Default-ruff-Treffer (`E701`, `E402`, `E741`, …) sind bewusst **nicht** im CI-Gate und wurden **nicht** angefasst (keine Konventions-Überschreitung).
 - Die in §6 als „offen" geführten PR-A1/PR-A2-Punkte sind im Code bereits umgesetzt; ihre Statuszeilen wurden in diesem Audit korrigiert (Doku-Drift behoben).
+
+## 8. Komplettaudit (2026-07-02)
+
+Repo-weiter Sweep über Tests, CI-Workflows, Task-Kontrollflächen (`docs/tasks/`),
+Fleet-Metadaten und Doku-Links. Vollnachweis mit Scope/STOP:
+`docs/proofs/repo-complete-audit-2026-07-proof.md`; Task-Registrierung:
+`TASK-REPO-FULL-AUDIT-001` (`docs/tasks/board.md`). Ausgeführte Prüfgrundlage:
+voller Pytest-Lauf (3167 passed, 4 failed, 10 errors vor Fix), `ruff check`,
+alle lokalen Guards (Planning-Ratchet, Doc-Freshness, Parity, ai-context),
+Board/Index-Abgleich, Markdown-Link-Scan (0 broken), Node-Lauf aller WebUI-JS-Tests.
+
+| Befund | Beleg | Status | Folge |
+| :--- | :--- | :--- | :--- |
+| Kein CI-Workflow führte die Gesamt-Testsuite aus (alle Workflows pfad-gescoped) → Feature-/Test-Drift blieb auf `main` unsichtbar; Root Cause für die zwei folgenden Befunde | 16 Workflows in `.github/workflows/`, alle mit Datei-Subsets bzw. `paths:`-Filtern | **behoben** | neues Full-Suite-Gate `.github/workflows/test-suite.yml` (pytest ohne `browser`/`doc_freshness_live`-Marker, plus Node-Job für WebUI-JS-Tests) |
+| 3 stale Tests in `test_merges_dir_drift.py`: nahmen an, dass Jobs genau 1 Artefakt registrieren; seit TASK-SERVICE-002/003 wird zusätzlich ein `pre_pull_report`-/`source_acquisition_report`-Artefakt registriert (Index [0] war der Report) | `merger/lenskit/tests/test_merges_dir_drift.py` (AssertionError `2 == 1`, KeyError `json`/`md`) vs. `service/runner.py` Report-Registrierung | **behoben** | Tests selektieren jetzt explizit das Merge-Artefakt (`_merge_artifacts`-Helper, Report-only-Keys ausgefiltert); Semantik der Report-Registrierung unangetastet |
+| 1 stale Test in `test_per_repo_cohesion.py`: `.agent_entry_manifest.json` (neu seit TASK-AGENT-ENTRY-MANIFEST-001) fehlte in `_BUNDLE_LEVEL_JSON_SUFFIXES` → Sidecar-Zählung schlug fehl | `merger/lenskit/tests/test_per_repo_cohesion.py` („Should have 2 JSON sidecars, found 3") | **behoben** | Suffix ergänzt (die Tuple-Doku verlangt genau das bei neuen Bundle-Artefakten) |
+| 10 Browser-Test-Errors ohne pytest-playwright: `browser`-Marker existiert, aber ohne Plugin liefen die Tests in harte Fixture-Errors statt Skips (bereits in §7 als „7 vorbestehende Errors" beobachtet, nicht behoben) | `merger/lenskit/tests/test_webui_payload.py` („fixture 'page' not found") | **behoben** | `pytest_collection_modifyitems`-Hook in `tests/conftest.py`: skippt `browser`-markierte Tests, wenn das Playwright-Plugin fehlt |
+| Task-Kontrollflächen-Drift: 8 Board-Tasks fehlten in `docs/tasks/index.json` (TASK-OPS-CTL-006, TASK-DOCS-PROOF-001, TASK-RLENS-UX-RESTART-001, TASK-SERVICE-002/003, TASK-VALIDATION-DIAG-002A/B, TASK-VALIDATION-DEPS-001); 1 Index-Task (TASK-BACKLOG-STATUS-RECONCILE-001) fehlte im Board; Leerzeile zerteilte die Board-Tabelle (Render-Bruch) | Abgleich `docs/tasks/board.md` ↔ `docs/tasks/index.json` (64 vs. 57 Tasks) | **behoben** | beide Registries reconciled (jetzt deckungsgleich), Leerzeile entfernt; der Planning-Ratchet prüft Pfad-Registrierung, nicht Board↔Index-Parität — ein Paritäts-Guard wäre ein möglicher Folge-Slice |
+| Fleet-Metadaten beschrieben ein fremdes Repo: `.ai-context.yml` (primary_language `bash`, Entrypoints `scripts/tools/*-pin.sh`, Runbook `docs/runbook.md` – alles inexistent) und `.wgx/profile.yml` (`repo: heimgewebe/tools`, `class: bash-tooling`, `lang: shell`) waren Kopien aus `heimgewebe/tools` | `.ai-context.yml`, `.wgx/profile.yml` vs. realer Repo-Inhalt | **behoben** (Rest offen) | beide auf lenskit korrigiert (validator-grün); `class: bash-tooling` bewusst belassen, da das gültige Klassen-Set vom externen `heimgewebe/wgx`-Guard kontrolliert wird — Klärung als Folgearbeit notiert |
+| Stale Roadmap-Aussage: zwei Blueprints als „kein File-Proof vorhanden" geführt, obwohl beide unter `docs/blueprints/` existieren | `docs/roadmap/lenskit-master-roadmap.md` §Prüfgrundlage vs. `docs/blueprints/{range-ref-v2-semantic-boundary-split-preimage,lenskit-evidence-address-architecture}.md` | **behoben** | Einordnung auf Repo-Stand aktualisiert (Re-Audit-Vermerk) |
+| `contracts-validate.yml` triggert auf `json/**`, `proto/**`, `fixtures/**` — keiner dieser Pfade existiert; reale Contracts liegen unter `merger/lenskit/contracts/**` | `.github/workflows/contracts-validate.yml` | **offen** | als `TASK-CI-CONTRACTS-PATHS-001` registriert (erweitern, als Template-Overhead dokumentieren oder entfernen) |
+| Ruff-Scope: CI prüft nur `F401`/`F811`; ~120 Findings außerhalb des Gates, keine eingecheckte Ruff-Konfiguration (lokales `ruff check` ≠ CI-Verhalten) | `.github/workflows/lint.yml`; `ruff check --statistics` | **offen** | als `TASK-LINT-RUFF-SCOPE-001` registriert (Config-Datei + schrittweises Ratchet); bewusst kein Style-Rundumschlag in diesem Audit |
+
+### Nicht-Befunde (geprüft, kein Handlungsbedarf)
+- Alle 50 relativen Markdown-Links in `docs/`/`README` zeigen auf existierende Ziele.
+- Alle Evidence-Pfade in `docs/tasks/index.json` existieren.
+- Guards grün: Planning-Ratchet (0 findings), Doc-Freshness (PASS), Parity Guard (PASS), ai-context-Validator (OK), CI-Lint-Selektion (`F401`/`F811`) sauber.
+- Die 3 `invalid-syntax`-Dateien unter `tests/fixtures/` sind absichtliche Negativ-Fixtures.
+- WebUI-JS-Tests (5 Dateien) und `test_lens_facet_pattern_ecma.js` laufen unter Node 22 lokal grün; CI-Abdeckung jetzt über `test-suite.yml`.
+- 11 Test-Skips sind deklarierte Umgebungs-Skips (base snapshot, E2E default-off), kein Drift.

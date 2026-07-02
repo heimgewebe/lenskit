@@ -11,6 +11,20 @@ import tempfile
 import json
 import sqlite3
 
+# Report artifacts the runner may register alongside the merge artifact
+# (pre-pull / source-acquisition reports, see TASK-SERVICE-002/003).
+_REPORT_ONLY_PATH_KEYS = {"pre_pull_report", "source_acquisition_report"}
+
+
+def _merge_artifacts(store, job):
+    """Return the job's artifacts excluding report-only sidecar artifacts."""
+    artifacts = [store.get_artifact(aid) for aid in job.artifact_ids]
+    return [
+        a for a in artifacts
+        if a is not None and not set(a.paths) <= _REPORT_ONLY_PATH_KEYS
+    ]
+
+
 @pytest.fixture
 def temp_hub():
     with tempfile.TemporaryDirectory() as tmp:
@@ -85,9 +99,11 @@ def test_runner_resolves_and_creates_relative_merges_dir(temp_hub):
     assert updated_job.status == "succeeded", f"Job failed with error: {updated_job.error}"
 
     # C. Check Artifact Persistence
-    assert len(updated_job.artifact_ids) == 1
-    art = store.get_artifact(updated_job.artifact_ids[0])
-    assert art is not None
+    # The runner may additionally register a pre-pull report artifact
+    # (pre_pull defaults to on); exactly one merge artifact is expected.
+    merge_arts = _merge_artifacts(store, updated_job)
+    assert len(merge_arts) == 1
+    art = merge_arts[0]
 
     # Assert that 'other_1' was properly mapped into paths
     assert art.paths.get("other_1") == "other_file.txt"
@@ -146,7 +162,9 @@ def test_runner_artifact_path_mapping(temp_hub):
         runner._run_job(job.id)
 
     updated_job = store.get_job(job.id)
-    art = store.get_artifact(updated_job.artifact_ids[0])
+    merge_arts = _merge_artifacts(store, updated_job)
+    assert len(merge_arts) == 1
+    art = merge_arts[0]
 
     assert art.paths["json"] == "index.json"
     assert art.paths["md"] == "canonical.md"
@@ -479,8 +497,9 @@ def test_runner_full_snapshot_path_excludes_cache_dirs(temp_hub):
     assert updated_job.status == "succeeded", f"runner failed: {updated_job.error}"
     assert updated_job.artifact_ids
 
-    artifact = store.get_artifact(updated_job.artifact_ids[0])
-    assert artifact is not None
+    merge_arts = _merge_artifacts(store, updated_job)
+    assert len(merge_arts) == 1
+    artifact = merge_arts[0]
     merges_dir = Path(artifact.merges_dir)
 
     md_path = merges_dir / artifact.paths["md"]

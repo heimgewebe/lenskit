@@ -6,6 +6,24 @@ import tempfile
 import pytest
 
 
+def pytest_collection_modifyitems(config, items):
+    """Skip browser-marked tests when pytest-playwright is not installed.
+
+    The `browser` marker (see pytest.ini) covers WebUI tests that need the
+    playwright `page` fixture. Without this hook, a runtime that lacks
+    pytest-playwright (e.g. plain `pip install -r requirements-dev.txt`)
+    reports hard fixture errors instead of skips.
+    """
+    if config.pluginmanager.hasplugin("playwright"):
+        return
+    skip_browser = pytest.mark.skip(
+        reason="pytest-playwright not installed (see requirements-browser.txt)"
+    )
+    for item in items:
+        if "browser" in item.keywords:
+            item.add_marker(skip_browser)
+
+
 @pytest.fixture
 def no_jsonschema(monkeypatch):
     """Simulate an environment where importing jsonschema fails."""

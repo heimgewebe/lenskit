@@ -10,6 +10,14 @@ datums- und Track-basiert. Roadmap-Phasen/Tracks: siehe
 ## [Unreleased]
 
 ### Added
+- **Full-Suite-CI-Gate (`test-suite.yml`, Komplettaudit 2026-07):** neuer
+  Workflow führt die gesamte pytest-Suite (ohne `browser`/`doc_freshness_live`-
+  Marker) sowie alle WebUI-JS-Tests unter Node aus. Bisher waren alle
+  Test-Workflows pfad-gescoped, wodurch Feature-/Test-Drift auf `main`
+  unsichtbar blieb (4 stale Test-Failures, 10 Browser-Errors). Audit-Register:
+  `docs/architecture/inconsistencies.md` §8, Proof:
+  `docs/proofs/repo-complete-audit-2026-07-proof.md`,
+  Task: `TASK-REPO-FULL-AUDIT-001`.
 - **Atlas FTS-Suchindex (Blaupause Phase 4 / ADR-009):** globaler SQLite-FTS5-Index
   unter `atlas/indexes/fts.sqlite` (`merger/lenskit/atlas/index.py`,
   `AtlasFTSIndex`). Löst das lineare JSONL-Scannen der Suchschicht ab —
@@ -45,6 +53,20 @@ datums- und Track-basiert. Roadmap-Phasen/Tracks: siehe
   immutable; vermeidet Re-Parse pro Chunk bei großen Bundles) + 2 Tests.
 
 ### Fixed
+- **Stale Tests nach Artefakt-Erweiterungen (Komplettaudit 2026-07):**
+  `test_merges_dir_drift.py` selektiert das Merge-Artefakt jetzt explizit
+  (statt `artifact_ids[0]`, das seit TASK-SERVICE-002/003 der
+  `pre_pull_report` sein kann); `test_per_repo_cohesion.py` kennt
+  `.agent_entry_manifest.json` als Bundle-Level-Suffix; `browser`-markierte
+  Tests skippen sauber, wenn pytest-playwright fehlt (Collection-Hook in
+  `tests/conftest.py`).
+- **Task-Registry-Drift:** `docs/tasks/board.md` und `docs/tasks/index.json`
+  reconciled (8 fehlende Index-Tasks, 1 fehlender Board-Task,
+  Tabellen-Render-Bruch durch Leerzeile).
+- **Fleet-Metadaten:** `.ai-context.yml` und `.wgx/profile.yml` beschrieben
+  das Repo `heimgewebe/tools` (bash-Tooling) statt lenskit; auf realen
+  Repo-Inhalt korrigiert. Stale Blueprint-Aussage in der Master-Roadmap
+  aktualisiert.
 - `docs/architecture/system-map.lenskit.md`: veralteter „Bekannte Lücken"-Eintrag
   korrigiert — Föderations-Module sind vorhanden (`core/federation.py` u. a.);
   Status nun konsistent zur Master-Roadmap Phase 4 (vorhanden, Hardening offen).

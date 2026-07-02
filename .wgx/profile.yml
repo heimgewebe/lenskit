@@ -1,28 +1,32 @@
 ---
-# WGX Profil für heimgewebe/tools
-profile: heimgewebe-tools
-description: "Host- und CI-Hilfsskripte für Heimgewebe"
+# WGX Profil für heimgewebe/lenskit
+profile: lenskit
+description: "RepoLens Merger & Scanner (epistemischer Kern) plus Metrics-/Host-Hilfsskripte"
 
 # Semantische Version des hauski-/WGX-Profils (nicht dasselbe wie wgx CLI-Version)
 wgx-version: ">=1.0.0"
 
-# Fleet-Klasse dieses Repos – dient als Oberflächen-Typ für Tools
+# Fleet-Klasse dieses Repos – dient als Oberflächen-Typ für Tools.
+# Hinweis: Klassenwert stammt aus dem tools-Template; ob eine Python-Klasse
+# existiert, klärt TASK-REPO-FULL-AUDIT-001-Folgearbeit (docs/tasks/board.md).
 class: bash-tooling
 
 wgx:
   apiVersion: v1
 
 lang:
+  - python
   - shell
 
 meta:
   org: heimgewebe
-  repo: heimgewebe/tools
+  repo: heimgewebe/lenskit
   maintainer: alexdermohr@gmail.com
   tags:
-    - tools
+    - lenskit
+    - merger
+    - scanner
     - metrics
-    - host
     - wgx
   ci: true
 
@@ -31,7 +35,7 @@ env:
 
 tasks:
   smoke: |
-    echo "[wgx.smoke] tools – schneller Grundcheck"
+    echo "[wgx.smoke] lenskit – schneller Grundcheck"
     if [ -f scripts/wgx-metrics-snapshot.sh ]; then
       bash scripts/wgx-metrics-snapshot.sh --json || echo "[wgx.smoke] metrics-snapshot optional fehlgeschlagen"
     else
@@ -40,7 +44,7 @@ tasks:
 
   guard: |
     set -euo pipefail
-    echo "[wgx.guard] tools – Shell-Skripte prüfen…"
+    echo "[wgx.guard] lenskit – Shell-Skripte prüfen…"
     if [ -f scripts/wgx-metrics-snapshot.sh ]; then
       bash -n scripts/wgx-metrics-snapshot.sh
       if command -v shellcheck >/dev/null 2>&1; then
@@ -53,7 +57,7 @@ tasks:
     fi
 
   metrics: |
-    echo "[wgx.metrics] tools – metrics-Snapshot (best effort)…"
+    echo "[wgx.metrics] lenskit – metrics-Snapshot (best effort)…"
     if [ -f scripts/wgx-metrics-snapshot.sh ]; then
       bash scripts/wgx-metrics-snapshot.sh --json || echo "[wgx.metrics] metrics-snapshot fehlgeschlagen."
     else
@@ -61,7 +65,7 @@ tasks:
     fi
 
   snapshot: |
-    echo "[wgx.snapshot] tools – Snapshot (best effort)…"
+    echo "[wgx.snapshot] lenskit – Snapshot (best effort)…"
     if [ -f scripts/wgx-metrics-snapshot.sh ]; then
       bash scripts/wgx-metrics-snapshot.sh --json || true
     fi

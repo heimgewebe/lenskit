@@ -1,0 +1,67 @@
+name: test-suite
+
+# Full-suite gate. All other test workflows are path-scoped subsets; without
+# this workflow, cross-cutting drift (a feature changing artifact emission and
+# breaking an unrelated test file) is invisible until someone runs the whole
+# suite locally. See docs/proofs/repo-complete-audit-2026-07-proof.md.
+#
+# Deselected markers:
+# - browser: needs pytest-playwright + a browser runtime (requirements-browser.txt)
+# - doc_freshness_live: declared non-blocking by design; run with
+#   continue-on-error in doc-freshness.yml
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  pytest-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r merger/lenskit/requirements.txt
+
+      - name: Run full pytest suite
+        run: pytest -q -m "not browser and not doc_freshness_live"
+
+  webui-js-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run WebUI JS tests
+        run: |
+          set -euo pipefail
+          for f in merger/lenskit/frontends/webui/tests/test_*.js; do
+            echo "=== node $f"
+            node "$f"
+          done
