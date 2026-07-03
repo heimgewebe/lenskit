@@ -198,3 +198,52 @@ def get_artifact(bundle_manifest: str | Path, role: str) -> dict[str, Any]:
         },
         "does_not_establish": list(_DOES_NOT_ESTABLISH),
     }
+
+
+def snapshot_check(
+    bundle_manifest: str | Path,
+    task_profile: str = "basic_repo_question",
+) -> dict[str, Any]:
+    status = snapshot_status(bundle_manifest)
+    artifacts = list_artifacts(bundle_manifest)
+    required = resolve_required_reading_for_bundle(bundle_manifest, task_profile)
+    required_status = str(required.get("status", "unknown"))
+    profile_eval = status.get("profile_evaluation")
+    profile_status = None
+    if isinstance(profile_eval, dict):
+        raw_profile_status = profile_eval.get("status")
+        if isinstance(raw_profile_status, str):
+            profile_status = raw_profile_status
+
+    statuses = [required_status]
+    if profile_status:
+        statuses.append(profile_status)
+    if "fail" in statuses or "not_applicable" in statuses:
+        check_status = "fail"
+    elif "warn" in statuses:
+        check_status = "warn"
+    elif all(item == "pass" for item in statuses):
+        check_status = "pass"
+    else:
+        check_status = "unknown"
+    return {
+        "kind": "repobrief.snapshot_check",
+        "version": "v1",
+        "status": check_status,
+        "bundle_manifest": status["bundle_manifest"],
+        "bundle_run_id": status["bundle_run_id"],
+        "profile": status["profile"],
+        "profile_evaluation_status": profile_status,
+        "task_profile": task_profile,
+        "artifact_count": artifacts["artifact_count"],
+        "roles": artifacts["roles"],
+        "snapshot_status": status,
+        "artifact_list": artifacts,
+        "required_reading": required,
+        "mutation_boundary": {
+            "writes": [],
+            "does_not_mutate": ["git", "pull_requests", "patches", "source_working_tree", "brief_bundle_artifacts"],
+            "read_paths_do_not_refresh": True,
+        },
+        "does_not_establish": list(_DOES_NOT_ESTABLISH),
+    }

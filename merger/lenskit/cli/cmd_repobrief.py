@@ -245,6 +245,9 @@ def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
 
     status_parser = snapshot_subparsers.add_parser("status", help="Read status for an existing Brief Snapshot")
     status_parser.add_argument("--bundle-manifest", required=True, help="Path to a Brief Bundle manifest")
+    check_parser = snapshot_subparsers.add_parser("check", help="Read-only snapshot check summary")
+    check_parser.add_argument("--bundle-manifest", required=True, help="Path to a Brief Bundle manifest")
+    check_parser.add_argument("--task-profile", default="basic_repo_question", help="Required-reading task profile")
 
     artifact_parser = repobrief_subparsers.add_parser("artifact", help="Brief artifact read-only commands")
     artifact_subparsers = artifact_parser.add_subparsers(
@@ -269,6 +272,8 @@ def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
 def run_repobrief(args: argparse.Namespace) -> int:
     if args.repobrief_cmd == "snapshot" and args.snapshot_cmd == "create":
         return run_snapshot_create(args)
+    if args.repobrief_cmd == "snapshot" and args.snapshot_cmd == "check":
+        return run_snapshot_check(args)
     if args.repobrief_cmd == "snapshot" and args.snapshot_cmd == "status":
         return run_snapshot_status(args)
     if args.repobrief_cmd == "artifact" and args.artifact_cmd == "get":
@@ -279,6 +284,18 @@ def run_repobrief(args: argparse.Namespace) -> int:
         return run_required_reading_resolve(args)
     print("Unsupported RepoBrief command", file=sys.stderr)
     return 2
+
+
+def run_snapshot_check(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.repobrief_access import snapshot_check
+
+    try:
+        result = snapshot_check(args.bundle_manifest, args.task_profile)
+    except ValueError as exc:
+        print("repobrief snapshot check: " + str(exc), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result.get("status") in {"pass", "warn"} else 1
 
 
 def run_snapshot_status(args: argparse.Namespace) -> int:
