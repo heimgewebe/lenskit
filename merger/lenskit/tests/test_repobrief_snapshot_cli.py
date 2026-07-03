@@ -330,3 +330,49 @@ def test_snapshot_create_emits_snapshot_plan_report(tmp_path, capsys):
     assert report["kind"] == "repobrief.snapshot_plan"
     assert report["output_plan"] == emitted["output_plan"]
     assert any(a.get("role") == "snapshot_plan_json" for a in manifest_data["artifacts"])
+# access test marker
+
+
+def test_repobrief_snapshot_status_reads_existing_manifest(tmp_path, capsys):
+    artifact = tmp_path / "demo.md"
+    artifact.write_text("# demo\n", encoding="utf-8")
+    manifest = tmp_path / "demo.bundle.manifest.json"
+    manifest.write_text(json.dumps({
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "run-1",
+        "created_at": "2026-07-03T00:00:00Z",
+        "generator": {"name": "test", "version": "1", "config_sha256": "a" * 64},
+        "artifacts": [{"role": "canonical_md", "path": artifact.name, "content_type": "text/markdown", "bytes": artifact.stat().st_size, "sha256": "b" * 64, "authority": "canonical_content", "canonicality": "content_source"}],
+        "links": {},
+        "capabilities": {"repobrief_profile": "agent-portable", "repobrief_profile_evaluation": {"status": "pass"}},
+    }), encoding="utf-8")
+
+    rc = main(["repobrief", "snapshot", "status", "--bundle-manifest", str(manifest)])
+
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["kind"] == "repobrief.snapshot_status"
+    assert out["profile"] == "agent-portable"
+    assert out["roles"] == ["canonical_md"]
+    assert out["mutation_boundary"]["writes"] == []
+
+
+def test_repobrief_core_get_artifact_reports_available_and_missing(tmp_path):
+    from merger.lenskit.core.repobrief_access import get_artifact
+
+    artifact = tmp_path / "demo.md"
+    artifact.write_text("# demo\n", encoding="utf-8")
+    manifest = tmp_path / "demo.bundle.manifest.json"
+    manifest.write_text(json.dumps({
+        "artifacts": [{"role": "canonical_md", "path": artifact.name}],
+        "capabilities": {},
+    }), encoding="utf-8")
+
+    found = get_artifact(manifest, "canonical_md")
+    missing = get_artifact(manifest, "missing_role")
+
+    assert found["status"] == "available"
+    assert found["artifact"]["file_exists"] is True
+    assert missing["status"] == "missing"
+    assert missing["artifact"] is None

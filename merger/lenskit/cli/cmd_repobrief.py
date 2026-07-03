@@ -243,13 +243,29 @@ def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
     create_parser.add_argument("--no-include-hidden", action="store_false", dest="include_hidden")
     create_parser.set_defaults(include_hidden=True)
 
+    status_parser = snapshot_subparsers.add_parser("status", help="Read status for an existing Brief Snapshot")
+    status_parser.add_argument("--bundle-manifest", required=True, help="Path to a Brief Bundle manifest")
+
 
 def run_repobrief(args: argparse.Namespace) -> int:
     if args.repobrief_cmd == "snapshot" and args.snapshot_cmd == "create":
         return run_snapshot_create(args)
+    if args.repobrief_cmd == "snapshot" and args.snapshot_cmd == "status":
+        return run_snapshot_status(args)
     print("Unsupported RepoBrief command", file=sys.stderr)
     return 2
 
+
+def run_snapshot_status(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.repobrief_access import snapshot_status
+
+    try:
+        result = snapshot_status(args.bundle_manifest)
+    except ValueError as exc:
+        print("repobrief snapshot status: " + str(exc), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
 
 def run_snapshot_create(args: argparse.Namespace) -> int:
     profile = args.profile
