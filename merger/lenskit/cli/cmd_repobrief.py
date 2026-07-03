@@ -9,16 +9,13 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from merger.lenskit.core.merge import ExtrasConfig, parse_human_size, scan_repo, write_reports_v2
-
-SNAPSHOT_PROFILES = {
-    "local-private": {"level": "dev"},
-    "agent-portable": {"level": "max"},
-    "full-max": {"level": "max"},
-    "pr-review": {"level": "dev"},
-    "security-export-review": {"level": "max"},
-    "public-share": {"level": "summary"},
-    "ci-artifact": {"level": "dev"},
-}
+from merger.lenskit.core.repobrief_profiles import (
+    evaluate_profile,
+    present_roles_from_manifest,
+    profile_level,
+    profile_names,
+    profile_policy,
+)
 
 DOES_NOT_ESTABLISH = [
     "truth",
@@ -60,17 +57,21 @@ def _json_write_atomic(path: Path, data: dict[str, Any]) -> None:
                 pass
 
 
-def mark_bundle_manifest_profile(bundle_manifest: Path | None, profile: str) -> None:
+def mark_bundle_manifest_profile(bundle_manifest: Path | None, profile: str) -> dict[str, Any] | None:
     if bundle_manifest is None:
-        return
+        return None
     data = json.loads(bundle_manifest.read_text(encoding="utf-8"))
     capabilities = data.setdefault("capabilities", {})
     if not isinstance(capabilities, dict):
         capabilities = {}
         data["capabilities"] = capabilities
+    evaluation = evaluate_profile(profile, present_roles_from_manifest(data))
     capabilities["repobrief_profile"] = profile
     capabilities["repobrief_snapshot_create"] = True
+    capabilities["repobrief_profile_policy"] = profile_policy(profile)
+    capabilities["repobrief_profile_evaluation"] = evaluation
     _json_write_atomic(bundle_manifest, data)
+    return evaluation
 
 
 def parse_extensions(values: Iterable[str] | None) -> list[str] | None:
@@ -109,7 +110,7 @@ def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
     create_parser.add_argument("--out", required=True, help="Output directory for Brief Bundle artifacts")
     create_parser.add_argument(
         "--profile",
-        choices=sorted(SNAPSHOT_PROFILES),
+        choices=sorted(profile_names()),
         default="agent-portable",
         help="RepoBrief snapshot profile label to record in the manifest",
     )
@@ -172,7 +173,7 @@ def run_snapshot_create(args: argparse.Namespace) -> int:
         out,
         repo.parent,
         [summary],
-        SNAPSHOT_PROFILES[profile]["level"],
+        profile_level(profile),
         args.mode,
         max_bytes,
         False,
@@ -187,7 +188,7 @@ def run_snapshot_create(args: argparse.Namespace) -> int:
         include_hidden=args.include_hidden,
         generator_info=generator_info,
     )
-    mark_bundle_manifest_profile(artifacts.bundle_manifest, profile)
+    profile_evaluation = mark_bundle_manifest_profile(artifacts.bundle_manifest, profile)
 
     result = {
         "status": "ok",
@@ -196,6 +197,7 @@ def run_snapshot_create(args: argparse.Namespace) -> int:
         "repo": str(repo),
         "out": str(out),
         "bundle_manifest": str(artifacts.bundle_manifest) if artifacts.bundle_manifest else None,
+        "profile_evaluation": profile_evaluation,
         "artifacts": [str(path) for path in artifacts.get_all_paths()],
         "mutation_boundary": {
             "writes": ["brief_bundle_artifacts"],
