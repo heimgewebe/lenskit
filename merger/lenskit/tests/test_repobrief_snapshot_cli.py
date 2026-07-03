@@ -478,3 +478,80 @@ def test_repobrief_required_reading_resolve_cli_uses_bundle_roles(tmp_path, caps
     assert out["required_reading"]["status"] == "pass"
     assert out["required_reading"]["missing_recommended"] == []
     assert out["mutation_boundary"]["writes"] == []
+
+
+def test_repobrief_snapshot_check_cli_summarizes_read_only_surfaces(tmp_path, capsys):
+    manifest = tmp_path / "demo.bundle.manifest.json"
+    manifest.write_text(json.dumps({
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "run-1",
+        "created_at": "2026-07-03T00:00:00Z",
+        "generator": {"name": "test", "version": "1", "config_sha256": "a" * 64},
+        "artifacts": [
+            {"role": "agent_reading_pack", "path": "pack.md"},
+            {"role": "canonical_md", "path": "demo.md"},
+            {"role": "citation_map_jsonl", "path": "citation.jsonl"},
+            {"role": "snapshot_plan_json", "path": "plan.json"},
+        ],
+        "links": {},
+        "capabilities": {"repobrief_profile": "agent-portable"},
+    }), encoding="utf-8")
+
+    rc = main([
+        "repobrief",
+        "snapshot",
+        "check",
+        "--bundle-manifest",
+        str(manifest),
+        "--task-profile",
+        "basic_repo_question",
+    ])
+
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["kind"] == "repobrief.snapshot_check"
+    assert out["status"] == "pass"
+    assert out["task_profile"] == "basic_repo_question"
+    assert out["snapshot_status"]["kind"] == "repobrief.snapshot_status"
+    assert out["artifact_list"]["kind"] == "repobrief.artifact_list"
+    assert out["required_reading"]["kind"] == "repobrief.required_reading_resolution"
+    assert out["mutation_boundary"]["writes"] == []
+
+
+def test_repobrief_snapshot_check_propagates_failed_profile_evaluation(tmp_path, capsys):
+    manifest = tmp_path / "demo.bundle.manifest.json"
+    manifest.write_text(json.dumps({
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "run-1",
+        "created_at": "2026-07-03T00:00:00Z",
+        "generator": {"name": "test", "version": "1", "config_sha256": "a" * 64},
+        "artifacts": [
+            {"role": "agent_reading_pack", "path": "pack.md"},
+            {"role": "canonical_md", "path": "demo.md"},
+            {"role": "citation_map_jsonl", "path": "citation.jsonl"},
+            {"role": "snapshot_plan_json", "path": "plan.json"},
+        ],
+        "links": {},
+        "capabilities": {
+            "repobrief_profile": "agent-portable",
+            "repobrief_profile_evaluation": {"status": "fail", "missing_required": ["export_safety_report"]},
+        },
+    }), encoding="utf-8")
+
+    rc = main([
+        "repobrief",
+        "snapshot",
+        "check",
+        "--bundle-manifest",
+        str(manifest),
+        "--task-profile",
+        "basic_repo_question",
+    ])
+
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert out["status"] == "fail"
+    assert out["profile_evaluation_status"] == "fail"
+    assert out["required_reading"]["status"] == "pass"
