@@ -7,6 +7,8 @@ navigation layer; canonical_md remains the sole content truth.
 from __future__ import annotations
 
 
+_SNAPSHOT_PLAN_RECOMMENDED = ("snapshot_plan_json",)
+
 _DOES_NOT_ESTABLISH = (
     "all_relevant_context_used",
     "answer_safe_without_citations",
@@ -18,7 +20,7 @@ _DOES_NOT_ESTABLISH = (
 _PROFILES: dict[str, dict] = {
     "basic_repo_question": {
         "required": ("agent_reading_pack", "canonical_md"),
-        "recommended": ("citation_map_jsonl",),
+        "recommended": ("citation_map_jsonl",) + _SNAPSHOT_PLAN_RECOMMENDED,
         "insufficient": ("sidecar-only claims without canonical verification",),
         "citation_required": False,
         "answer_checklist_required": True,
@@ -31,7 +33,7 @@ _PROFILES: dict[str, dict] = {
             "citation_map_jsonl",
             "post_emit_health",
         ),
-        "recommended": ("bundle_surface_validation", "claim_evidence_map_json"),
+        "recommended": ("bundle_surface_validation", "claim_evidence_map_json") + _SNAPSHOT_PLAN_RECOMMENDED,
         "insufficient": (
             "only reading canonical_md linearly",
             "treating health pass as review completeness",
@@ -42,7 +44,7 @@ _PROFILES: dict[str, dict] = {
     },
     "roadmap_status_claim": {
         "required": ("agent_reading_pack", "canonical_md", "claim_evidence_map_json"),
-        "recommended": ("citation_map_jsonl",),
+        "recommended": ("citation_map_jsonl",) + _SNAPSHOT_PLAN_RECOMMENDED,
         "insufficient": (
             "roadmap status without Claim Evidence Map",
             "roadmap status without canonical check",
@@ -58,7 +60,7 @@ _PROFILES: dict[str, dict] = {
             "canonical_md",
             "post_emit_health",
         ),
-        "recommended": ("output_health",),
+        "recommended": ("output_health",) + _SNAPSHOT_PLAN_RECOMMENDED,
         "insufficient": (
             "output_health alone",
             "treating health pass as claim truth",
@@ -74,7 +76,7 @@ _PROFILES: dict[str, dict] = {
             "retrieval_eval_json",
             "sqlite_index",
         ),
-        "recommended": ("docs/retrieval/*",),
+        "recommended": ("docs/retrieval/*",) + _SNAPSHOT_PLAN_RECOMMENDED,
         "insufficient": ("impressionistic retrieval claims without metrics",),
         "citation_required": True,
         "answer_checklist_required": True,

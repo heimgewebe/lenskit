@@ -75,7 +75,7 @@ def test_basic_repo_question_all_present_is_pass():
     protocol = default_required_reading_protocol()
     result = resolve_required_reading(
         protocol,
-        available_roles={"agent_reading_pack", "canonical_md", "citation_map_jsonl"},
+        available_roles={"agent_reading_pack", "canonical_md", "citation_map_jsonl", "snapshot_plan_json"},
         task_profile="basic_repo_question",
     )
     assert result["status"] == "pass"
@@ -95,6 +95,7 @@ def test_basic_repo_question_missing_recommended_is_warn():
     assert result["status"] == "warn"
     assert result["missing_required"] == []
     assert "citation_map_jsonl" in result["missing_recommended"]
+    assert "snapshot_plan_json" in result["missing_recommended"]
 
 
 # ── 6. pr_review: required role missing → fail ──────────────────────────────
@@ -189,7 +190,7 @@ def test_resolver_preserves_profile_metadata():
     protocol = default_required_reading_protocol()
     result = resolve_required_reading(
         protocol,
-        available_roles={"agent_reading_pack", "canonical_md", "citation_map_jsonl"},
+        available_roles={"agent_reading_pack", "canonical_md", "citation_map_jsonl", "snapshot_plan_json"},
         task_profile="basic_repo_question",
     )
     profile = protocol["task_profiles"]["basic_repo_question"]

@@ -19,7 +19,7 @@ def test_cli_required_stdout(capsys):
     rc = main([
         "agent-consumption", "required",
         "--task-profile", "basic_repo_question",
-        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl"
+        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl,snapshot_plan_json"
     ])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
@@ -34,7 +34,7 @@ def test_cli_required_out_file(tmp_path, capsys):
     rc = main([
         "agent-consumption", "required",
         "--task-profile", "basic_repo_question",
-        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl",
+        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl,snapshot_plan_json",
         "--output", str(out_file)
     ])
     assert rc == 0
@@ -95,7 +95,7 @@ def test_cli_validate_trace_pass(tmp_path, capsys):
         "agent-consumption", "validate-trace",
         "--required-reading", str(rr_file),
         "--answer-compliance", str(ac_file),
-        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl,post_emit_health,bundle_surface_validation,claim_evidence_map_json"
+        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl,snapshot_plan_json,post_emit_health,bundle_surface_validation,claim_evidence_map_json"
     ])
     out = json.loads(capsys.readouterr().out)
     assert rc == 0
@@ -242,6 +242,7 @@ def test_cli_roles_file_list(tmp_path, capsys):
         "agent_reading_pack",
         "canonical_md",
         "citation_map_jsonl",
+        "snapshot_plan_json",
     ]
     roles_file.write_text(json.dumps(roles_data), encoding="utf-8")
     rc = main([
@@ -263,6 +264,7 @@ def test_cli_roles_file_object(tmp_path, capsys):
             "agent_reading_pack",
             "canonical_md",
             "citation_map_jsonl",
+            "snapshot_plan_json",
         ]
     }
     roles_file.write_text(json.dumps(roles_data), encoding="utf-8")
@@ -284,7 +286,7 @@ def test_cli_roles_union(tmp_path, capsys):
     rc = main([
         "agent-consumption", "required",
         "--task-profile", "basic_repo_question",
-        "--available-roles", "canonical_md,citation_map_jsonl",
+        "--available-roles", "canonical_md,citation_map_jsonl,snapshot_plan_json",
         "--available-roles-file", str(roles_file)
     ])
     assert rc == 0
@@ -400,6 +402,7 @@ def test_cli_preflight_stdout_from_bundle_manifest(tmp_path, capsys):
             {"role": "canonical_md"},
             {"role": "citation_map_jsonl"},
             {"role": "claim_evidence_map_json"},
+            {"role": "snapshot_plan_json"},
         ],
         "links": {
             "post_emit_health_path": "demo.post_emit_health.json",
@@ -434,6 +437,7 @@ def test_cli_preflight_bundle_manifest_self_role_satisfies_surface_review(tmp_pa
         "artifacts": [
             {"role": "canonical_md"},
             {"role": "output_health"},
+            {"role": "snapshot_plan_json"},
         ],
         "links": {
             "post_emit_health_path": "demo.post_emit_health.json",
@@ -458,14 +462,14 @@ def test_cli_preflight_validates_answer_compliance(tmp_path, capsys):
     ac_file = tmp_path / "answer-compliance.json"
     ac_file.write_text(json.dumps({
         "task_profile": "basic_repo_question",
-        "declared_artifacts": ["agent_reading_pack", "canonical_md", "citation_map_jsonl"],
+        "declared_artifacts": ["agent_reading_pack", "canonical_md", "citation_map_jsonl", "snapshot_plan_json"],
         "does_not_establish": DOES_NOT_ESTABLISH,
     }), encoding="utf-8")
 
     rc = main([
         "agent-consumption", "preflight",
         "--task-profile", "basic_repo_question",
-        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl",
+        "--available-roles", "agent_reading_pack,canonical_md,citation_map_jsonl,snapshot_plan_json",
         "--answer-compliance", str(ac_file),
     ])
 
@@ -474,7 +478,7 @@ def test_cli_preflight_validates_answer_compliance(tmp_path, capsys):
     assert out["status"] == "pass"
     assert out["agent_consumption_trace"]["status"] == "pass"
     assert out["agent_consumption_trace"]["declared_artifacts"] == [
-        "agent_reading_pack", "canonical_md", "citation_map_jsonl"
+        "agent_reading_pack", "canonical_md", "citation_map_jsonl", "snapshot_plan_json"
     ]
 
 
@@ -489,7 +493,7 @@ def test_cli_preflight_warn_strict_exits_1(tmp_path, capsys):
     assert rc == 1
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "warn"
-    assert out["required_reading"]["missing_recommended"] == ["citation_map_jsonl"]
+    assert out["required_reading"]["missing_recommended"] == ["citation_map_jsonl", "snapshot_plan_json"]
 
 
 def test_cli_preflight_invalid_manifest_shape(tmp_path, capsys):
