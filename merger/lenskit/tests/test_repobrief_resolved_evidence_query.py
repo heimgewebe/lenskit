@@ -279,3 +279,24 @@ def test_resolved_evidence_skips_citation_map_for_empty_hits(tmp_path):
     assert resolved["citation_map"]["status"] == "skipped"
     assert resolved["citation_map"]["reason"] == "no_hits"
     assert resolved["citation_map"]["invalid_row_count"] == 0
+
+
+def test_resolved_evidence_falls_back_to_derived_range_ref_when_range_ref_invalid(tmp_path):
+    bundle = _build_resolved_bundle(tmp_path)
+    base = repobrief_access.query_existing_index(bundle["manifest"], "hello", k=1)
+    hit = dict(base["query_result"]["results"][0])
+    valid_range_ref = hit.pop("range_ref")
+    hit.pop("chunk_id", None)
+    hit["range_ref"] = {"artifact_role": "source_file", "path": "outside.py"}
+    hit["derived_range_ref"] = valid_range_ref
+
+    resolved = repobrief_access._resolve_query_evidence(bundle["manifest"], {"results": [hit]})
+
+    assert resolved["hit_count"] == 1
+    resolved_hit = resolved["hits"][0]
+    assert resolved_hit["range_ref_source"] == "derived_range_ref"
+    assert resolved_hit["range_status"] == "resolved"
+    assert resolved_hit["range_error_code"] is None
+    assert resolved_hit["range"]["text"] == bundle["chunk_text"]
+    assert resolved_hit["citation_status"] == "resolved"
+    assert resolved_hit["citation_id"] == bundle["citation_id"]

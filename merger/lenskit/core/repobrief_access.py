@@ -423,13 +423,16 @@ def _resolve_hit_evidence(
     by_range: dict[tuple[Any, ...], dict[str, Any]],
     citation_map_available: bool,
 ) -> dict[str, Any]:
+    range_candidates: list[tuple[str, dict[str, Any]]] = []
     range_ref = hit.get("range_ref")
-    range_ref_source = None
     if isinstance(range_ref, dict):
-        range_ref_source = "range_ref"
-    elif isinstance(hit.get("derived_range_ref"), dict):
-        range_ref = hit["derived_range_ref"]
-        range_ref_source = "derived_range_ref"
+        range_candidates.append(("range_ref", range_ref))
+    derived_range_ref = hit.get("derived_range_ref")
+    if isinstance(derived_range_ref, dict):
+        range_candidates.append(("derived_range_ref", derived_range_ref))
+
+    selected_range_ref: dict[str, Any] | None = None
+    range_ref_source = range_candidates[0][0] if range_candidates else None
 
     record: dict[str, Any] = {
         "chunk_id": hit.get("chunk_id"),
@@ -444,14 +447,19 @@ def _resolve_hit_evidence(
         "citation": None,
     }
 
-    if range_ref_source is None:
+    if not range_candidates:
         record["range_error_code"] = "range_ref_missing"
     else:
-        range_result = range_get(manifest_path, range_ref)
-        if range_result.get("status") == "available":
-            record["range_status"] = "resolved"
-            record["range"] = range_result.get("range")
-        else:
+        for candidate_source, candidate_ref in range_candidates:
+            range_result = range_get(manifest_path, candidate_ref)
+            record["range_ref_source"] = candidate_source
+            selected_range_ref = candidate_ref
+            if range_result.get("status") == "available":
+                record["range_status"] = "resolved"
+                record["range"] = range_result.get("range")
+                record["range_error"] = None
+                record["range_error_code"] = None
+                break
             record["range_error"] = range_result.get("error")
             record["range_error_code"] = range_result.get("error_code")
 
@@ -460,7 +468,7 @@ def _resolve_hit_evidence(
         chunk_id = hit.get("chunk_id")
         if isinstance(chunk_id, str):
             row = by_chunk_id.get(chunk_id)
-        range_key = _citation_range_key(range_ref)
+        range_key = _citation_range_key(selected_range_ref)
         if row is None and range_key is not None:
             row = by_range.get(range_key)
         if row is not None:
