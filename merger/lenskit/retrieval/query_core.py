@@ -12,6 +12,8 @@ WHY_ZERO_TOKENS = "tokens too restrictive"
 WHY_ZERO_FILTERS = "filters too restrictive"
 WHY_ZERO_NONE = "no results"
 
+_REQUIRED_READ_ONLY_SQLITE_INDEX_SUFFIX = ".index.sqlite"
+_ALLOWED_SQLITE_INDEX_SUFFIXES = (_REQUIRED_READ_ONLY_SQLITE_INDEX_SUFFIX, ".sqlite", ".sqlite3", ".db")
 _MODEL_CACHE = {}
 
 
@@ -82,6 +84,7 @@ def execute_query(
     excluded_paths: Optional[List[str]] = None,
     _prepared_fts_query: Optional[str] = None,
     _prepared_router_output: Optional[Dict[str, Any]] = None,
+    read_only: bool = False,
 ) -> Dict[str, Any]:
     """
     Executes a query against the SQLite index.
@@ -109,7 +112,28 @@ def execute_query(
 
     conn = None
     try:
-        conn = sqlite3.connect(str(index_path))
+        raw_index_path = str(index_path)
+        if "\x00" in raw_index_path:
+            raise ValueError("Invalid index path: NUL bytes are not allowed.")
+        resolved_index_path = Path(index_path)
+        if read_only and not resolved_index_path.name.endswith(_REQUIRED_READ_ONLY_SQLITE_INDEX_SUFFIX):
+            raise ValueError("Invalid index path: expected canonical read-only index file.")
+        if not read_only and not any(
+            resolved_index_path.name.endswith(suffix)
+            for suffix in _ALLOWED_SQLITE_INDEX_SUFFIXES
+        ):
+            raise ValueError(
+                "Invalid index path: expected a SQLite index file "
+                f"ending with one of {_ALLOWED_SQLITE_INDEX_SUFFIXES!r}."
+            )
+        if read_only:
+            if not resolved_index_path.is_absolute():
+                raise ValueError("Invalid index path: expected an absolute read-only index path.")
+            db_uri = f"{resolved_index_path.as_uri()}?mode=ro&immutable=1"
+            # lgtm[py/path-injection] callers validate and confine the index path.
+            conn = sqlite3.connect(db_uri, uri=True)
+        else:
+            conn = sqlite3.connect(str(resolved_index_path))
         conn.row_factory = sqlite3.Row
 
         where_clauses = []
