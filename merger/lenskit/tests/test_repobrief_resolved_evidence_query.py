@@ -300,3 +300,72 @@ def test_resolved_evidence_falls_back_to_derived_range_ref_when_range_ref_invali
     assert resolved_hit["range"]["text"] == bundle["chunk_text"]
     assert resolved_hit["citation_status"] == "resolved"
     assert resolved_hit["citation_id"] == bundle["citation_id"]
+
+
+def test_query_existing_index_rejects_structurally_malformed_citation_row(tmp_path):
+    bundle = _build_resolved_bundle(tmp_path)
+    citation_map_path = tmp_path / "demo.citation_map.jsonl"
+    citation_map_path.write_text(
+        json.dumps({
+            "citation_id": "cit_0000000000000001",
+            "repo_id": "demo",
+            "chunk_id": "c1",
+        })
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = repobrief_access.query_existing_index(
+        bundle["manifest"], "hello", k=5, resolve_evidence=True
+    )
+
+    assert result["status"] == "available"
+    citation_map = result["resolved_evidence"]["citation_map"]
+    assert citation_map["status"] == "available"
+    assert citation_map["row_count"] == 0
+    assert citation_map["invalid_row_count"] == 1
+    hit = result["resolved_evidence"]["hits"][0]
+    assert hit["citation_status"] == "unmatched"
+    assert hit["citation_id"] is None
+    assert hit["citation"] is None
+
+
+def test_resolved_evidence_matches_v2_range_ref_without_chunk_id(tmp_path):
+    from merger.lenskit.core.range_resolver import build_explicit_range_ref_v2
+
+    bundle = _build_resolved_bundle(tmp_path)
+    citation_map_path = tmp_path / "demo.citation_map.jsonl"
+    row = json.loads(citation_map_path.read_text(encoding="utf-8"))
+    row.pop("chunk_id")
+    citation_map_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    base = repobrief_access.query_existing_index(bundle["manifest"], "hello", k=1)
+    hit = dict(base["query_result"]["results"][0])
+    v1_ref = hit.pop("range_ref")
+    hit.pop("chunk_id", None)
+
+    canonical_bytes = bundle["canonical"].read_bytes()
+    v2_ref = build_explicit_range_ref_v2(
+        artifact_role="canonical_md",
+        artifact_path=bundle["canonical"].name,
+        artifact_byte_start=v1_ref["start_byte"],
+        artifact_byte_end=v1_ref["end_byte"],
+        artifact_line_start=v1_ref["start_line"],
+        artifact_line_end=v1_ref["end_line"],
+        source_file_path=bundle["canonical"].name,
+        source_line_start=v1_ref["start_line"],
+        source_line_end=v1_ref["end_line"],
+        content_sha256=_sha256_bytes(canonical_bytes),
+        range_content_sha256=v1_ref["content_sha256"],
+        repo_id="demo",
+    )
+    hit["range_ref"] = v2_ref
+
+    resolved = repobrief_access._resolve_query_evidence(bundle["manifest"], {"results": [hit]})
+
+    assert resolved["hit_count"] == 1
+    resolved_hit = resolved["hits"][0]
+    assert resolved_hit["range_status"] == "resolved"
+    assert resolved_hit["range_ref_source"] == "range_ref"
+    assert resolved_hit["citation_status"] == "resolved"
+    assert resolved_hit["citation_id"] == bundle["citation_id"]

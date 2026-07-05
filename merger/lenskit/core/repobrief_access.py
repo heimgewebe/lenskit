@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,9 @@ _DOES_NOT_ESTABLISH = (
 CITATION_MAP_ROLE = "citation_map_jsonl"
 RESOLVED_EVIDENCE_KIND = "repobrief.resolved_evidence"
 RESOLVED_EVIDENCE_VERSION = "v1"
-_CITATION_RANGE_KEY_FIELDS = ("file_path", "start_byte", "end_byte", "content_sha256")
+_CITATION_ID_RE = re.compile(r"^cit_[a-f0-9]{16}$")
+_SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+_CITATION_RANGE_KEY_FIELDS = ("file_path", "start_byte", "end_byte")
 
 
 def _read_json_object(path: Path) -> dict[str, Any]:
@@ -330,13 +333,69 @@ def _empty_citation_map_status(
     return result
 
 
+def _is_non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and _SHA256_RE.fullmatch(value) is not None
+
+
+def _is_int_not_bool(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _citation_range_key(value: Any) -> tuple[Any, ...] | None:
     if not isinstance(value, dict):
         return None
-    key = tuple(value.get(field) for field in _CITATION_RANGE_KEY_FIELDS)
-    if any(part is None for part in key):
+    file_path, start_byte, end_byte = (
+        value.get(field) for field in _CITATION_RANGE_KEY_FIELDS
+    )
+    content_sha256 = value.get("range_content_sha256") or value.get("content_sha256")
+    if not _is_non_empty_string(file_path):
         return None
-    return key
+    if not _is_int_not_bool(start_byte) or not _is_int_not_bool(end_byte):
+        return None
+    if start_byte < 0 or end_byte <= start_byte:
+        return None
+    if not _is_sha256(content_sha256):
+        return None
+    return (file_path, start_byte, end_byte, content_sha256)
+
+
+def _citation_row_is_valid(row: dict[str, Any]) -> bool:
+    citation_id = row.get("citation_id")
+    if not isinstance(citation_id, str) or _CITATION_ID_RE.fullmatch(citation_id) is None:
+        return False
+    if not _is_non_empty_string(row.get("repo_id")):
+        return False
+
+    snapshot = row.get("snapshot")
+    if not isinstance(snapshot, dict):
+        return False
+    if not _is_non_empty_string(snapshot.get("run_id")):
+        return False
+    if not _is_non_empty_string(snapshot.get("canonical_md_path")):
+        return False
+    if not _is_sha256(snapshot.get("canonical_md_sha256")):
+        return False
+
+    canonical_range = row.get("canonical_range")
+    if _citation_range_key(canonical_range) is None:
+        return False
+    if not isinstance(canonical_range, dict):
+        return False
+    start_line = canonical_range.get("start_line")
+    end_line = canonical_range.get("end_line")
+    if not _is_int_not_bool(start_line) or not _is_int_not_bool(end_line):
+        return False
+    if start_line < 1 or end_line < start_line:
+        return False
+
+    chunk_id = row.get("chunk_id")
+    if chunk_id is not None and not _is_non_empty_string(chunk_id):
+        return False
+    return True
 
 
 def _load_citation_lookup(
@@ -374,11 +433,7 @@ def _load_citation_lookup(
                 except json.JSONDecodeError:
                     invalid_row_count += 1
                     continue
-                if not isinstance(row, dict):
-                    invalid_row_count += 1
-                    continue
-                citation_id = row.get("citation_id")
-                if not isinstance(citation_id, str) or not citation_id:
+                if not isinstance(row, dict) or not _citation_row_is_valid(row):
                     invalid_row_count += 1
                     continue
                 row_count += 1
