@@ -241,6 +241,18 @@ def range_get(bundle_manifest: str | Path, range_ref: dict[str, Any]) -> dict[st
             extra={"range_ref": range_ref, "range": None},
         )
 
+    if range_ref.get("artifact_role") == "source_file":
+        return _invalid_read_result(
+            kind="repobrief.range_get",
+            bundle_manifest=manifest_path,
+            status="invalid",
+            error=(
+                "source_file range_refs are outside the read-only RepoBrief "
+                "bundle artifact boundary"
+            ),
+            extra={"range_ref": range_ref, "range": None},
+        )
+
     from merger.lenskit.core.range_resolver import resolve_range_ref
 
     try:

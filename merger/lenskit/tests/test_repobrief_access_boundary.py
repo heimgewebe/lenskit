@@ -51,6 +51,37 @@ def test_range_get_reads_existing_artifact_without_mutation(tmp_path):
     assert result["mutation_boundary"]["read_paths_do_not_refresh"] is True
 
 
+def test_range_get_rejects_source_file_ranges_without_reading_workspace(tmp_path):
+    hub = tmp_path / "hub"
+    run_dir = hub / "merges" / "run-1"
+    source_dir = hub / "demo" / "src"
+    run_dir.mkdir(parents=True)
+    source_dir.mkdir(parents=True)
+
+    source_file = source_dir / "secret.py"
+    source_file.write_text("secret = True\n", encoding="utf-8")
+    content = source_file.read_bytes()
+    manifest = run_dir / "demo.bundle.manifest.json"
+    _write_manifest(manifest, [])
+    ref = {
+        "artifact_role": "source_file",
+        "repo_id": "demo",
+        "file_path": "src/secret.py",
+        "start_byte": 0,
+        "end_byte": len(content),
+        "start_line": 1,
+        "end_line": 1,
+        "content_sha256": hashlib.sha256(content).hexdigest(),
+    }
+
+    result = repobrief_access.range_get(manifest, ref)
+
+    assert result["status"] == "invalid"
+    assert result["range"] is None
+    assert "source_file range_refs" in result["error"]
+    assert result["mutation_boundary"]["writes"] == []
+
+
 def test_query_existing_index_reports_missing_without_creating(tmp_path):
     manifest = tmp_path / "demo.bundle.manifest.json"
     missing_index = tmp_path / "missing.sqlite"
