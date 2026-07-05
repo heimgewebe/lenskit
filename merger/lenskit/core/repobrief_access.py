@@ -200,10 +200,20 @@ def get_artifact(bundle_manifest: str | Path, role: str) -> dict[str, Any]:
     }
 
 
+
+MAX_QUERY_EXISTING_INDEX_K = 100
+
+
 def _read_only_mutation_boundary() -> dict[str, Any]:
     return {
         "writes": [],
-        "does_not_mutate": ["git", "pull_requests", "patches", "source_working_tree", "brief_bundle_artifacts"],
+        "does_not_mutate": [
+            "git",
+            "pull_requests",
+            "patches",
+            "source_working_tree",
+            "brief_bundle_artifacts",
+        ],
         "read_paths_do_not_refresh": True,
     }
 
@@ -214,6 +224,7 @@ def _invalid_read_result(
     bundle_manifest: Path,
     status: str,
     error: str,
+    error_code: str,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     result = {
@@ -222,12 +233,26 @@ def _invalid_read_result(
         "status": status,
         "bundle_manifest": str(bundle_manifest),
         "error": error,
+        "error_code": error_code,
         "mutation_boundary": _read_only_mutation_boundary(),
         "does_not_establish": list(_DOES_NOT_ESTABLISH),
     }
     if extra:
         result.update(extra)
     return result
+
+
+def _range_error_code(exc: Exception) -> tuple[str, str]:
+    if isinstance(exc, FileNotFoundError):
+        return "missing", "missing_artifact"
+    message = str(exc).lower()
+    if "not found in manifest" in message or "not found" in message:
+        return "missing", "missing_artifact"
+    if "hash mismatch" in message or "content hash mismatch" in message:
+        return "invalid", "content_hash_mismatch"
+    if "schema" in message or "range_ref" in message or "artifact_role" in message:
+        return "invalid", "range_ref_invalid"
+    return "invalid", "range_resolution_failed"
 
 
 def range_get(bundle_manifest: str | Path, range_ref: dict[str, Any]) -> dict[str, Any]:
@@ -238,6 +263,7 @@ def range_get(bundle_manifest: str | Path, range_ref: dict[str, Any]) -> dict[st
             bundle_manifest=manifest_path,
             status="invalid",
             error="range_ref must be a JSON object",
+            error_code="range_ref_invalid",
             extra={"range_ref": range_ref, "range": None},
         )
 
@@ -250,6 +276,7 @@ def range_get(bundle_manifest: str | Path, range_ref: dict[str, Any]) -> dict[st
                 "source_file range_refs are outside the read-only RepoBrief "
                 "bundle artifact boundary"
             ),
+            error_code="source_file_outside_bundle_boundary",
             extra={"range_ref": range_ref, "range": None},
         )
 
@@ -258,11 +285,13 @@ def range_get(bundle_manifest: str | Path, range_ref: dict[str, Any]) -> dict[st
     try:
         resolved = resolve_range_ref(manifest_path, range_ref)
     except Exception as exc:
+        status, error_code = _range_error_code(exc)
         return _invalid_read_result(
             kind="repobrief.range_get",
             bundle_manifest=manifest_path,
-            status="invalid",
+            status=status,
             error=str(exc),
+            error_code=error_code,
             extra={"range_ref": range_ref, "range": None},
         )
 
@@ -285,12 +314,22 @@ def query_existing_index(
     filters: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     manifest_path = Path(bundle_manifest).expanduser().resolve()
-    if k < 1:
+    if not isinstance(query, str):
         return _invalid_read_result(
             kind="repobrief.query_existing_index",
             bundle_manifest=manifest_path,
             status="invalid",
-            error="k must be >= 1",
+            error="query must be a string",
+            error_code="query_invalid",
+            extra={"query": query, "k": k, "query_result": None, "index_artifact": None},
+        )
+    if k < 1 or k > MAX_QUERY_EXISTING_INDEX_K:
+        return _invalid_read_result(
+            kind="repobrief.query_existing_index",
+            bundle_manifest=manifest_path,
+            status="invalid",
+            error=f"k must be between 1 and {MAX_QUERY_EXISTING_INDEX_K}",
+            error_code="k_out_of_bounds",
             extra={"query": query, "k": k, "query_result": None, "index_artifact": None},
         )
 
@@ -302,6 +341,7 @@ def query_existing_index(
             bundle_manifest=manifest_path,
             status="missing",
             error="sqlite_index artifact is not present in the bundle manifest",
+            error_code="sqlite_index_missing",
             extra={"query": query, "k": k, "query_result": None, "index_artifact": artifact},
         )
 
@@ -312,6 +352,7 @@ def query_existing_index(
             bundle_manifest=manifest_path,
             status="missing",
             error="sqlite_index artifact file does not exist",
+            error_code="sqlite_index_file_missing",
             extra={"query": query, "k": k, "query_result": None, "index_artifact": artifact},
         )
 
@@ -325,6 +366,7 @@ def query_existing_index(
             filters=filters or {},
             trace=False,
             build_context=False,
+            read_only=True,
         )
     except Exception as exc:
         return _invalid_read_result(
@@ -332,6 +374,7 @@ def query_existing_index(
             bundle_manifest=manifest_path,
             status="invalid",
             error=str(exc),
+            error_code="query_execution_failed",
             extra={"query": query, "k": k, "query_result": None, "index_artifact": artifact},
         )
 
