@@ -37,14 +37,13 @@ def _bundle(tmp_path: Path, roles, *, generator=True, post=True, capabilities=No
             encoding='utf-8',
         )
     elif isinstance(post, dict):
-        if post.get('status') == 'pass':
-            post = {
-                'kind': 'lenskit.post_emit_health',
-                'version': '1.0',
-                'bundle_manifest_path': str(manifest.resolve()),
-                'bundle_run_id': data['run_id'],
-                **post,
-            }
+        post = {
+            'kind': 'lenskit.post_emit_health',
+            'version': '1.0',
+            'bundle_manifest_path': str(manifest.resolve()),
+            'bundle_run_id': data['run_id'],
+            **post,
+        }
         (tmp_path / 'sample.bundle_health.post.json').write_text(json.dumps(post), encoding='utf-8')
     return manifest
 
@@ -436,6 +435,45 @@ def _write_bound_post_health(manifest: Path, *, status='pass', bundle_run_id='ru
         encoding='utf-8',
     )
 
+
+
+def test_post_emit_health_must_have_expected_kind(tmp_path):
+    manifest = _bundle(tmp_path, FULL_BASIC, post={'kind': 'not.post.emit.health', 'status': 'pass'})
+
+    result = run_consumption_preflight(manifest, 'pr_review')
+
+    assert result['status'] == 'fail'
+    assert result['validation']['post_emit_health']['binding_status'] == 'fail'
+    assert any(
+        f['artifact'] == 'post_emit_health' and 'kind mismatch' in f['detail']
+        for f in result['findings']
+    )
+
+
+def test_post_emit_health_must_have_expected_version(tmp_path):
+    manifest = _bundle(tmp_path, FULL_BASIC, post={'version': '2.0', 'status': 'pass'})
+
+    result = run_consumption_preflight(manifest, 'pr_review')
+
+    assert result['status'] == 'fail'
+    assert result['validation']['post_emit_health']['binding_status'] == 'fail'
+    assert any(
+        f['artifact'] == 'post_emit_health' and 'version mismatch' in f['detail']
+        for f in result['findings']
+    )
+
+
+def test_post_emit_health_rejects_invalid_status(tmp_path):
+    manifest = _bundle(tmp_path, FULL_BASIC, post={'status': 'degraded'})
+
+    result = run_consumption_preflight(manifest, 'pr_review')
+
+    assert result['status'] == 'fail'
+    assert result['validation']['post_emit_health']['binding_status'] == 'fail'
+    assert any(
+        f['artifact'] == 'post_emit_health' and 'invalid status' in f['detail']
+        for f in result['findings']
+    )
 
 def test_post_emit_health_must_bind_to_manifest_path(tmp_path):
     manifest = _bundle(tmp_path, FULL_BASIC)

@@ -53,6 +53,10 @@ STATUS_WARN = "warn"
 STATUS_FAIL = "fail"
 STATUS_NA = "not_applicable"
 
+_POST_EMIT_HEALTH_KIND = "lenskit.post_emit_health"
+_POST_EMIT_HEALTH_VERSION = "1.0"
+_POST_EMIT_HEALTH_STATUSES = {STATUS_PASS, STATUS_WARN, STATUS_FAIL, "blocked"}
+
 SEVERITY_FAIL = "fail"
 SEVERITY_WARN = "warn"
 SEVERITY_INFO = "info"
@@ -295,6 +299,18 @@ def _post_emit_health_binding_error(
     manifest_path: Path,
     manifest_run_id: Any,
 ) -> str | None:
+    kind = post_doc.get("kind")
+    if kind != _POST_EMIT_HEALTH_KIND:
+        return f"post-emit health kind mismatch: expected {_POST_EMIT_HEALTH_KIND!r} got {kind!r}"
+
+    version = post_doc.get("version")
+    if version != _POST_EMIT_HEALTH_VERSION:
+        return f"post-emit health version mismatch: expected {_POST_EMIT_HEALTH_VERSION!r} got {version!r}"
+
+    status = post_doc.get("status")
+    if not isinstance(status, str) or status not in _POST_EMIT_HEALTH_STATUSES:
+        return f"post-emit health has invalid status: {status!r}"
+
     manifest_path_value = post_doc.get("bundle_manifest_path")
     if not isinstance(manifest_path_value, str) or not manifest_path_value.strip():
         return "post-emit health bundle_manifest_path is missing or empty"
@@ -305,7 +321,6 @@ def _post_emit_health_binding_error(
     if post_manifest_path != manifest_path:
         return "post-emit health bundle_manifest_path does not match the evaluated manifest"
 
-    status = post_doc.get("status")
     if status == STATUS_PASS:
         if not isinstance(manifest_run_id, str) or not manifest_run_id.strip():
             return "manifest run_id is missing or empty; cannot bind post-emit health"
@@ -431,6 +446,7 @@ def consumption_preflight(preflight_input: PreflightInput) -> PreflightResult:
     missing_required = list(required_reading["missing_required"])
     missing_recommended = list(required_reading["missing_recommended"])
     required_role_set = set(required_roles)
+    recommended_role_set = set(recommended_roles)
 
     def add_sidecar_read_failure(role: str, detail: str) -> None:
         if role in required_role_set:
@@ -472,7 +488,7 @@ def consumption_preflight(preflight_input: PreflightInput) -> PreflightResult:
 
     # Manifest-listed roles whose files are gone degrade the bundle even when
     # the task profile does not need them.
-    needed = set(required_roles) | set(recommended_roles)
+    needed = required_role_set | recommended_role_set
     for role in sorted(file_missing_roles - needed):
         add(
             "artifact_file_missing",
@@ -496,14 +512,15 @@ def consumption_preflight(preflight_input: PreflightInput) -> PreflightResult:
     # ── Per-role artifact statuses relative to the task profile ─────────────
     artifact_statuses: list[PreflightArtifactStatus] = []
     listed_roles = set(records_by_role) | set(linked_paths) | {"bundle_manifest"}
-    for role in sorted(set(required_roles) | set(recommended_roles) | listed_roles):
-        if role in set(required_roles):
+    for role in sorted(required_role_set | recommended_role_set | listed_roles):
+        if role in required_role_set:
             requirement = REQUIREMENT_REQUIRED
-        elif role in set(recommended_roles):
+        elif role in recommended_role_set:
             requirement = REQUIREMENT_RECOMMENDED
         else:
             requirement = REQUIREMENT_NA
-        record = records_by_role.get(role, [{}])[0]
+        role_records = records_by_role.get(role)
+        record = role_records[0] if role_records else {}
         if role == "bundle_manifest" and not record:
             record = {"path": manifest_path.name, "file_exists": True}
         linked = linked_paths.get(role)
@@ -717,13 +734,10 @@ def consumption_preflight(preflight_input: PreflightInput) -> PreflightResult:
         )
 
     output_health_verdict: str | None = None
-    output_health_records = records_by_role.get("output_health", [])
-    output_health_path = next(
-        (r.get("absolute_path") for r in output_health_records if r.get("file_exists") and r.get("absolute_path")),
-        None,
-    )
-    if output_health_path:
-        output_doc, output_error = _load_json_file(Path(output_health_path))
+    output_health_path = artifact_paths_by_role.get("output_health")
+    output_health_present = output_health_path is not None and output_health_path.is_file()
+    if output_health_present:
+        output_doc, output_error = _load_json_file(output_health_path)
         if output_doc is None:
             add(
                 "validation_unreadable",
@@ -747,7 +761,7 @@ def consumption_preflight(preflight_input: PreflightInput) -> PreflightResult:
                     f"output health verdict invalid: {verdict!r}",
                     artifact="output_health",
                 )
-    validation["output_health"] = {"present": bool(output_health_path), "verdict": output_health_verdict}
+    validation["output_health"] = {"present": output_health_present, "verdict": output_health_verdict}
     validation["snapshot_profile_evaluation"] = snapshot_profile_evaluation
 
     validation_findings = [f for f in findings if f.area == "validation"]
