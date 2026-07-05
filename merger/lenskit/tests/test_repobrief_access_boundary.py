@@ -165,7 +165,7 @@ def test_query_existing_index_rejects_non_sqlite_artifact_path(tmp_path):
 
     assert result["status"] == "invalid"
     assert result["error_code"] == "query_execution_failed"
-    assert "expected a SQLite index file" in result["error"]
+    assert "expected canonical read-only index file" in result["error"]
     assert bad_index.exists()
 
 
@@ -203,7 +203,7 @@ def test_query_existing_index_reads_prebuilt_sqlite_index_without_mutation(tmp_p
     chunk_path = tmp_path / "chunks.jsonl"
     index_path = tmp_path / "index.sqlite"
     manifest = tmp_path / "demo.bundle.manifest.json"
-
+    index_path = tmp_path / 'index.index.sqlite'
     chunk = {
         "chunk_id": "c1",
         "repo_id": "demo",
