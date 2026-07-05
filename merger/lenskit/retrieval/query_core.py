@@ -17,27 +17,6 @@ _ALLOWED_SQLITE_INDEX_SUFFIXES = (".index.sqlite", ".sqlite", ".sqlite3", ".db")
 _MODEL_CACHE = {}
 
 
-def _resolve_sqlite_index_path(index_path: Path) -> Path:
-    raw_path = str(index_path)
-    if "\x00" in raw_path:
-        raise ValueError("Invalid index path: NUL bytes are not allowed.")
-    try:
-        resolved_index_path = Path(index_path).resolve(strict=True)
-    except FileNotFoundError as exc:
-        raise ValueError("Invalid index path: file does not exist.") from exc
-    if not resolved_index_path.is_file():
-        raise ValueError("Invalid index path: expected a regular file.")
-    if not any(
-        resolved_index_path.name.endswith(suffix)
-        for suffix in _ALLOWED_SQLITE_INDEX_SUFFIXES
-    ):
-        raise ValueError(
-            "Invalid index path: expected a SQLite index file "
-            f"ending with one of {_ALLOWED_SQLITE_INDEX_SUFFIXES!r}."
-        )
-    return resolved_index_path
-
-
 def normalize_excluded_paths(excluded_paths: Optional[List[str]]) -> List[str]:
     """Validate and normalize exact repository-relative POSIX path exclusions."""
     if excluded_paths is None:
@@ -133,7 +112,23 @@ def execute_query(
 
     conn = None
     try:
-        resolved_index_path = _resolve_sqlite_index_path(index_path)
+        raw_index_path = str(index_path)
+        if "\x00" in raw_index_path:
+            raise ValueError("Invalid index path: NUL bytes are not allowed.")
+        try:
+            resolved_index_path = Path(index_path).expanduser().resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ValueError("Invalid index path: file does not exist.") from exc
+        if not resolved_index_path.is_file():
+            raise ValueError("Invalid index path: expected a regular file.")
+        if not any(
+            resolved_index_path.name.endswith(suffix)
+            for suffix in _ALLOWED_SQLITE_INDEX_SUFFIXES
+        ):
+            raise ValueError(
+                "Invalid index path: expected a SQLite index file "
+                f"ending with one of {_ALLOWED_SQLITE_INDEX_SUFFIXES!r}."
+            )
         if read_only:
             uri_path = quote(resolved_index_path.as_posix(), safe="/")
             conn = sqlite3.connect(f"file:{uri_path}?mode=ro&immutable=1", uri=True)
