@@ -46,6 +46,12 @@ The planned RepoBrief MCP surface is defined in [RepoBrief MCP Boundary](repobri
 
 The MCP boundary is documentation for future implementation. It does not assert that an MCP server, MCP resources, or MCP tools exist today.
 
+## Agent Workbench boundary
+
+The RepoBrief / Agent Workbench split is defined in [RepoBrief Agent Workbench Boundary](repobrief-agent-workbench-boundary.md).
+
+RepoBrief remains the read-mostly evidence core. Patch application, mutable worktrees, shell/test execution, sandboxing, and patch-evaluation artifacts belong to an external Agent Workbench. RepoBrief may later read or link explicit Workbench artifacts, but it must not create, apply, or interpret them as approval.
+
 ## Non-goals
 
 RepoBrief must not:

@@ -6,6 +6,8 @@ The MCP surface reads existing Brief Bundles. Reading a bundle must never trigge
 
 This document defines the boundary before an MCP server exists. It is a contract for future implementation, not evidence that MCP resources or tools are implemented today.
 
+RepoBrief MCP is not the Agent Workbench. Workbench authority for patch application, mutable worktrees, shell/test execution, and patch-evaluation artifacts is defined separately in [RepoBrief Agent Workbench Boundary](repobrief-agent-workbench-boundary.md). That authority must not be smuggled into RepoBrief resources or read-only tools.
+
 ## Resources-first surface
 
 RepoBrief MCP should expose stable resources before tools. Planned resources are:
