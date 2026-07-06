@@ -139,6 +139,9 @@ def snapshot_status(bundle_manifest: str | Path) -> dict[str, Any]:
     artifacts = [_artifact_record(manifest_path, a) for a in _artifact_list(manifest)]
     roles = sorted(str(a["role"]) for a in artifacts if isinstance(a.get("role"), str))
     capabilities = manifest.get("capabilities") if isinstance(manifest.get("capabilities"), dict) else {}
+    from merger.lenskit.core.repobrief_availability import snapshot_availability_model
+
+    availability_model = snapshot_availability_model(manifest_path, manifest)
     return {
         "kind": "repobrief.snapshot_status",
         "version": "v1",
@@ -147,6 +150,8 @@ def snapshot_status(bundle_manifest: str | Path) -> dict[str, Any]:
         "bundle_run_id": manifest.get("run_id"),
         "profile": capabilities.get("repobrief_profile"),
         "profile_evaluation": capabilities.get("repobrief_profile_evaluation"),
+        "availability_model": availability_model,
+        "freshness": availability_model.get("freshness"),
         "artifact_count": len(artifacts),
         "roles": roles,
         "artifacts": artifacts,
