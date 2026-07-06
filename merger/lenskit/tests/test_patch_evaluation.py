@@ -6,7 +6,6 @@ fail-closed schema validation, the mandatory non-claim enforcement, the strict
 ``additionalProperties`` boundary, and the read-only guarantee (no shell, Git,
 patch, worktree, or secret usage anywhere in the module).
 """
-import copy
 import json
 from pathlib import Path
 
