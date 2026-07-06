@@ -261,25 +261,46 @@ def test_source_citation_projection_ignores_range_ref_when_range_status_unresolv
     item = projection["items"][0]
     assert item["source_range"]["file_path"] == "resolved-output.md"
     assert projection["range_unresolved_count"] == 1
-def test_source_range_projection_uses_v2_source_and_artifact_axes():
-    source_range = repobrief_access._source_range_projection({
-        "range_ref_version": "2",
-        "artifact_role": "canonical_md",
-        "artifact_path": "merged.md",
-        "artifact_byte_start": 10,
-        "artifact_byte_end": 20,
-        "artifact_line_start": 3,
-        "artifact_line_end": 4,
-        "source_file_path": "src/main.py",
-        "source_line_start": 100,
-        "source_line_end": 104,
-        "content_sha256": "a" * 64,
-        "range_content_sha256": "b" * 64,
+
+
+def test_source_citation_projection_projects_v2_source_and_artifact_axes():
+    projection = repobrief_access._project_source_citations({
+        "hits": [{
+            "chunk_id": "c-v2",
+            "path": "merged.md",
+            "range_status": "resolved",
+            "range_ref_source": "range_ref",
+            "range_ref": {
+                "range_ref_version": "2",
+                "artifact_role": "canonical_md",
+                "repo_id": "demo",
+                "artifact_path": "merged.md",
+                "artifact_byte_start": 10,
+                "artifact_byte_end": 20,
+                "artifact_line_start": 3,
+                "artifact_line_end": 4,
+                "source_file_path": "src/main.py",
+                "source_line_start": 100,
+                "source_line_end": 104,
+                "content_sha256": "a" * 64,
+                "range_content_sha256": "b" * 64,
+                "file_path": "merged.md",
+                "start_byte": 10,
+                "end_byte": 20,
+                "start_line": 3,
+                "end_line": 4,
+            },
+            "range": {"text": "hello"},
+            "citation_status": "unavailable",
+            "citation_id": None,
+            "citation": None,
+        }]
     })
 
-    assert source_range["file_path"] == "src/main.py"
-    assert source_range["start_line"] == 100
-    assert source_range["end_line"] == 104
+    source_range = projection["items"][0]["source_range"]
+    assert source_range["file_path"] == "merged.md"
+    assert source_range["start_line"] == 3
+    assert source_range["end_line"] == 4
     assert source_range["start_byte"] == 10
     assert source_range["end_byte"] == 20
     assert source_range["artifact_path"] == "merged.md"
@@ -290,4 +311,4 @@ def test_source_range_projection_uses_v2_source_and_artifact_axes():
     assert source_range["source_file_path"] == "src/main.py"
     assert source_range["source_start_line"] == 100
     assert source_range["source_end_line"] == 104
-    assert source_range["coordinate_basis"] == "source_lines_artifact_bytes"
+    assert source_range["coordinate_basis"] == "artifact_bytes_with_source_lines"

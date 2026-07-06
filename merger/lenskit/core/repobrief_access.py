@@ -654,14 +654,14 @@ def _source_range_projection(range_value: Any) -> dict[str, Any] | None:
         range_value.get("source_line_end"),
         provenance.get("source_line_end"),
     )
-    has_source_axis = source_file_path is not None
+    has_source_axis = _is_non_empty_string(source_file_path)
     return {
         "artifact_role": _first_not_none(range_value.get("artifact_role"), provenance.get("artifact_role")),
-        "file_path": source_file_path if has_source_axis else artifact_path,
+        "file_path": artifact_path,
         "start_byte": artifact_start_byte,
         "end_byte": artifact_end_byte,
-        "start_line": source_start_line if has_source_axis else artifact_start_line,
-        "end_line": source_end_line if has_source_axis else artifact_end_line,
+        "start_line": artifact_start_line,
+        "end_line": artifact_end_line,
         "content_sha256": _first_not_none(range_value.get("range_content_sha256"), range_value.get("content_sha256"), range_value.get("sha256")),
         "artifact_path": artifact_path,
         "artifact_start_byte": artifact_start_byte,
@@ -671,7 +671,7 @@ def _source_range_projection(range_value: Any) -> dict[str, Any] | None:
         "source_file_path": source_file_path,
         "source_start_line": source_start_line,
         "source_end_line": source_end_line,
-        "coordinate_basis": "source_lines_artifact_bytes" if has_source_axis else "artifact_bytes",
+        "coordinate_basis": "artifact_bytes_with_source_lines" if has_source_axis else "artifact_bytes",
     }
 
 
@@ -705,7 +705,8 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
     for ordinal, hit in enumerate(hit_list):
         range_value = hit.get("range")
         text = range_value.get("text") if isinstance(range_value, dict) else None
-        citation = hit.get("citation") if isinstance(hit.get("citation"), dict) else None
+        raw_citation = hit.get("citation")
+        citation = raw_citation if isinstance(raw_citation, dict) else None
         citation_range = _source_range_projection(
             citation.get("canonical_range") if citation else None
         )
@@ -718,8 +719,13 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
         candidates = [range_ref_projection, citation_range, range_projection]
         source_range = next(
             (candidate for candidate in candidates if _has_range_identity(candidate)),
-            next((candidate for candidate in candidates if isinstance(candidate, dict)), None),
+            None,
         )
+        if source_range is None:
+            source_range = next(
+                (candidate for candidate in candidates if isinstance(candidate, dict)),
+                None,
+            )
         range_status = hit.get("range_status")
         citation_status = hit.get("citation_status")
         citation_id = hit.get("citation_id")
@@ -746,6 +752,7 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
             "text_excerpt": text[:TEXT_EXCERPT_MAX_CHARS] if isinstance(text, str) else None,
             "text_truncated": isinstance(text, str) and len(text) > TEXT_EXCERPT_MAX_CHARS,
             "citation_status": citation_status,
+            "citation_resolved": citation_resolved,
             "citation_id": citation_id,
             "citation_range": citation_range,
         })
