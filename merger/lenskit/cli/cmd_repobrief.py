@@ -203,11 +203,7 @@ def parse_extensions(values: Iterable[str] | None) -> list[str] | None:
     return sorted(set(result)) or None
 
 
-def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
-    repobrief_parser = subparsers.add_parser(
-        "repobrief",
-        help="RepoBrief explicit snapshot and read-access commands",
-    )
+def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser) -> None:
     repobrief_subparsers = repobrief_parser.add_subparsers(
         dest="repobrief_cmd",
         required=True,
@@ -316,6 +312,13 @@ def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
         help="Also print the bounded external-evidence summary",
     )
 
+
+def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
+    repobrief_parser = subparsers.add_parser(
+        "repobrief",
+        help="RepoBrief explicit snapshot and read-access commands",
+    )
+    register_repobrief_command_groups(repobrief_parser)
 
 def run_repobrief(args: argparse.Namespace) -> int:
     if args.repobrief_cmd == "snapshot" and args.snapshot_cmd == "create":
