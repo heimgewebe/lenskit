@@ -67,6 +67,10 @@ def test_query_existing_index_projection_degrades_without_citation_map(tmp_path)
     assert item["source_range"]["file_path"] == bundle["canonical"].name
     assert item["source_range"]["start_byte"] is not None
     assert item["source_range"]["end_byte"] is not None
+    projection = result["source_citation_projection"]
+    assert projection["unresolved_count"] == 1
+    assert projection["range_unresolved_count"] == 0
+    assert projection["citation_unresolved_count"] == 1
 
 
 def test_query_existing_index_projection_defaults_off(tmp_path):
@@ -163,8 +167,9 @@ def test_source_citation_projection_counts_only_resolved_citations_with_id():
     })
 
     assert projection["citation_count"] == 0
+    assert projection["unresolved_count"] == 1
     assert projection["range_unresolved_count"] == 0
-    assert projection["citation_unresolved_count"] == 0
+    assert projection["citation_unresolved_count"] == 1
 
 
 def test_source_citation_projection_rejects_non_dict_resolved_evidence():
@@ -256,3 +261,33 @@ def test_source_citation_projection_ignores_range_ref_when_range_status_unresolv
     item = projection["items"][0]
     assert item["source_range"]["file_path"] == "resolved-output.md"
     assert projection["range_unresolved_count"] == 1
+def test_source_range_projection_uses_v2_source_and_artifact_axes():
+    source_range = repobrief_access._source_range_projection({
+        "range_ref_version": "2",
+        "artifact_role": "canonical_md",
+        "artifact_path": "merged.md",
+        "artifact_byte_start": 10,
+        "artifact_byte_end": 20,
+        "artifact_line_start": 3,
+        "artifact_line_end": 4,
+        "source_file_path": "src/main.py",
+        "source_line_start": 100,
+        "source_line_end": 104,
+        "content_sha256": "a" * 64,
+        "range_content_sha256": "b" * 64,
+    })
+
+    assert source_range["file_path"] == "src/main.py"
+    assert source_range["start_line"] == 100
+    assert source_range["end_line"] == 104
+    assert source_range["start_byte"] == 10
+    assert source_range["end_byte"] == 20
+    assert source_range["artifact_path"] == "merged.md"
+    assert source_range["artifact_start_byte"] == 10
+    assert source_range["artifact_end_byte"] == 20
+    assert source_range["artifact_start_line"] == 3
+    assert source_range["artifact_end_line"] == 4
+    assert source_range["source_file_path"] == "src/main.py"
+    assert source_range["source_start_line"] == 100
+    assert source_range["source_end_line"] == 104
+    assert source_range["coordinate_basis"] == "source_lines_artifact_bytes"

@@ -613,30 +613,65 @@ def _source_range_projection(range_value: Any) -> dict[str, Any] | None:
     if not isinstance(provenance, dict):
         provenance = {}
     start_line, end_line = _line_pair(range_value.get("lines"))
+    artifact_path = _first_not_none(
+        range_value.get("artifact_path"),
+        range_value.get("file_path"),
+        range_value.get("path"),
+        provenance.get("artifact_path"),
+        provenance.get("file_path"),
+    )
+    artifact_start_byte = _first_not_none(
+        range_value.get("artifact_byte_start"),
+        range_value.get("start_byte"),
+        provenance.get("artifact_byte_start"),
+        provenance.get("start_byte"),
+    )
+    artifact_end_byte = _first_not_none(
+        range_value.get("artifact_byte_end"),
+        range_value.get("end_byte"),
+        provenance.get("artifact_byte_end"),
+        provenance.get("end_byte"),
+    )
+    artifact_start_line = _first_not_none(
+        range_value.get("artifact_line_start"),
+        range_value.get("start_line"),
+        start_line,
+    )
+    artifact_end_line = _first_not_none(
+        range_value.get("artifact_line_end"),
+        range_value.get("end_line"),
+        end_line,
+    )
+    source_file_path = _first_not_none(
+        range_value.get("source_file_path"),
+        provenance.get("source_file_path"),
+    )
+    source_start_line = _first_not_none(
+        range_value.get("source_line_start"),
+        provenance.get("source_line_start"),
+    )
+    source_end_line = _first_not_none(
+        range_value.get("source_line_end"),
+        provenance.get("source_line_end"),
+    )
+    has_source_axis = source_file_path is not None
     return {
         "artifact_role": _first_not_none(range_value.get("artifact_role"), provenance.get("artifact_role")),
-        "file_path": _first_not_none(
-            range_value.get("file_path"),
-            range_value.get("path"),
-            range_value.get("artifact_path"),
-            provenance.get("file_path"),
-            provenance.get("artifact_path"),
-        ),
-        "start_byte": _first_not_none(
-            range_value.get("start_byte"),
-            range_value.get("artifact_byte_start"),
-            provenance.get("start_byte"),
-            provenance.get("artifact_byte_start"),
-        ),
-        "end_byte": _first_not_none(
-            range_value.get("end_byte"),
-            range_value.get("artifact_byte_end"),
-            provenance.get("end_byte"),
-            provenance.get("artifact_byte_end"),
-        ),
-        "start_line": _first_not_none(range_value.get("start_line"), range_value.get("artifact_line_start"), start_line),
-        "end_line": _first_not_none(range_value.get("end_line"), range_value.get("artifact_line_end"), end_line),
+        "file_path": source_file_path if has_source_axis else artifact_path,
+        "start_byte": artifact_start_byte,
+        "end_byte": artifact_end_byte,
+        "start_line": source_start_line if has_source_axis else artifact_start_line,
+        "end_line": source_end_line if has_source_axis else artifact_end_line,
         "content_sha256": _first_not_none(range_value.get("range_content_sha256"), range_value.get("content_sha256"), range_value.get("sha256")),
+        "artifact_path": artifact_path,
+        "artifact_start_byte": artifact_start_byte,
+        "artifact_end_byte": artifact_end_byte,
+        "artifact_start_line": artifact_start_line,
+        "artifact_end_line": artifact_end_line,
+        "source_file_path": source_file_path,
+        "source_start_line": source_start_line,
+        "source_end_line": source_end_line,
+        "coordinate_basis": "source_lines_artifact_bytes" if has_source_axis else "artifact_bytes",
     }
 
 
@@ -664,6 +699,7 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
     hit_list = [hit for hit in (hits if isinstance(hits, list) else []) if isinstance(hit, dict)]
     items: list[dict[str, Any]] = []
     citation_count = 0
+    unresolved_count = 0
     range_unresolved_count = 0
     citation_unresolved_count = 0
     for ordinal, hit in enumerate(hit_list):
@@ -689,14 +725,17 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
         citation_id = hit.get("citation_id")
         if range_status != "resolved":
             range_unresolved_count += 1
-        if (
+        citation_resolved = (
             citation_status == "resolved"
             and isinstance(citation_id, str)
             and _CITATION_ID_RE.fullmatch(citation_id) is not None
-        ):
+        )
+        if citation_resolved:
             citation_count += 1
-        if citation_status != "resolved":
+        else:
             citation_unresolved_count += 1
+        if range_status != "resolved" or not citation_resolved:
+            unresolved_count += 1
         items.append({
             "ordinal": ordinal,
             "chunk_id": hit.get("chunk_id"),
@@ -716,7 +755,7 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
         "status": "available",
         "hit_count": len(items),
         "citation_count": citation_count,
-        "unresolved_count": range_unresolved_count,
+        "unresolved_count": unresolved_count,
         "range_unresolved_count": range_unresolved_count,
         "citation_unresolved_count": citation_unresolved_count,
         "text_excerpt_max_chars": TEXT_EXCERPT_MAX_CHARS,
