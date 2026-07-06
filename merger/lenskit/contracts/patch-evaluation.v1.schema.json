@@ -1,0 +1,230 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.github.io/lenskit/contracts/patch-evaluation.v1.schema.json",
+  "title": "RepoBrief Patch Evaluation Artifact v1",
+  "description": "Contract for an external Patch Evaluation Sidecar artifact (repobrief.patch_evaluation v1). A valid artifact is bounded external evaluation evidence: it records that a proposed patch was applied in an isolated workspace and that a declared command set was run with the captured outcomes. It is NOT a release verdict. It does not establish correctness, test sufficiency, security correctness, runtime behavior outside the evaluated commands, regression absence, repo understanding, claim truth, merge readiness, or merge authorization. RepoBrief only consumes such artifacts read-only; it never produces, executes, repairs, or interprets them as approval. authority is pinned to external_evaluation_evidence so the artifact cannot be read as authority for a merge.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "authority",
+    "producer",
+    "created_at",
+    "input",
+    "repobrief_context",
+    "workspace",
+    "patch",
+    "command_policy",
+    "commands_run",
+    "environment",
+    "status",
+    "does_not_establish"
+  ],
+  "properties": {
+    "kind": {
+      "const": "repobrief.patch_evaluation",
+      "description": "Fixed artifact kind. Identifies the external Patch Evaluation Sidecar artifact family."
+    },
+    "version": {
+      "const": "v1"
+    },
+    "authority": {
+      "const": "external_evaluation_evidence",
+      "description": "Pinned authority label. This artifact is bounded external evidence produced outside RepoBrief. It is never a merge authorization, a review verdict, or a truth source. RepoBrief must not upgrade this label when it consumes the artifact."
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "description": "Identity of the external Patch Evaluation Sidecar that emitted this artifact. RepoBrief records it as provenance; it does not verify the producer's honesty.",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "commit": { "type": ["string", "null"] },
+        "url": { "type": ["string", "null"] }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ISO 8601 UTC timestamp of artifact creation."
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What was evaluated: the repository and change coordinates. Address fields are provenance references only; they do not establish existence, reachability, or that the referenced state was authentic.",
+      "properties": {
+        "repo": { "type": ["string", "null"] },
+        "branch": { "type": ["string", "null"] },
+        "base_commit": { "type": ["string", "null"] },
+        "commit": { "type": ["string", "null"] },
+        "pull_request": { "type": ["string", "integer", "null"] },
+        "patch_id": { "type": ["string", "null"] }
+      }
+    },
+    "repobrief_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Read-only references to the RepoBrief snapshot, Workbench outputs, and citations used as context by the external Sidecar. These are references only. They do not make an old snapshot fresh, canonical, complete, or correct, and consuming them adds no authority.",
+      "properties": {
+        "bundle_manifest": { "type": ["string", "null"] },
+        "snapshot_run_id": { "type": ["string", "null"] },
+        "workbench_outputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "cited_ranges": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "citations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["isolated"],
+      "description": "The mutable workspace in which the patch was applied and commands were run. It is external to RepoBrief's read-only evidence layer. isolated asserts the Sidecar used a throwaway checkout separated from any canonical working tree.",
+      "properties": {
+        "isolated": {
+          "type": "boolean",
+          "description": "True iff the evaluation ran in an isolated, disposable worktree/sandbox. False or absent must degrade or fail downstream trust, not be smoothed into success."
+        },
+        "workspace_id": { "type": ["string", "null"] },
+        "base_commit": { "type": ["string", "null"] }
+      }
+    },
+    "patch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applied"],
+      "description": "Metadata about the proposed patch as applied inside the isolated workspace.",
+      "properties": {
+        "applied": {
+          "type": "boolean",
+          "description": "True iff the patch applied cleanly. A clean apply is not correctness; it only means the change was materialized for evaluation."
+        },
+        "patch_id": { "type": ["string", "null"] },
+        "format": {
+          "type": ["string", "null"],
+          "enum": ["git-diff", "unified-diff", "git-am", null]
+        },
+        "sha256": { "type": ["string", "null"] },
+        "changed_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "change": {
+                "type": ["string", "null"],
+                "enum": ["added", "modified", "deleted", "renamed", null]
+              }
+            }
+          }
+        }
+      }
+    },
+    "command_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The declared policy under which commands were permitted to run. It bounds what the recorded outcomes can mean.",
+      "properties": {
+        "allowed_commands": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "network": {
+          "type": ["string", "null"],
+          "enum": ["allow", "deny", "unknown", null]
+        },
+        "secrets_policy": {
+          "type": ["string", "null"],
+          "enum": ["none", "redacted", "scoped", "unknown", null]
+        },
+        "timeout_seconds": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "description": "The concrete commands the Sidecar executed and their captured outcomes. This is the core evidence surface. A recorded status only describes the observed result of that exact command in that exact workspace; it does not generalize to correctness or runtime behavior elsewhere.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "status"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["passed", "failed", "error", "skipped", "timeout"]
+          },
+          "exit_code": { "type": ["integer", "null"] },
+          "started_at": { "type": ["string", "null"] },
+          "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+          "log_ref": { "type": ["string", "null"] },
+          "truncated": { "type": ["boolean", "null"] }
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Environment and tool provenance for the evaluation. Recorded so the evidence is auditable; it is not proof that the environment matches production.",
+      "properties": {
+        "os": { "type": ["string", "null"] },
+        "runner": { "type": ["string", "null"] },
+        "container": { "type": ["string", "null"] },
+        "tool_versions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passed", "failed", "mixed", "error", "incomplete"],
+      "description": "The Sidecar's declared overall evaluation status. This is a declared observation, not a verdict. 'passed' means the declared command set completed with passing outcomes under the declared policy; it never means the patch is correct or mergeable."
+    },
+    "does_not_establish": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 9,
+      "description": "Closed negative-semantics vocabulary. The nine mandatory members must all be present so the artifact cannot be silently read as approval; a producer may additionally include the optional members.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "correctness",
+          "test_sufficiency",
+          "security_correctness",
+          "runtime_behavior_outside_evaluated_commands",
+          "merge_authorization",
+          "merge_readiness",
+          "regression_absence",
+          "repo_understood",
+          "claims_true",
+          "truth",
+          "completeness",
+          "review_completeness",
+          "forensic_ready"
+        ]
+      },
+      "allOf": [
+        { "contains": { "const": "correctness" } },
+        { "contains": { "const": "test_sufficiency" } },
+        { "contains": { "const": "security_correctness" } },
+        { "contains": { "const": "runtime_behavior_outside_evaluated_commands" } },
+        { "contains": { "const": "merge_authorization" } },
+        { "contains": { "const": "merge_readiness" } },
+        { "contains": { "const": "regression_absence" } },
+        { "contains": { "const": "repo_understood" } },
+        { "contains": { "const": "claims_true" } }
+      ]
+    }
+  }
+}
