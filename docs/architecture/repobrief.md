@@ -50,7 +50,7 @@ The MCP boundary is documentation for future implementation. It does not assert 
 
 The RepoBrief / Agent Workbench split is defined in [RepoBrief Agent Workbench Boundary](repobrief-agent-workbench-boundary.md).
 
-RepoBrief remains the read-mostly evidence core. Patch application, mutable worktrees, shell/test execution, sandboxing, and patch-evaluation artifacts belong to an external Agent Workbench. RepoBrief may later read or link explicit Workbench artifacts, but it must not create, apply, or interpret them as approval.
+RepoBrief remains the evidence, snapshot, citation, and deterministic analysis core. Integrated Agent Workbench tools may provide read-only code-understanding surfaces such as AST symbols, static references, range/citation navigation, relations, graph availability, and query helpers. Patch application, mutable worktrees, shell/test execution, sandboxing, and patch-evaluation artifacts belong to an external Patch Evaluation Sidecar. RepoBrief may later read or link explicit Sidecar artifacts, but it must not create, apply, or interpret them as approval.
 
 ## Non-goals
 
