@@ -114,3 +114,40 @@ def test_profile_output_mode_plan_is_machine_readable():
     agent_default = profile_output_mode_plan("agent-portable")
     assert agent_default["selected_output_mode"] == "dual"
     assert agent_default["conflicts"] == []
+
+
+def test_placeholder_for_availability_model_import():
+    from merger.lenskit.core.repobrief_availability import AVAILABILITY_VALUES
+    assert "missing_required" in AVAILABILITY_VALUES
+
+
+def test_availability_model_required_and_freshness(tmp_path):
+    import datetime
+    import json
+    from merger.lenskit.core.repobrief_availability import snapshot_availability_model
+    data = {
+        "created_at": "2026-07-06T10:00:00Z",
+        "artifacts": [],
+        "links": {},
+        "capabilities": {"repobrief_profile": "agent-portable"},
+        "snapshot_provenance": {"repositories": [{"provenance_status": "present", "git_commit": "a" * 40}]},
+    }
+    path = tmp_path / "bundle.manifest.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    model = snapshot_availability_model(path, data, max_age_seconds=3600, as_of=datetime.datetime(2026, 7, 6, 10, 30, tzinfo=datetime.timezone.utc))
+    canonical = next(a for a in model["artifacts"] if a["role"] == "canonical_md")
+    assert canonical["availability"] == "missing_required"
+    assert model["freshness"]["status"] == "fresh"
+
+
+def test_availability_model_profile_excluded_and_not_applicable(tmp_path):
+    import json
+    from merger.lenskit.core.repobrief_availability import snapshot_availability_model
+    data = {"created_at": "2026-07-06T10:00:00Z", "artifacts": [], "links": {}, "capabilities": {"repobrief_profile": "public-share"}}
+    path = tmp_path / "bundle.manifest.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    model = snapshot_availability_model(path, data)
+    sqlite = next(a for a in model["artifacts"] if a["role"] == "sqlite_index")
+    pr_delta = next(a for a in model["artifacts"] if a["role"] == "pr_delta_cards_jsonl")
+    assert sqlite["availability"] == "profile_excluded"
+    assert pr_delta["availability"] == "not_applicable"
