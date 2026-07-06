@@ -1,4 +1,6 @@
 import json
+
+import pytest
 from pathlib import Path
 
 from merger.lenskit.cli.main import main
@@ -802,3 +804,65 @@ def test_repobrief_snapshot_check_schema_requires_profile_evaluation_status():
 
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=payload, schema=schema)
+
+
+def test_direct_repobrief_alias_help_uses_direct_command_surface(capsys):
+    from merger.lenskit.cli import repobrief as repobrief_cli
+
+    with pytest.raises(SystemExit) as excinfo:
+        repobrief_cli.main(["--help"])
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert "usage: repobrief" in out
+    assert "repobrief repobrief" not in out
+    assert "snapshot" in out
+    assert "artifact" in out
+
+
+def test_direct_repobrief_alias_dispatches_snapshot_status(tmp_path, capsys):
+    from merger.lenskit.cli.repobrief import main as repobrief_main
+
+    artifact = tmp_path / "demo.md"
+    artifact.write_text("# demo\n", encoding="utf-8")
+    manifest = tmp_path / "demo.bundle.manifest.json"
+    manifest.write_text(json.dumps({
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "run-1",
+        "created_at": "2026-07-03T00:00:00Z",
+        "generator": {"name": "test", "version": "1", "config_sha256": "a" * 64},
+        "artifacts": [{"role": "canonical_md", "path": artifact.name, "content_type": "text/markdown", "bytes": artifact.stat().st_size, "sha256": "b" * 64, "authority": "canonical_content", "canonicality": "content_source"}],
+        "links": {},
+        "capabilities": {"repobrief_profile": "agent-portable"},
+    }), encoding="utf-8")
+
+    rc = repobrief_main(["snapshot", "status", "--bundle-manifest", str(manifest)])
+
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["kind"] == "repobrief.snapshot_status"
+    assert out["profile"] == "agent-portable"
+    assert out["mutation_boundary"]["writes"] == []
+
+
+def test_legacy_lenskit_repobrief_subcommand_still_dispatches_snapshot_status(tmp_path, capsys):
+    artifact = tmp_path / "demo.md"
+    artifact.write_text("# demo\n", encoding="utf-8")
+    manifest = tmp_path / "demo.bundle.manifest.json"
+    manifest.write_text(json.dumps({
+        "kind": "repolens.bundle.manifest",
+        "version": "1.0",
+        "run_id": "run-1",
+        "created_at": "2026-07-03T00:00:00Z",
+        "generator": {"name": "test", "version": "1", "config_sha256": "a" * 64},
+        "artifacts": [{"role": "canonical_md", "path": artifact.name, "content_type": "text/markdown", "bytes": artifact.stat().st_size, "sha256": "b" * 64}],
+        "links": {},
+        "capabilities": {"repobrief_profile": "agent-portable"},
+    }), encoding="utf-8")
+
+    rc = main(["repobrief", "snapshot", "status", "--bundle-manifest", str(manifest)])
+
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert out["kind"] == "repobrief.snapshot_status"
