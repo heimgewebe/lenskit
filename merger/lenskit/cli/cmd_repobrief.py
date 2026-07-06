@@ -272,6 +272,26 @@ def register_repobrief_commands(subparsers: argparse._SubParsersAction) -> None:
     resolve_parser.add_argument("--bundle-manifest", required=True, help="Path to a Brief Bundle manifest")
     resolve_parser.add_argument("--task-profile", required=True, help="Required-reading task profile")
 
+    patch_eval_parser = repobrief_subparsers.add_parser(
+        "patch-evaluation",
+        help="Read-only consumption of external Patch Evaluation Sidecar artifacts",
+    )
+    patch_eval_subparsers = patch_eval_parser.add_subparsers(
+        dest="patch_evaluation_cmd",
+        required=True,
+        help="Patch-evaluation commands",
+    )
+    pe_validate_parser = patch_eval_subparsers.add_parser(
+        "validate",
+        help="Validate an external patch-evaluation artifact against the v1 schema (read-only)",
+    )
+    pe_validate_parser.add_argument("path", help="Path to a patch-evaluation.v1 artifact")
+    pe_validate_parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Also print the bounded external-evidence summary",
+    )
+
 
 def run_repobrief(args: argparse.Namespace) -> int:
     if args.repobrief_cmd == "snapshot" and args.snapshot_cmd == "create":
@@ -288,8 +308,30 @@ def run_repobrief(args: argparse.Namespace) -> int:
         return run_artifact_list(args)
     if args.repobrief_cmd == "required-reading" and args.required_reading_cmd == "resolve":
         return run_required_reading_resolve(args)
+    if args.repobrief_cmd == "patch-evaluation" and args.patch_evaluation_cmd == "validate":
+        return run_patch_evaluation_validate(args)
     print("Unsupported RepoBrief command", file=sys.stderr)
     return 2
+
+
+def run_patch_evaluation_validate(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.patch_evaluation import (
+        load_patch_evaluation,
+        summarize_patch_evaluation,
+        validate_patch_evaluation,
+    )
+
+    try:
+        data = load_patch_evaluation(args.path)
+    except ValueError as exc:
+        print("repobrief patch-evaluation validate: " + str(exc), file=sys.stderr)
+        return 2
+    report = validate_patch_evaluation(data)
+    if getattr(args, "summary", False):
+        report = {"validation": report, "summary": summarize_patch_evaluation(data)}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    status = report.get("validation", report).get("status")
+    return 0 if status in {"pass", "warn"} else 1
 
 
 def run_snapshot_check(args: argparse.Namespace) -> int:
