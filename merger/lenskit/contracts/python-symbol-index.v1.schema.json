@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "lenskit/schema/python-symbol-index.v1.schema.json",
+  "title": "Python Symbol Index (python_symbol_index v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "run_id",
+    "canonical_dump_index_sha256",
+    "language",
+    "symbol_kinds",
+    "symbols",
+    "skipped_files_count",
+    "skipped_errors",
+    "does_not_establish"
+  ],
+  "properties": {
+    "kind": {"type": "string", "const": "lenskit.python_symbol_index"},
+    "version": {"type": "string", "const": "1.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "canonical_dump_index_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "language": {"type": "string", "const": "python"},
+    "symbol_kinds": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["class", "function", "async_function"]},
+      "uniqueItems": true
+    },
+    "symbols": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "qualified_name",
+          "module",
+          "path",
+          "start_line",
+          "end_line",
+          "range_ref"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "enum": ["class", "function", "async_function"]},
+          "name": {"type": "string", "minLength": 1},
+          "qualified_name": {"type": "string", "minLength": 1},
+          "module": {"type": "string"},
+          "path": {"type": "string", "minLength": 1},
+          "start_line": {"type": "integer", "minimum": 1},
+          "end_line": {"type": "integer", "minimum": 1},
+          "range_ref": {"type": "string", "pattern": "^file:.+#L[0-9]+-L[0-9]+$"},
+          "decorators": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "skipped_files_count": {"type": "integer", "minimum": 0},
+    "skipped_errors": {"type": "array", "items": {"type": "string"}},
+    "does_not_establish": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "call_graph_completeness",
+          "dependency_completeness",
+          "runtime_behavior",
+          "import_success",
+          "test_sufficiency",
+          "review_impact",
+          "merge_readiness"
+        ]
+      },
+      "uniqueItems": true
+    }
+  }
+}
