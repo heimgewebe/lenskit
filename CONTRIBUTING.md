@@ -48,14 +48,14 @@ und JS-Payload-Keys (`app.js`). Details: [`docs/PARITY_GUARD.md`](docs/PARITY_GU
 python3 -m pip install -r requirements-dev.txt
 python3 -m pytest
 
-# Lint (exakt wie die CI)
-ruff check --select=F401,F811 --exclude='**/fixtures/**' .
+# Lint (exakt wie die CI; Scope steht in ruff.toml)
+ruff check .
 
 # Parität (falls JobRequest/UI berührt)
 python3 tools/parity_guard.py
 ```
 
-Test-Fixtures unter `**/fixtures/**` sind absichtlich vom Lint ausgenommen
+Test-Fixtures unter `**/fixtures/**` sind in `ruff.toml` absichtlich vom Lint ausgenommen
 (sie enthalten bewusst „kaputten" Code für Linter-/Graph-Tests).
 
 ## CI-Gates (Auswahl)
