@@ -308,6 +308,27 @@ def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser)
         help="Artifact family to publish; repeatable; defaults to both",
     )
 
+    external_refresh_parser = external_subparsers.add_parser(
+        "refresh",
+        help="Create a Brief Snapshot and publish external manifest references",
+    )
+    external_refresh_parser.add_argument("--repo", required=True, help="Repository path to snapshot")
+    external_refresh_parser.add_argument("--out", required=True, help="Output directory for Brief Bundle artifacts")
+    external_refresh_parser.add_argument("--publication-root", required=True, help="Root directory for published external manifests")
+    external_refresh_parser.add_argument("--repository", required=True, help="Registry repository segment, for example cabinet")
+    external_refresh_parser.add_argument("--ref", required=True, help="Registry ref segment, for example main")
+    external_refresh_parser.add_argument("--artifact-family", choices=["repobrief", "lenskit"], action="append", dest="artifact_families")
+    external_refresh_parser.add_argument("--profile", choices=sorted(profile_names()), default="agent-portable")
+    external_refresh_parser.add_argument("--mode", choices=["gesamt", "pro-repo"], default="gesamt")
+    external_refresh_parser.add_argument("--max-bytes", default="0")
+    external_refresh_parser.add_argument("--split-size", default="25MB")
+    external_refresh_parser.add_argument("--path-filter")
+    external_refresh_parser.add_argument("--ext", action="append")
+    external_refresh_parser.add_argument("--output-mode", choices=["archive", "retrieval", "dual"])
+    external_refresh_parser.add_argument("--redact-secrets", action="store_true")
+    external_refresh_parser.add_argument("--no-include-hidden", action="store_false", dest="include_hidden")
+    external_refresh_parser.set_defaults(include_hidden=True)
+
     patch_eval_parser = repobrief_subparsers.add_parser(
         "patch-evaluation",
         help="Read-only consumption of external Patch Evaluation Sidecar artifacts",
@@ -355,6 +376,8 @@ def run_repobrief(args: argparse.Namespace) -> int:
         return run_external_manifest_write(args)
     if args.repobrief_cmd == "external-manifest" and args.external_manifest_cmd == "publish":
         return run_external_manifest_publish(args)
+    if args.repobrief_cmd == "external-manifest" and args.external_manifest_cmd == "refresh":
+        return run_external_manifest_refresh(args)
     if args.repobrief_cmd == "patch-evaluation" and args.patch_evaluation_cmd == "validate":
         return run_patch_evaluation_validate(args)
     print("Unsupported RepoBrief command", file=sys.stderr)
@@ -400,6 +423,40 @@ def run_external_manifest_publish(args: argparse.Namespace) -> int:
         print("repobrief external-manifest publish: " + str(exc), file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+def run_external_manifest_refresh(args: argparse.Namespace) -> int:
+    import contextlib
+    import io
+    snapshot_args = argparse.Namespace(
+        repo=args.repo, out=args.out, profile=args.profile, mode=args.mode,
+        max_bytes=args.max_bytes, split_size=args.split_size, path_filter=args.path_filter,
+        ext=args.ext, output_mode=args.output_mode, redact_secrets=args.redact_secrets,
+        include_hidden=args.include_hidden,
+    )
+    snapshot_stdout = io.StringIO()
+    with contextlib.redirect_stdout(snapshot_stdout):
+        snapshot_rc = run_snapshot_create(snapshot_args)
+    if snapshot_rc != 0:
+        print(snapshot_stdout.getvalue(), file=sys.stderr, end="")
+        return snapshot_rc
+    snapshot_result = json.loads(snapshot_stdout.getvalue())
+    bundle_manifest = snapshot_result.get("bundle_manifest")
+    if not isinstance(bundle_manifest, str) or not bundle_manifest:
+        print("missing bundle_manifest", file=sys.stderr)
+        return 1
+    from merger.lenskit.core.external_manifest_reference import publish_external_manifest_references
+    publication = publish_external_manifest_references(
+        bundle_manifest, args.publication_root,
+        repository=args.repository, ref=args.ref, artifact_families=args.artifact_families,
+    )
+    print(json.dumps({
+        "status": "ok",
+        "command": "repobrief external-manifest refresh",
+        "snapshot": snapshot_result,
+        "publication": publication,
+        "does_not_establish": list(DOES_NOT_ESTABLISH),
+    }, indent=2, sort_keys=True))
     return 0
 
 
