@@ -151,3 +151,93 @@ def test_availability_model_profile_excluded_and_not_applicable(tmp_path):
     pr_delta = next(a for a in model["artifacts"] if a["role"] == "pr_delta_cards_jsonl")
     assert sqlite["availability"] == "profile_excluded"
     assert pr_delta["availability"] == "not_applicable"
+
+
+def _write_graph_index(path, sha):
+    import json
+    path.write_text(json.dumps({
+        "kind": "lenskit.architecture.graph_index",
+        "version": "1.0",
+        "run_id": "run-1",
+        "canonical_dump_index_sha256": sha,
+        "distances": {},
+        "metrics": {
+            "entrypoint_count": 0,
+            "nodes_reachable": 0,
+            "unreachable_nodes": 0,
+        },
+    }), encoding="utf-8")
+
+
+def test_graph_availability_is_exposed_when_not_generated(tmp_path):
+    import json
+    from merger.lenskit.core.repobrief_availability import snapshot_availability_model
+
+    data = {
+        "created_at": "2026-07-06T10:00:00Z",
+        "artifacts": [],
+        "links": {},
+        "capabilities": {"repobrief_profile": "agent-portable"},
+    }
+    path = tmp_path / "bundle.manifest.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    graph = snapshot_availability_model(path, data)["graph_availability"]
+
+    assert graph["kind"] == "repobrief.graph_availability"
+    assert graph["status"] == "not_generated"
+    assert graph["retrieval_eligible"] is False
+    assert graph["stale_graph_must_not_influence_retrieval"] is True
+    assert "test_sufficiency" in graph["does_not_establish"]
+
+
+def test_graph_availability_reports_available_and_stale(tmp_path):
+    import json
+    from merger.lenskit.core.repobrief_availability import snapshot_availability_model
+
+    graph_path = tmp_path / "x.architecture_graph.json"
+    graph_path.write_text('{"kind":"placeholder"}', encoding="utf-8")
+    graph_index = tmp_path / "x.graph_index.json"
+    expected_sha = "a" * 64
+    _write_graph_index(graph_index, expected_sha)
+    data = {
+        "created_at": "2026-07-06T10:00:00Z",
+        "artifacts": [
+            {"role": "architecture_graph_json", "path": graph_path.name},
+            {"role": "graph_index_json", "path": graph_index.name},
+        ],
+        "links": {"canonical_dump_index_sha256": expected_sha},
+        "capabilities": {"repobrief_profile": "agent-portable"},
+    }
+    path = tmp_path / "bundle.manifest.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    graph = snapshot_availability_model(path, data)["graph_availability"]
+    assert graph["status"] == "available"
+    assert graph["graph_index"]["load_status"] == "ok"
+    assert graph["retrieval_eligible"] is True
+
+    stale = dict(data)
+    stale["links"] = {"canonical_dump_index_sha256": "b" * 64}
+    stale_graph = snapshot_availability_model(path, stale)["graph_availability"]
+    assert stale_graph["status"] == "stale"
+    assert stale_graph["graph_index"]["load_status"] == "stale_or_mismatched"
+    assert stale_graph["retrieval_eligible"] is False
+
+
+def test_graph_availability_profile_excluded_for_public_share(tmp_path):
+    import json
+    from merger.lenskit.core.repobrief_availability import snapshot_availability_model
+
+    data = {
+        "created_at": "2026-07-06T10:00:00Z",
+        "artifacts": [],
+        "links": {},
+        "capabilities": {"repobrief_profile": "public-share"},
+    }
+    path = tmp_path / "bundle.manifest.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    graph = snapshot_availability_model(path, data)["graph_availability"]
+    assert graph["status"] == "profile_excluded"
+    assert graph["retrieval_eligible"] is False
