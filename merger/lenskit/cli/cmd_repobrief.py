@@ -237,6 +237,10 @@ def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser)
     create_parser.add_argument("--output-mode", choices=["archive", "retrieval", "dual"])
     create_parser.add_argument("--redact-secrets", action="store_true")
     create_parser.add_argument("--no-include-hidden", action="store_false", dest="include_hidden")
+    create_parser.add_argument(
+        "--latest-complete-registry",
+        help="Explicitly write/update a RepoBrief latest-complete registry JSON for this created snapshot",
+    )
     create_parser.set_defaults(include_hidden=True)
 
     status_parser = snapshot_subparsers.add_parser("status", help="Read status for an existing Brief Snapshot")
@@ -352,6 +356,28 @@ def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser)
     external_refresh_parser.add_argument("--no-include-hidden", action="store_false", dest="include_hidden")
     external_refresh_parser.set_defaults(include_hidden=True)
 
+    latest_parser = repobrief_subparsers.add_parser(
+        "latest-complete",
+        help="Read or explicitly write the latest-complete RepoBrief registry",
+    )
+    latest_subparsers = latest_parser.add_subparsers(
+        dest="latest_complete_cmd",
+        required=True,
+        help="Latest-complete registry commands",
+    )
+    latest_write = latest_subparsers.add_parser(
+        "write",
+        help="Explicitly write a latest-complete registry from an existing bundle manifest",
+    )
+    latest_write.add_argument("--bundle-manifest", required=True, help="Path to a Brief Bundle manifest")
+    latest_write.add_argument("--out", required=True, help="Output path for the latest-complete registry JSON")
+    latest_status = latest_subparsers.add_parser(
+        "status",
+        help="Read-only freshness status for an existing latest-complete registry",
+    )
+    latest_status.add_argument("--registry", required=True, help="Path to latest-complete registry JSON")
+    latest_status.add_argument("--repo", help="Optional local repo path for explicit HEAD drift comparison")
+
     patch_eval_parser = repobrief_subparsers.add_parser(
         "patch-evaluation",
         help="Read-only consumption of external Patch Evaluation Sidecar artifacts",
@@ -403,6 +429,10 @@ def run_repobrief(args: argparse.Namespace) -> int:
         return run_external_manifest_publish(args)
     if args.repobrief_cmd == "external-manifest" and args.external_manifest_cmd == "refresh":
         return run_external_manifest_refresh(args)
+    if args.repobrief_cmd == "latest-complete" and args.latest_complete_cmd == "write":
+        return run_latest_complete_write(args)
+    if args.repobrief_cmd == "latest-complete" and args.latest_complete_cmd == "status":
+        return run_latest_complete_status(args)
     if args.repobrief_cmd == "patch-evaluation" and args.patch_evaluation_cmd == "validate":
         return run_patch_evaluation_validate(args)
     print("Unsupported RepoBrief command", file=sys.stderr)
@@ -483,6 +513,7 @@ def run_external_manifest_refresh(args: argparse.Namespace) -> int:
         max_bytes=args.max_bytes, split_size=args.split_size, path_filter=args.path_filter,
         ext=args.ext, output_mode=args.output_mode, redact_secrets=args.redact_secrets,
         include_hidden=args.include_hidden,
+        latest_complete_registry=None,
     )
     snapshot_stdout = io.StringIO()
     with contextlib.redirect_stdout(snapshot_stdout):
@@ -511,6 +542,30 @@ def run_external_manifest_refresh(args: argparse.Namespace) -> int:
         "does_not_establish": list(DOES_NOT_ESTABLISH),
     }, indent=2, sort_keys=True))
     return 0
+
+
+def run_latest_complete_write(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.repobrief_latest_complete import write_latest_complete_registry
+
+    try:
+        result = write_latest_complete_registry(args.bundle_manifest, args.out)
+    except ValueError as exc:
+        print("repobrief latest-complete write: " + str(exc), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def run_latest_complete_status(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.repobrief_latest_complete import latest_complete_status
+
+    try:
+        result = latest_complete_status(args.registry, repo=args.repo)
+    except ValueError as exc:
+        print("repobrief latest-complete status: " + str(exc), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result.get("status") in {"ok", "warn"} else 1
 
 
 def run_patch_evaluation_validate(args: argparse.Namespace) -> int:
@@ -702,6 +757,15 @@ def build_snapshot_create_result(args: argparse.Namespace) -> dict[str, Any]:
     export_safety_path = emit_export_safety_report(artifacts.bundle_manifest, profile)
     refreshed_paths = refresh_entry(artifacts.bundle_manifest)
     profile_evaluation = mark_bundle_manifest_profile(artifacts.bundle_manifest, profile, output_plan)
+    latest_registry_result = None
+    latest_registry_arg = getattr(args, "latest_complete_registry", None)
+    if latest_registry_arg and artifacts.bundle_manifest is not None:
+        from merger.lenskit.core.repobrief_latest_complete import write_latest_complete_registry
+
+        latest_registry_result = write_latest_complete_registry(
+            artifacts.bundle_manifest,
+            latest_registry_arg,
+        )
     artifact_paths = [path for path in artifacts.get_all_paths() if path not in dropped_profile_paths]
     if snapshot_plan_path is not None and snapshot_plan_path not in artifact_paths:
         artifact_paths.append(snapshot_plan_path)
@@ -720,6 +784,7 @@ def build_snapshot_create_result(args: argparse.Namespace) -> dict[str, Any]:
         "profile_evaluation": profile_evaluation,
         "snapshot_plan_report": str(snapshot_plan_path) if snapshot_plan_path else None,
         "export_safety_report": str(export_safety_path) if export_safety_path else None,
+        "latest_complete_registry": latest_registry_result,
         "refreshed_agent_entrypoints": [str(path) for path in refreshed_paths],
         "removed_profile_excluded_artifacts": [str(path) for path in dropped_profile_paths],
         "artifacts": [str(path) for path in artifact_paths],
