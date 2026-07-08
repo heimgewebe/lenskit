@@ -1,3 +1,4 @@
+import json
 from merger.lenskit.core import repobrief_access
 from merger.lenskit.tests.test_repobrief_resolved_evidence_query import (
     _build_resolved_bundle,
@@ -312,3 +313,56 @@ def test_source_citation_projection_projects_v2_source_and_artifact_axes():
     assert source_range["source_start_line"] == 100
     assert source_range["source_end_line"] == 104
     assert source_range["coordinate_basis"] == "artifact_bytes_with_source_lines"
+
+
+def test_query_projection_exposes_live_repo_address_and_preserves_canonical_authority(tmp_path):
+    bundle = _build_resolved_bundle(tmp_path)
+    citation_map_path = tmp_path / "demo.citation_map.jsonl"
+    row = json.loads(citation_map_path.read_text(encoding="utf-8"))
+    row["source_range"] = {
+        "file_path": "src/app.py",
+        "start_byte": 0,
+        "end_byte": 12,
+        "start_line": 7,
+        "end_line": 8,
+        "content_sha256": "d" * 64,
+        "status": "declared",
+    }
+    row["live_repo_address"] = {
+        "status": "available",
+        "reason": "snapshot_git_provenance_present",
+        "authority": "source_address_convenience",
+        "canonical_authority_preserved": True,
+        "repo_id": "demo",
+        "repo_remote": "git@example.test/demo.git",
+        "git_commit": "e" * 40,
+        "git_dirty": False,
+        "provenance_status": "present",
+        "path": "src/app.py",
+        "start_line": 7,
+        "end_line": 8,
+        "blob_sha1": "f" * 40,
+        "blob_hash_algorithm": "git-sha1",
+        "blob_hash_basis": "source_worktree_file_content",
+        "does_not_establish": ["canonical_content", "freshness_against_remote"],
+    }
+    citation_map_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    result = repobrief_access.query_existing_index(
+        bundle["manifest"], "hello", k=1, resolve_evidence=True, project_sources=True
+    )
+
+    hit = result["resolved_evidence"]["hits"][0]
+    assert hit["source_path"] == "src/app.py"
+    assert hit["line_range"] == {"start_line": 7, "end_line": 8, "display": "7-8"}
+    assert hit["live_repo_address_status"] == "available"
+    assert hit["live_repo_address"]["git_commit"] == "e" * 40
+    assert hit["live_repo_address"]["blob_sha1"] == "f" * 40
+    assert hit["canonical_authority"]["authority"] == "canonical_brief_source"
+    assert hit["canonical_authority"]["range"]["file_path"] == bundle["canonical"].name
+
+    item = result["source_citation_projection"]["items"][0]
+    assert item["source_range"]["file_path"] == "src/app.py"
+    assert item["live_repo_address_status"] == "available"
+    assert item["canonical_authority"]["authority"] == "canonical_brief_source"
+    assert item["citation_range"]["file_path"] == bundle["canonical"].name

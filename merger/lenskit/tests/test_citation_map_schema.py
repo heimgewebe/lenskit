@@ -273,3 +273,44 @@ def test_example_jsonl_lines_all_validate(schema):
     for line in lines:
         entry = json.loads(line)
         jsonschema.validate(instance=entry, schema=schema)
+
+
+# ---------------------------------------------------------------------------
+# live_repo_address — convenience only, canonical_range remains authority
+# ---------------------------------------------------------------------------
+
+def test_live_repo_address_is_valid(schema):
+    entry = _minimal_entry()
+    entry["live_repo_address"] = {
+        "status": "available",
+        "reason": "snapshot_git_provenance_present",
+        "authority": "source_address_convenience",
+        "canonical_authority_preserved": True,
+        "repo_id": "lenskit",
+        "repo_remote": "git@github.com:heimgewebe/lenskit.git",
+        "git_commit": "a" * 40,
+        "git_dirty": False,
+        "provenance_status": "present",
+        "path": "src/app.py",
+        "start_line": 10,
+        "end_line": 12,
+        "blob_sha1": "b" * 40,
+        "blob_hash_algorithm": "git-sha1",
+        "blob_hash_basis": "source_worktree_file_content",
+        "does_not_establish": ["canonical_content", "freshness_against_remote"],
+    }
+    jsonschema.validate(instance=entry, schema=schema)
+
+
+def test_live_repo_address_rejects_canonical_authority_claim(schema):
+    entry = _minimal_entry()
+    entry["live_repo_address"] = {
+        "status": "available",
+        "authority": "canonical_content",
+        "canonical_authority_preserved": True,
+        "repo_id": "lenskit",
+        "path": "src/app.py",
+        "does_not_establish": ["canonical_content"],
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=entry, schema=schema)

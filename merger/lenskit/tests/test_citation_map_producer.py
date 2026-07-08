@@ -1272,3 +1272,103 @@ class TestExplicitOutputProtectionBeforeArtifactResolution:
         assert canonical_md.exists(), (
             "Explicit --output must not be deleted before artifact protection is complete"
         )
+
+
+def _git_blob_sha1(data: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data, usedforsecurity=False).hexdigest()
+
+
+class TestLiveRepoAddress:
+    def test_producer_emits_live_repo_address_when_provenance_present(self, tmp_path):
+        content = b"alpha\nbeta\n"
+        source_bytes = b"print('hello')\n"
+        chunk = _canonical_range_chunk(content, 0, 5, "test_merge.md", repo_id="testrepo", chunk_id="c-live")
+        chunk["path"] = "src/app.py"
+        chunk["source_range"] = {
+            "file_path": "src/app.py",
+            "repo_id": "testrepo",
+            "start_byte": 0,
+            "end_byte": len(source_bytes),
+            "start_line": 10,
+            "end_line": 10,
+            "content_sha256": _sha256(source_bytes),
+            "status": "declared",
+            "git_blob_sha1": _git_blob_sha1(source_bytes),
+            "git_blob_sha1_basis": "source_worktree_file_content",
+        }
+        manifest_path = _make_bundle(tmp_path, content, [chunk])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["snapshot_provenance"] = {
+            "version": "v1",
+            "repositories": [{
+                "name": "testrepo",
+                "repo_root": str(tmp_path / "testrepo"),
+                "repo_remote": "git@github.com:heimgewebe/lenskit.git",
+                "git_commit": "a" * 40,
+                "git_dirty": False,
+                "git_branch": "main",
+                "provenance_status": "present",
+                "freshness_basis": "git_commit",
+            }],
+            "does_not_establish": ["freshness_against_remote"],
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        report = produce_citation_map(str(manifest_path))
+
+        assert report["status"] == "ok", report["errors"]
+        row = report["sample_rows"][0]
+        assert row["source_range"]["file_path"] == "src/app.py"
+        assert row["source_range"]["start_line"] == 10
+        address = row["live_repo_address"]
+        assert address["status"] == "available"
+        assert address["authority"] == "source_address_convenience"
+        assert address["canonical_authority_preserved"] is True
+        assert address["repo_remote"] == "git@github.com:heimgewebe/lenskit.git"
+        assert address["git_commit"] == "a" * 40
+        assert address["git_dirty"] is False
+        assert address["path"] == "src/app.py"
+        assert address["start_line"] == 10
+        assert address["end_line"] == 10
+        assert address["blob_sha1"] == _git_blob_sha1(source_bytes)
+        assert address["blob_hash_algorithm"] == "git-sha1"
+
+    def test_dirty_snapshot_degrades_live_repo_address(self, tmp_path):
+        content = b"alpha\nbeta\n"
+        chunk = _canonical_range_chunk(content, 0, 5, "test_merge.md", repo_id="testrepo", chunk_id="c-dirty")
+        chunk["path"] = "src/app.py"
+        chunk["source_range"] = {
+            "file_path": "src/app.py",
+            "repo_id": "testrepo",
+            "start_byte": 0,
+            "end_byte": 5,
+            "start_line": 1,
+            "end_line": 1,
+            "content_sha256": "b" * 64,
+            "status": "declared",
+            "git_blob_sha1": "c" * 40,
+        }
+        manifest_path = _make_bundle(tmp_path, content, [chunk])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["snapshot_provenance"] = {
+            "version": "v1",
+            "repositories": [{
+                "name": "testrepo",
+                "repo_remote": None,
+                "git_commit": "a" * 40,
+                "git_dirty": True,
+                "git_branch": "topic",
+                "provenance_status": "present",
+                "freshness_basis": "git_commit",
+            }],
+            "does_not_establish": ["freshness_against_remote"],
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        report = produce_citation_map(str(manifest_path))
+
+        assert report["status"] == "ok", report["errors"]
+        address = report["sample_rows"][0]["live_repo_address"]
+        assert address["status"] == "degraded"
+        assert address["reason"] == "snapshot_worktree_dirty"
+        assert address["git_dirty"] is True

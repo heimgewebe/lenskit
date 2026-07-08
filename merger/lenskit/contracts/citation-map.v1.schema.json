@@ -137,7 +137,11 @@
       "if": {
         "properties": {
           "status": {
-            "enum": ["declared", "exact", "derived"]
+            "enum": [
+              "declared",
+              "exact",
+              "derived"
+            ]
           }
         }
       },
@@ -157,6 +161,103 @@
     "produced_by": {
       "type": "string",
       "description": "Optional producer hint, e.g. citation_map_producer name/version. Diagnostic only."
+    },
+    "live_repo_address": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "authority",
+        "canonical_authority_preserved",
+        "repo_id",
+        "path",
+        "does_not_establish"
+      ],
+      "description": "Optional convenience address into the source repository at snapshot time. It is derived navigation only; canonical_range remains the authoritative citation locator.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "degraded",
+            "unavailable",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "authority": {
+          "type": "string",
+          "enum": [
+            "source_address_convenience"
+          ]
+        },
+        "canonical_authority_preserved": {
+          "type": "boolean"
+        },
+        "repo_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo_remote": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "git_commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{40,64}$"
+        },
+        "git_dirty": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "provenance_status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "blob_sha1": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "blob_hash_algorithm": {
+          "type": "string",
+          "enum": [
+            "git-sha1"
+          ]
+        },
+        "blob_hash_basis": {
+          "type": "string"
+        },
+        "does_not_establish": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      }
     }
   }
 }
