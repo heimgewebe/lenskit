@@ -280,6 +280,143 @@ def resolve_repo_id(
     return candidates[0][1], candidates[0][0]
 
 
+def normalize_source_range(chunk: Dict[str, Any], lineno: int) -> Optional[Dict[str, Any]]:
+    """Return a schema-clean source_range from a chunk, when present and usable."""
+    raw = chunk.get("source_range")
+    if not isinstance(raw, dict):
+        return None
+    raw_status = raw.get("status")
+    if raw_status not in {"declared", "exact", "derived", "unavailable"}:
+        return None
+    raw_path = raw.get("file_path") or chunk.get("path")
+    if not isinstance(raw_path, str) or not raw_path:
+        return None
+    try:
+        file_path = _normalize_relative_path(raw_path, f"source_range.file_path line {lineno}")
+    except ValueError:
+        return None
+
+    source_range: Dict[str, Any] = {"file_path": file_path, "status": raw_status}
+    for field in ("start_byte", "end_byte", "start_line", "end_line"):
+        value = raw.get(field)
+        if isinstance(value, bool) or not isinstance(value, int):
+            if raw_status in {"declared", "exact", "derived"}:
+                return None
+            continue
+        source_range[field] = value
+    content_sha256 = raw.get("content_sha256")
+    if isinstance(content_sha256, str) and _SHA256_RE.fullmatch(content_sha256):
+        source_range["content_sha256"] = content_sha256
+    return source_range
+
+
+def _snapshot_repo(snapshot_provenance: Any, repo_id: str) -> Optional[Dict[str, Any]]:
+    repositories = (
+        snapshot_provenance.get("repositories")
+        if isinstance(snapshot_provenance, dict)
+        else None
+    )
+    if not isinstance(repositories, list):
+        return None
+    for repo in repositories:
+        if isinstance(repo, dict) and repo.get("name") == repo_id:
+            return repo
+    return None
+
+
+def _valid_git_blob_sha1(value: Any) -> Optional[str]:
+    if isinstance(value, str) and re.fullmatch(r"[a-f0-9]{40}", value):
+        return value
+    return None
+
+
+def build_live_repo_address(
+    chunk: Dict[str, Any],
+    repo_id: str,
+    source_range: Optional[Dict[str, Any]],
+    snapshot_provenance: Any,
+) -> Optional[Dict[str, Any]]:
+    """Build a convenience source address without replacing canonical authority."""
+    path_value = (
+        source_range.get("file_path")
+        if isinstance(source_range, dict)
+        else chunk.get("path")
+    )
+    if not isinstance(path_value, str) or not path_value:
+        return None
+    try:
+        path_value = _normalize_relative_path(path_value, "live_repo_address.path")
+    except ValueError:
+        return None
+
+    repo = _snapshot_repo(snapshot_provenance, repo_id)
+    status = "unknown"
+    reason = "snapshot_provenance_missing"
+    repo_remote = None
+    git_commit = None
+    git_dirty = None
+    provenance_status = None
+    if repo is not None:
+        provenance_status = repo.get("provenance_status")
+        repo_remote = repo.get("repo_remote") if isinstance(repo.get("repo_remote"), str) else None
+        git_commit = repo.get("git_commit") if isinstance(repo.get("git_commit"), str) else None
+        git_dirty = repo.get("git_dirty") if isinstance(repo.get("git_dirty"), bool) else None
+        if provenance_status != "present":
+            status = "unavailable"
+            reason = f"snapshot_provenance_status_{provenance_status or 'unknown'}"
+        elif not git_commit:
+            status = "unknown"
+            reason = "git_commit_missing"
+        elif git_dirty is True:
+            status = "degraded"
+            reason = "snapshot_worktree_dirty"
+        else:
+            status = "available"
+            reason = "snapshot_git_provenance_present"
+
+    if isinstance(source_range, dict) and source_range.get("status") == "unavailable":
+        status = "unavailable"
+        reason = "source_range_unavailable"
+
+    raw_source_range = chunk.get("source_range") if isinstance(chunk.get("source_range"), dict) else {}
+    blob_sha1 = _valid_git_blob_sha1(raw_source_range.get("git_blob_sha1"))
+    if blob_sha1 is None and status == "available":
+        status = "degraded"
+        reason = "source_blob_sha_unavailable"
+
+    address: Dict[str, Any] = {
+        "status": status,
+        "reason": reason,
+        "authority": "source_address_convenience",
+        "canonical_authority_preserved": True,
+        "repo_id": repo_id,
+        "repo_remote": repo_remote,
+        "git_commit": git_commit,
+        "git_dirty": git_dirty,
+        "provenance_status": provenance_status,
+        "path": path_value,
+        "does_not_establish": [
+            "canonical_content",
+            "freshness_against_remote",
+            "runtime_correctness",
+            "merge_readiness",
+        ],
+    }
+    if isinstance(source_range, dict):
+        for out_key, in_key in (("start_line", "start_line"), ("end_line", "end_line")):
+            value = source_range.get(in_key)
+            if isinstance(value, int) and not isinstance(value, bool):
+                address[out_key] = value
+    if blob_sha1 is not None:
+        address["blob_sha1"] = blob_sha1
+        address["blob_hash_algorithm"] = "git-sha1"
+        address["blob_hash_basis"] = raw_source_range.get(
+            "git_blob_sha1_basis",
+            "source_worktree_file_content",
+        )
+    return address
+
+
 # ---------------------------------------------------------------------------
 # Byte-range verification
 # ---------------------------------------------------------------------------
@@ -356,6 +493,7 @@ def iter_chunk_results(
     canonical_md_rel: str,
     canonical_md_sha256: str,
     run_id: str,
+    snapshot_provenance: Any = None,
 ) -> Iterator[_ChunkResult]:
     """
     Yield one _ChunkResult per non-empty line of the chunk index.
@@ -497,6 +635,19 @@ def iter_chunk_results(
                 },
                 "produced_by": PRODUCED_BY,
             }
+
+            source_range = normalize_source_range(chunk, lineno)
+            if source_range is not None:
+                row["source_range"] = source_range
+
+            live_repo_address = build_live_repo_address(
+                chunk,
+                repo_id,
+                source_range,
+                snapshot_provenance,
+            )
+            if live_repo_address is not None:
+                row["live_repo_address"] = live_repo_address
 
             chunk_id = chunk.get("chunk_id")
             if chunk_id is not None:
@@ -783,6 +934,7 @@ def produce_citation_map(  # lenskit:requires-authority=canonical_content
         )
 
     bundle_run_id = manifest.get("run_id")
+    snapshot_provenance = manifest.get("snapshot_provenance")
 
     # H3: run_id must be a non-empty string — an empty snapshot.run_id is invalid.
     if not isinstance(bundle_run_id, str) or not bundle_run_id:
@@ -930,6 +1082,7 @@ def produce_citation_map(  # lenskit:requires-authority=canonical_content
         canonical_md_rel,
         actual_canonical_sha,
         bundle_run_id or "",
+        snapshot_provenance=snapshot_provenance,
     ):
         chunk_count += 1
 

@@ -296,3 +296,15 @@ def test_citation_map_jsonl_emitted(dual_range_artifacts):
         f"citation_map_jsonl must be emitted exactly once; found: {citation_files}"
     )
     assert citation_files[0].exists()
+
+
+def test_source_range_declared_carries_git_blob_sha1_for_live_repo_addressing(dual_range_artifacts):
+    _, chunks, _ = dual_range_artifacts
+    assert chunks
+    for chunk in chunks:
+        sr = chunk["source_range"]
+        if sr["status"] != "declared":
+            continue
+        assert len(sr["git_blob_sha1"]) == 40
+        assert sr["git_blob_sha1_basis"] == "source_worktree_file_content"
+        int(sr["git_blob_sha1"], 16)

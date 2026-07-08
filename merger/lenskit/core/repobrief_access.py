@@ -475,6 +475,8 @@ def _citation_record(row: dict[str, Any]) -> dict[str, Any]:
         "chunk_id": row.get("chunk_id"),
         "snapshot": row.get("snapshot"),
         "canonical_range": row.get("canonical_range"),
+        "source_range": row.get("source_range") if isinstance(row.get("source_range"), dict) else None,
+        "live_repo_address": row.get("live_repo_address") if isinstance(row.get("live_repo_address"), dict) else None,
         "produced_by": row.get("produced_by"),
     }
 
@@ -526,8 +528,16 @@ def _enrich_resolved_hit_for_direct_use(
     text = range_value.get("text") if isinstance(range_value, dict) else None
     raw_citation = hit.get("citation")
     citation = raw_citation if isinstance(raw_citation, dict) else None
-    citation_range = _source_range_projection(
+    canonical_range = _source_range_projection(
         citation.get("canonical_range") if citation else None
+    )
+    citation_source_range = _source_range_projection(
+        citation.get("source_range") if citation else None
+    )
+    live_repo_address = (
+        citation.get("live_repo_address")
+        if citation and isinstance(citation.get("live_repo_address"), dict)
+        else None
     )
     range_ref_projection = (
         _source_range_projection(hit.get("range_ref"))
@@ -535,7 +545,7 @@ def _enrich_resolved_hit_for_direct_use(
         else None
     )
     range_projection = _source_range_projection(range_value)
-    candidates = [range_ref_projection, citation_range, range_projection]
+    candidates = [citation_source_range, range_ref_projection, canonical_range, range_projection]
     source_range = next(
         (candidate for candidate in candidates if _has_range_identity(candidate)),
         None,
@@ -551,13 +561,20 @@ def _enrich_resolved_hit_for_direct_use(
     artifact_path = None
     artifact_line_range = None
     artifact_role = None
+    if isinstance(live_repo_address, dict):
+        source_path = live_repo_address.get("path")
+        source_line_range = _line_range(
+            live_repo_address.get("start_line"),
+            live_repo_address.get("end_line"),
+        )
     if isinstance(source_range, dict):
         source_path = _first_not_none(
+            source_path,
             source_range.get("source_file_path"),
             source_range.get("file_path"),
             hit.get("path"),
         )
-        source_line_range = _line_range(
+        source_line_range = source_line_range or _line_range(
             _first_not_none(source_range.get("source_start_line"), source_range.get("start_line")),
             _first_not_none(source_range.get("source_end_line"), source_range.get("end_line")),
         )
@@ -578,6 +595,18 @@ def _enrich_resolved_hit_for_direct_use(
     hit["artifact_path"] = artifact_path
     hit["artifact_role"] = artifact_role
     hit["artifact_line_range"] = artifact_line_range
+    hit["canonical_authority"] = {
+        "authority": "canonical_brief_source",
+        "artifact_role": "canonical_md",
+        "range": canonical_range,
+        "citation_id": hit.get("citation_id"),
+    }
+    hit["live_repo_address"] = live_repo_address
+    hit["live_repo_address_status"] = (
+        live_repo_address.get("status")
+        if isinstance(live_repo_address, dict)
+        else "unavailable"
+    )
     hit["range_ref_verified"] = hit.get("range_status") == "resolved"
     hit["citation_verified"] = hit.get("citation_status") == "resolved" and isinstance(
         hit.get("citation_id"),
@@ -863,13 +892,21 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
         citation_range = _source_range_projection(
             citation.get("canonical_range") if citation else None
         )
+        citation_source_range = _source_range_projection(
+            citation.get("source_range") if citation else None
+        )
+        live_repo_address = (
+            citation.get("live_repo_address")
+            if citation and isinstance(citation.get("live_repo_address"), dict)
+            else None
+        )
         range_ref_projection = (
             _source_range_projection(hit.get("range_ref"))
             if hit.get("range_status") == "resolved"
             else None
         )
         range_projection = _source_range_projection(range_value)
-        candidates = [range_ref_projection, citation_range, range_projection]
+        candidates = [citation_source_range, range_ref_projection, citation_range, range_projection]
         source_range = next(
             (candidate for candidate in candidates if _has_range_identity(candidate)),
             None,
@@ -908,6 +945,19 @@ def _project_source_citations(resolved_evidence: Any) -> dict[str, Any]:
             "citation_resolved": citation_resolved,
             "citation_id": citation_id,
             "citation_range": citation_range,
+            "citation_source_range": citation_source_range,
+            "live_repo_address": live_repo_address,
+            "live_repo_address_status": (
+                live_repo_address.get("status")
+                if isinstance(live_repo_address, dict)
+                else "unavailable"
+            ),
+            "canonical_authority": {
+                "authority": "canonical_brief_source",
+                "artifact_role": "canonical_md",
+                "range": citation_range,
+                "citation_id": citation_id,
+            },
         })
     return {
         "kind": SOURCE_CITATION_PROJECTION_KIND,

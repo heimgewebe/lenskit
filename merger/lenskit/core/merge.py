@@ -2029,6 +2029,16 @@ def _compute_file_sha256(path: Path) -> str:
         return "ERROR"
 
 
+def _compute_git_blob_sha1(path: Path) -> str | None:
+    """Return the Git SHA-1 blob id for the current file bytes, if readable."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    header = f"blob {len(data)}\0".encode("utf-8")
+    return hashlib.sha1(header + data, usedforsecurity=False).hexdigest()
+
+
 def compute_md5(path: Path, limit_bytes: Optional[int] = None) -> str:
     # MD5 is used for file integrity checking, not cryptographic security
     try:
@@ -5499,6 +5509,12 @@ def write_reports_v2(
                 content, _redacted_items = redactor.redact(content)
                 was_redacted = bool(_redacted_items)
 
+            source_git_blob_sha1 = (
+                _compute_git_blob_sha1(fi.abs_path)
+                if not was_redacted and not truncated
+                else None
+            )
+
             # Get Semantic Metadata
             sem_meta = get_semantic_metadata(fi.rel_path.as_posix(), content)
 
@@ -5606,6 +5622,9 @@ def write_reports_v2(
                         "content_sha256": d["sha256"],
                         "status": "declared",
                     }
+                    if source_git_blob_sha1:
+                        d["source_range"]["git_blob_sha1"] = source_git_blob_sha1
+                        d["source_range"]["git_blob_sha1_basis"] = "source_worktree_file_content"
 
                 d["search_keys"] = {
                     "repo_id": fi.root_label,
