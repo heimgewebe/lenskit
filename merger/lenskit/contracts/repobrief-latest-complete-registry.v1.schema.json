@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://heimgewebe.github.io/lenskit/contracts/repobrief-latest-complete-registry.v1.schema.json",
+  "title": "RepoBrief Latest Complete Registry v1",
+  "type": "object",
+  "required": [
+    "kind",
+    "version",
+    "updated_at",
+    "bundle",
+    "source",
+    "health",
+    "freshness",
+    "mutation_boundary",
+    "does_not_establish"
+  ],
+  "properties": {
+    "kind": {"const": "repobrief.latest_complete_registry"},
+    "version": {"const": "v1"},
+    "updated_at": {"type": "string", "minLength": 1},
+    "bundle": {
+      "type": "object",
+      "required": ["stem", "manifest_path", "manifest_sha256", "run_id", "generated_at"],
+      "properties": {
+        "stem": {"type": "string", "minLength": 1},
+        "manifest_path": {"type": "string", "minLength": 1},
+        "manifest_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "run_id": {"type": ["string", "null"]},
+        "generated_at": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "source": {
+      "type": "object",
+      "required": ["commit", "commit_status", "repositories"],
+      "properties": {
+        "commit": {"type": ["string", "null"]},
+        "commit_status": {"type": "string", "minLength": 1},
+        "repositories": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": true
+    },
+    "health": {
+      "type": "object",
+      "required": ["status", "signals", "health_values"],
+      "properties": {
+        "status": {"enum": ["pass", "warn", "fail", "unknown"]},
+        "signals": {"type": "object"},
+        "health_values": {
+          "type": "array",
+          "items": {"enum": ["pass", "warn", "fail", "unknown"]},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "freshness": {
+      "type": "object",
+      "required": ["status", "reason", "snapshot_commit", "live_head", "head_drift", "basis"],
+      "properties": {
+        "status": {"enum": ["fresh", "stale", "unknown", "not_comparable"]},
+        "reason": {"type": "string", "minLength": 1},
+        "checked_at": {"type": ["string", "null"]},
+        "snapshot_commit": {"type": ["string", "null"]},
+        "live_head": {"type": ["string", "null"]},
+        "head_drift": {"type": ["boolean", "null"]},
+        "basis": {"type": "string", "minLength": 1},
+        "freshness_values": {
+          "type": "array",
+          "items": {"enum": ["fresh", "stale", "unknown", "not_comparable"]},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "mutation_boundary": {
+      "type": "object",
+      "required": ["writes", "does_not_mutate", "read_paths_do_not_refresh", "hidden_refresh_allowed"],
+      "properties": {
+        "writes": {"type": "array", "items": {"type": "string"}},
+        "does_not_mutate": {"type": "array", "items": {"type": "string"}},
+        "read_paths_do_not_refresh": {"const": true},
+        "hidden_refresh_allowed": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "does_not_establish": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": true
+}
