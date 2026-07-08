@@ -44,7 +44,7 @@ RepoBrief may:
 
 The planned RepoBrief MCP surface is defined in [RepoBrief MCP Boundary](repobrief-mcp-boundary.md).
 
-The MCP boundary is documentation for future implementation. It does not assert that an MCP server, MCP resources, or MCP tools exist today.
+The MCP boundary is documentation for protocol exposure. A code-level `snapshot_create` tool handler exists for explicit snapshot generation, but this does not assert that an MCP server, MCP resources, network transport, or scheduler integration exists today.
 
 ## Agent Workbench boundary
 

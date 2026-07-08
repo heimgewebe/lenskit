@@ -79,9 +79,11 @@ def test_mcp_boundary_doc_lists_read_only_tools_and_create_boundary() -> None:
     assert "`snapshot_create`" in text
     assert "may write only Brief Bundle artifacts" in text
     assert "must not be reachable as a side effect" in text
+    assert "merger.lenskit.core.repobrief_mcp_tools" in text
+    assert "not an MCP protocol server" in text
 
 
-def test_mcp_boundary_doc_lists_future_snapshot_create_guards() -> None:
+def test_mcp_boundary_doc_lists_snapshot_create_guards() -> None:
     text = _read(MCP_BOUNDARY_DOC)
 
     for guard in (
@@ -124,4 +126,5 @@ def test_repobrief_doc_links_to_mcp_boundary_without_claiming_implementation() -
     text = _read(REPOBRIEF_DOC)
 
     assert "[RepoBrief MCP Boundary](repobrief-mcp-boundary.md)" in text
+    assert "code-level `snapshot_create` tool handler exists" in text
     assert "does not assert that an MCP server" in text

@@ -4,7 +4,7 @@ RepoBrief MCP is a read-first boundary for existing RepoBrief snapshots.
 
 The MCP surface reads existing Brief Bundles. Reading a bundle must never trigger snapshot creation, refresh, Git access, pull-request actions, patch writing, shell execution, review automation, or secret access.
 
-This document defines the boundary before an MCP server exists. It is a contract for future implementation, not evidence that MCP resources or tools are implemented today.
+This document defines the boundary before an MCP protocol server exists. Code-level MCP-shaped handlers may exist before protocol binding; their presence is not evidence that an MCP server or MCP resources are deployed.
 
 RepoBrief MCP may later expose integrated Agent Workbench resources when they are deterministic read-only code-understanding surfaces. Mutable Patch Evaluation Sidecar authority for patch application, worktrees, shell/test execution, and patch-evaluation artifacts is defined separately in [RepoBrief Agent Workbench Boundary](repobrief-agent-workbench-boundary.md). That authority must not be smuggled into RepoBrief resources or read-only tools.
 
@@ -34,21 +34,23 @@ The initial MCP tools are read-only helpers:
 
 Read-only tools must not write files, refresh bundles, create snapshots, mutate Git state, open pull requests, apply patches, run shells, execute reviews, execute fixes, merge changes, or read secrets. A stale, missing, degraded, or invalid snapshot must be reported as such instead of being silently regenerated.
 
-## Later explicit write path
+## Explicit write path
 
-A later MCP implementation may add one explicit write tool:
+RepoBrief exposes one code-level MCP-shaped write handler for a future protocol adapter:
 
 - `snapshot_create`
 
-`snapshot_create` may write only Brief Bundle artifacts. It must not be reachable as a side effect of resource reads or read-only tools.
+The handler lives in `merger.lenskit.core.repobrief_mcp_tools`. It may write only Brief Bundle artifacts. It must not be reachable as a side effect of resource reads or read-only tools.
 
-Any future `snapshot_create` tool requires:
+`snapshot_create` requires:
 
 - an explicit repository,
 - an explicit snapshot profile,
 - a controlled output root,
 - a timeout guard,
 - a size guard.
+
+The current implementation is a deterministic tool handler, not an MCP protocol server. It does not expose transport, authentication, network binding, resource routing, or scheduler behaviour by itself.
 
 ## Forbidden operations
 
