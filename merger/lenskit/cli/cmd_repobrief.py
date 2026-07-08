@@ -638,28 +638,24 @@ def run_preflight(args: argparse.Namespace) -> int:
     return 0 if result.get("status") in {"pass", "warn"} else 1
 
 
-def run_snapshot_create(args: argparse.Namespace) -> int:
+def build_snapshot_create_result(args: argparse.Namespace) -> dict[str, Any]:
     profile = args.profile
     repo = Path(args.repo).expanduser().resolve()
     out = Path(args.out).expanduser().resolve()
 
     if not repo.exists() or not repo.is_dir():
-        print(f"repobrief snapshot create: repo is not a directory: {repo}", file=sys.stderr)
-        return 2
+        raise ValueError(f"repo is not a directory: {repo}")
     if out == repo or repo in out.parents:
-        print("bad output path", file=sys.stderr)
-        return 2
+        raise ValueError("bad output path")
 
     output_plan = profile_output_mode_plan(profile, args.output_mode)
     output_mode = output_plan["selected_output_mode"]
     conflicts = tuple(output_plan["conflicts"])
     if conflicts:
-        print(
-            f"repobrief snapshot create: profile {profile} excludes artifacts produced by output mode {output_mode}: "
-            + ", ".join(conflicts),
-            file=sys.stderr,
+        raise ValueError(
+            f"profile {profile} excludes artifacts produced by output mode {output_mode}: "
+            + ", ".join(conflicts)
         )
-        return 2
 
     out.mkdir(parents=True, exist_ok=True)
     max_bytes = parse_human_size(args.max_bytes)
@@ -679,7 +675,7 @@ def run_snapshot_create(args: argparse.Namespace) -> int:
     generator_info = {
         "name": "repobrief",
         "version": os.getenv("RLENS_VERSION", "dev"),
-        "platform": "cli",
+        "platform": getattr(args, "platform", "cli"),
         "repobrief_output_plan": output_plan,
     }
     artifacts = write_reports_v2(
@@ -712,7 +708,7 @@ def run_snapshot_create(args: argparse.Namespace) -> int:
     if export_safety_path is not None and export_safety_path not in artifact_paths:
         artifact_paths.append(export_safety_path)
 
-    result = {
+    return {
         "status": "ok",
         "command": "repobrief snapshot create",
         "profile": profile,
@@ -734,6 +730,14 @@ def run_snapshot_create(args: argparse.Namespace) -> int:
         },
         "does_not_establish": list(DOES_NOT_ESTABLISH),
     }
+
+
+def run_snapshot_create(args: argparse.Namespace) -> int:
+    try:
+        result = build_snapshot_create_result(args)
+    except ValueError as exc:
+        print(f"repobrief snapshot create: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
