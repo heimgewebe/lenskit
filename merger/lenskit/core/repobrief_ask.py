@@ -1,0 +1,264 @@
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+from typing import Any
+
+from merger.lenskit.core.repobrief_access import (
+    query_existing_index,
+    resolve_required_reading_for_bundle,
+    snapshot_status,
+)
+
+KIND = "repobrief.ask_context_pack"
+VERSION = "1.0"
+FORBIDDEN_OPERATIONS = [
+    "implicit_refresh",
+    "git_mutation",
+    "snapshot_creation_on_read",
+    "patch_application",
+    "pull_request_mutation",
+    "shell_execution",
+    "merge_authorization",
+]
+DOES_NOT_ESTABLISH = [
+    "actual_reading_proven",
+    "answer_correct",
+    "repo_understood",
+    "all_relevant_context_used",
+    "claims_true",
+    "test_sufficiency",
+    "regression_absence",
+    "runtime_behavior",
+    "forensic_ready",
+    "merge_readiness",
+    "security_correctness",
+]
+_FRESHNESS_STATUSES = {"fresh", "stale", "unknown", "not_comparable", "not_applicable"}
+_AVAILABILITY_STATUSES = {"available", "partial", "missing", "unknown"}
+_RANGE_STATUSES = {"resolved", "missing", "drifted", "invalid", "degraded", "not_applicable"}
+
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        h = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def _as_status(value: Any, allowed: set[str], default: str) -> str:
+    if isinstance(value, str) and value in allowed:
+        return value
+    return default
+
+
+def _freshness_block(snapshot: dict[str, Any]) -> dict[str, Any]:
+    raw = snapshot.get("freshness")
+    if isinstance(raw, dict):
+        status = _as_status(raw.get("status"), _FRESHNESS_STATUSES, "unknown")
+        caveats = []
+        if status in {"stale", "unknown", "not_comparable"}:
+            caveats.append({
+                "kind": "unknown_freshness" if status == "unknown" else "stale_snapshot",
+                "detail": f"Snapshot freshness status is {status}.",
+            })
+        return {"status": status, "caveats": caveats}
+    return {
+        "status": "unknown",
+        "caveats": [{"kind": "unknown_freshness", "detail": "Snapshot freshness metadata was unavailable."}],
+    }
+
+
+def _availability_block(snapshot: dict[str, Any]) -> dict[str, Any]:
+    model = snapshot.get("availability_model")
+    if isinstance(model, dict):
+        status = _as_status(model.get("status"), _AVAILABILITY_STATUSES, "unknown")
+        caveats = []
+        if status in {"partial", "missing", "unknown"}:
+            caveats.append({
+                "kind": "missing_artifact" if status in {"partial", "missing"} else "degraded_validation",
+                "detail": f"Snapshot availability status is {status}.",
+            })
+        return {"status": status, "caveats": caveats}
+    return {
+        "status": "unknown",
+        "caveats": [{"kind": "degraded_validation", "detail": "Snapshot availability metadata was unavailable."}],
+    }
+
+
+def _snapshot_ref(snapshot: dict[str, Any], manifest_path: Path, freshness: dict[str, Any]) -> dict[str, Any]:
+    manifest_sha = _sha256_file(manifest_path)
+    result: dict[str, Any] = {
+        "stem": manifest_path.name.replace(".bundle.manifest.json", ""),
+        "manifest_path": str(manifest_path),
+        "freshness_policy": "allow_stale_with_caveat",
+        "freshness_status": freshness["status"],
+    }
+    if manifest_sha:
+        result["manifest_sha256"] = manifest_sha
+    run_id = snapshot.get("bundle_run_id")
+    if isinstance(run_id, str) and run_id:
+        result["git_commit"] = snapshot.get("git_commit") if isinstance(snapshot.get("git_commit"), str) else None
+    return result
+
+
+def _retrieval_hits(query_result: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = query_result.get("query_result") if isinstance(query_result, dict) else None
+    hits = raw.get("results") if isinstance(raw, dict) else []
+    result = []
+    for idx, hit in enumerate(hits if isinstance(hits, list) else []):
+        if not isinstance(hit, dict):
+            continue
+        result.append({
+            "artifact_role": str(hit.get("artifact_role") or hit.get("artifact_type") or "sqlite_index"),
+            "ref": str(hit.get("chunk_id") or hit.get("id") or f"hit-{idx + 1}"),
+            "score": float(hit.get("score") or hit.get("bm25_score") or 0.0),
+            "purpose": "retrieval candidate for ask context",
+        })
+    return result
+
+
+def _resolved_ranges(query_result: dict[str, Any], max_context_tokens: int) -> tuple[list[dict[str, Any]], int, bool]:
+    resolved = query_result.get("resolved_evidence") if isinstance(query_result, dict) else None
+    hits = resolved.get("hits") if isinstance(resolved, dict) else []
+    budget_chars = max_context_tokens * 4
+    used_chars = 0
+    truncated = False
+    result = []
+    for idx, hit in enumerate(hits if isinstance(hits, list) else []):
+        if not isinstance(hit, dict):
+            continue
+        range_value = hit.get("range") if isinstance(hit.get("range"), dict) else {}
+        text = range_value.get("text") if isinstance(range_value, dict) else None
+        excerpt = text if isinstance(text, str) else hit.get("text_excerpt")
+        if isinstance(excerpt, str):
+            remaining = max(0, budget_chars - used_chars)
+            if len(excerpt) > remaining:
+                excerpt = excerpt[:remaining]
+                truncated = True
+            used_chars += len(excerpt)
+        status = _as_status(hit.get("range_status"), _RANGE_STATUSES, "degraded")
+        range_ref = hit.get("range_ref") if isinstance(hit.get("range_ref"), dict) else {"ref": str(hit.get("chunk_id") or f"range-{idx + 1}")}
+        item: dict[str, Any] = {
+            "artifact_role": str(hit.get("artifact_role") or "canonical_md"),
+            "status": status,
+            "range_ref": range_ref,
+        }
+        if isinstance(excerpt, str):
+            item["text_excerpt"] = excerpt
+        content_sha = None
+        if isinstance(range_value, dict):
+            content_sha = range_value.get("content_sha256") or range_value.get("sha256")
+        if isinstance(content_sha, str) and len(content_sha) == 64:
+            item["content_sha256"] = content_sha
+        result.append(item)
+    return result, used_chars, truncated
+
+
+def _required_reading_block(resolution: dict[str, Any]) -> dict[str, Any]:
+    rr = resolution.get("required_reading") if isinstance(resolution, dict) else {}
+    if not isinstance(rr, dict):
+        rr = {}
+    return {
+        "task_profile": str(resolution.get("task_profile") or rr.get("task_profile") or "basic_repo_question"),
+        "required": list(rr.get("required") or []),
+        "recommended": list(rr.get("recommended") or []),
+        "missing_required": list(rr.get("missing_required") or []),
+        "missing_recommended": list(rr.get("missing_recommended") or []),
+        "status": str(rr.get("status") or resolution.get("status") or "not_applicable"),
+    }
+
+
+def build_ask_context_pack(
+    bundle_manifest: str | Path,
+    *,
+    query: str,
+    task_profile: str = "basic_repo_question",
+    max_context_tokens: int = 8000,
+    max_answer_tokens: int = 1200,
+    k: int = 5,
+) -> dict[str, Any]:
+    """Build a read-only RepoBrief ask context pack from existing artifacts.
+
+    The function does not create or refresh snapshots. It delegates retrieval to the
+    existing read-only index query and reports token budget as a constraint, not as a
+    quality or correctness proof.
+    """
+    manifest_path = Path(bundle_manifest).expanduser().resolve()
+    snapshot = snapshot_status(manifest_path)
+    freshness = _freshness_block(snapshot)
+    availability = _availability_block(snapshot)
+    required_reading = _required_reading_block(resolve_required_reading_for_bundle(manifest_path, task_profile))
+    query_result = query_existing_index(
+        manifest_path,
+        query,
+        k=k,
+        filters={},
+        resolve_evidence=True,
+        project_sources=True,
+    )
+    retrieval_hits = _retrieval_hits(query_result)
+    resolved_ranges, used_chars, truncated = _resolved_ranges(query_result, max_context_tokens)
+    caveats = list(freshness.get("caveats") or []) + list(availability.get("caveats") or [])
+    if query_result.get("status") != "available":
+        caveats.append({"kind": "missing_artifact", "detail": str(query_result.get("error") or "Query evidence unavailable.")})
+    if truncated:
+        caveats.append({"kind": "other", "detail": "Context excerpts were truncated to respect max_context_tokens."})
+    citation_obligations = [
+        "Cite every strong repository claim with resolved RepoBrief evidence where available.",
+        "Surface freshness, availability and non-claim caveats in the answer.",
+    ]
+    return {
+        "kind": KIND,
+        "version": VERSION,
+        "request_id": hashlib.sha256(f"{manifest_path}\0{task_profile}\0{query}".encode("utf-8")).hexdigest()[:16],
+        "snapshot_ref": _snapshot_ref(snapshot, manifest_path, freshness),
+        "freshness": freshness,
+        "availability": availability,
+        "required_reading": required_reading,
+        "retrieval_hits": retrieval_hits,
+        "resolved_ranges": resolved_ranges,
+        "answer_scaffold": {
+            "citation_obligations": citation_obligations,
+            "caveats_to_surface": caveats,
+            "non_claims_to_surface": list(DOES_NOT_ESTABLISH),
+        },
+        "budget": {
+            "max_context_tokens": max_context_tokens,
+            "max_answer_tokens": max_answer_tokens,
+            "approx_context_chars_used": used_chars,
+            "truncated": truncated,
+            "does_not_establish_quality": True,
+        },
+        "forbidden_operations": list(FORBIDDEN_OPERATIONS),
+        "does_not_establish": list(DOES_NOT_ESTABLISH),
+    }
+
+
+def render_ask_context_pack_text(pack: dict[str, Any]) -> str:
+    lines = [
+        "RepoBrief Ask Context Pack",
+        f"status: required_reading={pack.get('required_reading', {}).get('status')} freshness={pack.get('freshness', {}).get('status')} availability={pack.get('availability', {}).get('status')}",
+        f"snapshot: {pack.get('snapshot_ref', {}).get('manifest_path')}",
+        "",
+        "Citation obligations:",
+    ]
+    for item in pack.get("answer_scaffold", {}).get("citation_obligations", []):
+        lines.append(f"- {item}")
+    lines.append("")
+    lines.append("Resolved ranges:")
+    for item in pack.get("resolved_ranges", []):
+        excerpt = item.get("text_excerpt")
+        ref = item.get("range_ref")
+        lines.append(f"- {item.get('artifact_role')} {item.get('status')} {ref}")
+        if excerpt:
+            lines.append(f"  excerpt: {excerpt[:240].replace(chr(10), ' ')}")
+    lines.append("")
+    lines.append("Non-claims:")
+    for item in pack.get("does_not_establish", []):
+        lines.append(f"- {item}")
+    return "\n".join(lines) + "\n"

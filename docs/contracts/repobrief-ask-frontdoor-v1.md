@@ -57,3 +57,9 @@ agents. It is not an answer and not a proof that any agent read or understood ev
 A valid request or context pack does not establish answer correctness, claim truth, actual
 reading, complete context use, repository understanding, runtime correctness, test
 sufficiency, merge readiness, security correctness, forensic readiness or regression absence.
+
+## CLI prototype
+
+`repobrief ask` is the minimal v1 producer for this context-pack shape. It reads an existing bundle manifest, queries the existing read-only index, resolves evidence ranges where available and emits either JSON or a human-readable context pack.
+
+The emitted `budget` block reports `max_context_tokens`, `max_answer_tokens`, approximate context characters used and whether truncation happened. This is a constraint record, not a quality proof.

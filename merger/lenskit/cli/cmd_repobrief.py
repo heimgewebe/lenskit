@@ -295,6 +295,19 @@ def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser)
         help="Do not add the compact source citation projection",
     )
 
+    ask_parser = repobrief_subparsers.add_parser(
+        "ask",
+        help="Build a read-only RepoBrief ask context pack from an existing snapshot",
+    )
+    ask_parser.add_argument("--bundle-manifest", required=True, help="Path to a Brief Bundle manifest")
+    ask_parser.add_argument("--q", required=True, help="Question or task query")
+    ask_parser.add_argument("--task-profile", default="basic_repo_question", help="Required-reading task profile")
+    ask_parser.add_argument("--context-budget", type=int, default=8000, help="Maximum context token budget")
+    ask_parser.add_argument("--answer-budget", type=int, default=1200, help="Maximum downstream answer token budget")
+    ask_parser.add_argument("--k", type=int, default=5, help="Maximum retrieval hits")
+    ask_parser.add_argument("--emit", choices=["json", "text"], default="json", help="Output format")
+    ask_parser.add_argument("--strict", action="store_true", help="Treat warn status as exit code 1")
+
     symbol_parser = repobrief_subparsers.add_parser(
         "symbol",
         help="Read-only Python symbol-index consumer commands",
@@ -504,6 +517,8 @@ def run_repobrief(args: argparse.Namespace) -> int:
         return run_required_reading_resolve(args)
     if args.repobrief_cmd == "query":
         return run_query_existing_index(args)
+    if args.repobrief_cmd == "ask":
+        return run_ask(args)
     if args.repobrief_cmd == "symbol" and args.symbol_cmd == "search":
         return run_symbol_search(args)
     if args.repobrief_cmd == "context" and args.context_cmd == "compile":
@@ -768,6 +783,36 @@ def run_query_existing_index(args: argparse.Namespace) -> int:
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result.get("status") == "available" else 1
+
+
+def run_ask(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.repobrief_ask import (
+        build_ask_context_pack,
+        render_ask_context_pack_text,
+    )
+
+    try:
+        result = build_ask_context_pack(
+            args.bundle_manifest,
+            query=args.q,
+            task_profile=args.task_profile,
+            max_context_tokens=args.context_budget,
+            max_answer_tokens=args.answer_budget,
+            k=args.k,
+        )
+    except ValueError as exc:
+        print("repobrief ask: " + str(exc), file=sys.stderr)
+        return 2
+    if args.emit == "text":
+        print(render_ask_context_pack_text(result), end="")
+    else:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    status = result.get("required_reading", {}).get("status")
+    if status == "fail":
+        return 1
+    if status == "warn" and args.strict:
+        return 1
+    return 0
 
 
 def run_symbol_search(args: argparse.Namespace) -> int:
