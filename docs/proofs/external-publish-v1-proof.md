@@ -27,6 +27,19 @@ The publication root is explicit. RepoBrief does not decide whether that root is
 
 The command does not create or refresh a source snapshot, mutate Cabinet, import into Bureau, dispatch agents, or claim semantic truth, merge readiness, runtime correctness, or repo understanding.
 
+
+## 2026-07-09 hardening follow-up
+
+External manifest publication is now portable-root strict for the stable `publish` path: the referenced bundle manifest must live inside the explicit publication root. This prevents producer output such as `../../../../../merges/...` from being published into a Git checkout where consumers cannot resolve the bundle.
+
+The external reference also includes linked post-emit sidecars from the bundle manifest `links` surface, specifically `post_emit_health_path` and bundle-surface validation links, without mutating the bundle manifest. These sidecars are intentionally not normal bundle artifacts because they would otherwise create self-hash circularity; the external publication surface may still advertise them as observed companion artifacts with bytes and sha256.
+
+Additional regression coverage:
+
+- `test_publish_rejects_bundle_manifest_outside_publication_root`
+- `test_build_includes_linked_post_emit_health_sidecar`
+- `test_linked_sidecar_must_remain_inside_bundle_directory`
+
 ## Target proof
 
 ```text
