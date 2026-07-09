@@ -5,7 +5,21 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-EXCLUDED_DIRS = {".git", "venv", ".venv", "__pycache__", "node_modules", "build", "dist"}
+EXCLUDED_DIRS = frozenset({
+    ".git",
+    ".grabowski",
+    ".claude",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    "venv",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "build",
+    "dist",
+})
 SYMBOL_KINDS = ("class", "function", "async_function")
 DOES_NOT_ESTABLISH = (
     "call_graph_completeness",
@@ -105,7 +119,10 @@ def extract_python_symbols(repo_root: Path) -> tuple[list[dict[str, Any]], int, 
     skipped_files_count = 0
     skipped_errors: list[str] = []
 
-    for root, dirs, files in sorted(os.walk(repo_root)):
+    # Keep os.walk lazy and top-down: wrapping it in sorted(...) consumes the
+    # whole tree before dirs[:] can prune excluded subdirectories. Sorting
+    # dirs and files here preserves deterministic traversal order.
+    for root, dirs, files in os.walk(repo_root, topdown=True):
         dirs[:] = sorted(d for d in dirs if d not in EXCLUDED_DIRS)
         for file_name in sorted(files):
             if not file_name.endswith(".py"):
