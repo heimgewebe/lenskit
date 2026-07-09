@@ -26,10 +26,15 @@ DOES_NOT_ESTABLISH = (
 )
 
 RECALL_REQUIREMENTS = (
+    "memory_record_kind_and_version_are_valid",
+    "claim_text_is_non_empty",
     "current_snapshot_hash_matches_recorded_snapshot_hash",
     "current_freshness_status_is_fresh",
     "all_recorded_citation_ids_are_present",
+    "all_recorded_citation_records_are_valid",
     "all_recorded_citation_range_hashes_match",
+    "all_recorded_citation_range_identities_match",
+    "no_citation_id_conflicts",
 )
 
 
@@ -65,10 +70,13 @@ def _first_not_none(*values: Any) -> Any:
 def _range_hash(range_value: Mapping[str, Any] | None) -> str | None:
     if not isinstance(range_value, Mapping):
         return None
-    for key in ("range_content_sha256", "content_sha256", "sha256"):
+    for key in ("range_content_sha256", "content_sha256"):
         value = range_value.get(key)
         if _is_sha256(value):
             return str(value)
+    value = range_value.get("sha256")
+    if _is_sha256(value) and range_value.get("hash_basis") == "range_content":
+        return str(value)
     return None
 
 
@@ -135,6 +143,10 @@ def _normalize_memory_citation(citation: Mapping[str, Any]) -> dict[str, Any]:
             break
     if source_range is None:
         raise ValueError("citation must include a range with file_path, byte bounds and content sha256")
+    repo_id = citation.get("repo_id")
+    if _is_non_empty_string(repo_id):
+        source_range = dict(source_range)
+        source_range["repo_id"] = str(repo_id)
     normalized: dict[str, Any] = {
         "citation_id": citation_id,
         "source_range": source_range,
@@ -160,6 +172,8 @@ def citation_from_projection_item(item: Mapping[str, Any]) -> dict[str, Any]:
     recall revalidation.
     """
 
+    if item.get("citation_resolved") is not True:
+        raise ValueError("projection item is not resolved")
     citation_id = item.get("citation_id")
     if not _citation_id_is_valid(citation_id):
         raise ValueError("projection item does not carry a valid citation_id")
@@ -307,6 +321,10 @@ def _current_range_identity(citation: Mapping[str, Any] | None) -> dict[str, Any
     for candidate in _candidate_ranges(citation):
         identity = _range_identity(candidate)
         if identity is not None:
+            repo_id = citation.get("repo_id")
+            if _is_non_empty_string(repo_id):
+                identity = dict(identity)
+                identity["repo_id"] = str(repo_id)
             return identity
     return None
 
@@ -320,6 +338,41 @@ def _range_identity_matches(recorded: Mapping[str, Any], current: Mapping[str, A
             if recorded.get(key) != current.get(key):
                 return False
     return True
+
+
+def _stored_range_identity_is_valid(identity: Mapping[str, Any] | None) -> bool:
+    if not isinstance(identity, Mapping):
+        return False
+    if not _is_non_empty_string(identity.get("file_path")):
+        return False
+    if not _is_int_not_bool(identity.get("start_byte")) or not _is_int_not_bool(identity.get("end_byte")):
+        return False
+    if identity["start_byte"] < 0 or identity["end_byte"] <= identity["start_byte"]:
+        return False
+    if not _is_sha256(identity.get("content_sha256")):
+        return False
+    start_line = identity.get("start_line")
+    end_line = identity.get("end_line")
+    if (start_line is None) != (end_line is None):
+        return False
+    if start_line is not None:
+        if not _is_int_not_bool(start_line) or not _is_int_not_bool(end_line):
+            return False
+        if start_line < 1 or end_line < start_line:
+            return False
+    source_start_line = identity.get("source_start_line")
+    source_end_line = identity.get("source_end_line")
+    if (source_start_line is None) != (source_end_line is None):
+        return False
+    if source_start_line is not None:
+        if not _is_non_empty_string(identity.get("source_file_path")):
+            return False
+        if not _is_int_not_bool(source_start_line) or not _is_int_not_bool(source_end_line):
+            return False
+        if source_start_line < 1 or source_end_line < source_start_line:
+            return False
+    repo_id = identity.get("repo_id")
+    return repo_id is None or _is_non_empty_string(repo_id)
 
 
 def check_memory_recall(
@@ -346,6 +399,16 @@ def check_memory_recall(
     citation_list = [citation for citation in (citations if isinstance(citations, Sequence) and not isinstance(citations, (str, bytes)) else []) if isinstance(citation, Mapping)]
 
     issues: list[dict[str, Any]] = []
+    if not isinstance(memory_record, Mapping):
+        issues.append({"code": "memory_record_invalid", "severity": "blocking"})
+    else:
+        if memory_record.get("kind") != KIND:
+            issues.append({"code": "memory_record_kind_invalid", "severity": "blocking"})
+        if memory_record.get("version") != VERSION:
+            issues.append({"code": "memory_record_version_invalid", "severity": "blocking"})
+        if not _is_non_empty_string(memory_record.get("claim_text")):
+            issues.append({"code": "claim_text_invalid", "severity": "blocking"})
+
     snapshot_status = "verified"
     if not _is_sha256(recorded_snapshot_hash) or not _is_non_empty_string(recorded_snapshot_stem):
         snapshot_status = "invalid_record"
@@ -377,9 +440,13 @@ def check_memory_recall(
             "recorded_range_content_sha256": recorded_hash,
             "current_range_content_sha256": None,
         }
+        recorded_identity = citation.get("source_range") if isinstance(citation.get("source_range"), Mapping) else None
         if not _citation_id_is_valid(citation_id) or not _is_sha256(recorded_hash):
             check["status"] = "invalid_record"
             issues.append({"code": "citation_record_invalid", "citation_id": citation_id, "severity": "blocking"})
+        elif not _stored_range_identity_is_valid(recorded_identity):
+            check["status"] = "invalid_record"
+            issues.append({"code": "citation_range_identity_missing", "citation_id": citation_id, "severity": "blocking"})
         else:
             current = lookup.get(citation_id)
             current_hash = _current_range_hash(current)
@@ -401,7 +468,7 @@ def check_memory_recall(
             elif current_hash != recorded_hash:
                 check["status"] = "changed"
                 issues.append({"code": "citation_hash_changed", "citation_id": citation_id, "severity": "blocking"})
-            elif not _range_identity_matches(citation["source_range"], current_identity):
+            elif not _range_identity_matches(recorded_identity, current_identity):
                 check["status"] = "changed"
                 issues.append({"code": "citation_range_identity_changed", "citation_id": citation_id, "severity": "blocking"})
         citation_checks.append(check)

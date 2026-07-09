@@ -294,3 +294,167 @@ def test_recall_check_blocks_same_hash_different_repo_id():
     assert result["status"] == "unusable"
     assert result["citation_checks"][0]["status"] == "changed"
     assert {issue["code"] for issue in result["issues"]} == {"citation_range_identity_changed"}
+
+
+def test_recall_check_accepts_matching_projection_top_level_repo_id():
+    record = repobrief_memory.memory_record_from_projection(
+        claim_text="Projection-backed repo memory claim.",
+        source_citation_projection={
+            "items": [{
+                "citation_resolved": True,
+                "citation_id": "cit_0000000000000001",
+                "repo_id": "repo-a",
+                "source_range": _range(),
+            }]
+        },
+        snapshot_stem="demo-260709-1700",
+        snapshot_hash="b" * 64,
+        freshness_status="fresh",
+    )
+
+    result = repobrief_memory.check_memory_recall(
+        record,
+        current_snapshot_hash="b" * 64,
+        current_freshness_status="fresh",
+        current_citations=[{
+            "citation_id": "cit_0000000000000001",
+            "repo_id": "repo-a",
+            "source_range": _range(),
+        }],
+    )
+
+    assert result["status"] == "usable"
+    assert result["citation_checks"][0]["status"] == "verified"
+
+
+def test_recall_check_blocks_projection_top_level_repo_id_mismatch():
+    record = repobrief_memory.memory_record_from_projection(
+        claim_text="Projection-backed repo memory claim.",
+        source_citation_projection={
+            "items": [{
+                "citation_resolved": True,
+                "citation_id": "cit_0000000000000001",
+                "repo_id": "repo-a",
+                "source_range": _range(),
+            }]
+        },
+        snapshot_stem="demo-260709-1700",
+        snapshot_hash="b" * 64,
+        freshness_status="fresh",
+    )
+
+    result = repobrief_memory.check_memory_recall(
+        record,
+        current_snapshot_hash="b" * 64,
+        current_freshness_status="fresh",
+        current_citations=[{
+            "citation_id": "cit_0000000000000001",
+            "repo_id": "repo-b",
+            "source_range": _range(),
+        }],
+    )
+
+    assert result["status"] == "unusable"
+    assert result["citation_checks"][0]["status"] == "changed"
+    assert {issue["code"] for issue in result["issues"]} == {"citation_range_identity_changed"}
+
+
+def test_recall_check_blocks_missing_recorded_source_range_without_crashing():
+    record = _memory_record()
+    citation = record["evidence"]["citations"][0]
+    del citation["source_range"]
+
+    result = repobrief_memory.check_memory_recall(
+        record,
+        current_snapshot_hash="b" * 64,
+        current_freshness_status="fresh",
+        current_citations=[{
+            "citation_id": "cit_0000000000000001",
+            "source_range": _range(),
+        }],
+    )
+
+    assert result["status"] == "unusable"
+    assert result["citation_checks"][0]["status"] == "invalid_record"
+    assert {issue["code"] for issue in result["issues"]} == {"citation_range_identity_missing"}
+
+
+def test_recall_check_blocks_invalid_memory_kind_version_and_claim_text():
+    record = _memory_record()
+    record["kind"] = "wrong.kind"
+    record["version"] = "v0"
+    record["claim_text"] = ""
+
+    result = repobrief_memory.check_memory_recall(
+        record,
+        current_snapshot_hash="b" * 64,
+        current_freshness_status="fresh",
+        current_citations=[{
+            "citation_id": "cit_0000000000000001",
+            "source_range": _range(),
+        }],
+    )
+
+    assert result["status"] == "unusable"
+    assert {
+        "memory_record_kind_invalid",
+        "memory_record_version_invalid",
+        "claim_text_invalid",
+    }.issubset({issue["code"] for issue in result["issues"]})
+
+
+def test_memory_record_recall_policy_lists_identity_and_conflict_requirements():
+    record = _memory_record()
+
+    assert "all_recorded_citation_range_identities_match" in record["recall_policy"]["usable_only_when"]
+    assert "no_citation_id_conflicts" in record["recall_policy"]["usable_only_when"]
+    assert "memory_record_kind_and_version_are_valid" in record["recall_policy"]["usable_only_when"]
+
+
+def test_projection_helper_rejects_unresolved_item_directly():
+    with pytest.raises(ValueError, match="not resolved"):
+        repobrief_memory.citation_from_projection_item({
+            "citation_resolved": False,
+            "citation_id": "cit_0000000000000001",
+            "source_range": _range(),
+        })
+
+
+def test_memory_record_rejects_bare_sha256_without_range_hash_basis():
+    with pytest.raises(ValueError, match="citation must include a range"):
+        repobrief_memory.build_memory_record(
+            claim_text="Ambiguous hash claim.",
+            snapshot_stem="demo-260709-1700",
+            snapshot_hash="b" * 64,
+            freshness_status="fresh",
+            citations=[{
+                "citation_id": "cit_0000000000000001",
+                "source_range": {
+                    "file_path": "demo.md",
+                    "start_byte": 0,
+                    "end_byte": 12,
+                    "sha256": "a" * 64,
+                },
+            }],
+        )
+
+
+def test_memory_record_accepts_bare_sha256_with_range_hash_basis():
+    record = repobrief_memory.build_memory_record(
+        claim_text="Explicit hash basis claim.",
+        snapshot_stem="demo-260709-1700",
+        snapshot_hash="b" * 64,
+        freshness_status="fresh",
+        citations=[{
+            "citation_id": "cit_0000000000000001",
+            "source_range": {
+                "file_path": "demo.md",
+                "start_byte": 0,
+                "end_byte": 12,
+                "sha256": "a" * 64,
+                "hash_basis": "range_content",
+            },
+        }],
+    )
+
+    assert record["evidence"]["citations"][0]["range_content_sha256"] == "a" * 64
