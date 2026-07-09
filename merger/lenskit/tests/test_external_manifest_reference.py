@@ -57,7 +57,7 @@ def write_bundle(tmp_path: Path) -> Path:
         },
     }
     path = tmp_path / "bundle" / "cabinet_merge.bundle.manifest.json"
-    path.parent.mkdir()
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(bundle), encoding="utf-8")
     return path
 
@@ -133,8 +133,8 @@ def test_publication_manifest_path_uses_stable_external_layout(tmp_path: Path) -
 
 
 def test_publish_external_manifest_references_can_publish_one_family(tmp_path: Path) -> None:
-    bundle_path = write_bundle(tmp_path)
     root = tmp_path / "published"
+    bundle_path = write_bundle(root)
 
     result = publish_external_manifest_references(
         bundle_path,
@@ -152,8 +152,8 @@ def test_publish_external_manifest_references_can_publish_one_family(tmp_path: P
 def test_repobrief_cli_publishes_external_manifest_references(tmp_path: Path) -> None:
     from merger.lenskit.cli.repobrief import main as repobrief_main
 
-    bundle_path = write_bundle(tmp_path)
     root = tmp_path / "published"
+    bundle_path = write_bundle(root)
 
     rc = repobrief_main([
         "external-manifest",
@@ -171,3 +171,50 @@ def test_repobrief_cli_publishes_external_manifest_references(tmp_path: Path) ->
     assert rc == 0
     assert (root / "external" / "repobrief" / "cabinet" / "main" / "manifest.json").is_file()
     assert (root / "external" / "lenskit" / "cabinet" / "main" / "manifest.json").is_file()
+
+
+def test_build_includes_linked_post_emit_health_sidecar(tmp_path: Path) -> None:
+    bundle_path = write_bundle(tmp_path)
+    sidecar = bundle_path.with_name("cabinet_merge.bundle_health.post.json")
+    sidecar.write_text('{"kind":"lenskit.post_emit_health","status":"pass"}\n', encoding="utf-8")
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    bundle["links"]["post_emit_health_path"] = sidecar.name
+    bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+
+    result = build_external_manifest_reference(
+        bundle_path,
+        repository="cabinet",
+        ref="main",
+        artifact_family="repobrief",
+    )
+
+    row = next(artifact for artifact in result["artifacts"] if artifact["role"] == "post_emit_health")
+    assert row["path"] == "cabinet_merge.bundle_health.post.json"
+    assert row["contentType"] == "application/json"
+    assert row["bytes"] == sidecar.stat().st_size
+    assert len(row["sha256"]) == 64
+
+
+def test_publish_rejects_bundle_manifest_outside_publication_root(tmp_path: Path) -> None:
+    bundle_path = write_bundle(tmp_path / "bundle-source")
+    root = tmp_path / "published"
+
+    with pytest.raises(ExternalManifestReferenceError, match="inside publication_root"):
+        publish_external_manifest_references(
+            bundle_path,
+            root,
+            repository="cabinet",
+            ref="main",
+        )
+
+
+def test_linked_sidecar_must_remain_inside_bundle_directory(tmp_path: Path) -> None:
+    bundle_path = write_bundle(tmp_path)
+    outside = tmp_path / "outside.bundle_health.post.json"
+    outside.write_text("{}\n", encoding="utf-8")
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    bundle["links"]["post_emit_health_path"] = "../outside.bundle_health.post.json"
+    bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+
+    with pytest.raises(ExternalManifestReferenceError, match="inside the bundle directory"):
+        build_external_manifest_reference(bundle_path, repository="cabinet", ref="main")
