@@ -1,9 +1,14 @@
 # RepoBrief Agent Memory Citations v1 Self-Review
 
 PR: #944
-Head SHA: `1791a86f6ff67c4cb7284f748abf5e741a223945`
-Diff SHA256: `4f1e6be0f4e7c1e38c6caee467d307dbcc7d742072b0b861ed76f2a978c17a43`
-Base: `origin/main`
+Reviewed implementation head SHA: `39f6bd8fb21bd4b89d1dd0702a10cf3bca070ac9`
+Reviewed implementation diff SHA256: `fddfed5ad2c9603c00860fd0b2bc81b3da5cb622e02d2c0972f583df632f11dd`
+Diff hash basis: `git diff origin/main...39f6bd8fb21bd4b89d1dd0702a10cf3bca070ac9 -- . ':(exclude)docs/proofs/repobrief-agent-memory-citations-v1.self-review.md'`
+Base: `origin/main` / `f0f4e460a923a479f861af3ac1a3552bca3570a5`
+
+## Evidence boundary
+
+This file is a review-evidence artifact. Its own evidence-only commit is not included in the implementation diff hash above, to avoid a self-referential hash loop. A final merge gate must still verify the live PR head, CI status and current PR diff.
 
 ## Scope reviewed
 
@@ -17,27 +22,33 @@ Base: `origin/main`
 
 Status: pass with explicit boundaries.
 
-The diff implements the requested RPU-V1-T015 pattern as an additive core helper and tests it against the three acceptance axes:
+The reviewed implementation satisfies the requested RPU-V1-T015 pattern and the follow-up hardening findings:
 
 1. Memory record shape binds claim text, citation ids/ranges, snapshot stem/hash and freshness status.
-2. Recall blocks changed, stale, missing or unverifiable evidence before source-backed presentation.
-3. Memory remains explicitly non-authoritative and never becomes source truth without verified citations.
+2. Recall blocks changed, stale, missing, conflicting or unverifiable evidence before source-backed presentation.
+3. Recall now compares citation range identity, not only range content hash.
+4. Projection import now fails closed on unresolved or malformed projection items.
+5. Projection import preserves `repo_id` when present.
+6. Memory remains explicitly non-authoritative and never becomes source truth without verified citations.
 
 ## Findings checked
 
 - Range identity rejects missing file paths, invalid byte spans, bool bytes and missing content hashes.
 - Artifact-axis byte aliases are accepted when primary byte aliases are `None`.
-- Projection import keeps only resolved citations.
+- Projection import preserves resolved citation identity and blocks unresolved citations.
 - Changed citation hashes, changed snapshot hashes, missing citations and missing freshness all produce `unusable` recall results.
+- Same-hash range moves across file path, byte range or `repo_id` produce `unusable` recall results.
+- Mapping-key and inner `citation_id` conflicts produce `unusable` recall results.
 - The implementation does not add persistence, CLI, MCP, scheduler, background refresh or repository mutation.
 
 ## Verification used
 
-- `python3 -m pytest merger/lenskit/tests/test_repobrief_memory.py -q`
-- `python3 -m pytest merger/lenskit/tests/test_repobrief_memory.py merger/lenskit/tests/test_repobrief_source_citation_projection.py merger/lenskit/tests/test_repobrief_resolved_evidence_query.py -q`
-- `python3 -m ruff check merger/lenskit/core/repobrief_memory.py merger/lenskit/tests/test_repobrief_memory.py`
-- `python3 -m compileall -q merger/lenskit/core/repobrief_memory.py`
-- `git diff --cached --check`
+- `python3 -m pytest merger/lenskit/tests/test_repobrief_memory.py -q` → 12 passed
+- `python3 -m pytest merger/lenskit/tests/test_repobrief_memory.py merger/lenskit/tests/test_repobrief_source_citation_projection.py merger/lenskit/tests/test_repobrief_resolved_evidence_query.py -q` → 41 passed
+- `python3 -m ruff check merger/lenskit/core/repobrief_memory.py merger/lenskit/tests/test_repobrief_memory.py` → passed
+- `python3 -m compileall -q merger/lenskit/core/repobrief_memory.py` → passed
+- `git diff --check` → passed
+- `git diff --cached --check` before commit → passed
 
 ## Non-claims
 
