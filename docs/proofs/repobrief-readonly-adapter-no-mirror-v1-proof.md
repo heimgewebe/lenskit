@@ -47,13 +47,14 @@ The adapter must not:
 
 This is a docs-only architecture slice.
 
-Expected validation before merge:
+Validation for this docs-only slice:
 
 ```bash
 git diff --check
+python -m pytest merger/lenskit/tests/test_repobrief_access_boundary.py -q
 ```
 
-No local checkout was available in this connector session.
+Local checkout validation was available in the review continuation and is recorded in the PR closeout.
 
 ## Task closeout posture
 

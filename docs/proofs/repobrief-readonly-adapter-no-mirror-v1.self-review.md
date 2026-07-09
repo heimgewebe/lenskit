@@ -1,6 +1,6 @@
 # Self-review — RepoBrief Read-only Adapter without Mirror Authority v1
 
-Review target: `docs/repobrief-readonly-adapter-no-mirror-v1`
+Review target: PR #929 head after rebase onto `origin/main`
 
 Files reviewed:
 
@@ -31,10 +31,18 @@ This PR intentionally does not implement adapter code. That is correct for a fir
 
 ## Remaining limitations
 
-- No local worktree was available in this connector session.
-- `git diff --check` should be run from a checkout or trusted CI context.
+- Local validation is now available and was run after rebase.
 - Task registry reconciliation is not included in this PR.
 
 ## Non-claims
 
-This self-review does not establish implementation correctness, runtime behavior, test sufficiency, review completeness, task closure, security correctness or merge readiness.
+This self-review does not establish implementation correctness, runtime behavior, full test sufficiency, review completeness, task closure, security correctness or merge readiness.
+
+## Review continuation validation
+
+```bash
+git diff --check
+python -m pytest merger/lenskit/tests/test_repobrief_access_boundary.py -q
+```
+
+The review continuation also rebased the branch onto current `origin/main` before validation.
