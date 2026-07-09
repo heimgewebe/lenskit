@@ -558,6 +558,39 @@
         }
       ],
       "description": "Boundaries this context pack does not establish."
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_context_tokens",
+        "max_answer_tokens",
+        "approx_context_chars_used",
+        "truncated",
+        "does_not_establish_quality"
+      ],
+      "properties": {
+        "max_context_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_answer_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "approx_context_chars_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "does_not_establish_quality": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "description": "Token budget report. This is a constraint record, not a quality proof."
     }
   }
 }
