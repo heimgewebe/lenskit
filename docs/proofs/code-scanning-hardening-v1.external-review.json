@@ -1,0 +1,66 @@
+{
+  "schema": "lenskit.external_security_review.v1",
+  "pull_request": 952,
+  "reviewer": "gemini-via-antigravity-cli",
+  "review_mode": "immutable_diff_only_no_tools",
+  "reviewed_base": "0cbd961bb0159f4c00773180b3fa53459a33d8b4",
+  "reviewed_implementation_head": "1991887446044cc7263f6b29a7bfd6ddd138d413",
+  "reviewed_packet": {
+    "context_lines": 8,
+    "sha256": "8a80de7097164d9c79828fdb6db4d969c3df6f38fdfbe40bd9d418ce1d75e278",
+    "bytes": 93205,
+    "excluded_files": [
+      "docs/proofs/code-scanning-hardening-v1.self-review.md",
+      "docs/proofs/code-scanning-hardening-v1.external-review.json"
+    ]
+  },
+  "result": {
+    "verdict": "PASS",
+    "summary": "The code-scanning hardening implementation correctly establishes path-validation boundaries, implements API vs CLI authority separation, applies strictly read-only SQLite configurations, redacts exceptions, restricts GitHub workflow permissions, and provides substantial test coverage.",
+    "findings": [],
+    "coverage": [
+      ".github/workflows/ai-context-guard.yml",
+      "docs/contracts/contracts-matrix.md",
+      "docs/proofs/code-scanning-hardening-v1-proof.md",
+      "docs/service-api.md",
+      "merger/lenskit/adapters/security.py",
+      "merger/lenskit/architecture/graph_index.py",
+      "merger/lenskit/cli/policy_loader.py",
+      "merger/lenskit/contracts/federation-trace.v1.schema.json",
+      "merger/lenskit/core/federation.py",
+      "merger/lenskit/core/merge.py",
+      "merger/lenskit/core/path_security.py",
+      "merger/lenskit/retrieval/federation_query.py",
+      "merger/lenskit/retrieval/query_core.py",
+      "merger/lenskit/service/app.py",
+      "merger/lenskit/service/runner.py",
+      "merger/lenskit/tests/test_agent_session_builder.py",
+      "merger/lenskit/tests/test_api_federation.py",
+      "merger/lenskit/tests/test_api_query.py",
+      "merger/lenskit/tests/test_code_scanning_security.py",
+      "merger/lenskit/tests/test_eval_semantic.py",
+      "merger/lenskit/tests/test_federation_query.py",
+      "merger/lenskit/tests/test_policy_loader.py",
+      "merger/lenskit/tests/test_retrieval_query.py"
+    ],
+    "residual_risks": [
+      "Local CLI federation queries intentionally bypass the federation index boundary constraints by design, which is a trusted operator behavior but constitutes an unmitigated risk if the CLI execution context is ever exposed.",
+      "LGTM annotations satisfy CodeQL but do not inherently guarantee zero runtime traversal paths depending on Python's exact `Path.resolve` logic inside deeply nested edge-case symlink structures (though `relative_to` catches most escapes).",
+      "Staleness detection in SQLite index validation is best-effort and ignores errors, which may allow transiently corrupt indices to be queried."
+    ]
+  },
+  "authority_boundary": {
+    "proves": [
+      "independent_review_was_performed_on_the_bound_packet",
+      "reviewer_reported_no_critical_high_or_medium_finding"
+    ],
+    "does_not_prove": [
+      "post_correction_codeql_alert_closure",
+      "runtime_correctness",
+      "test_sufficiency",
+      "absence_of_other_vulnerabilities",
+      "merge_readiness",
+      "deployment_state"
+    ]
+  }
+}
