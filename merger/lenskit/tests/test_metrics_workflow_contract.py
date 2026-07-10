@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 from pathlib import Path
 
 import yaml
 
 
 WORKFLOW_PATH = Path(".github/workflows/metrics.yml")
+KEYWORDS_PATH = Path("scripts/ci/ajv_metrics_keywords.cjs")
 EXPECTED_SCHEMA_COMMIT = "cba66e2b08d908aeff201e4e43aa902b96762b47"
 EXPECTED_SCHEMA_SHA256 = "1b1de44ea326ce8de36da6fc6d8f2da0abe279df8c47ab10e58ddc2cf604b914"
 EXPECTED_SCHEMA_URL = (
@@ -46,7 +49,8 @@ def test_metrics_workflow_verifies_download_before_ajv_validation() -> None:
     assert "--max-time 30" in fetch_script
     assert "npx --yes ajv-cli@5.0.0 validate" in validate_script
     assert "--spec=draft2020" in validate_script
-    assert "--strict=false" in validate_script
+    assert "-c ./scripts/ci/ajv_metrics_keywords.cjs" in validate_script
+    assert "--strict=false" not in validate_script
     assert workflow["jobs"]["snapshot"]["timeout-minutes"] == 10
 
 
@@ -59,3 +63,23 @@ def test_optional_hauski_post_remains_non_blocking() -> None:
     assert "HAUSKI_POST_URL" in str(post["if"])
     assert "--connect-timeout 5" in post["run"]
     assert "--max-time 30" in post["run"]
+
+
+def test_metrics_ajv_extension_registers_only_declared_metadata_keywords() -> None:
+    program = f"""
+const addKeywords = require({json.dumps(str(KEYWORDS_PATH.resolve()))});
+const rows = [];
+addKeywords({{ addKeyword: (value) => rows.push(value) }});
+process.stdout.write(JSON.stringify(rows));
+"""
+    completed = subprocess.run(
+        ["node", "-e", program],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == [
+        {"keyword": "x-producers", "schemaType": "array", "valid": True},
+        {"keyword": "x-consumers", "schemaType": "array", "valid": True},
+    ]

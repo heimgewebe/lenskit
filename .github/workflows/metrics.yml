@@ -39,7 +39,7 @@ jobs:
           printf '%s  %s\n' "$METRICS_SCHEMA_SHA256" .ci/metrics.schema.json | sha256sum --check --strict
 
       - name: Validate metrics contract
-        run: npx --yes ajv-cli@5.0.0 validate --spec=draft2020 --strict=false -s .ci/metrics.schema.json -d metrics.json
+        run: npx --yes ajv-cli@5.0.0 validate --spec=draft2020 -c ./scripts/ci/ajv_metrics_keywords.cjs -s .ci/metrics.schema.json -d metrics.json
 
       - name: Optional POST to hausKI
         if: ${{ env.HAUSKI_POST_URL && env.HAUSKI_POST_URL != '' }}
