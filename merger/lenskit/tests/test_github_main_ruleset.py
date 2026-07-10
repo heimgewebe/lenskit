@@ -17,6 +17,8 @@ def _observed():
     policy = load_policy()
     observed = api_payload(policy)
     observed["id"] = 1234
+    observed["source"] = policy["repository"]
+    observed["source_type"] = policy["source_type"]
     return policy, observed
 
 
@@ -27,6 +29,8 @@ def test_required_checks_policy_matches_observed_ruleset():
 
     assert report["status"] == "pass"
     assert report["ruleset_id"] == 1234
+    assert report["observed_source"] == "heimgewebe/lenskit"
+    assert report["observed_source_type"] == "Repository"
     assert report["findings"] == []
     assert {item["context"] for item in report["required_checks"]} == {
         "Lenskit CodeQL policy (python)",
@@ -37,6 +41,25 @@ def test_required_checks_policy_matches_observed_ruleset():
     }
     assert "github_runtime_enforcement" in report["does_not_establish"]
 
+
+def test_required_checks_policy_detects_wrong_repository_source():
+    policy, observed = _observed()
+    observed["source"] = "other-owner/lenskit-fork"
+
+    report = validate_ruleset(policy, observed)
+
+    assert report["status"] == "fail"
+    assert any("source mismatch" in finding for finding in report["findings"])
+
+
+def test_required_checks_policy_detects_missing_or_wrong_source_type():
+    policy, observed = _observed()
+    observed["source_type"] = "Organization"
+
+    report = validate_ruleset(policy, observed)
+
+    assert report["status"] == "fail"
+    assert any("source_type mismatch" in finding for finding in report["findings"])
 
 def test_required_checks_policy_detects_missing_check():
     policy, observed = _observed()

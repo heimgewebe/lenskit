@@ -41,6 +41,11 @@ def load_policy() -> dict[str, Any]:
         raise RulesetValidationError(f"cannot read policy: {POLICY_PATH}") from exc
     if policy.get("schema_version") != 1:
         raise RulesetValidationError("policy schema_version must be 1")
+    repository = policy.get("repository")
+    if not isinstance(repository, str) or not repository.strip():
+        raise RulesetValidationError("policy repository must be non-empty")
+    if policy.get("source_type") != "Repository":
+        raise RulesetValidationError("policy source_type must be Repository")
     ruleset = policy.get("ruleset")
     if not isinstance(ruleset, dict):
         raise RulesetValidationError("policy ruleset must be an object")
@@ -99,6 +104,18 @@ def _check_pairs(rule: dict[str, Any], *, label: str) -> Counter[tuple[str, int 
 def validate_ruleset(policy: dict[str, Any], observed: dict[str, Any]) -> dict[str, Any]:
     expected = api_payload(policy)
     findings: list[str] = []
+
+    expected_source = policy["repository"]
+    expected_source_type = policy["source_type"]
+    if observed.get("source") != expected_source:
+        findings.append(
+            f"source mismatch: expected {expected_source!r}, found {observed.get('source')!r}"
+        )
+    if observed.get("source_type") != expected_source_type:
+        findings.append(
+            "source_type mismatch: expected "
+            f"{expected_source_type!r}, found {observed.get('source_type')!r}"
+        )
 
     for field in ("name", "target", "enforcement", "bypass_actors"):
         if observed.get(field) != expected.get(field):
@@ -163,6 +180,8 @@ def validate_ruleset(policy: dict[str, Any], observed: dict[str, Any]) -> dict[s
         "version": VERSION,
         "status": status,
         "repository": policy.get("repository"),
+        "observed_source": observed.get("source"),
+        "observed_source_type": observed.get("source_type"),
         "ruleset_id": observed.get("id"),
         "ruleset_name": observed.get("name"),
         "findings": findings,

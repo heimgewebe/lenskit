@@ -52,5 +52,6 @@
     ],
     "target": "branch"
   },
-  "schema_version": 1
+  "schema_version": 1,
+  "source_type": "Repository"
 }

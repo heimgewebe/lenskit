@@ -21,7 +21,7 @@ The new ruleset has GitHub ruleset id `18784275`, has no bypass actors, and requ
 
 The custom workflow job has the unique context `Lenskit CodeQL policy (python)` so GitHub's separate default `Analyze (python)` check cannot ambiguously satisfy this policy.
 
-The machine-readable desired state is `config/github-main-required-checks.v1.json`. The read-only, network-free validator is `scripts/ci/check_github_main_ruleset.py`.
+The machine-readable desired state is `config/github-main-required-checks.v1.json`. The read-only, network-free validator is `scripts/ci/check_github_main_ruleset.py`. It fails unless the observed API response identifies `source=heimgewebe/lenskit` and `source_type=Repository`; a same-shaped ruleset from another repository is therefore rejected.
 
 Operator check:
 
