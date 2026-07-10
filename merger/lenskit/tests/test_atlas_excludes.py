@@ -82,3 +82,31 @@ def test_atlas_default_strict_excludes_claude_worktrees(tmp_path: Path) -> None:
     # In strict mode, node_modules is NOT in the default excludes
     # (strict = minimal excludes; callers control what's excluded beyond git/venv/worktrees)
     assert scanner._is_excluded("node_modules/pkg/index.js") is False
+
+
+def test_atlas_default_excludes_core_dumps_at_any_depth(tmp_path: Path) -> None:
+    scanner = AtlasScanner(tmp_path, snapshot_id="dummy_snap")
+
+    for path in (
+        "core",
+        "core.61224",
+        "process.core",
+        "nested/core",
+        "nested/core.2",
+        "nested/process.core",
+    ):
+        assert scanner._is_excluded(path) is True
+
+    assert scanner._is_excluded("core.py") is False
+    assert scanner._is_excluded("nested/score.txt") is False
+
+
+def test_atlas_can_explicitly_disable_default_core_excludes(tmp_path: Path) -> None:
+    scanner = AtlasScanner(
+        tmp_path,
+        snapshot_id="dummy_snap",
+        no_default_excludes=True,
+        exclude_globs=[],
+    )
+
+    assert scanner._is_excluded("core.123") is False

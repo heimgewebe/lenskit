@@ -82,7 +82,15 @@ Sekundär darf Atlas:
 
 Das sind Aufbauten, nicht das Mandat selbst.
 
-### 2.3 Was Atlas ausdrücklich nicht sein soll
+### 2.3 Größen- und Speichersemantik
+Atlas unterscheidet zwei Größen, weil dünn belegte Dateien sonst ein falsches Kapazitätsbild erzeugen:
+
+* **logische Größe** (`size_bytes`, `total_bytes`): Länge des Dateiraums aus `stat.st_size`; bestehende Verbraucher behalten dieses kompatible Feld.
+* **belegte Größe** (`allocated_size_bytes`, `total_allocated_bytes`): tatsächlich zugeordnete Dateisystemblöcke aus `st_blocks * 512`, mit Rückfall auf die logische Größe, falls die Plattform keine Blockzahl liefert.
+
+`is_sparse` bedeutet dabei ausschließlich, dass die logische Größe größer als die gemeldete Blockbelegung ist. Die belegte Größe ist weder Backupgröße noch komprimierte Übertragungsgröße, Quotenabrechnung oder Wiederherstellungsbeleg. Konventionelle Core-Dump-Namen werden standardmäßig aus maschinenweiten Scans ausgeschlossen; Atlas löscht sie nicht.
+
+### 2.4 Was Atlas ausdrücklich nicht sein soll
 Atlas soll nicht primär sein:
 * Git-Analyse-Engine
 * Code-Intelligence-Monolith

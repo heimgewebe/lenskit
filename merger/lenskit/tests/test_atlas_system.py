@@ -53,6 +53,9 @@ def test_create_atlas_system_root(service_client, tmp_path, monkeypatch):
     assert effective["max_entries"] == 200000
     assert "**/.ssh/**" in effective["exclude_globs"]
     assert "**/.password-store/**" in effective["exclude_globs"]
+    assert "**/core" in effective["exclude_globs"]
+    assert "**/core.[0-9]*" in effective["exclude_globs"]
+    assert "**/*.core" in effective["exclude_globs"]
 
     # TestClient waits for the background task.  Reading the canonical artifact
     # proves the bounded fixture was actually scanned, not merely accepted.

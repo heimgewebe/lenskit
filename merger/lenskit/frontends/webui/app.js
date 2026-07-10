@@ -2018,7 +2018,9 @@ async function loadAtlasArtifacts() {
             }
 
             if (art.stats && art.stats.total_files !== undefined) {
-                const mb = (art.stats.total_bytes / (1024*1024)).toFixed(2);
+                const logicalMb = (art.stats.total_bytes / (1024*1024)).toFixed(2);
+                const allocatedBytes = art.stats.total_allocated_bytes ?? art.stats.total_bytes;
+                const allocatedMb = (allocatedBytes / (1024*1024)).toFixed(2);
                 const statsDiv = document.createElement('div');
                 statsDiv.className = "mt-2 text-xs grid grid-cols-2 gap-2 text-gray-400";
 
@@ -2042,7 +2044,7 @@ async function loadAtlasArtifacts() {
                 sizeDiv.textContent = 'Size: ';
                 const sizeSpan = document.createElement('span');
                 sizeSpan.className = "text-white";
-                sizeSpan.textContent = `${mb} MB`;
+                sizeSpan.textContent = `${allocatedMb} MB allocated / ${logicalMb} MB logical`;
                 sizeDiv.appendChild(sizeSpan);
                 statsDiv.appendChild(sizeDiv);
 

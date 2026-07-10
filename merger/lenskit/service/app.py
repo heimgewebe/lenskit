@@ -1703,7 +1703,8 @@ async def create_atlas(request: AtlasRequest, background_tasks: BackgroundTasks)
                 "**/.aws/**", "**/.kube/**",
                 "**/.mozilla/**", "**/.config/google-chrome/**", "**/.config/chromium/**",
                 "**/.local/share/keyrings/**",
-                "**/Keychain/**", "**/Safari/**"
+                "**/Keychain/**", "**/Safari/**",
+                "**/core", "**/core.[0-9]*", "**/*.core"
             ]
 
             for ex in hard_excludes:
