@@ -59,7 +59,19 @@ This demonstrates that a content-mergeable pull request is blocked when a config
 
 ## Positive implementation proof
 
-To be completed on the implementation pull request after the checked-in policy, validator, tests, and this proof have passed all five required checks on the current `main` base.
+Implementation pull request [#956](https://github.com/heimgewebe/lenskit/pull/956) ran head `d9b1b0478e0a7e8cc3fcbff2637d6a3a4da9f56f` against base `dcce9ae48606aad1ea7684a1205fe6c844cb4faf`.
+
+GitHub reported `mergeable=MERGEABLE` and `mergeStateStatus=CLEAN` after all configured required checks completed successfully:
+
+- `Lenskit CodeQL policy (python)`: `SUCCESS`;
+- `CodeQL`: `SUCCESS`;
+- `pytest-full`: `SUCCESS`;
+- `ruff`: `SUCCESS`;
+- `webui-js-tests`: `SUCCESS`.
+
+The uniquely named Lenskit CodeQL policy job and GitHub's separate default `Analyze (python)` job were both visible, demonstrating that the required context no longer relies on the ambiguous shared name.
+
+The final documentation-only proof commit must repeat the required checks before merge; the merge gate, not this paragraph, remains authoritative for the final head.
 
 ## Rollback
 
