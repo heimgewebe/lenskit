@@ -150,6 +150,20 @@ def detect_encoding(path: Path) -> Optional[str]:
 
 logger = logging.getLogger(__name__)
 
+
+def allocated_bytes_from_stat(stat_result: os.stat_result) -> int:
+    """Return filesystem blocks in bytes, falling back to apparent size.
+
+    POSIX ``st_blocks`` is defined in 512-byte units and reflects allocated
+    storage for sparse files.  Platforms without that field retain the legacy
+    apparent-size semantics rather than reporting a fabricated zero.
+    """
+    blocks = getattr(stat_result, "st_blocks", None)
+    if isinstance(blocks, int) and blocks >= 0:
+        return blocks * 512
+    return max(0, int(stat_result.st_size))
+
+
 # Heuristic threshold (in files) for the file-count-based progress gate.
 # The scanner fires on_progress when this many *new* files have been seen
 # since the last emit, even if the time-based 1-second gate has not elapsed.
@@ -171,7 +185,10 @@ class AtlasScanner:
         "tmp/**",
         "var/tmp/**",
         "var/run/**",
-        "lost+found/**"
+        "lost+found/**",
+        "**/core",
+        "**/core.[0-9]*",
+        "**/*.core"
     )
 
     WORKSPACE_SIGNALS = (
@@ -265,7 +282,12 @@ class AtlasScanner:
         self.stats = {
             "total_files": 0,     # result: definitive file count after scan completes
             "total_dirs": 0,      # result: definitive directory count after scan completes
-            "total_bytes": 0,     # result: definitive byte sum after scan completes
+            "total_bytes": 0,     # compatibility: apparent/logical byte sum
+            "total_allocated_bytes": 0,  # filesystem blocks, or apparent-size fallback
+            "sparse_files_count": 0,
+            "sparse_apparent_bytes": 0,
+            "sparse_allocated_bytes": 0,
+            "allocation_basis": "st_blocks_512_or_apparent_fallback",
             "start_time": None,
             "end_time": None,
             "duration_seconds": 0,
@@ -425,7 +447,8 @@ class AtlasScanner:
         except OSError as e:
             logger.error("Failed to open inventory files: %s", e)
 
-        dir_sizes = {} # path -> size
+        dir_sizes = {} # path -> apparent size
+        dir_allocated_sizes = {} # path -> allocated size
         dir_file_counts = {}
         dir_depths = {}
         dir_signal_counts = {}
@@ -542,6 +565,7 @@ class AtlasScanner:
                 dirs[:] = kept_dirs
 
                 dir_bytes = 0
+                dir_allocated_bytes = 0
 
                 # Filter files for this directory
                 # Store Tuple[str, str] -> (filename, relative_path)
@@ -614,7 +638,8 @@ class AtlasScanner:
                         "mtime": dir_mtime,
                         "subtree_file_count": len(kept_files),
                         "subtree_dir_count": len(dirs), # Will accumulate (counts descendants without self)
-                        "subtree_total_bytes": 0, # Will accumulate
+                        "subtree_total_bytes": 0, # Apparent bytes; will accumulate
+                        "subtree_allocated_bytes": 0, # Allocated blocks; will accumulate
                         "max_descendant_mtime": dir_mtime,
                         "direct_children_fingerprint": direct_children_fingerprint,
                         "direct_file_signatures": [], # Will hold stable file signatures for hashing
@@ -641,6 +666,8 @@ class AtlasScanner:
                     try:
                         stat = f_path.stat()
                         size = stat.st_size
+                        allocated_size = allocated_bytes_from_stat(stat)
+                        is_sparse = size > allocated_size
 
                         is_huge = self.max_file_size is not None and size > self.max_file_size
 
@@ -654,9 +681,15 @@ class AtlasScanner:
 
                         self.stats["total_files"] += 1
                         self.stats["total_bytes"] += size
+                        self.stats["total_allocated_bytes"] += allocated_size
+                        if is_sparse:
+                            self.stats["sparse_files_count"] += 1
+                            self.stats["sparse_apparent_bytes"] += size
+                            self.stats["sparse_allocated_bytes"] += allocated_size
                         self.stats["extensions"][ext] = self.stats["extensions"].get(ext, 0) + 1
 
                         dir_bytes += size
+                        dir_allocated_bytes += allocated_size
 
                         # Update aggregate max mtime
                         if collect_dir_aggregates and mtime_iso > dir_aggregates[rel_path_str]["max_descendant_mtime"]:
@@ -785,6 +818,8 @@ class AtlasScanner:
                                 "name": f,
                                 "ext": ext,
                                 "size_bytes": size,
+                                "allocated_size_bytes": allocated_size,
+                                "is_sparse": is_sparse,
                                 "mtime": mtime_iso,
                                 "is_symlink": is_sym,
                                 "inode": inode,
@@ -817,8 +852,10 @@ class AtlasScanner:
 
                 self.stats["total_dirs"] += 1
                 dir_sizes[rel_path_str] = dir_bytes
+                dir_allocated_sizes[rel_path_str] = dir_allocated_bytes
                 if collect_dir_aggregates:
                     dir_aggregates[rel_path_str]["subtree_total_bytes"] += dir_bytes
+                    dir_aggregates[rel_path_str]["subtree_allocated_bytes"] += dir_allocated_bytes
 
                 # Fire progress callback (throttled: at most once per second OR
                 # every _PROGRESS_FILE_COUNT_THRESHOLD new files, whichever
@@ -891,6 +928,7 @@ class AtlasScanner:
                             parent_agg["subtree_file_count"] += child_agg["subtree_file_count"]
                             parent_agg["subtree_dir_count"] += child_agg.get("subtree_dir_count", child_agg.get("n_dirs", 0))
                             parent_agg["subtree_total_bytes"] += child_agg["subtree_total_bytes"]
+                            parent_agg["subtree_allocated_bytes"] += child_agg["subtree_allocated_bytes"]
                             if child_agg["max_descendant_mtime"] > parent_agg["max_descendant_mtime"]:
                                 parent_agg["max_descendant_mtime"] = child_agg["max_descendant_mtime"]
 
@@ -929,6 +967,7 @@ class AtlasScanner:
         # Find Top Dirs (Hotspots) - simplistic aggregation
         all_paths = sorted(dir_sizes.keys(), key=lambda p: len(Path(p).parts), reverse=True)
         recursive_sizes = dir_sizes.copy()
+        recursive_allocated_sizes = dir_allocated_sizes.copy()
 
         for p_str in all_paths:
             if p_str == ".":
@@ -940,9 +979,17 @@ class AtlasScanner:
 
             if parent in recursive_sizes:
                 recursive_sizes[parent] += recursive_sizes[p_str]
+                recursive_allocated_sizes[parent] += recursive_allocated_sizes[p_str]
 
         sorted_dirs = sorted(recursive_sizes.items(), key=lambda x: x[1], reverse=True)
-        self.stats["top_dirs"] = [{"path": p, "bytes": s} for p, s in sorted_dirs[:50]]
+        self.stats["top_dirs"] = [
+            {
+                "path": path,
+                "bytes": apparent_bytes,
+                "allocated_bytes": recursive_allocated_sizes.get(path, apparent_bytes),
+            }
+            for path, apparent_bytes in sorted_dirs[:50]
+        ]
 
         # Enhanced Hotspots
         highest_file_density = sorted(dir_file_counts.items(), key=lambda x: x[1], reverse=True)[:50]
@@ -1195,15 +1242,18 @@ def render_atlas_md(atlas_data: Dict[str, Any]) -> str:
     lines.append("## 📊 Overview")
     lines.append(f"- **Total Directories:** {stats.get('total_dirs')}")
     lines.append(f"- **Total Files:** {stats.get('total_files')}")
-    lines.append(f"- **Total Size:** {stats.get('total_bytes') / (1024*1024):.2f} MB")
+    lines.append(f"- **Logical Size:** {stats.get('total_bytes', 0) / (1024*1024):.2f} MB")
+    lines.append(f"- **Allocated Size:** {stats.get('total_allocated_bytes', stats.get('total_bytes', 0)) / (1024*1024):.2f} MB")
+    lines.append(f"- **Sparse Files:** {stats.get('sparse_files_count', 0)}")
     lines.append("")
 
     lines.append("## 📁 Top Folders (Hotspots)")
-    lines.append("| Path | Size (MB) |")
-    lines.append("|---|---|")
+    lines.append("| Path | Logical (MB) | Allocated (MB) |")
+    lines.append("|---|---:|---:|")
     for d in stats.get("top_dirs", [])[:20]:
-        mb = d['bytes'] / (1024*1024)
-        lines.append(f"| `{d['path']}` | {mb:.2f} |")
+        apparent_mb = d['bytes'] / (1024*1024)
+        allocated_mb = d.get('allocated_bytes', d['bytes']) / (1024*1024)
+        lines.append(f"| `{d['path']}` | {apparent_mb:.2f} | {allocated_mb:.2f} |")
     lines.append("")
 
     lines.append("## 🏷️ File Types")

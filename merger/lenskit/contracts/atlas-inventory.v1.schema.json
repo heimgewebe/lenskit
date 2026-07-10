@@ -31,7 +31,7 @@
     },
     "size_bytes": {
       "type": "integer",
-      "description": "The size of the file in bytes."
+      "description": "The apparent/logical file length in bytes (stat.st_size)."
     },
     "mtime": {
       "type": "string",
@@ -78,6 +78,15 @@
     "is_huge": {
       "type": "boolean",
       "description": "Optional boolean indicating whether the file size exceeded max_file_size during scan. When true, content analysis is typically skipped due to size constraints; as a result, content-enrichment fields (e.g. mime_type, is_text, encoding, line_count, quick_hash) may be absent."
+    },
+    "allocated_size_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Filesystem blocks allocated to the file in bytes when available; otherwise falls back to size_bytes."
+    },
+    "is_sparse": {
+      "type": "boolean",
+      "description": "True when apparent size is greater than allocated_size_bytes."
     }
   }
 }

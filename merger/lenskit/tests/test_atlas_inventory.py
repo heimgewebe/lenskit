@@ -143,3 +143,87 @@ def test_atlas_dirs_inventory_excludes_files(tmp_path):
 
     mixed_dir = next(i for i in items if i["rel_path"] == "mixed")
     assert mixed_dir["n_files"] == 1
+
+
+def test_atlas_reports_apparent_allocated_and_sparse_bytes(tmp_path, monkeypatch):
+    import merger.lenskit.adapters.atlas as atlas_module
+
+    root = tmp_path / "source"
+    root.mkdir()
+    target = root / "sparse.bin"
+    with target.open("wb") as handle:
+        handle.seek(1024 * 1024 - 1)
+        handle.write(b"x")
+
+    monkeypatch.setattr(atlas_module, "allocated_bytes_from_stat", lambda _stat: 4096)
+    inventory_file = tmp_path / "sparse.inventory.jsonl"
+    result = AtlasScanner(root, snapshot_id="snap_sparse").scan(
+        inventory_file=inventory_file
+    )
+
+    item = json.loads(inventory_file.read_text(encoding="utf-8").splitlines()[0])
+    assert item["size_bytes"] == 1024 * 1024
+    assert item["allocated_size_bytes"] == 4096
+    assert item["is_sparse"] is True
+    assert result["stats"]["total_bytes"] == 1024 * 1024
+    assert result["stats"]["total_allocated_bytes"] == 4096
+    assert result["stats"]["sparse_files_count"] == 1
+    assert result["stats"]["sparse_apparent_bytes"] == 1024 * 1024
+    assert result["stats"]["sparse_allocated_bytes"] == 4096
+
+
+def test_allocated_bytes_falls_back_to_apparent_size_without_st_blocks():
+    from types import SimpleNamespace
+
+    from merger.lenskit.adapters.atlas import allocated_bytes_from_stat
+
+    assert allocated_bytes_from_stat(SimpleNamespace(st_size=1234)) == 1234
+
+
+def test_atlas_directory_rollups_include_allocated_bytes(tmp_path, monkeypatch):
+    import merger.lenskit.adapters.atlas as atlas_module
+
+    root = tmp_path / "source"
+    nested = root / "nested"
+    nested.mkdir(parents=True)
+    (root / "top.txt").write_bytes(b"a" * 10)
+    (nested / "child.txt").write_bytes(b"b" * 20)
+
+    monkeypatch.setattr(atlas_module, "allocated_bytes_from_stat", lambda stat: stat.st_size + 100)
+    dirs_file = tmp_path / "dirs.jsonl"
+    result = AtlasScanner(root, snapshot_id="snap_rollup").scan(
+        dirs_inventory_file=dirs_file
+    )
+
+    rows = {
+        row["rel_path"]: row
+        for row in map(json.loads, dirs_file.read_text(encoding="utf-8").splitlines())
+    }
+    assert rows["nested"]["subtree_total_bytes"] == 20
+    assert rows["nested"]["subtree_allocated_bytes"] == 120
+    assert rows["."]["subtree_total_bytes"] == 30
+    assert rows["."]["subtree_allocated_bytes"] == 230
+    assert result["stats"]["top_dirs"][0] == {
+        "path": ".",
+        "bytes": 30,
+        "allocated_bytes": 230,
+    }
+
+
+def test_generated_inventory_row_validates_against_contract(tmp_path):
+    from jsonschema import Draft7Validator
+    from pathlib import Path
+
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "file.txt").write_text("content", encoding="utf-8")
+    inventory_file = tmp_path / "inventory.jsonl"
+
+    AtlasScanner(root, snapshot_id="snap_contract").scan(inventory_file=inventory_file)
+    row = json.loads(inventory_file.read_text(encoding="utf-8").splitlines()[0])
+    schema_path = Path("merger/lenskit/contracts/atlas-inventory.v1.schema.json")
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    Draft7Validator(schema).validate(row)
+    assert row["allocated_size_bytes"] >= 0
+    assert isinstance(row["is_sparse"], bool)
