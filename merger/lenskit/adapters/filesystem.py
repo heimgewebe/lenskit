@@ -29,17 +29,17 @@ def list_allowed_roots(hub: Optional[Path], merges_dir: Optional[Path]) -> List[
         roots.append({"id": "hub", "path": str(hub.resolve())})
     if merges_dir:
         roots.append({"id": "merges", "path": str(merges_dir.resolve())})
-    try:
-        if not sec.sensitive_fs_access:
-            raise AccessDeniedError("Sensitive filesystem access is not enabled")
-        # The "system" preset maps to the service user's home directory.
-        # It is present only when init_service granted sensitive filesystem
-        # access (loopback + bearer auth). Policy denial is an expected outcome.
-        sys_root = Path.home().resolve()
-        sec.validate_path(sys_root)
-        roots.append({"id": "system", "path": str(sys_root)})
-    except (SecurityViolationError, OSError, RuntimeError):
-        pass
+    if sec.sensitive_fs_access:
+        try:
+            # The "system" preset maps to the service user's home directory.
+            # It is present only when init_service granted sensitive filesystem
+            # access (loopback + bearer auth). Validation failures omit only
+            # this optional root; ordinary Hub/Merges roots remain available.
+            sys_root = Path.home().resolve()
+            sec.validate_path(sys_root)
+            roots.append({"id": "system", "path": str(sys_root)})
+        except (SecurityViolationError, OSError, RuntimeError):
+            pass
     return roots
 
 def _b64url(data: bytes) -> str:
