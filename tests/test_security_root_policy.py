@@ -52,10 +52,12 @@ setup_mocks()
 # Ensure repo root is in path
 sys.path.insert(0, os.getcwd())
 
-from merger.lenskit.service.app import init_service, resolve_atlas_root
+from merger.lenskit.service.app import app, init_service, resolve_atlas_root
 from merger.lenskit.service.models import AtlasRequest
 from merger.lenskit.adapters.security import get_security_config, AccessDeniedError
 from merger.lenskit.adapters.filesystem import list_allowed_roots, resolve_fs_path
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 def test_security_config_allowlist_invariant(tmp_path):
     """
@@ -157,6 +159,86 @@ def test_atlas_abs_path_cannot_bypass_sensitive_root_policy(tmp_path):
 
     with pytest.raises(AccessDeniedError):
         resolve_atlas_root(request, hub, None)
+
+
+def test_atlas_abs_path_rejects_symlink_escape_from_hub(tmp_path):
+    hub = tmp_path / "hub"
+    outside = tmp_path / "outside"
+    hub.mkdir()
+    outside.mkdir()
+    escape = hub / "escape"
+    escape.symlink_to(outside, target_is_directory=True)
+    init_service(hub, host="127.0.0.1", token=None)
+
+    request = AtlasRequest(root_kind="abs_path", root_value=str(escape))
+
+    with pytest.raises(AccessDeniedError):
+        resolve_atlas_root(request, hub, None)
+
+
+def test_atlas_abs_path_allows_symlink_that_stays_inside_hub(tmp_path):
+    hub = tmp_path / "hub"
+    target = hub / "target"
+    target.mkdir(parents=True)
+    alias = hub / "alias"
+    alias.symlink_to(target, target_is_directory=True)
+    init_service(hub, host="127.0.0.1", token=None)
+
+    request = AtlasRequest(root_kind="abs_path", root_value=str(alias))
+    resolved = resolve_atlas_root(request, hub, None)
+
+    assert resolved.scan_root == target.resolve()
+
+
+def test_atlas_abs_path_rejects_parent_components_before_resolution(tmp_path):
+    hub = tmp_path / "hub"
+    outside = tmp_path / "outside"
+    hub.mkdir()
+    outside.mkdir()
+    init_service(hub, host="127.0.0.1", token=None)
+
+    request = AtlasRequest(
+        root_kind="abs_path",
+        root_value=str(hub / ".." / outside.name),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_atlas_root(request, hub, None)
+
+    assert exc_info.value.status_code == 400
+    assert "Path traversal not allowed" in exc_info.value.detail
+
+
+def test_fs_roots_api_omits_system_without_auth(tmp_path, monkeypatch):
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    monkeypatch.setenv("RLENS_FS_TOKEN_SECRET", "synthetic-fs-signing-secret")
+    init_service(hub, host="127.0.0.1", token=None)
+
+    with TestClient(app) as client:
+        response = client.get("/api/fs/roots")
+
+    assert response.status_code == 200
+    roots = response.json()["roots"]
+    assert {entry["id"] for entry in roots} == {"hub"}
+    assert all(entry["token"] for entry in roots)
+
+
+def test_atlas_api_rejects_home_abs_path_without_auth(tmp_path):
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    init_service(hub, host="127.0.0.1", token=None)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/atlas",
+            json={
+                "root_kind": "abs_path",
+                "root_value": str(Path.home().resolve()),
+            },
+        )
+
+    assert response.status_code == 403
 
 
 def test_atlas_abs_path_within_hub_remains_available_without_auth(tmp_path):
