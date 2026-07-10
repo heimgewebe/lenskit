@@ -39,6 +39,7 @@ def list_allowed_roots(hub: Optional[Path], merges_dir: Optional[Path]) -> List[
             sec.validate_path(sys_root)
             roots.append({"id": "system", "path": str(sys_root)})
         except (SecurityViolationError, OSError, RuntimeError):
+            # `system` is optional; its failure must not hide explicit Hub/Merges roots.
             pass
     return roots
 
