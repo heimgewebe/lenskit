@@ -190,6 +190,36 @@ def test_init_service_home_resolution_failure_degrades_to_root_only(
     assert machine["roots"] == []
 
 
+def test_list_allowed_roots_preserves_explicit_roots_on_home_io_failure(
+    monkeypatch, tmp_path
+):
+    """An optional cached Home failure must not hide Hub or Merges roots."""
+    hub = tmp_path / "hub"
+    merges = tmp_path / "merges"
+    fake_home = tmp_path / "service-home"
+    hub.mkdir()
+    merges.mkdir()
+    fake_home.mkdir()
+
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    init_service(hub, host="127.0.0.1", token="secret")
+    sec = get_security_config()
+    original_validate = sec.validate_path
+
+    def fail_cached_home(path):
+        if path == sec.home_preset_root:
+            raise OSError("synthetic cached Home I/O failure")
+        return original_validate(path)
+
+    monkeypatch.setattr(sec, "validate_path", fail_cached_home)
+
+    roots = list_allowed_roots(hub, merges)
+    assert roots == [
+        {"id": "hub", "path": str(hub.resolve())},
+        {"id": "merges", "path": str(merges.resolve())},
+    ]
+
+
 def test_init_service_home_registration_failure_degrades_to_root_only(
     monkeypatch, tmp_path
 ):
