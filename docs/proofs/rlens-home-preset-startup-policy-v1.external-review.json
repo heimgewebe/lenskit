@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "kind": "lenskit.external_review",
+  "repository": "heimgewebe/lenskit",
+  "pull_request": 951,
+  "reviewer": {
+    "tool": "agy-antigravity-cli",
+    "version": "1.1.1",
+    "provider": "Gemini subscription",
+    "model": "default model; exact identifier not surfaced by print mode",
+    "mode": "isolated_diff_packet_no_tools"
+  },
+  "reviewed_code": {
+    "head_sha": "217e192e9ee6fe4a0c100fa9957864bd3723ccd5",
+    "base_sha": "292b9a7d22630e31dc2203be294f20700f39a629",
+    "packet_sha256": "da4213a8c0d78e5bf10af2a301e01a8c2d1a033b4885bbb610ccee7791c36e99",
+    "packet_bytes": 51646,
+    "unified_context_lines": 40,
+    "excluded_evidence_files": [
+      "docs/proofs/rlens-home-preset-startup-policy-v1.self-review.md",
+      "docs/proofs/rlens-home-preset-startup-policy-v1.external-review.json"
+    ]
+  },
+  "verdict": "PASS",
+  "summary": "The diff implements the authenticated Home preset startup policy correctly. State resets, exception handling, capability degradation, and documentation all look solid and correctly preserve invariants without widening authorization domains. Test coverage accurately reflects the edge cases.",
+  "findings": [],
+  "coverage": [
+    "authorization invariants",
+    "partial initialization",
+    "stale global state across failed reinitialization",
+    "root-only degradation",
+    "cached Home path correctness",
+    "HTTP status semantics",
+    "exception handling including cached-Home I/O failure",
+    "optional error suppression",
+    "Webmaschine export",
+    "tests",
+    "documentation consistency"
+  ],
+  "residual_risks": [],
+  "prior_attempts": [
+    {
+      "tool": "codex-cli",
+      "outcome": "usage_limit_before_review_output",
+      "counted_as_evidence": false
+    },
+    {
+      "tool": "agy-antigravity-cli",
+      "outcome": "medium_cached_home_io_finding_addressed",
+      "counted_as_final_evidence": false
+    },
+    {
+      "tool": "agy-antigravity-cli",
+      "outcome": "false_positive_stale_state_due_to_insufficient_diff_context",
+      "counted_as_final_evidence": false
+    }
+  ],
+  "does_not_establish": [
+    "full_test_sufficiency",
+    "deployment_state",
+    "runtime_correctness_on_all_platforms",
+    "merge_authorization"
+  ]
+}
