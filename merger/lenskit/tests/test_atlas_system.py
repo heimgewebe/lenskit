@@ -1,5 +1,8 @@
 
+import json
 from pathlib import Path
+
+from merger.lenskit.adapters.security import get_security_config
 
 def test_fs_roots_includes_system(service_client):
     res = service_client.client.get("/api/fs/roots", headers=service_client.headers)
@@ -16,30 +19,48 @@ def test_fs_roots_includes_system(service_client):
     # Guaranteed by contract (docs/service-api.md)
     assert "token" in sys_root
 
-def test_create_atlas_system_root(service_client):
-    # Test creation with system root
-    # Also test that defaults are respected/enforced (implicit)
+def test_create_atlas_system_root(service_client, tmp_path, monkeypatch):
+    # Keep the integration test hermetic: the production "system" preset is
+    # the real home directory, which can contain hundreds of thousands of
+    # entries and previously made the local full suite stall at this test.
+    system_root = (tmp_path / "system-root").resolve()
+    (system_root / "project" / "nested").mkdir(parents=True)
+    (system_root / "project" / "README.md").write_text("small fixture\n", encoding="utf-8")
+
+    security = get_security_config()
+    # Mutate a copied list so pytest's monkeypatch restores the exact previous
+    # process-global security object after this test.
+    monkeypatch.setattr(security, "allowlist_roots", list(security.allowlist_roots))
+    monkeypatch.setattr(security, "sensitive_fs_access", security.sensitive_fs_access)
+    monkeypatch.setattr(security, "home_preset_root", security.home_preset_root)
+    security.add_allowlist_root(system_root)
+    security.set_sensitive_fs_access(True, home_preset_root=system_root)
 
     payload = {
         "root_kind": "preset",
         "root_value": "system",
-        "max_depth": 20, # Should be capped to 6
-        "max_entries": 300000 # Should be capped to 200000
+        "max_depth": 20,  # Must be capped to 6.
+        "max_entries": 300000,  # Must be capped to 200000.
     }
     res = service_client.client.post("/api/atlas", json=payload, headers=service_client.headers)
     assert res.status_code == 200
     data = res.json()
-    assert data["root_scanned"] == str(Path.home().resolve())
+    assert data["root_scanned"] == str(system_root)
     assert data["paths"]["json"]
 
-    # Verify effective params (New check)
-    assert "effective" in data
-    eff = data["effective"]
-    assert eff["max_depth"] == 6
-    assert eff["max_entries"] == 200000
-    # Verify hard excludes are present
-    assert "**/.ssh/**" in eff["exclude_globs"]
-    assert "**/.password-store/**" in eff["exclude_globs"]
+    effective = data["effective"]
+    assert effective["max_depth"] == 6
+    assert effective["max_entries"] == 200000
+    assert "**/.ssh/**" in effective["exclude_globs"]
+    assert "**/.password-store/**" in effective["exclude_globs"]
+
+    # TestClient waits for the background task.  Reading the canonical artifact
+    # proves the bounded fixture was actually scanned, not merely accepted.
+    artifact_path = service_client.merges_dir / data["paths"]["json"]
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert artifact["status"] == "complete"
+    assert artifact["root"] == str(system_root)
+    assert artifact["stats"]["total_files"] == 1
 
 def test_export_webmaschine_includes_roots(service_client):
     # First create an atlas to ensure export has something to copy
