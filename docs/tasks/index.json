@@ -1394,6 +1394,25 @@
         "No persistence store, CLI, MCP surface, runtime scheduler or automatic memory backend is introduced.",
         "No claim truth, repository completeness, answer correctness, review completeness, test sufficiency or remote freshness is established."
       ]
+    },
+    {
+      "id": "TASK-LENSKIT-MAIN-REQUIRED-CHECKS-001",
+      "title": "Lenskit Main Required CI and CodeQL Checks",
+      "status": "done",
+      "description": "Closed by Lenskit main required checks v1: a separate main-only GitHub ruleset requires the uniquely named Lenskit Python CodeQL policy workflow and GitHub Advanced Security result, the full Python suite, repository-wide Ruff, and Web UI JavaScript tests. The desired state is checked in, API read-back is validated offline, strict current-base validation is enabled, and disposable PR #955 proves a content-mergeable PR is blocked when Ruff fails.",
+      "evidence": [
+        "config/github-main-required-checks.v1.json",
+        "scripts/ci/check_github_main_ruleset.py",
+        "merger/lenskit/tests/test_github_main_ruleset.py",
+        "docs/proofs/lenskit-main-required-checks-v1-proof.md",
+        "https://github.com/heimgewebe/lenskit/rules/18784275",
+        "https://github.com/heimgewebe/lenskit/pull/955"
+      ],
+      "missing_evidence": [
+        "No test-sufficiency, security-correctness, runtime-correctness, or review-completeness claim is established.",
+        "No protection against future administrator edits, GitHub outages, or unobserved permission paths is established.",
+        "The checked-in validator proves API structure only; merge-time enforcement requires separate positive and negative GitHub evidence."
+      ]
     }
   ]
 }
