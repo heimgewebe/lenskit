@@ -1,15 +1,16 @@
 # rLens Sensitive Filesystem Access v1 Self-Review
 
-Reviewed implementation head SHA: `a1809b06f4ec37866645b6183a973697c26dfae1`
-Reviewed implementation diff SHA256: `cb80c4df5b88d2905d749a2811c9ddd72f9ec9aab8f5a55da00a1625a6a6c664`
-Reviewed implementation diff bytes: `21029`
-Diff hash basis: `git diff --binary origin/main...a1809b06f4ec37866645b6183a973697c26dfae1 -- .`
+PR: #949
+Reviewed implementation head SHA: `9bf1358febd7d0e146a12080ab8c8c1afc854510`
+Reviewed implementation diff SHA256: `63e83a4399ca97f5f5efdbdcaefe7b7516dc6f412cd02d1c20449f0b6cc76af8`
+Reviewed implementation diff bytes: `23925`
+Diff hash basis: `git diff --binary origin/main...9bf1358febd7d0e146a12080ab8c8c1afc854510 -- . ':(exclude)docs/proofs/rlens-sensitive-filesystem-access-v1.self-review.md'`
 Base: `origin/main` / `beeb2f14318577177b69d1699fe0aef8078c7fe7`
 Source finding: Bureau live-register event `27`.
 
 ## Evidence boundary
 
-This file records a critical review of the implementation diff above. It is committed separately and is not part of the reviewed implementation hash. A final merge gate must still verify the live PR head and diff, mergeability, current CI, comments and reviews.
+This file records a critical review of the implementation diff above. It is committed separately and is not part of the reviewed implementation hash. The independent external review is stored in `docs/proofs/rlens-sensitive-filesystem-access-v1.external-review.json`. A final merge gate must still verify the live PR head and diff, mergeability, current CI, comments and reviews.
 
 ## Reviewed files
 
@@ -27,7 +28,7 @@ Coverage: all implementation-diff files reviewed.
 
 ## Verdict
 
-**PASS for the reviewed implementation diff, conditional on independent review and live GitHub CI.**
+**PASS for the reviewed implementation diff, conditional on the final live PR diff and GitHub CI.**
 
 ## Findings and resolutions
 
@@ -35,7 +36,7 @@ Coverage: all implementation-diff files reviewed.
 
 - Loopback is a transport boundary, not authorization: other local processes or users can connect to a loopback service.
 - Hub and a configured merges directory remain ordinary, explicit operator roots.
-- The broad `system` preset and filesystem root are now granted only for loopback plus the bearer token actually enforced by `verify_token`.
+- The broad `system` preset and filesystem root are granted only for loopback plus the bearer token actually enforced by `verify_token`.
 - The broad capability has explicit state (`sensitive_fs_access`); an overlapping allowlist root cannot silently mint the `system` alias.
 - Reinitialization resets both the allowlist and the sensitive capability before rebuilding current configuration.
 
@@ -43,38 +44,48 @@ Coverage: all implementation-diff files reviewed.
 
 - Found and closed an additional bypass beyond the original live-register finding: Atlas `root_kind=abs_path` previously returned arbitrary absolute paths without calling the central allowlist validator.
 - Absolute Atlas paths now pass through `SecurityConfig.validate_path`; path denials propagate to the existing HTTP 403 handler.
+- The central validator retains its two-stage boundary: lexical containment before resolution, then canonical containment after symlink resolution.
 - `RLENS_FS_TOKEN_SECRET` remains only a navigation-token signing secret and cannot activate sensitive browsing.
 - Non-loopback bindings do not receive the broad capability even when bearer authentication is configured.
 - Explicit Hub or merges roots remain authoritative by design. An operator can still configure a broad Hub; this is an explicit configuration decision, not an implicit `system` capability.
 
 ### Regression risk
 
-- Unauthenticated loopback use can still inspect the configured Hub and merges roots, preserving the existing low-friction local workflow.
+- Unauthenticated loopback use can still inspect the configured Hub and merges roots, preserving the low-friction local workflow.
 - Authenticated loopback use retains Home and full-root operation.
 - The standalone Atlas CLI remains an explicit local filesystem operation; the new restriction applies to the service/API boundary.
-- The `system` omission is handled as an expected policy outcome rather than an unhandled security exception.
+- The `system` omission is ordinary conditional behavior, so it cannot make Hub/Merges root enumeration fail.
 
 ### Tests and validation
 
-- Focused policy suite: `14 passed`.
-- Focused Atlas/Auth suite: `21 passed`.
-- Broad service/API/Atlas regression suite: `163 passed, 1 skipped`.
+- Focused policy and real API boundary suite: `19 passed`.
+- Broad service/API/Atlas regression suite: `168 passed, 1 skipped`.
+- Explicit proofs cover a denied symlink escape, an allowed internal symlink, early `..` rejection, unauthenticated `/api/fs/roots`, and unauthenticated Atlas Home denial.
 - Ruff CI ratchet scope passed on every changed Python file.
 - Changed Python files passed `py_compile`.
 - `git diff --check` passed.
-- The existing `test_create_atlas_system_root` performs a real scan of the operator Home directory and is unsuitable as a bounded local check; it was not used as local evidence. GitHub `pytest-full` remains the authoritative full-suite gate.
+- The existing `test_create_atlas_system_root` performs a real scan of the operator Home directory and is unsuitable as a bounded local check; GitHub `pytest-full` remains the authoritative full-suite gate.
+
+### Independent review
+
+- Codex CLI `0.142.2`, model `gpt-5.5`, reasoning effort `xhigh`, reviewed an isolated immutable packet without tools or repository access.
+- Reviewed implementation head: `9bf1358febd7d0e146a12080ab8c8c1afc854510`.
+- Reviewed implementation diff SHA256: `63e83a4399ca97f5f5efdbdcaefe7b7516dc6f412cd02d1c20449f0b6cc76af8`.
+- Verdict: **PASS** with no critical, high or medium finding.
+- One low finding remains: authenticated startup can fail in unusual environments if the service user Home cannot be resolved or registered. This does not reopen the authorization boundary and is registered as a separate Bureau candidate.
+- Claude CLI was unavailable for review because the authenticated subscription session quota returned HTTP 429 before any review tokens were used; it is not counted as review evidence.
 
 ### Integration
 
-- Documentation now distinguishes explicit Hub/Merges roots, the broad `system` capability, service API rules and standalone CLI behavior.
-- Existing service mapping tests now explicitly enable and bypass auth only within their mapping-only fixture.
+- Documentation distinguishes explicit Hub/Merges roots, the broad `system` capability, service API rules and standalone CLI behavior.
+- Existing service mapping tests explicitly enable and bypass auth only within their mapping-only fixture.
 - No runtime restart, deployment, snapshot refresh or merge authorization is performed by this patch.
 
 ## Remaining observations
 
-- The local repo-wide Ruff invocation can scan `.git` metadata when a remote ref name ends in `.py`, because `ruff-ci.toml` replaces the default exclusions. This is unrelated to the product change and requires a separate parity task.
+- The local repo-wide Ruff invocation can scan `.git` metadata when a remote ref name ends in `.py`, because `ruff-ci.toml` replaces the default exclusions. This is unrelated to the product change and is tracked separately.
 - Credential-redacting access logging remains a separate Bureau candidate; this patch does not change the access-log decision from PR #948.
 
 ## Non-claims
 
-This review does not establish complete local-host isolation, correctness of arbitrary operator-selected Hub/Merges roots, absence of all filesystem side channels, full-suite success, runtime deployment correctness, review completeness, regression absence or merge readiness by itself.
+This self-review does not establish complete local-host isolation, correctness of arbitrary operator-selected Hub/Merges roots, absence of all filesystem side channels, full-suite success, runtime deployment correctness, review completeness, regression absence or merge readiness by itself.
