@@ -1,6 +1,6 @@
 # Lenskit Code-Scanning Central Barrier v2 Self-Review
 
-PR: pending
+PR: #953
 Base: `2f75253bc77c4329d1aa0f2b71466197bae350f6`
 Reviewed implementation head: `0ccb856d21533df1500a0e0a859c71815c622ef9`
 Reviewed packet: complete diff with 12 context lines
