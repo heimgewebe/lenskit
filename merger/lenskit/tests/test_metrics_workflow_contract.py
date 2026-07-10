@@ -42,6 +42,7 @@ def test_metrics_workflow_verifies_download_before_ajv_validation() -> None:
     assert '"$METRICS_SCHEMA_URL"' in fetch_script
     assert '"$METRICS_SCHEMA_SHA256"' in fetch_script
     assert "sha256sum --check --strict" in fetch_script
+    assert "npx --yes ajv-cli@5.0.0 validate" in validate_script
     assert "--spec=draft2020" in validate_script
     assert "--strict=false" in validate_script
     assert workflow["jobs"]["snapshot"]["timeout-minutes"] == 10
