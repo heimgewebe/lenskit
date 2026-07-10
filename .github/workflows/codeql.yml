@@ -31,4 +31,12 @@ jobs:
         uses: github/codeql-action/autobuild@v3
 
       - name: Analyze
+        id: analyze
         uses: github/codeql-action/analyze@v3
+        with:
+          output: ${{ runner.temp }}/codeql-results
+
+      - name: Require clean raw CodeQL SARIF
+        run: >-
+          python3 scripts/ci/assert_codeql_sarif_clean.py
+          "${{ steps.analyze.outputs.sarif-output }}"

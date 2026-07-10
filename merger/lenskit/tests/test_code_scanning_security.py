@@ -139,3 +139,75 @@ def test_init_federation_rejects_dangling_symlink_output(tmp_path):
 
     assert output.is_symlink()
     assert not (tmp_path / "outside-target.json").exists()
+
+
+def test_security_config_returns_registered_root_object(tmp_path):
+    from merger.lenskit.adapters.security import SecurityConfig
+
+    root = tmp_path / "root"
+    root.mkdir()
+    security = SecurityConfig()
+    security.add_allowlist_root(root)
+    registered = security.allowlist_roots[0]
+
+    assert security.validate_path(Path(str(root.resolve()))) is registered
+
+
+def test_security_config_rejects_symlink_escape_from_narrower_root(tmp_path):
+    from merger.lenskit.adapters.security import AccessDeniedError, SecurityConfig
+
+    broad = tmp_path
+    hub = tmp_path / "hub"
+    outside = tmp_path / "outside"
+    hub.mkdir()
+    outside.mkdir()
+    secret = outside / "secret.txt"
+    secret.write_text("not through the hub capability", encoding="utf-8")
+    (hub / "escape").symlink_to(outside, target_is_directory=True)
+
+    security = SecurityConfig()
+    security.add_allowlist_root(broad)
+    security.add_allowlist_root(hub)
+
+    with pytest.raises(AccessDeniedError, match="canonical check"):
+        security.validate_path(hub / "escape" / "secret.txt")
+
+
+def test_security_config_rejects_parent_segments_before_normalization(tmp_path):
+    from merger.lenskit.adapters.security import InvalidPathError, SecurityConfig
+
+    root = tmp_path / "root"
+    (root / "nested").mkdir(parents=True)
+    security = SecurityConfig()
+    security.add_allowlist_root(root)
+
+    with pytest.raises(InvalidPathError, match="parent segment"):
+        security.validate_path(root / "nested" / ".." / "target.txt")
+
+
+def test_security_config_preserves_nonexistent_descendant_resolution(tmp_path):
+    from merger.lenskit.adapters.security import SecurityConfig
+
+    root = tmp_path / "root"
+    root.mkdir()
+    security = SecurityConfig()
+    security.add_allowlist_root(root)
+    missing = root / "future.json"
+
+    assert security.validate_path(missing) == missing.resolve()
+
+
+def test_security_config_directory_contract_rejects_file_and_missing(tmp_path):
+    from merger.lenskit.adapters.security import InvalidPathError, SecurityConfig
+
+    root = tmp_path / "root"
+    root.mkdir()
+    regular_file = root / "file.txt"
+    regular_file.write_text("x", encoding="utf-8")
+    security = SecurityConfig()
+    security.add_allowlist_root(root)
+
+    with pytest.raises(InvalidPathError, match="existing directory"):
+        security.validate_directory(regular_file)
+    with pytest.raises(InvalidPathError, match="existing directory"):
+        security.validate_directory(root / "missing")

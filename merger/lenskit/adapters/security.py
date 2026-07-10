@@ -6,6 +6,8 @@ from typing import List, Optional
 import os
 import re
 
+from ..core.path_security import resolve_secure_path
+
 class SecurityViolationError(Exception):
     """Base class for security and path validation errors."""
     pass
@@ -72,68 +74,70 @@ class SecurityConfig:
         if root not in self.allowlist_roots:
             self.allowlist_roots.append(root)
 
-    def validate_path(self, path: Path) -> Path:
-        """
-        Central trust boundary for filesystem paths.
-        Two-stage gate:
-          1) String-only containment pre-check (no filesystem touch) against allowlist_roots
-          2) resolve() + post-check using Path.relative_to for canonical enforcement
-        """
+    def _lexical_relative_path(self, path: Path, root: Path) -> Optional[str]:
+        """Return a normalized relative path when ``path`` is lexically under ``root``."""
         raw = str(path)
-        if not raw.strip():
-            raise InvalidPathError("Invalid path (empty)")
-        if "\0" in raw:
+        if not raw.strip() or raw != raw.strip():
+            raise InvalidPathError("Invalid path (empty or padded)")
+        if "\x00" in raw:
             raise InvalidPathError("Invalid path (NUL byte)")
 
+        expanded = os.path.expanduser(raw)
+        candidate = Path(expanded)
+        if not candidate.is_absolute():
+            raise InvalidPathError("Invalid path (not absolute)")
+        if any(part in {".", ".."} for part in candidate.parts):
+            raise InvalidPathError("Invalid path (dot or parent segment)")
+
+        normalized = os.path.normpath(expanded)
+        root_normalized = os.path.normpath(str(root))
+        try:
+            if os.path.commonpath([root_normalized, normalized]) != root_normalized:
+                return None
+            relative = os.path.relpath(normalized, root_normalized)
+        except (OSError, ValueError):
+            return None
+
+        if relative == ".":
+            return ""
+        return Path(relative).as_posix()
+
+    def validate_path(self, path: Path) -> Path:
+        """Resolve one path beneath the narrowest registered allowlist root."""
         if not self.allowlist_roots:
             raise AccessDeniedError(
                 "No allowed roots configured (SecurityConfig not initialized)",
             )
 
-        # --- Stage 1: pre-check without resolve() ---
-        # Expand ~ and normalize purely as a string.
-        expanded = os.path.expanduser(raw)
-        normalized = os.path.normpath(expanded)
-
-        if not os.path.isabs(normalized):
-            raise InvalidPathError("Invalid path (not absolute)")
-
-        allowed_by_prefix = False
-        for root in self.allowlist_roots:
-            root_norm = os.path.normpath(str(root))
-            # commonpath is robust vs "../" tricks after normpath
-            try:
-                # commonpath returns the longest common sub-path
-                if os.path.commonpath([root_norm, normalized]) == root_norm:
-                    allowed_by_prefix = True
-                    break
-            except Exception:
-                # If commonpath fails (mixed drives etc.), treat as not allowed.
+        # Prefer the most specific root when roots overlap (for example Hub and `/`).
+        roots = sorted(
+            self.allowlist_roots,
+            key=lambda root: len(root.parts),
+            reverse=True,
+        )
+        for root in roots:
+            relative = self._lexical_relative_path(path, root)
+            if relative is None:
                 continue
-
-        if not allowed_by_prefix:
-            # This early exit helps CodeQL see the barrier before resolve()
-            raise AccessDeniedError("Access denied: Path is not allowed (prefix check)")
-
-        # --- Stage 2: canonicalize + enforce with Path semantics ---
-        try:
-            # Now safe to resolve (canonicalize symlinks etc)
-            resolved = Path(normalized).resolve()  # lgtm[py/path-injection]
-        except Exception:
-            raise InvalidPathError("Invalid path resolution")
-
-        # Post-check: resolved path must still lie within allowlist roots.
-        # This prevents symlink escapes that passed string check.
-        for root in self.allowlist_roots:
+            if relative == "":
+                # Return the already canonical, operator-registered object rather than
+                # rebuilding it from request-controlled text.
+                return root
             try:
-                # Resolve root too to be sure (it should be already, but robustness)
-                resolved_root = root.resolve()
-                resolved.relative_to(resolved_root)
-                return resolved
-            except ValueError:
-                continue
+                return resolve_secure_path(root, relative)
+            except ValueError as exc:
+                raise AccessDeniedError(
+                    "Access denied: Path is not allowed (canonical check)",
+                ) from exc
 
-        raise AccessDeniedError("Access denied: Path is not allowed (canonical check)")
+        raise AccessDeniedError("Access denied: Path is not allowed (prefix check)")
+
+    def validate_directory(self, path: Path) -> Path:
+        """Validate an allowlisted path and require an existing directory."""
+        resolved = self.validate_path(path)
+        if not resolved.is_dir():
+            raise InvalidPathError("Path is not an existing directory")
+        return resolved
 
 
 _security_config = SecurityConfig()
@@ -150,23 +154,12 @@ def validate_hub_path(path_str: str) -> Path:
     if "\0" in path_str:
         raise InvalidPathError("Invalid path (NUL byte)")
 
-    p = Path(path_str)
-    # Use resolved path for checks
-    resolved = get_security_config().validate_path(p)
-
-    if not resolved.exists():  # lgtm[py/path-injection]
-        raise InvalidPathError("Hub does not exist")
-    if not resolved.is_dir():  # lgtm[py/path-injection]
-        raise InvalidPathError("Hub is not a directory")
-    return resolved
+    return get_security_config().validate_directory(Path(path_str))
 
 
 def validate_source_dir(path: Path) -> Path:
-    # Ensure source is within allowlist roots (hub) and use ONLY the validated path.
-    resolved = get_security_config().validate_path(path)
-    if not resolved.exists() or not resolved.is_dir():  # lgtm[py/path-injection]
-        raise InvalidPathError("Invalid repo path")
-    return resolved
+    """Return an existing source directory beneath the configured allowlist."""
+    return get_security_config().validate_directory(path)
 
 def validate_repo_name(name: str) -> str:
     _REPO_RE = re.compile(r"^[A-Za-z0-9._-]+$")
