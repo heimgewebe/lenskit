@@ -1,6 +1,6 @@
 # Lenskit Code-Scanning Hardening v1 Self-Review
 
-PR: pending
+PR: #952
 Base: `0cbd961bb0159f4c00773180b3fa53459a33d8b4`
 Reviewed implementation head: `9b33171cda08534609d9c751f044e5e15ad8ea77`
 Reviewed packet: complete changed-line diff with eight context lines per hunk

@@ -1,6 +1,6 @@
 {
   "schema": "lenskit.external_security_review.v1",
-  "pull_request": null,
+  "pull_request": 952,
   "reviewer": "gemini-via-antigravity-cli",
   "review_mode": "immutable_diff_only_no_tools",
   "reviewed_base": "0cbd961bb0159f4c00773180b3fa53459a33d8b4",
