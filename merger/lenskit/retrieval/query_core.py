@@ -667,7 +667,6 @@ def execute_query(
                     ) from exc
                 base_diagnostics["semantic"]["error"] = "semantic encoding unavailable"
                 base_diagnostics["semantic"]["enabled"] = False
-                semantic_model = None
 
         # Sort results deterministically to avoid random tie flips.
         results.sort(key=lambda x: (-x.get("final_score", 0), x["path"]))
