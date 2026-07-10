@@ -34,6 +34,7 @@ The successful startup Home path is stored as `SecurityConfig.home_preset_root`.
 - `home_preset_root` may be activated only after the same canonical path is present in `allowlist_roots`.
 - A previously cached Home preset is cleared whenever sensitive access is disabled or the service is reinitialized without authorization.
 - Home failure cannot leave a stale alias active.
+- A later I/O or runtime failure while validating the optional cached Home omits only `system`; explicit Hub/Merges roots remain discoverable.
 - Root-only degradation does not widen authorization: it occurs only after loopback-plus-auth was already established and root itself was successfully allowlisted.
 - Signed filesystem navigation secrets remain distinct from Bearer request authentication.
 
@@ -45,7 +46,7 @@ Focused policy validation:
 python3 -m pytest -q tests/test_security_root_policy.py
 ```
 
-Result: `24 passed`.
+Result: `25 passed`.
 
 Adjacent service and Atlas validation:
 
@@ -60,7 +61,7 @@ python3 -m pytest -q \
   merger/lenskit/tests/test_service_startup_reconciliation.py
 ```
 
-Result: `51 passed`, including the final HTTP `503` behavior and root-only Webmaschine export assertion.
+Result: `52 passed`, including HTTP `503`, root-only Webmaschine export, failed-reinitialization revocation and cached-Home I/O fallback assertions.
 
 Additional checks:
 
