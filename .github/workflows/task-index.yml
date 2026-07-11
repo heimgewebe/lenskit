@@ -110,3 +110,18 @@ jobs:
             exit 2
           fi
           exit "${code}"
+
+      - name: Status truth drift check
+        run: |
+          set -euo pipefail
+          python3 scripts/docmeta/check_status_truth.py --format json \
+            | tee status-truth-report.json
+
+      - name: Upload status truth report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
+        with:
+          name: status-truth-report
+          path: status-truth-report.json
+          if-no-files-found: warn
+          retention-days: 7
