@@ -1422,8 +1422,8 @@
     {
       "id": "TASK-REPOBRIEF-AUDIT-FINAL-CONTROL-001",
       "title": "RepoBrief Final Control Plane v1",
-      "status": "in-progress",
-      "description": "Implements Audit F-01/F-02/F-04: central profile export semantics, fail-closed snapshot finalization, exact final manifest artifact coverage, post-health mutation detection, preserved typed manifest metadata, and a repaired aggregate ai-context-guard desired check. Live ruleset mutation and post-merge proof remain operational closeout steps.",
+      "status": "done",
+      "description": "Closed by RepoBrief Final Control Plane v1: central profile export semantics, fail-closed snapshot finalization, exact final manifest artifact coverage, post-health mutation detection, preserved typed manifest metadata, and a repaired aggregate ai-context-guard. GitHub ruleset 18784275 now requires ai-context-guard and the live API read-back validates without findings.",
       "evidence": [
         "docs/blueprints/lenskit-repobrief-audit-remediation-2026-07.md",
         "docs/proofs/repobrief-final-control-plane-v1-proof.md",
@@ -1433,11 +1433,12 @@
         "merger/lenskit/core/export_safety_report.py",
         "merger/lenskit/tests/test_repobrief_snapshot_cli.py",
         ".github/workflows/ai-context-guard.yml",
-        "config/github-main-required-checks.v1.json"
+        "config/github-main-required-checks.v1.json",
+        "https://github.com/heimgewebe/lenskit/rules/18784275"
       ],
       "missing_evidence": [
         "No claim truth, repository understanding, test completeness, runtime correctness, complete secret detection, or regression absence is established.",
-        "The desired GitHub ruleset change is not live until post-merge API update and read-back."
+        "Ruleset read-back proves observed configuration, not future GitHub availability or protection against later administrator changes."
       ]
     },
     {

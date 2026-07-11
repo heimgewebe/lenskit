@@ -45,8 +45,9 @@ hat sichtbar gemacht, dass der frühere Refresh diese Felder verlor.
 
 Der leere top-level-`env`-Schlüssel wurde entfernt. Ein aggregierter Job mit dem
 stabilen Checknamen `ai-context-guard` verlangt erfolgreiche `repo-root`- und
-`templates`-Jobs. Der gewünschte Main-Ruleset enthält diesen Check; die live
-GitHub-Regel wird erst nach erfolgreichem Merge und grünem Main-Lauf angepasst.
+`templates`-Jobs. Der Main-Ruleset 18784275 verlangt diesen Check. Der GitHub-API-Readback
+wurde gegen `config/github-main-required-checks.v1.json` validiert und meldet
+`status=pass` ohne Findings.
 
 ## Dynamische Belege
 
@@ -84,6 +85,17 @@ CLI rc                         1
 post_emit_health              pass
 agent_export_gate             fail
 export_safety_report          fail
+```
+
+
+Live Ruleset Readback:
+
+```text
+ruleset_id 18784275
+status     pass
+findings   []
+required   ai-context-guard, CodeQL, Lenskit CodeQL policy (python),
+           pytest-full, ruff, webui-js-tests
 ```
 
 ## Sicherheits- und Autoritätsgrenzen
