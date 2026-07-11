@@ -520,6 +520,70 @@ def test_internal_profiles_are_blocked_from_agent_export(tmp_path, profile):
     assert any("not agent-exportable" in e for e in report["errors"])
 
 
+@pytest.mark.parametrize("profile", ["public-share", "security-export-review"])
+def test_profile_scoped_export_requires_redaction_when_policy_requires_it(tmp_path, profile):
+    manifest = _write_manifest(tmp_path, redaction=False)
+    _write_post_health(tmp_path, "pass")
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile=profile,
+        require_redaction=True,
+    )
+
+    assert report["status"] == "fail"
+    assert report["agent_facing"] is False
+    assert report["redaction_required"] is True
+    assert any("requires capabilities.redaction=true" in e for e in report["errors"])
+
+
+def test_public_share_cannot_disable_central_redaction_requirement(tmp_path):
+    manifest = _write_manifest(tmp_path, redaction=False)
+    _write_post_health(tmp_path, "pass")
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile="public-share",
+        require_redaction=False,
+    )
+
+    assert report["status"] == "blocked"
+    assert report["redaction_required"] is True
+    assert any("cannot disable redaction requirement" in e for e in report["errors"])
+
+
+@pytest.mark.parametrize("profile", ["public-share", "security-export-review"])
+def test_profile_scoped_export_requires_valid_post_emit_health(tmp_path, profile):
+    manifest = _write_manifest(tmp_path, redaction=True)
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile=profile,
+        require_redaction=True,
+    )
+
+    assert report["status"] == "blocked"
+    assert report["redaction_required"] is True
+    assert any("requires valid post_emit_health" in e for e in report["errors"])
+
+
+@pytest.mark.parametrize("profile", ["public-share", "security-export-review"])
+def test_profile_scoped_export_passes_its_controls_without_claiming_agent_surface(tmp_path, profile):
+    manifest = _write_manifest(tmp_path, redaction=True)
+    _write_post_health(tmp_path, "pass")
+
+    report = evaluate_agent_export_gate(
+        manifest_path=str(manifest),
+        profile=profile,
+        require_redaction=True,
+    )
+
+    assert report["status"] == "pass"
+    assert report["agent_facing"] is False
+    assert report["redaction_required"] is True
+    assert any("does not certify agent-surface export" in w for w in report["warnings"])
+
+
 def test_non_agent_human_review_profile_does_not_claim_agent_certification(tmp_path):
     manifest = _write_manifest(tmp_path, redaction=False)
 

@@ -1,8 +1,8 @@
 """
 Agent export gate for bundle-facing export profiles (roadmap PR A5).
 
-This module enforces a small, explicit export gate for agent-facing profiles:
-- post_emit_health must be available and pass on the final bundle surface,
+This module enforces a small, explicit export gate for profile-scoped bundle export:
+- post_emit_health must be available and pass when the central profile policy requires it,
 - redaction policy must be acceptable for the requested profile,
 - output_health.verdict is observation-only and never sufficient evidence.
 
@@ -35,7 +35,8 @@ _BUNDLE_KIND = "repolens.bundle.manifest"
 _POST_HEALTH_KIND = "lenskit.post_emit_health"
 _POST_HEALTH_VERSION = "1.0"
 _POST_STATUSES = {"pass", "warn", "fail", "blocked"}
-# A5-local profile policy derived from repository output_profile vocabulary.
+# Legacy profile compatibility. Canonical RepoBrief profiles are resolved through
+# repobrief_profiles.profile_export_semantics instead of a second policy table.
 _AGENT_FACING_PROFILES = {"agent_minimal", "agent-portable", "agent-safe"}
 _NON_AGENT_PROFILES = {
     "human_review",
@@ -55,6 +56,8 @@ _NON_EXPORTABLE_PROFILES = {
     "max-private",
     "forensic-strict",
 }
+
+
 def _profile_semantics(profile: Optional[str]) -> Optional[Dict[str, bool]]:
     if not profile:
         return None
@@ -62,11 +65,18 @@ def _profile_semantics(profile: Optional[str]) -> Optional[Dict[str, bool]]:
         return profile_export_semantics(profile)
     except ValueError:
         if profile in _AGENT_FACING_PROFILES:
-            return {"agent_facing": True, "exportable": True}
+            return {
+                "agent_facing": True,
+                "exportable": True,
+                "redaction_required": True,
+                "post_emit_health_required": True,
+            }
         if profile in _NON_AGENT_PROFILES:
             return {
                 "agent_facing": False,
                 "exportable": profile not in _NON_EXPORTABLE_PROFILES,
+                "redaction_required": False,
+                "post_emit_health_required": False,
             }
         return None
 
@@ -353,7 +363,9 @@ def evaluate_agent_export_gate(
             "bundle_manifest_path": str(resolved_manifest),
             "post_emit_health_status": None,
             "output_health_verdict_observed": None,
-            "redaction_required": bool(_is_agent_facing(profile)),
+            "redaction_required": bool(
+                (_profile_semantics(profile) or {}).get("redaction_required", False)
+            ),
             "redaction_enabled": None,
             "errors": [f"cannot read bundle manifest: {manifest_err}"],
             "warnings": [],
@@ -371,7 +383,9 @@ def evaluate_agent_export_gate(
             "bundle_manifest_path": str(resolved_manifest),
             "post_emit_health_status": None,
             "output_health_verdict_observed": None,
-            "redaction_required": bool(_is_agent_facing(profile)),
+            "redaction_required": bool(
+                (_profile_semantics(profile) or {}).get("redaction_required", False)
+            ),
             "redaction_enabled": None,
             "errors": ["manifest is not a repolens.bundle.manifest"],
             "warnings": [],
@@ -387,7 +401,13 @@ def evaluate_agent_export_gate(
     profile_semantics = _profile_semantics(profile)
     profile_unknown = isinstance(profile, str) and profile_semantics is None
     agent_facing = _is_agent_facing(profile)
-    redaction_required = bool(agent_facing)
+    redaction_required = bool(
+        profile_semantics and profile_semantics.get("redaction_required", False)
+    )
+    post_emit_health_required = bool(
+        profile_semantics
+        and profile_semantics.get("post_emit_health_required", False)
+    )
     profile_non_exportable = bool(
         isinstance(profile, str)
         and profile_semantics is not None
@@ -440,18 +460,20 @@ def evaluate_agent_export_gate(
         status = "blocked"
         errors.append(f"profile is internal and not agent-exportable: {profile!r}")
 
-    if agent_facing:
-        if require_redaction is False:
-            status = "blocked"
-            errors.append("agent-facing export cannot disable redaction requirement")
+    profile_scope = "agent-facing export" if agent_facing else "profile export"
 
+    if redaction_required and require_redaction is False:
+        status = "blocked"
+        errors.append(f"{profile_scope} cannot disable redaction requirement")
+
+    if post_emit_health_required:
         if not manifest_run_id_valid:
             status = "blocked"
-            errors.append("agent-facing export requires non-empty manifest run_id")
+            errors.append(f"{profile_scope} requires non-empty manifest run_id")
 
         if not post_health_valid:
             status = "blocked"
-            errors.append("agent-facing export requires valid post_emit_health")
+            errors.append(f"{profile_scope} requires valid post_emit_health")
         elif post_emit_health_status == "blocked":
             status = "blocked"
             errors.append("post_emit_health status is blocked")
@@ -460,12 +482,13 @@ def evaluate_agent_export_gate(
             errors.append("post_emit_health status is fail")
         elif post_emit_health_status != "pass":
             status = "fail"
-            errors.append("agent-facing export requires post_emit_health status pass")
+            errors.append(f"{profile_scope} requires post_emit_health status pass")
 
-        if redaction_required and redaction_enabled is not True:
-            status = "fail" if status != "blocked" else status
-            errors.append("agent-facing export requires capabilities.redaction=true")
-    elif not profile_non_exportable:
+    if redaction_required and redaction_enabled is not True:
+        status = "fail" if status != "blocked" else status
+        errors.append(f"{profile_scope} requires capabilities.redaction=true")
+
+    if not agent_facing and not profile_non_exportable:
         warnings.append(
             "non-agent-facing profile result does not certify agent-surface export"
         )

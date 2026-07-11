@@ -960,6 +960,35 @@ def test_snapshot_create_blocks_agent_export_without_redaction(tmp_path, capsys)
     assert "export_safety_report:fail" in finalization["errors"]
 
 
+def test_snapshot_create_blocks_public_export_without_redaction(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# blocked public export\n", encoding="utf-8")
+    out = tmp_path / "briefs"
+
+    rc = main([
+        "repobrief",
+        "snapshot",
+        "create",
+        "--repo",
+        str(repo),
+        "--out",
+        str(out),
+        "--profile",
+        "public-share",
+    ])
+
+    result = json.loads(capsys.readouterr().out)
+    finalization = result["finalization"]
+    assert rc == 1
+    assert result["status"] == "fail"
+    assert finalization["post_emit_health_status"] == "pass"
+    assert finalization["agent_export_gate_status"] == "fail"
+    assert finalization["export_safety_status"] == "fail"
+    assert "agent_export_gate:fail" in finalization["errors"]
+    assert "export_safety_report:fail" in finalization["errors"]
+
+
 def test_add_manifest_artifact_preserves_existing_contract_metadata(tmp_path):
     artifact = tmp_path / "entry.json"
     artifact.write_text('{"value": 2}\n', encoding="utf-8")
