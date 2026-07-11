@@ -48,12 +48,36 @@
   "observed_on": "2026-07-11",
   "repository": "heimgewebe/lenskit",
   "rollout_state": {
-    "live_ruleset_contains_browser_tests": false,
-    "live_ruleset_update": "deferred until successful post-merge main browser job",
-    "policy_contains_browser_tests": true,
-    "post_merge_main_browser_job": "pending",
-    "pr_browser_job": "pending",
-    "task_status": "in_progress"
+    "live_ruleset": {
+      "browser_tests_integration_id": 15368,
+      "browser_tests_required": true,
+      "enforcement": "active",
+      "id": 18784275,
+      "name": "main-required-checks",
+      "updated_at": "2026-07-11T11:28:25.380+02:00",
+      "validator_status": "pass"
+    },
+    "merge_commit": "085063c522b54d484c0356518c79c74c5e703995",
+    "merge_tree": "51a9928ba49154f1703b6cb7b0d3efc79fe174cf",
+    "post_merge_main": {
+      "ai_context_guard": "success",
+      "browser_tests": "success",
+      "codeql": "success",
+      "lenskit_codeql_policy_python": "success",
+      "pytest_full": "success",
+      "test_suite_run_id": 29147600000,
+      "webui_js_tests": "success"
+    },
+    "pr_browser_job": {
+      "browser_tests_failed": 0,
+      "browser_tests_passed": 10,
+      "chromium_version": "149.0.7827.55",
+      "conclusion": "success",
+      "head_sha": "8ddc25477753476474b58b51827a8bb335b85816",
+      "run_id": 29147481523,
+      "runtime_smoke": "success"
+    },
+    "task_status": "done"
   },
   "selected_contract": {
     "browser_root": "/ms-playwright",

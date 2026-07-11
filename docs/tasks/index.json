@@ -1519,8 +1519,8 @@
     {
       "id": "TASK-LENSKIT-AUDIT-BROWSER-GATE-001",
       "title": "Lenskit Reproducible Playwright Browser Gate",
-      "status": "in_progress",
-      "description": "A digest-pinned Playwright 1.61.0 container, pytest-playwright 0.8.0 compatible with pytest 9, an explicit Chromium runtime smoke, all ten browser flows, failure diagnostics and workflow-container digest ratchets are implemented. The ruleset policy includes browser-tests, but live enforcement is intentionally deferred until the PR job and post-merge main job have both passed.",
+      "status": "done",
+      "description": "Closed with runtime evidence. The browser dependency conflict is removed, the official Playwright 1.61.0 container is digest-pinned, Chromium startup is checked, all ten browser flows run in the dedicated browser-tests job, and mutable workflow container images are ratcheted. PR run 29147481523 and post-merge Main run 29147600000 passed. Active ruleset 18784275 now requires browser-tests and validates against repository policy.",
       "evidence": [
         "docs/proofs/lenskit-browser-gate-v1-proof.md",
         "docs/diagnostics/lenskit-browser-gate-20260711.json",
@@ -1533,10 +1533,7 @@
         "config/github-main-required-checks.v1.json"
       ],
       "missing_evidence": [
-        "The browser-tests job has not yet passed on the final GitHub PR head.",
-        "The browser-tests job has not yet passed on the post-merge main commit.",
-        "Active ruleset 18784275 does not yet require browser-tests; update is deferred until the main runtime proof exists.",
-        "This task does not establish complete transitive Python locking, container-content safety, cross-browser compatibility, visual completeness, test completeness, regression absence, or release readiness."
+        "This task does not establish complete transitive Python locking, container-content safety, cross-browser compatibility, complete interaction or visual coverage, test completeness, regression absence, runtime correctness outside the measured Chromium path, or release readiness."
       ]
     },
     {
