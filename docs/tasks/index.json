@@ -1578,7 +1578,8 @@
         "docs/release/release-policy.md",
         "docs/release/upgrade-rollback.md",
         "merger/lenskit/contracts/repobrief-release-candidate.v1.schema.json",
-        ".github/workflows/test-suite.yml"
+        ".github/workflows/test-suite.yml",
+        "docs/proofs/repobrief-release-packaging-v1-proof.md"
       ],
       "missing_evidence": [
         "PR and main release-candidate jobs have not been observed yet.",
