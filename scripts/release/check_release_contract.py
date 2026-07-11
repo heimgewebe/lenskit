@@ -150,10 +150,27 @@ def _check_workflows(root: Path) -> list[dict[str, str]]:
                         )
                     )
 
-        if "\njobs:" not in text:
+        jobs_match = re.search(r"(?m)^jobs:\s*$", text)
+        if jobs_match is None:
             continue
-        header, jobs = text.split("\njobs:", 1)
+        header = text[: jobs_match.start()]
+        jobs = text[jobs_match.end() :]
         used_locks = set(re.findall(lock_pattern, jobs))
+        if used_locks:
+            python_versions = set(
+                re.findall(
+                    r"python-version:\s*[\"']?([^\"'\s]+)", jobs
+                )
+            )
+            if python_versions != {"3.12"}:
+                findings.append(
+                    _finding(
+                        "WORKFLOW_LOCK_PYTHON_MISMATCH",
+                        relative,
+                        "RepoBrief locks require exactly Python 3.12; "
+                        f"observed={sorted(python_versions)!r}",
+                    )
+                )
         blocks = _path_filter_blocks(header)
         for block_number, block in enumerate(blocks, 1):
             for lock in sorted(used_locks - block):

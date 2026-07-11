@@ -302,3 +302,52 @@ def test_release_contract_requires_lock_in_path_filters(tmp_path: Path) -> None:
     report = scan(repo)
     codes = {item["code"] for item in report["findings"]}
     assert "WORKFLOW_LOCK_TRIGGER_MISSING" in codes
+
+
+def test_release_contract_rejects_lock_python_mismatch(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    for relative in (
+        "CHANGELOG.md",
+        "docs/release/licensing.md",
+        "docs/release/release-policy.md",
+        "docs/release/upgrade-rollback.md",
+        "scripts/release/build_release_candidate.py",
+        "scripts/release/verify_release_candidate.py",
+        "scripts/release/compile_dependency_locks.sh",
+        "requirements/repobrief-runtime.in",
+        "requirements/repobrief-dev.in",
+        "requirements/repobrief-browser.in",
+        "requirements/repobrief-lock-tools.in",
+    ):
+        path = repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("2.4.0-rc.1\n", encoding="utf-8")
+    (repo / "CHANGELOG.md").write_text("## [2.4.0-rc.1]\n", encoding="utf-8")
+    (repo / "docs/tasks").mkdir(parents=True)
+    (repo / "docs/tasks/index.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {"id": "TASK-LENSKIT-SEMANTIC-LOCK-001"},
+                    {"id": "TASK-REPOBRIEF-PUBLIC-LICENSE-DECISION-001"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    workflows = repo / ".github/workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "python-mismatch.yml").write_text(
+        "jobs:\n"
+        "  test:\n"
+        "    steps:\n"
+        "      - uses: actions/setup-python@deadbeef\n"
+        "        with:\n"
+        "          python-version: '3.10'\n"
+        "      - run: python -m pip install --require-hashes "
+        "-r requirements/repobrief-dev.lock.txt\n",
+        encoding="utf-8",
+    )
+    report = scan(repo)
+    codes = {item["code"] for item in report["findings"]}
+    assert "WORKFLOW_LOCK_PYTHON_MISMATCH" in codes
