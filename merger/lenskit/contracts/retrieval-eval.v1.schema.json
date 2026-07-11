@@ -81,6 +81,31 @@
           "description": "Number of queries where at least one expected path was found in the top-k results.",
           "minimum": 0
         },
+        "question_hits": {
+          "type": "integer",
+          "description": "Number of benchmark questions with at least one expected target in top-k.",
+          "minimum": 0
+        },
+        "question_misses": {
+          "type": "integer",
+          "description": "Number of benchmark questions without an expected target in top-k.",
+          "minimum": 0
+        },
+        "expected_target_total": {
+          "type": "integer",
+          "description": "Total independently expected paths or symbols across benchmark questions.",
+          "minimum": 0
+        },
+        "expected_target_hits": {
+          "type": "integer",
+          "description": "Expected targets independently found in top-k.",
+          "minimum": 0
+        },
+        "expected_target_misses": {
+          "type": "integer",
+          "description": "Expected targets independently missing from top-k.",
+          "minimum": 0
+        },
         "stale_flag": {
           "type": "boolean",
           "description": "True if the index was stale during evaluation."
@@ -130,6 +155,18 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 1
+              },
+              "expected_target_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expected_target_hits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expected_target_misses": {
+                "type": "integer",
+                "minimum": 0
               }
             },
             "patternProperties": {
@@ -139,6 +176,16 @@
                 "maximum": 100
               },
               "^semantic_recall@\\d+$": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "^question_recall@\\d+$": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "^expected_target_recall@\\d+$": {
                 "type": "number",
                 "minimum": 0,
                 "maximum": 100
@@ -164,6 +211,18 @@
         "^semantic_recall@\\d+$": {
           "type": "number",
           "description": "Semantic Recall at K.",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "^question_recall@\\d+$": {
+          "type": "number",
+          "description": "Question-level recall percentage: a question is a hit when any expected target is retrieved.",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "^expected_target_recall@\\d+$": {
+          "type": "number",
+          "description": "Expected-target recall percentage: every expected path or symbol is counted independently.",
           "minimum": 0,
           "maximum": 100
         }
@@ -613,8 +672,180 @@
         }
       },
       "required": ["version", "authority", "risk_class", "classification_basis", "does_not_prove", "aggregate"]
+    },
+    "benchmark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scope",
+        "canonical",
+        "query_source",
+        "query_source_sha256",
+        "validation_status",
+        "evaluation_mode",
+        "default_promotion_allowed",
+        "promotion_status",
+        "promotion_block_reasons",
+        "does_not_establish"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["repository_review_goldset", "generic_example"]
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["repository_specific", "generic_diagnostic_sample"]
+        },
+        "canonical": {"type": "boolean"},
+        "query_source": {"type": "string", "minLength": 1},
+        "query_source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version"],
+          "properties": {
+            "id": {"type": "string", "const": "review-retrieval-goldset"},
+            "version": {"type": "string", "const": "v1"}
+          }
+        },
+        "validation_status": {
+          "type": "string",
+          "enum": ["pass", "not_applicable"]
+        },
+        "evaluation_mode": {"type": "string", "const": "default_lexical"},
+        "default_promotion_allowed": {"type": "boolean", "const": false},
+        "promotion_status": {"type": "string", "const": "blocked"},
+        "promotion_block_reasons": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "does_not_establish": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"kind": {"const": "repository_review_goldset"}}
+          },
+          "then": {
+            "required": ["contract"],
+            "properties": {
+              "scope": {"const": "repository_specific"},
+              "canonical": {"const": true},
+              "validation_status": {"const": "pass"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"kind": {"const": "generic_example"}}
+          },
+          "then": {
+            "not": {"required": ["contract"]},
+            "properties": {
+              "scope": {"const": "generic_diagnostic_sample"},
+              "canonical": {"const": false},
+              "validation_status": {"const": "not_applicable"}
+            }
+          }
+        }
+      ]
+    },
+    "review_measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "metrics",
+        "categories",
+        "acceptance",
+        "miss_taxonomy_summary",
+        "miss_diagnostics",
+        "does_not_establish"
+      ],
+      "properties": {
+        "version": {"type": "string", "const": "1.1"},
+        "metrics": {"type": "object", "additionalProperties": true},
+        "categories": {
+          "type": "object",
+          "additionalProperties": {"type": "object"}
+        },
+        "acceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "criterion",
+            "evaluated_queries",
+            "passed_queries",
+            "failed_queries",
+            "status",
+            "does_not_allow_default_promotion"
+          ],
+          "properties": {
+            "criterion": {"type": "string", "pattern": "^recall_at_\\d+$"},
+            "evaluated_queries": {"type": "integer", "minimum": 0},
+            "passed_queries": {"type": "integer", "minimum": 0},
+            "failed_queries": {"type": "integer", "minimum": 0},
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "not_evaluated"]
+            },
+            "does_not_allow_default_promotion": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "miss_taxonomy_summary": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "miss_diagnostics": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "does_not_establish": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["benchmark"],
+        "properties": {
+          "benchmark": {
+            "properties": {"kind": {"const": "repository_review_goldset"}}
+          }
+        }
+      },
+      "then": {"required": ["review_measurement"]}
+    },
+    {
+      "if": {
+        "required": ["benchmark"],
+        "properties": {
+          "benchmark": {
+            "properties": {"kind": {"const": "generic_example"}}
+          }
+        }
+      },
+      "then": {"not": {"required": ["review_measurement"]}}
+    }
+  ],
   "required": [
     "metrics",
     "details",

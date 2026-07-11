@@ -5095,7 +5095,10 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
 
     try:
         from ..retrieval.index_db import build_index
-        from ..retrieval.eval_core import do_eval
+        from ..retrieval.review_eval import (
+            SnapshotRetrievalMeasurementError,
+            run_snapshot_retrieval_evaluation,
+        )
 
         sqlite_index_path = chunk_path.with_suffix(".index.sqlite")
         try:
@@ -5106,17 +5109,40 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
             build_index(dump_path=dump_index_path, chunk_path=chunk_path, db_path=sqlite_index_path, config_payload=config_payload)
             derived_paths.append(sqlite_index_path)
 
-            # Evaluate
+            # Evaluate. A repository-local review goldset is canonical; the
+            # generic sample is retained only as an explicitly noncanonical
+            # diagnostic fallback. The established lexical ranking remains the
+            # measured default.
             eval_json_path = base_name_func(part_suffix="").with_suffix(".retrieval_eval.json")
-            queries_path = hub_path / "docs" / "retrieval" / "queries.md"
-            if not queries_path.exists():
-                queries_path = Path("docs/retrieval/queries.md")
+            generic_queries_path = hub_path / "docs" / "retrieval" / "queries.md"
+            if not generic_queries_path.exists():
+                generic_queries_path = (
+                    Path(__file__).resolve().parents[3]
+                    / "docs"
+                    / "retrieval"
+                    / "queries.md"
+                )
+            repo_root = None
+            if repo_summaries and len(repo_summaries) == 1:
+                repo_root = Path(repo_summaries[0]["root"])
 
-            if queries_path.exists():
-                eval_res = do_eval(sqlite_index_path, queries_path, k=10, is_json_mode=True)
-                if eval_res:
-                    eval_json_path.write_text(json.dumps(eval_res, indent=2), encoding="utf-8")
-                    derived_paths.append(eval_json_path)
+            eval_res = run_snapshot_retrieval_evaluation(
+                sqlite_index_path,
+                repo_root=repo_root,
+                generic_queries_path=(
+                    generic_queries_path if generic_queries_path.exists() else None
+                ),
+                k=10,
+                chunk_index_path=chunk_path,
+            )
+            if eval_res:
+                eval_json_path.write_text(
+                    json.dumps(eval_res, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+                derived_paths.append(eval_json_path)
+        except SnapshotRetrievalMeasurementError:
+            raise
         except Exception as e:
             if debug:
                 print(f"Error building derived index or evaluating: {e}", file=sys.stderr)

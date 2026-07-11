@@ -9,6 +9,7 @@ quality and none implies a ranking improvement.
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from merger.lenskit.retrieval import index_db
@@ -24,6 +25,8 @@ from merger.lenskit.retrieval.review_eval import (
     load_review_queries,
     normalize_review_queries,
     run_review_retrieval_baseline,
+    run_snapshot_retrieval_evaluation,
+    SnapshotRetrievalMeasurementError,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -487,6 +490,217 @@ def test_baseline_doc_states_boundaries():
     assert "goldset_self_reference" in text
     assert "does not establish a ranking improvement" in text
 
+
+
+# --- snapshot benchmark selection / promotion boundary ---------------------
+
+
+def _copy_canonical_goldset(repo_root: Path) -> Path:
+    target = repo_root / "docs/retrieval/review_queries.v1.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(REVIEW_QUERIES_PATH.read_bytes())
+    return target
+
+
+def _generic_queries(path: Path) -> Path:
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "query": "find the cli eval entrypoint",
+                    "category": "cli",
+                    "expected_patterns": ["merger/lenskit/cli/cmd_eval.py"],
+                    "filters": {},
+                    "accept_criteria": {"recall_at_10": 0.1},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_snapshot_uses_repository_goldset_and_separates_recall(tmp_path):
+    repo_root = tmp_path / "repo"
+    _copy_canonical_goldset(repo_root)
+    db_path = _mini_index(tmp_path)
+    generic = _generic_queries(tmp_path / "generic.json")
+
+    report = run_snapshot_retrieval_evaluation(
+        db_path,
+        repo_root=repo_root,
+        generic_queries_path=generic,
+        k=10,
+    )
+
+    assert report is not None
+    benchmark = report["benchmark"]
+    assert benchmark["kind"] == "repository_review_goldset"
+    assert benchmark["scope"] == "repository_specific"
+    assert benchmark["canonical"] is True
+    assert benchmark["evaluation_mode"] == "default_lexical"
+    assert benchmark["default_promotion_allowed"] is False
+    assert benchmark["promotion_status"] == "blocked"
+    assert "review_intent" not in report.get("measurement_conditions", {})
+
+    metrics = report["metrics"]
+    assert metrics["question_recall@10"] == metrics["recall@10"]
+    assert metrics["question_hits"] + metrics["question_misses"] == 20
+    assert (
+        metrics["expected_target_hits"] + metrics["expected_target_misses"]
+        == metrics["expected_target_total"]
+    )
+    assert "expected_target_recall@10" in metrics
+    assert report["review_measurement"]["acceptance"][
+        "does_not_allow_default_promotion"
+    ] is True
+
+    schema = json.loads(
+        (REPO_ROOT / "merger/lenskit/contracts/retrieval-eval.v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    jsonschema.validate(instance=report, schema=schema)
+
+
+def test_snapshot_generic_fallback_is_explicitly_noncanonical(tmp_path):
+    repo_root = tmp_path / "repo-without-goldset"
+    repo_root.mkdir()
+    report = run_snapshot_retrieval_evaluation(
+        _mini_index(tmp_path),
+        repo_root=repo_root,
+        generic_queries_path=_generic_queries(tmp_path / "generic.json"),
+        k=10,
+    )
+
+    assert report is not None
+    benchmark = report["benchmark"]
+    assert benchmark["kind"] == "generic_example"
+    assert benchmark["scope"] == "generic_diagnostic_sample"
+    assert benchmark["canonical"] is False
+    assert benchmark["default_promotion_allowed"] is False
+    assert "repository_specific_goldset_missing" in benchmark[
+        "promotion_block_reasons"
+    ]
+    assert "review_measurement" not in report
+
+    schema = json.loads(
+        (REPO_ROOT / "merger/lenskit/contracts/retrieval-eval.v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    jsonschema.validate(instance=report, schema=schema)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_message"),
+    [
+        ({"canonical": False}, "True was expected"),
+        ({"scope": "generic_diagnostic_sample"}, "repository_specific"),
+        ({"validation_status": "not_applicable"}, "pass"),
+    ],
+)
+def test_retrieval_schema_rejects_contradictory_canonical_benchmark(
+    tmp_path, mutation, expected_message
+):
+    repo_root = tmp_path / "repo"
+    _copy_canonical_goldset(repo_root)
+    report = run_snapshot_retrieval_evaluation(
+        _mini_index(tmp_path),
+        repo_root=repo_root,
+        generic_queries_path=_generic_queries(tmp_path / "generic.json"),
+        k=10,
+    )
+    assert report is not None
+    report["benchmark"].update(mutation)
+    schema = json.loads(
+        (REPO_ROOT / "merger/lenskit/contracts/retrieval-eval.v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    with pytest.raises(jsonschema.ValidationError, match=expected_message):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_retrieval_schema_requires_review_measurement_for_canonical_benchmark(
+    tmp_path,
+):
+    repo_root = tmp_path / "repo"
+    _copy_canonical_goldset(repo_root)
+    report = run_snapshot_retrieval_evaluation(
+        _mini_index(tmp_path),
+        repo_root=repo_root,
+        generic_queries_path=_generic_queries(tmp_path / "generic.json"),
+        k=10,
+    )
+    assert report is not None
+    report.pop("review_measurement")
+    schema = json.loads(
+        (REPO_ROOT / "merger/lenskit/contracts/retrieval-eval.v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=report, schema=schema)
+
+
+def test_invalid_canonical_goldset_fails_without_generic_fallback(
+    tmp_path, monkeypatch
+):
+    repo_root = tmp_path / "repo"
+    goldset = repo_root / "docs/retrieval/review_queries.v1.json"
+    goldset.parent.mkdir(parents=True)
+    goldset.write_text("[]", encoding="utf-8")
+    generic = _generic_queries(tmp_path / "generic.json")
+
+    def unexpected_eval(*args, **kwargs):
+        raise AssertionError("generic fallback must not run")
+
+    monkeypatch.setattr(
+        "merger.lenskit.retrieval.review_eval.do_eval", unexpected_eval
+    )
+    with pytest.raises(
+        SnapshotRetrievalMeasurementError, match="canonical_goldset_invalid"
+    ) as caught:
+        run_snapshot_retrieval_evaluation(
+            tmp_path / "unused.sqlite",
+            repo_root=repo_root,
+            generic_queries_path=generic,
+            k=10,
+        )
+    assert caught.value.code == "canonical_goldset_invalid"
+
+
+def test_baseline_reports_category_and_query_target_coverage():
+    queries = []
+    for idx, detail in enumerate(_synthetic_eval_results()["details"], start=1):
+        queries.append(
+            {
+                "query_id": f"RQ-{idx:02d}",
+                "query": detail["query"],
+                "category": detail["category"],
+                "expected_targets": detail["expected"],
+                "filters": {},
+                "accept_criteria": {"recall_at_10": 0.5},
+            }
+        )
+    baseline = build_review_retrieval_baseline(
+        _synthetic_eval_results(), k=10, review_queries=queries
+    )
+
+    assert baseline["metrics"]["question_recall@10"] == 50.0
+    assert baseline["metrics"]["expected_target_recall@10"] == 40.0
+    assert baseline["categories"]["cli"]["expected_target_total"] == 3
+    assert baseline["categories"]["cli"]["expected_target_hits"] == 1
+    assert baseline["categories"]["security"]["expected_target_recall@10"] == 50.0
+    assert baseline["acceptance"] == {
+        "criterion": "recall_at_10",
+        "evaluated_queries": 4,
+        "passed_queries": 2,
+        "failed_queries": 2,
+        "status": "fail",
+        "does_not_allow_default_promotion": True,
+    }
 
 def test_unknown_diagnosis_fallback():
     class _UnknownDiagnosisCalibrator:
