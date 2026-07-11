@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -8,6 +9,7 @@ from merger.lenskit.architecture.bundle_sources import BundleGraphSourceError
 from merger.lenskit.architecture.graph_index import GraphIndexCompilationError
 from merger.lenskit.core.constants import ArtifactRole
 from merger.lenskit.core.merge import build_derived_artifacts
+from merger.lenskit.retrieval.review_eval import SnapshotRetrievalMeasurementError
 
 
 def _source_documents(run_id: str, sha256: str):
@@ -215,3 +217,46 @@ def test_graph_bundle_propagates_source_production_failure(tmp_path, monkeypatch
         build_derived_artifacts(**args)
 
     assert not base.with_suffix(".graph_index.json").exists()
+
+
+def test_derived_snapshot_prefers_repository_review_goldset(tmp_path):
+    base, _, args = _setup(tmp_path)
+    repo_root = tmp_path / "repo1"
+    goldset = repo_root / "docs/retrieval/review_queries.v1.json"
+    goldset.parent.mkdir(parents=True)
+    source_goldset = (
+        Path(__file__).resolve().parents[3]
+        / "docs/retrieval/review_queries.v1.json"
+    )
+    goldset.write_bytes(source_goldset.read_bytes())
+    args["repo_summaries"] = [{"root": repo_root, "name": "repo1"}]
+
+    derived_paths = build_derived_artifacts(**args)
+
+    eval_path = base.with_suffix(".retrieval_eval.json")
+    assert eval_path in derived_paths
+    report = json.loads(eval_path.read_text(encoding="utf-8"))
+    assert report["benchmark"]["canonical"] is True
+    assert report["benchmark"]["query_source"] == (
+        "docs/retrieval/review_queries.v1.json"
+    )
+    assert report["benchmark"]["evaluation_mode"] == "default_lexical"
+    assert report["benchmark"]["default_promotion_allowed"] is False
+    assert report["metrics"]["question_hits"] + report["metrics"][
+        "question_misses"
+    ] == 20
+    assert "expected_target_recall@10" in report["metrics"]
+
+
+def test_derived_snapshot_does_not_swallow_invalid_canonical_goldset(tmp_path):
+    _, _, args = _setup(tmp_path)
+    repo_root = tmp_path / "repo1"
+    goldset = repo_root / "docs/retrieval/review_queries.v1.json"
+    goldset.parent.mkdir(parents=True)
+    goldset.write_text("[]", encoding="utf-8")
+    args["repo_summaries"] = [{"root": repo_root, "name": "repo1"}]
+
+    with pytest.raises(
+        SnapshotRetrievalMeasurementError, match="canonical_goldset_invalid"
+    ):
+        build_derived_artifacts(**args)

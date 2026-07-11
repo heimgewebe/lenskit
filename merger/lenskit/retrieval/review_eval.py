@@ -21,6 +21,7 @@ Boundaries (see DOES_NOT_ESTABLISH):
 - recall@k does not prove ranking sufficiency or review completeness.
 """
 
+import hashlib
 import json
 import re
 from pathlib import Path, PurePosixPath
@@ -43,6 +44,21 @@ DOES_NOT_ESTABLISH: Tuple[str, ...] = (
 )
 
 GOLDSET_SELF_REFERENCE_REASON = "goldset_self_reference"
+CANONICAL_REVIEW_GOLDSET = Path("docs/retrieval/review_queries.v1.json")
+GOLDSET_CONTRACT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "contracts"
+    / "review-retrieval-goldset.v1.schema.json"
+)
+
+
+class SnapshotRetrievalMeasurementError(RuntimeError):
+    """Fail-closed error for an invalid canonical snapshot benchmark."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(f"{code}: {message}")
+        self.code = code
+
 
 # Path-shape heuristics mirror the static goldset guard
 # (merger/lenskit/tests/test_review_retrieval_goldset.py) so target-kind labeling
@@ -214,6 +230,10 @@ def _find_target_rank(
     return False, None, None
 
 
+def _percentage(hits: int, total: int) -> float:
+    return round((hits / total) * 100.0, 6) if total else 0.0
+
+
 def build_review_retrieval_baseline(
     eval_results: Dict[str, Any],
     *,
@@ -221,19 +241,21 @@ def build_review_retrieval_baseline(
     calibrator: Optional[RetrievalEvalDiagnosticsCalibrator] = None,
     goldset_path: Optional[Path] = None,
     path_exclusions: Optional[List[Dict[str, str]]] = None,
+    review_queries: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """Build the review retrieval baseline from ``eval_core.do_eval`` output.
+    """Build review-specific aggregates from ``eval_core.do_eval`` output.
 
-    The returned dict carries reproducible metrics, per-expected-target hit
-    reporting, miss diagnostics reconciled with the existing taxonomy, and
-    explicit inference boundaries. Retrieval metrics are taken verbatim from the
-    eval output; this function adds review-specific aggregation and per-target
-    reporting only.
+    Question recall and expected-target recall are deliberately separate. A
+    question counts as a hit when any expected target is retrieved; target
+    recall counts each expected path or symbol independently.
     """
     metrics_in = eval_results.get("metrics", {}) or {}
     details = eval_results.get("details", []) or []
     resolved_k = k if k is not None else _infer_k(metrics_in, fallback=10)
     recall_key = f"recall@{resolved_k}"
+    question_recall_key = f"question_recall@{resolved_k}"
+    target_recall_key = f"expected_target_recall@{resolved_k}"
+    criterion_key = f"recall_at_{resolved_k}"
     normalized_path_exclusions = _normalize_path_exclusion_records(path_exclusions)
     if normalized_path_exclusions:
         observed_excluded_paths = normalize_excluded_paths(
@@ -247,17 +269,26 @@ def build_review_retrieval_baseline(
                 "baseline exclusion provenance does not match eval conditions"
             )
 
+    normalized_queries = review_queries
+    if normalized_queries is None and goldset_path is not None and Path(goldset_path).is_file():
+        normalized_queries = load_review_queries(Path(goldset_path))
+    if normalized_queries is not None and len(normalized_queries) != len(details):
+        raise ValueError("review goldset query count does not match eval details")
+
     if calibrator is None:
         calibrator = RetrievalEvalDiagnosticsCalibrator()
 
     taxonomy_summary: Dict[str, int] = {
         diagnosis: 0 for diagnosis in sorted(DiagnosticsRecord.PRIMARY_DIAGNOSES)
     }
-
     query_records: List[Dict[str, Any]] = []
     miss_diagnostics: List[Dict[str, Any]] = []
     expected_target_total = 0
     expected_target_hits = 0
+    acceptance_passed = 0
+    acceptance_failed = 0
+    acceptance_evaluated = 0
+    category_targets: Dict[str, Dict[str, int]] = {}
 
     for idx, detail in enumerate(details, start=1):
         query_id = f"RQ-{idx:02d}"
@@ -267,18 +298,27 @@ def build_review_retrieval_baseline(
         top_results = detail.get("top_results", []) or []
         found_count = detail.get("found_count", 0)
         query_had_zero_hits = found_count == 0 or len(top_results) == 0
+        query_spec = normalized_queries[idx - 1] if normalized_queries is not None else None
+        if query_spec is not None:
+            if query_spec.get("query") != query_text:
+                raise ValueError(f"review goldset query #{idx} does not match eval detail")
+            if list(query_spec.get("expected_targets", [])) != list(expected):
+                raise ValueError(f"review goldset targets #{idx} do not match eval detail")
 
         target_records: List[Dict[str, Any]] = []
+        query_target_hits = 0
+        cat_targets = category_targets.setdefault(category, {"total": 0, "hits": 0})
         for raw_target in expected:
             target = str(raw_target)
             expected_target_total += 1
+            cat_targets["total"] += 1
             found, rank, matched = _find_target_rank(target, top_results)
             in_top_k = found and rank is not None and rank <= resolved_k
             if in_top_k:
                 expected_target_hits += 1
+                query_target_hits += 1
+                cat_targets["hits"] += 1
 
-            # Diagnose every target through the existing taxonomy. Hits resolve to
-            # "target_in_top_k"; misses fall into the existing miss categories.
             record = calibrator.diagnose_miss(
                 query_id=query_id,
                 query_text=query_text,
@@ -292,49 +332,82 @@ def build_review_retrieval_baseline(
             if diagnosis not in DiagnosticsRecord.PRIMARY_DIAGNOSES:
                 diagnosis = "diagnostic_inconclusive"
             taxonomy_summary[diagnosis] = taxonomy_summary.get(diagnosis, 0) + 1
-
-            target_records.append(
-                {
-                    "target": target,
-                    "target_kind": classify_target_kind(target),
-                    "found": in_top_k,
-                    "rank": rank if in_top_k else None,
-                    "matched_result": matched if in_top_k else None,
-                    "diagnosis": diagnosis,
-                }
-            )
+            target_records.append({
+                "target": target,
+                "target_kind": classify_target_kind(target),
+                "found": in_top_k,
+                "rank": rank if in_top_k else None,
+                "matched_result": matched if in_top_k else None,
+                "diagnosis": diagnosis,
+            })
             if not in_top_k:
                 diagnostic_record = record.to_dict()
                 diagnostic_record["primary_diagnosis"] = diagnosis
                 miss_diagnostics.append(diagnostic_record)
 
-        query_records.append(
-            {
-                "query_id": query_id,
-                "query": query_text,
-                "category": category,
-                "top_k": resolved_k,
-                "query_had_zero_hits": query_had_zero_hits,
-                "expected_targets": target_records,
-            }
-        )
+        query_target_total = len(expected)
+        observed_ratio = (query_target_hits / query_target_total) if query_target_total else 0.0
+        acceptance = None
+        if query_spec is not None:
+            raw_threshold = (query_spec.get("accept_criteria") or {}).get(criterion_key)
+            if isinstance(raw_threshold, (int, float)):
+                passed = observed_ratio >= float(raw_threshold)
+                acceptance_evaluated += 1
+                acceptance_passed += int(passed)
+                acceptance_failed += int(not passed)
+                acceptance = {
+                    "criterion": criterion_key,
+                    "required_ratio": float(raw_threshold),
+                    "observed_ratio": round(observed_ratio, 6),
+                    "status": "pass" if passed else "fail",
+                }
+
+        query_record = {
+            "query_id": query_id,
+            "query": query_text,
+            "category": category,
+            "top_k": resolved_k,
+            "query_had_zero_hits": query_had_zero_hits,
+            "question_hit": bool(detail.get("is_relevant", False)),
+            "reciprocal_rank": float(detail.get("rr", 0.0) or 0.0),
+            "expected_target_total": query_target_total,
+            "expected_target_hits": query_target_hits,
+            "expected_target_misses": query_target_total - query_target_hits,
+            target_recall_key: _percentage(query_target_hits, query_target_total),
+            "expected_targets": target_records,
+        }
+        if acceptance is not None:
+            query_record["acceptance"] = acceptance
+        query_records.append(query_record)
 
     categories: Dict[str, Dict[str, Any]] = {}
     for cat, stats in (metrics_in.get("categories", {}) or {}).items():
-        total = stats.get("total_queries", 0)
-        hits = stats.get("base_hits", stats.get("hits", 0))
+        total = int(stats.get("total_queries", 0) or 0)
+        hits = int(stats.get("base_hits", stats.get("hits", 0)) or 0)
+        target_stats = category_targets.get(cat, {"total": 0, "hits": 0})
         categories[cat] = {
             "total_queries": total,
             "hits": hits,
             "misses": total - hits,
             recall_key: stats.get(recall_key, 0.0),
+            question_recall_key: stats.get(recall_key, 0.0),
             "MRR": stats.get("MRR", 0.0),
+            "expected_target_total": target_stats["total"],
+            "expected_target_hits": target_stats["hits"],
+            "expected_target_misses": target_stats["total"] - target_stats["hits"],
+            target_recall_key: _percentage(target_stats["hits"], target_stats["total"]),
         }
 
-    total_queries = metrics_in.get("total_queries", len(details))
-
+    total_queries = int(metrics_in.get("total_queries", len(details)) or 0)
+    question_hits_raw = metrics_in.get("hits")
+    if question_hits_raw is None:
+        question_hits = round(
+            total_queries * float(metrics_in.get(recall_key, 0.0) or 0.0) / 100.0
+        )
+    else:
+        question_hits = int(question_hits_raw or 0)
     baseline = {
-        "version": "1.0",
+        "version": "1.1",
         "authority": "diagnostic_signal",
         "risk_class": "diagnostic",
         "goldset": {
@@ -344,15 +417,31 @@ def build_review_retrieval_baseline(
         "k": resolved_k,
         "metrics": {
             "total_queries": total_queries,
+            "question_hits": question_hits,
+            "question_misses": total_queries - question_hits,
             recall_key: metrics_in.get(recall_key, 0.0),
+            question_recall_key: metrics_in.get(recall_key, 0.0),
             "MRR": metrics_in.get("MRR", 0.0),
             "zero_hit_ratio": metrics_in.get("zero_hit_ratio", 0.0),
             "expected_target_total": expected_target_total,
             "expected_target_hits": expected_target_hits,
             "expected_target_misses": expected_target_total - expected_target_hits,
+            target_recall_key: _percentage(expected_target_hits, expected_target_total),
         },
         "categories": categories,
         "queries": query_records,
+        "acceptance": {
+            "criterion": criterion_key,
+            "evaluated_queries": acceptance_evaluated,
+            "passed_queries": acceptance_passed,
+            "failed_queries": acceptance_failed,
+            "status": (
+                "not_evaluated"
+                if acceptance_evaluated == 0
+                else "pass" if acceptance_failed == 0 else "fail"
+            ),
+            "does_not_allow_default_promotion": True,
+        },
         "miss_taxonomy_summary": taxonomy_summary,
         "miss_diagnostics": miss_diagnostics,
         "does_not_establish": list(DOES_NOT_ESTABLISH),
@@ -380,15 +469,206 @@ def build_review_retrieval_baseline(
             ],
         })
     if review_condition:
-        baseline["measurement_conditions"]["review_intent"] = dict(
-            review_condition
-        )
+        baseline["measurement_conditions"]["review_intent"] = dict(review_condition)
         baseline["does_not_establish"].extend([
             "Review-intent metrics do not establish improvement for unmeasured query classes.",
             "This opt-in baseline does not establish readiness for default promotion.",
         ])
     return baseline
 
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_canonical_goldset(path: Path) -> List[Dict[str, Any]]:
+    try:
+        import jsonschema
+    except ImportError as exc:
+        raise SnapshotRetrievalMeasurementError(
+            "canonical_validation_unavailable",
+            "jsonschema is required when the canonical review goldset is present",
+        ) from exc
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        schema = json.loads(GOLDSET_CONTRACT_PATH.read_text(encoding="utf-8"))
+        jsonschema.Draft7Validator.check_schema(schema)
+        jsonschema.validate(instance=raw, schema=schema)
+        return normalize_review_queries(raw)
+    except (OSError, ValueError, json.JSONDecodeError, jsonschema.SchemaError, jsonschema.ValidationError) as exc:
+        raise SnapshotRetrievalMeasurementError(
+            "canonical_goldset_invalid", str(exc)
+        ) from exc
+
+
+def _enrich_snapshot_report(
+    report: Dict[str, Any],
+    baseline: Dict[str, Any],
+    *,
+    benchmark: Dict[str, Any],
+) -> Dict[str, Any]:
+    metrics = report.setdefault("metrics", {})
+    baseline_metrics = baseline["metrics"]
+    for key in (
+        "question_hits",
+        "question_misses",
+        f"question_recall@{baseline['k']}",
+        "expected_target_total",
+        "expected_target_hits",
+        "expected_target_misses",
+        f"expected_target_recall@{baseline['k']}",
+    ):
+        metrics[key] = baseline_metrics[key]
+    for category, additions in baseline["categories"].items():
+        metrics.setdefault("categories", {}).setdefault(category, {}).update({
+            key: value
+            for key, value in additions.items()
+            if key.startswith("expected_target_") or key.startswith("question_recall@")
+        })
+    for detail, query_record in zip(report.get("details", []), baseline["queries"]):
+        detail.update({
+            "question_hit": query_record["question_hit"],
+            "expected_target_total": query_record["expected_target_total"],
+            "expected_target_hits": query_record["expected_target_hits"],
+            "expected_target_misses": query_record["expected_target_misses"],
+            f"expected_target_recall@{baseline['k']}": query_record[f"expected_target_recall@{baseline['k']}"],
+            "expected_targets": query_record["expected_targets"],
+        })
+        if "acceptance" in query_record:
+            detail["acceptance"] = query_record["acceptance"]
+    report["benchmark"] = benchmark
+    report["review_measurement"] = {
+        "version": baseline["version"],
+        "metrics": baseline_metrics,
+        "categories": baseline["categories"],
+        "acceptance": baseline["acceptance"],
+        "miss_taxonomy_summary": baseline["miss_taxonomy_summary"],
+        "miss_diagnostics": baseline["miss_diagnostics"],
+        "does_not_establish": baseline["does_not_establish"],
+    }
+    report["claim_boundaries"]["does_not_prove"].extend([
+        "Question recall and expected-target recall do not establish review completeness.",
+        "This snapshot measurement does not authorize default retrieval promotion.",
+    ])
+    return report
+
+
+def run_snapshot_retrieval_evaluation(
+    index_path: Path,
+    *,
+    repo_root: Optional[Path],
+    generic_queries_path: Optional[Path],
+    k: int = 10,
+    chunk_index_path: Optional[Path] = None,
+    canonical_path: Optional[Path] = None,
+    citation_path: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    """Run the truthful snapshot benchmark without silently changing ranking.
+
+    A valid repository-local review goldset is canonical. If it exists but is
+    invalid, evaluation fails closed rather than falling back to the generic
+    sample. If no canonical goldset exists, the generic sample remains available
+    but is explicitly noncanonical and cannot support promotion.
+    """
+    resolved_root = Path(repo_root).resolve() if repo_root is not None else None
+    canonical_goldset = (
+        resolved_root / CANONICAL_REVIEW_GOLDSET
+        if resolved_root is not None
+        else None
+    )
+    if canonical_goldset is not None and canonical_goldset.is_file():
+        review_queries = _validate_canonical_goldset(canonical_goldset)
+        excluded_paths, path_exclusions = _resolve_goldset_exclusion(
+            canonical_goldset, resolved_root
+        )
+        try:
+            report = do_eval(
+                Path(index_path),
+                canonical_goldset,
+                k,
+                is_json_mode=True,
+                excluded_paths=excluded_paths,
+                review_intent=False,
+            )
+        except Exception as exc:
+            raise SnapshotRetrievalMeasurementError(
+                "canonical_measurement_failed", str(exc)
+            ) from exc
+        if report is None:
+            raise SnapshotRetrievalMeasurementError(
+                "canonical_measurement_failed", "evaluation returned no report"
+            )
+        calibrator = RetrievalEvalDiagnosticsCalibrator(
+            index_path=Path(chunk_index_path) if chunk_index_path is not None else None,
+            canonical_path=Path(canonical_path) if canonical_path is not None else None,
+            citation_path=Path(citation_path) if citation_path is not None else None,
+        )
+        baseline = build_review_retrieval_baseline(
+            report,
+            k=k,
+            calibrator=calibrator,
+            goldset_path=CANONICAL_REVIEW_GOLDSET,
+            path_exclusions=path_exclusions,
+            review_queries=review_queries,
+        )
+        acceptance_status = baseline["acceptance"]["status"]
+        reasons = ["default_promotion_requires_separate_comparative_decision"]
+        if acceptance_status != "pass":
+            reasons.append("canonical_acceptance_not_met")
+        benchmark = {
+            "kind": "repository_review_goldset",
+            "scope": "repository_specific",
+            "canonical": True,
+            "query_source": CANONICAL_REVIEW_GOLDSET.as_posix(),
+            "query_source_sha256": _sha256(canonical_goldset),
+            "contract": {"id": "review-retrieval-goldset", "version": "v1"},
+            "validation_status": "pass",
+            "evaluation_mode": "default_lexical",
+            "default_promotion_allowed": False,
+            "promotion_status": "blocked",
+            "promotion_block_reasons": reasons,
+            "does_not_establish": [
+                "The canonical benchmark measures only the committed review questions.",
+                "Passing thresholds would not establish review completeness.",
+                "Snapshot diagnostics do not authorize a retrieval implementation change.",
+            ],
+        }
+        return _enrich_snapshot_report(report, baseline, benchmark=benchmark)
+
+    if generic_queries_path is None or not Path(generic_queries_path).is_file():
+        return None
+    generic_path = Path(generic_queries_path)
+    report = do_eval(Path(index_path), generic_path, k, is_json_mode=True)
+    if report is None:
+        return None
+    report["benchmark"] = {
+        "kind": "generic_example",
+        "scope": "generic_diagnostic_sample",
+        "canonical": False,
+        "query_source": generic_path.name,
+        "query_source_sha256": _sha256(generic_path),
+        "validation_status": "not_applicable",
+        "evaluation_mode": "default_lexical",
+        "default_promotion_allowed": False,
+        "promotion_status": "blocked",
+        "promotion_block_reasons": [
+            "repository_specific_goldset_missing",
+            "generic_example_is_not_promotion_evidence",
+        ],
+        "does_not_establish": [
+            "This generic example is diagnostic only.",
+            "It does not measure repository-specific review quality.",
+            "It cannot mask or replace a repository-specific canonical benchmark.",
+        ],
+    }
+    report["claim_boundaries"]["does_not_prove"].append(
+        "The generic example does not establish repository-specific retrieval quality."
+    )
+    return report
 
 def run_review_retrieval_baseline(
     index_path: Path,
