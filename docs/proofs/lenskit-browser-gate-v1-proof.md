@@ -114,3 +114,35 @@ Der Nachweis etabliert keine vollständige transitive Python-Sperrdatei, keine
 Sicherheit des Containerinhalts, keine Cross-Browser-Kompatibilität, keine
 vollständige Interaktions- oder Darstellungsabdeckung, keine Testvollständigkeit,
 keine Regressionsfreiheit und keine Release-Reife.
+
+## Runtime-Closeout
+
+PR #974 wurde mit unverändertem Head
+`8ddc25477753476474b58b51827a8bb335b85816` als Squash-Commit
+`085063c522b54d484c0356518c79c74c5e703995` gemergt. Der Merge-Baum
+`51a9928ba49154f1703b6cb7b0d3efc79fe174cf` entsprach exakt dem geprüften
+Head-Baum.
+
+Der PR-Lauf `29147481523` führte `browser-tests` erfolgreich aus. GitHub zog
+das festgelegte Image am Digest, verifizierte Chromium `149.0.7827.55` und
+meldete zehn bestandene Browser-Flows.
+
+Auf `main` bestand der Test-Suite-Lauf `29147600000` anschließend alle drei
+Jobs:
+
+```text
+browser-tests          success
+pytest-full             success
+webui-js-tests          success
+```
+
+Auch beide CodeQL-Pfade und `ai-context-guard` bestanden auf dem Merge-Commit.
+
+Nach diesem Main-Nachweis wurde Ruleset `18784275` am 11. Juli 2026 um
+`browser-tests` mit Integration-ID `15368` erweitert. Der erneute API-Readback
+zeigte den Check als aktiv verpflichtend; der repositoryeigene
+Ruleset-Validator meldete `pass` ohne Finding.
+
+Damit ist die frühere Lücke geschlossen: Die Browser-Flows werden nicht nur
+vorhanden oder lokal ausführbar genannt, sondern bei zukünftigen Änderungen als
+eigenständiger GitHub-Pflichtcheck ausgeführt.
