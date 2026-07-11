@@ -1423,7 +1423,7 @@
       "id": "TASK-REPOBRIEF-AUDIT-FINAL-CONTROL-001",
       "title": "RepoBrief Final Control Plane v1",
       "status": "done",
-      "description": "Closed by RepoBrief Final Control Plane v1: central profile export semantics, fail-closed snapshot finalization, exact final manifest artifact coverage, post-health mutation detection, preserved typed manifest metadata, and a repaired aggregate ai-context-guard. GitHub ruleset 18784275 now requires ai-context-guard and the live API read-back validates without findings.",
+      "description": "Closed by RepoBrief Final Control Plane v1: central profile export semantics, fail-closed snapshot finalization, exact final manifest artifact coverage, post-health mutation detection, preserved typed manifest metadata, and a repaired aggregate ai-context-guard. GitHub ruleset 18784275 now requires ai-context-guard and the live API read-back validates without findings. A post-merge self-review found and the bounded follow-up TASK-REPOBRIEF-AUDIT-EXPORT-GATE-SEMANTICS-001 closes a non-agent export-gate semantics mismatch.",
       "evidence": [
         "docs/blueprints/lenskit-repobrief-audit-remediation-2026-07.md",
         "docs/proofs/repobrief-final-control-plane-v1-proof.md",
@@ -1434,11 +1434,28 @@
         "merger/lenskit/tests/test_repobrief_snapshot_cli.py",
         ".github/workflows/ai-context-guard.yml",
         "config/github-main-required-checks.v1.json",
-        "https://github.com/heimgewebe/lenskit/rules/18784275"
+        "https://github.com/heimgewebe/lenskit/rules/18784275",
+        "docs/proofs/repobrief-export-gate-profile-semantics-v1-proof.md"
       ],
       "missing_evidence": [
         "No claim truth, repository understanding, test completeness, runtime correctness, complete secret detection, or regression absence is established.",
         "Ruleset read-back proves observed configuration, not future GitHub availability or protection against later administrator changes."
+      ]
+    },
+    {
+      "id": "TASK-REPOBRIEF-AUDIT-EXPORT-GATE-SEMANTICS-001",
+      "title": "RepoBrief Export Gate Profile Semantics v1",
+      "status": "done",
+      "description": "Closed by the PR #964 post-merge remediation: public-share and security-export-review now enforce central redaction and post-emit-health semantics in the export gate instead of deriving those controls only from agent_facing.",
+      "evidence": [
+        "docs/proofs/repobrief-export-gate-profile-semantics-v1-proof.md",
+        "merger/lenskit/core/agent_export_gate.py",
+        "merger/lenskit/core/repobrief_profiles.py",
+        "merger/lenskit/tests/test_agent_export_gate.py",
+        "merger/lenskit/tests/test_repobrief_snapshot_cli.py"
+      ],
+      "missing_evidence": [
+        "No complete secret or PII detection, claim truth, repository understanding, test completeness, runtime correctness, or regression absence is established."
       ]
     },
     {

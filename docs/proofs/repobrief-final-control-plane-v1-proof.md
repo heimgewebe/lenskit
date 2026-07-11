@@ -20,6 +20,20 @@ Exportsemantik aller Snapshotprofile. Exportbericht und Agent-Export-Gate
 konsumieren dieselbe Profilentscheidung. Legacy-Profilnamen bleiben nur für
 bestehende direkte Gate-/Report-Consumer kompatibel.
 
+### Nachlaufkorrektur der Profilkonsistenz
+
+Der Post-Merge-Selbstreview zeigte, dass der Export-Safety-Bericht die zentrale
+Profilsemantik bereits vollständig nutzte, das Agent Export Gate Redaction und
+Post-Health für `public-share` und `security-export-review` jedoch noch aus
+`agent_facing` ableitete. Der Gesamtabschluss blockierte korrekt, aber der
+Gate-Sidecar konnte widersprüchlich `pass` melden.
+
+`TASK-REPOBRIEF-AUDIT-EXPORT-GATE-SEMANTICS-001` korrigiert diese begrenzte
+Lücke und belegt sie separat in
+`docs/proofs/repobrief-export-gate-profile-semantics-v1-proof.md`. Die Aussage,
+dass beide Kontrollpfade dieselbe Profilentscheidung konsumieren, gilt daher
+erst zusammen mit diesem Nachlauf.
+
 ### Zweiphasiger Abschluss
 
 `repobrief snapshot create` führt nach der Inhaltsproduktion zwei Phasen aus:
