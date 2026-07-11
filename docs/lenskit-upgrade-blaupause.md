@@ -9,6 +9,14 @@
 
 ---
 
+## Statuswahrheit
+
+- Kanonische Taskstatus: `docs/tasks/index.json`.
+- Maschinenlesbare Reifeprojektion: `docs/status/repobrief-status-truth.v1.json`.
+- Häkchen gelten nur für den jeweiligen Arbeitspunkt; ein Phasen-Gate bleibt davon unabhängig.
+- Ein grüner Health- oder CI-Status beweist keine Produkt- oder Release-Reife.
+- Diese Datei ist ein Ordnungs- oder Zieldokument und keine zweite Taskstatus-Autorität.
+
 ## 1 Zielbild
 
 Lenskit entwickelt sich von

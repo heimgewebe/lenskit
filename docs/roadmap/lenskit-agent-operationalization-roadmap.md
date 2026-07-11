@@ -2,6 +2,14 @@
 
 Stand: 2026-06-29
 
+## Statuswahrheit
+
+- Kanonische Taskstatus: `docs/tasks/index.json`.
+- Maschinenlesbare Reifeprojektion: `docs/status/repobrief-status-truth.v1.json`.
+- Häkchen gelten nur für den jeweiligen Arbeitspunkt; ein Phasen-Gate bleibt davon unabhängig.
+- Ein grüner Health- oder CI-Status beweist keine Produkt- oder Release-Reife.
+- Diese Datei ist ein Ordnungs- oder Zieldokument und keine zweite Taskstatus-Autorität.
+
 ## Zweck
 
 Diese Roadmap pflegt den aktuellen Agent-, Lens-, Graph- und Retrieval-Plan als Planartefakt ins Repo ein. Sie ersetzt keine bestehenden Contracts, Producer, Validatoren oder Proofs. Sie ordnet die offenen Arbeiten danach, was bereits gebaut ist und was noch angeschlossen werden muss.

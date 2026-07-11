@@ -1539,15 +1539,24 @@
     {
       "id": "TASK-REPOBRIEF-AUDIT-STATUS-TRUTH-001",
       "title": "RepoBrief Status Truth Reconciliation",
-      "status": "open",
-      "description": "Resolve Audit F-06 by reconciling task index, roadmap/blueprint acceptance gates, and claim-evidence freshness, then adding a bounded drift check without treating health reports as product-readiness.",
+      "status": "in_progress",
+      "description": "Reconciles task index, board, roadmap/blueprint acceptance semantics and selected claim-freshness coverage without treating health reports as product readiness. Adds a bounded status-truth projection and CI drift check; PR and post-merge verification remain before closure.",
       "evidence": [
-        "docs/blueprints/lenskit-repobrief-audit-remediation-2026-07.md",
+        "docs/status/repobrief-status-truth.v1.json",
+        "merger/lenskit/contracts/repobrief-status-truth.v1.schema.json",
+        "scripts/docmeta/check_status_truth.py",
+        "merger/lenskit/tests/test_status_truth.py",
+        "docs/proofs/repobrief-status-truth-v1-proof.md",
         "docs/tasks/index.json",
-        "docs/lenskit-upgrade-blaupause.md"
+        "docs/tasks/board.md",
+        "docs/lenskit-upgrade-blaupause.md",
+        "docs/roadmap/lenskit-master-roadmap.md",
+        "docs/roadmap/lenskit-agent-operationalization-roadmap.md",
+        "docs/doc-freshness-registry.yml"
       ],
       "missing_evidence": [
-        "Task, roadmap and claim-evidence surfaces do not yet share one reconciled maturity view."
+        "The final GitHub PR head and post-merge Main run have not yet verified the new drift check.",
+        "The projection does not establish documentation completeness, semantic truth, product readiness or release readiness."
       ]
     },
     {

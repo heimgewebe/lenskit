@@ -1,0 +1,201 @@
+{
+  "$schema": "../../merger/lenskit/contracts/repobrief-status-truth.v1.schema.json",
+  "audit_packages": [
+    {
+      "limitations": [
+        "No complete secret detection, repository understanding or release-readiness claim is established."
+      ],
+      "promotion": "not_applicable",
+      "scope": "finalization control plane and required ai-context aggregation",
+      "status": "done",
+      "task_id": "TASK-REPOBRIEF-AUDIT-FINAL-CONTROL-001",
+      "verification": "main_verified"
+    },
+    {
+      "limitations": [
+        "Question recall@10 is 5.0 percent and expected-target recall@10 is 1.666667 percent; measurement closure is not ranking sufficiency."
+      ],
+      "promotion": "blocked",
+      "scope": "canonical repository-specific retrieval measurement",
+      "status": "done",
+      "task_id": "TASK-REPOBRIEF-AUDIT-RETRIEVAL-MEASUREMENT-001",
+      "verification": "main_verified"
+    },
+    {
+      "limitations": [
+        "Nested mutable Action refs remain in two pinned upstream reusable workflows under a separate open task."
+      ],
+      "promotion": "not_applicable",
+      "scope": "direct Lenskit-owned workflow references and caller contract",
+      "status": "done",
+      "task_id": "TASK-LENSKIT-AUDIT-CI-SUPPLY-CHAIN-001",
+      "verification": "runtime_verified"
+    },
+    {
+      "limitations": [
+        "No cross-browser, complete interaction or visual-regression coverage is established."
+      ],
+      "promotion": "allowed",
+      "scope": "required digest-pinned Chromium browser gate",
+      "status": "done",
+      "task_id": "TASK-LENSKIT-AUDIT-BROWSER-GATE-001",
+      "verification": "runtime_verified"
+    },
+    {
+      "limitations": [
+        "PR and post-merge Main verification are still pending."
+      ],
+      "promotion": "not_applicable",
+      "scope": "task, roadmap and selected claim-freshness reconciliation",
+      "status": "in_progress",
+      "task_id": "TASK-REPOBRIEF-AUDIT-STATUS-TRUTH-001",
+      "verification": "local_validated"
+    },
+    {
+      "limitations": [
+        "No repository license file, complete lock strategy, versioned release or rollback proof exists yet."
+      ],
+      "promotion": "blocked",
+      "scope": "license, reproducible dependency, release and rollback evidence",
+      "status": "open",
+      "task_id": "TASK-LENSKIT-AUDIT-RELEASE-PACKAGING-001",
+      "verification": "not_started"
+    },
+    {
+      "limitations": [
+        "No real-repository graph-noise threshold or no-new-complexity ratchet is active yet."
+      ],
+      "promotion": "deferred",
+      "scope": "graph-noise and complexity ratchets",
+      "status": "open",
+      "task_id": "TASK-REPOBRIEF-AUDIT-GRAPH-MAINTAINABILITY-001",
+      "verification": "not_started"
+    }
+  ],
+  "authority": "governance_projection",
+  "claim_freshness": {
+    "authority": "diagnostic_signal",
+    "coverage": "selected_declared_claims_only",
+    "does_not_prove": [
+      "documentation completeness",
+      "documentation correctness outside tracked claims",
+      "roadmap completeness",
+      "product readiness",
+      "release readiness"
+    ],
+    "green_means": "Every tracked claim matches the evidence declared for that claim.",
+    "path": "docs/doc-freshness-registry.yml",
+    "tracked_claim_count": 3
+  },
+  "does_not_establish": [
+    "complete repository understanding",
+    "documentation completeness",
+    "semantic truth of every claim",
+    "test or review completeness",
+    "absence of regressions or vulnerabilities",
+    "product readiness",
+    "release readiness"
+  ],
+  "health_semantics": {
+    "forbidden_inferences": [
+      "product_ready",
+      "release_ready",
+      "review_complete",
+      "test_complete",
+      "semantic_truth",
+      "runtime_correct"
+    ],
+    "pass_means": "Only the checks declared by that specific health or CI report passed for the observed artifact or commit."
+  },
+  "kind": "lenskit.repobrief_status_truth",
+  "observed_on": "2026-07-11",
+  "open_followups": [
+    "TASK-REPOBRIEF-WORKBENCH-USEFULNESS-EVAL-001",
+    "TASK-REPOBRIEF-PACKAGE-RENAME-DECISION-001",
+    "TASK-REPOBRIEF-READONLY-ADAPTER-NO-MIRROR-001",
+    "TASK-LENSKIT-AUDIT-CI-SUPPLY-CHAIN-UPSTREAM-TRANSITIVE-001",
+    "TASK-LENSKIT-AUDIT-RELEASE-PACKAGING-001",
+    "TASK-REPOBRIEF-AUDIT-GRAPH-MAINTAINABILITY-001"
+  ],
+  "roadmap_surfaces": [
+    {
+      "canonical_task_status": false,
+      "checkbox_semantics": "item_local",
+      "path": "docs/lenskit-upgrade-blaupause.md",
+      "phase_gate_independent": true,
+      "required_markers": [
+        "Kanonische Taskstatus: `docs/tasks/index.json`",
+        "H\u00e4kchen gelten nur f\u00fcr den jeweiligen Arbeitspunkt",
+        "Ein gr\u00fcner Health- oder CI-Status beweist keine Produkt- oder Release-Reife"
+      ],
+      "role": "target_architecture"
+    },
+    {
+      "canonical_task_status": false,
+      "checkbox_semantics": "item_local",
+      "path": "docs/roadmap/lenskit-master-roadmap.md",
+      "phase_gate_independent": true,
+      "required_markers": [
+        "Kanonische Taskstatus: `docs/tasks/index.json`",
+        "H\u00e4kchen gelten nur f\u00fcr den jeweiligen Arbeitspunkt",
+        "Ein gr\u00fcner Health- oder CI-Status beweist keine Produkt- oder Release-Reife"
+      ],
+      "role": "ordered_roadmap"
+    },
+    {
+      "canonical_task_status": false,
+      "checkbox_semantics": "item_local",
+      "path": "docs/roadmap/lenskit-agent-operationalization-roadmap.md",
+      "phase_gate_independent": true,
+      "required_markers": [
+        "Kanonische Taskstatus: `docs/tasks/index.json`",
+        "H\u00e4kchen gelten nur f\u00fcr den jeweiligen Arbeitspunkt",
+        "Ein gr\u00fcner Health- oder CI-Status beweist keine Produkt- oder Release-Reife"
+      ],
+      "role": "operationalization_plan"
+    }
+  ],
+  "scope": "repo_status_surfaces",
+  "source_of_truth": {
+    "board_projection": "docs/tasks/board.md",
+    "claim_freshness": "docs/doc-freshness-registry.yml",
+    "maturity_projection": "docs/status/repobrief-status-truth.v1.json",
+    "task_status": "docs/tasks/index.json"
+  },
+  "status_semantics": {
+    "done": "The declared task acceptance scope is completed and evidenced; limitations and separately registered follow-ups may remain outside that scope.",
+    "done_does_not_imply": [
+      "phase_complete",
+      "system_complete",
+      "product_ready",
+      "release_ready",
+      "all_followups_closed"
+    ],
+    "in_progress": "The declared task acceptance scope is actively being implemented or verified.",
+    "open": "The declared task acceptance scope has not started or has no implementation evidence yet.",
+    "partial": "A bounded core exists, but the declared task acceptance scope is not fully satisfied."
+  },
+  "system_maturity": {
+    "operational_readiness": "partial",
+    "product_readiness": "not_established",
+    "reasons": [
+      "The final control plane and browser gate are runtime-verified for their bounded scopes.",
+      "Canonical review retrieval remains measured below its acceptance thresholds and default promotion is blocked.",
+      "Release packaging and license evidence remain open.",
+      "Graph maintainability ratchets remain open.",
+      "Transitive mutable Actions remain inside two pinned upstream reusable workflows."
+    ],
+    "release_readiness": "not_established",
+    "status": "mixed"
+  },
+  "task_summary": {
+    "by_status": {
+      "done": 83,
+      "in_progress": 1,
+      "open": 6,
+      "partial": 0
+    },
+    "total": 90
+  },
+  "version": "1.0"
+}
