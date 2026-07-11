@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
+import io
 import json
 import os
 import subprocess
+import tarfile
 from pathlib import Path
 
 import jsonschema
@@ -75,6 +78,40 @@ def _rewrite_sums(candidate: Path) -> None:
         "\n".join(sorted(lines)) + "\n", encoding="utf-8"
     )
 
+
+def _reverse_archive_members(candidate: Path) -> None:
+    archive_path = next(candidate.glob("*.tar.gz"))
+    members: list[tuple[tarfile.TarInfo, bytes | None]] = []
+    with gzip.open(archive_path, "rb") as gz:
+        with tarfile.open(fileobj=gz, mode="r:") as tar:
+            for member in tar.getmembers():
+                handle = tar.extractfile(member) if member.isfile() else None
+                members.append((member, handle.read() if handle is not None else None))
+    assert members[0][0].isdir()
+    reordered = [members[0], *reversed(members[1:])]
+    tar_buffer = io.BytesIO()
+    with tarfile.open(fileobj=tar_buffer, mode="w", format=tarfile.GNU_FORMAT) as tar:
+        for member, payload in reordered:
+            tar.addfile(member, io.BytesIO(payload) if payload is not None else None)
+    compressed = io.BytesIO()
+    with gzip.GzipFile(
+        filename="", mode="wb", fileobj=compressed, compresslevel=9, mtime=0
+    ) as gz:
+        gz.write(tar_buffer.getvalue())
+    archive_path.write_bytes(compressed.getvalue())
+
+    manifest_path = next(candidate.glob("*.release.json"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["archive"]["bytes"] = archive_path.stat().st_size
+    manifest["archive"]["sha256"] = hashlib.sha256(
+        archive_path.read_bytes()
+    ).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    _rewrite_sums(candidate)
+
+
 def test_candidate_build_is_byte_reproducible_and_source_bound(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     first = tmp_path / "first"
@@ -110,6 +147,16 @@ def test_candidate_tampering_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="SHA256SUMS"):
         verify_release_candidate(out)
 
+
+
+
+def test_noncanonical_archive_member_order_is_rejected(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    out = tmp_path / "candidate"
+    build_release_candidate(repo, out)
+    _reverse_archive_members(out)
+    with pytest.raises(ValueError, match="archive member order is not canonical"):
+        verify_release_candidate(out, repo=repo)
 
 
 def test_manifest_lock_claim_must_match_archived_lock(tmp_path: Path) -> None:

@@ -115,11 +115,13 @@ def _archive_members(
         raise ValueError("gzip timestamp is not normalized to zero")
 
     members: dict[str, tarfile.TarInfo] = {}
+    observed_order: list[str] = []
     with gzip.open(archive_path, "rb") as gz:
         with tarfile.open(fileobj=gz, mode="r:") as tar:
             for member in tar.getmembers():
                 if member.name in members:
                     raise ValueError(f"duplicate archive member: {member.name}")
+                observed_order.append(member.name)
                 if not _safe_name(member.name):
                     raise ValueError(f"unsafe archive member: {member.name!r}")
                 if member.name != prefix.rstrip("/") and not member.name.startswith(prefix):
@@ -139,6 +141,19 @@ def _archive_members(
     expected_count = archive.get("tracked_entry_count")
     if len(members) != expected_count + 1:
         raise ValueError("archive member count does not match manifest")
+    root_name = prefix.rstrip("/")
+    child_names = [name for name in observed_order if name != root_name]
+    expected_order = [
+        root_name,
+        *sorted(
+            child_names,
+            key=lambda name: name[len(prefix) :].encode(
+                "utf-8", errors="surrogateescape"
+            ),
+        ),
+    ]
+    if observed_order != expected_order:
+        raise ValueError("archive member order is not canonical")
     return members
 
 
