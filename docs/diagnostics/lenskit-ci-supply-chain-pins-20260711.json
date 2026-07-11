@@ -1,9 +1,12 @@
 {
   "base_commit": "174a865cd8577c152ca30a61618a0f4b8cdf0482",
   "direct_surface": {
+    "changed_to_full_commit_count": 55,
     "ci_job": ".github/workflows/contracts-validate.yml#immutable-ci-supply-chain",
     "external_reference_count": 57,
     "mutable_reference_count": 0,
+    "new_reference_added_full_commit_pinned_count": 1,
+    "previously_full_commit_pinned_count": 1,
     "ratchet": "scripts/ci/check_github_actions_pins.py",
     "references": [
       {

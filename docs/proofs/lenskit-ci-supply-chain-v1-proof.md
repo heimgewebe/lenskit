@@ -30,9 +30,11 @@ Inventar steht in:
 
 ## Direkte Lenskit-Oberfläche
 
-- 57 externe Action- oder Reusable-Workflow-Verwendungen wurden geprüft.
-- 55 bewegliche Verweise wurden auf volle Commit-SHAs umgestellt; zwei
-  Cross-Repository-Verweise waren bereits SHA-fest.
+- 57 externe Action- oder Reusable-Workflow-Verwendungen stehen im finalen
+  Arbeitsstand und wurden geprüft.
+- 55 zuvor bewegliche Verweise wurden auf volle Commit-SHAs umgestellt.
+- Ein Cross-Repository-Verweis war bereits SHA-fest; der neue Ratchet-Job fügt
+  einen weiteren, von Beginn an SHA-festen Checkout-Verweis hinzu.
 - Der Ratchet `scripts/ci/check_github_actions_pins.py` prüft Workflows und
   Composite Actions und blockiert Tags, Branches, dynamische Referenzen und
   Docker-Tags ohne Digest.
