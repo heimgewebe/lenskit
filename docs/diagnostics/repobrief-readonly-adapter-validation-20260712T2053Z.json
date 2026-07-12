@@ -1,0 +1,108 @@
+{
+  "kind": "repobrief.readonly_adapter_validation",
+  "version": "1.1",
+  "observed_on": "2026-07-12",
+  "implementation_commit": "052c1dcd1729d5c22bc7e4c298f7b0d7fa0cddfc",
+  "implementation_tree": "8dba34ac2b6bb9562bcce6b499d79ff297dbaa56",
+  "review_remediation": {
+    "pull_request": 989,
+    "finding": "Delegated SQLite and symbol-index reads did not independently verify manifest byte length and SHA-256.",
+    "remediation": "Both indices are verified before and after delegated reads; failed postflight results are discarded.",
+    "negative_tests": [
+      "tampered SQLite before query",
+      "SQLite changed during query",
+      "tampered symbol index before search"
+    ],
+    "status": "corrected"
+  },
+  "source_bundle": {
+    "profile": "full-max",
+    "output_mode": "dual",
+    "redaction_enabled": true,
+    "bundle_run_id": "lenskit-workbench-tech-052c1dcd-full-max-260712-2053",
+    "bundle_manifest_name": "lenskit-workbench-tech-052c1dcd-max-260712-2053_merge.bundle.manifest.json",
+    "bundle_manifest_sha256": "fb6250d5ab39bb0c8fee48067ab3cd67c3eab535745385c28c2cef28f9645df2",
+    "source_commit": "052c1dcd1729d5c22bc7e4c298f7b0d7fa0cddfc",
+    "source_tree": "8dba34ac2b6bb9562bcce6b499d79ff297dbaa56",
+    "source_dirty": false,
+    "manifest_artifact_count": 21,
+    "generated_file_count": 26,
+    "post_emit_health_status": "pass",
+    "bundle_surface_validation_status": "pass",
+    "agent_export_gate_status": "pass",
+    "export_safety_status": "pass"
+  },
+  "adapter": {
+    "discovery": "explicit_config_only",
+    "registered_snapshot_count": 1,
+    "actions": [
+      "snapshot_list",
+      "snapshot_status",
+      "artifact_get",
+      "canonical_range_get",
+      "required_reading_resolve",
+      "query_existing_index",
+      "symbol_search",
+      "workbench_artifact_get",
+      "runtime_artifact_get"
+    ],
+    "allowed_root_enforced": true,
+    "bundle_root_enforced_for_content": true,
+    "content_size_limit_bytes": 16777216,
+    "content_integrity_requires_manifest_bytes_and_sha256": true,
+    "delegated_index_integrity_preflight": true,
+    "delegated_index_integrity_postflight": true,
+    "failed_postflight_results_discarded": true,
+    "binary_content_exposure_blocked": true,
+    "hidden_snapshot_discovery": false,
+    "implicit_snapshot_refresh": false,
+    "writes": [],
+    "forbidden_operations": [
+      "clone_repository",
+      "git_fetch",
+      "git_pull",
+      "git_push",
+      "run_shell",
+      "create_snapshot",
+      "refresh_snapshot",
+      "write_bundle",
+      "apply_patch",
+      "create_pull_request",
+      "read_secrets"
+    ]
+  },
+  "no_mutation_evidence": {
+    "before_inventory_sha256": "70eafd1c4f3afab68b59868c1c9108d51e26f4393b8c63ed7b57a45c910f7bfa",
+    "after_inventory_sha256": "70eafd1c4f3afab68b59868c1c9108d51e26f4393b8c63ed7b57a45c910f7bfa",
+    "inventories_byte_identical": true,
+    "sqlite_sidecars_created": false
+  },
+  "focused_validation": {
+    "adapter_usefulness_and_compatibility_tests_passed": 19,
+    "ruff": "pass",
+    "config_schema": "pass",
+    "goldset_schema": "pass",
+    "cli_adapter_list": "pass",
+    "cli_adapter_call": "pass",
+    "cli_workbench_eval": "pass"
+  },
+  "usefulness_report": {
+    "path": "docs/diagnostics/repobrief-workbench-usefulness-eval-20260712T2053Z.json",
+    "sha256": "03b2416c239860a91021c572a5addced7b0194ba6e581742d6ee9d34fd89f326",
+    "status": "pass",
+    "version": "2.1"
+  },
+  "does_not_establish": [
+    "MCP protocol server availability",
+    "transport security",
+    "authentication",
+    "remote freshness",
+    "repository understanding",
+    "natural-language answer correctness",
+    "test sufficiency",
+    "review completeness",
+    "merge readiness",
+    "atomic protection against a hostile process that replaces and restores an index between integrity checks"
+  ],
+  "status": "runtime_validated_local"
+}

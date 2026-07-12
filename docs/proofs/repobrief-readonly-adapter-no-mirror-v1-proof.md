@@ -1,78 +1,52 @@
-# RepoBrief Read-only Adapter without Mirror Authority v1 Proof
+# RepoBrief Read-only Adapter without Mirror Authority v1 — proof
 
-Status: review_ready  
-Task: `TASK-REPOBRIEF-READONLY-ADAPTER-NO-MIRROR-001`  
-Design: `docs/architecture/repobrief-readonly-adapter-no-mirror.md`
+Status: local runtime validation complete
+Technical commit: `052c1dcd1729d5c22bc7e4c298f7b0d7fa0cddfc`
+Technical tree: `8dba34ac2b6bb9562bcce6b499d79ff297dbaa56`
 
-## Result
+## Implemented boundary
 
-This slice adds the bounded design for a broad RepoBrief read-only adapter without repository mirror authority.
+The protocol-neutral adapter accepts only exact manifests beneath explicit
+allowed roots. Content reads are path-contained, size-bounded and checked
+against manifest byte length and SHA-256. SQLite and symbol indices are verified
+before and after delegated reads; a failed postflight discards the computed
+result. Missing or altered evidence therefore fails closed. Adapter dispatch
+contains no Git, shell, network, snapshot creation or write implementation.
 
-It defines which existing RepoBrief surfaces may be exposed to consumers and which operations remain forbidden.
+## Real-bundle validation
 
-## Evidence basis
+A clean checkout at the technical commit produced a redacted `full-max` bundle:
 
-The design is aligned with existing RepoBrief boundary documents:
-
-- `docs/architecture/repobrief-agent-workbench-boundary.md`
-- `docs/architecture/repobrief-mcp-boundary.md`
-- `docs/architecture/repobrief.md`
-- `docs/roadmap/lenskit-agent-operationalization-roadmap.md`
-
-## What this slice adds
-
-- allowed read surfaces;
-- forbidden mirror/mutation operations;
-- minimal future adapter method list;
-- authority, canonicality, freshness and availability metadata requirements;
-- fail-closed missing/stale/invalid evidence behavior;
-- separation from MCP protocol authority;
-- separation from Patch Evaluation Sidecar mutation authority;
-- explicit non-goals and non-claims.
-
-## Critical boundaries
-
-The adapter must not:
-
-- clone, fetch, pull, push or checkout Git;
-- inspect live worktrees as a fallback;
-- silently create or refresh snapshots;
-- create PRs, branches or patches;
-- run shells, tests, linters, builds or sandboxes;
-- read secrets;
-- produce review verdicts;
-- claim repo understanding, correctness, test sufficiency or merge readiness.
-
-## Validation
-
-This is a docs-only architecture slice.
-
-Validation for this docs-only slice:
-
-```bash
-git diff --check
-python -m pytest merger/lenskit/tests/test_repobrief_access_boundary.py -q
+```text
+bundle manifest SHA-256  fb6250d5ab39bb0c8fee48067ab3cd67c3eab535745385c28c2cef28f9645df2
+manifest artifacts       21
+generated files          26
+post-emit health          pass
+surface validation       pass
+agent export gate         pass
+export safety             pass
 ```
 
-Local checkout validation was available in the review continuation and is recorded in the PR closeout.
+The adapter listed exactly the one configured snapshot. Query and symbol reads
+succeeded. Hash inventories of all bundle files before and after every read were
+byte-identical. No SQLite WAL, SHM or journal file was created.
 
-## Task closeout posture
+## Focused tests
 
-This design is a review-ready closeout candidate for the design portion of `TASK-REPOBRIEF-READONLY-ADAPTER-NO-MIRROR-001`.
+The adapter/evaluation suite contains 19 passing tests. It covers root escape,
+unknown registration, hidden unregistered manifests, integrity drift, read-only
+SQLite use, absence of SQLite sidecars, forbidden action dispatch, CLI list/call,
+goldset schema and bounded usefulness evaluation.
 
-It does not close an implementation task. A later implementation slice should add code-level contracts, tests and consumer wiring.
+## Compatibility contract
+
+`docs/contracts/repobrief-readonly-adapter-compatibility.v1.json` binds every
+adapter action to its library method and CLI entry. It separately labels MCP
+surfaces as shared, analogous or unbound. This prevents an undocumented claim
+that a code-level adapter is already an MCP transport server.
 
 ## Non-claims
 
-This proof does not establish:
-
-- adapter implementation;
-- MCP deployment;
-- runtime correctness;
-- test sufficiency;
-- review completeness;
-- retrieval quality;
-- repo understanding;
-- merge readiness;
-- security correctness;
-- absence of regressions.
+The proof does not establish MCP deployment, authentication, remote freshness,
+repository understanding, answer correctness, test sufficiency, review
+completeness, security completeness or merge readiness.
