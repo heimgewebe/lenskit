@@ -15,6 +15,7 @@ KIND = "lenskit.lens_card"
 VERSION = "1.0"
 AUTHORITY = "navigation_index"
 CANONICALITY = "derived"
+LENS_CARD_DENSITIES = ("verbose", "compact")
 
 
 def _canonical_path_after_facet_gate(path: str | PurePosixPath) -> str:
@@ -66,6 +67,45 @@ def produce_lens_card(path: str | PurePosixPath) -> dict[str, Any]:
         "matched_rule": matched_rule,
         "facets": facets,
         "navigation_refs": [{"kind": "repo_path", "target": posix}],
+        "does_not_establish": list(DOES_NOT_ESTABLISH),
+    }
+
+
+def produce_lens_card_collection(
+    paths: Iterable[str | PurePosixPath],
+    *,
+    density: str = "verbose",
+) -> dict[str, Any]:
+    """Produce an in-memory Lens Card collection for bounded consumers.
+
+    ``verbose`` preserves the existing self-contained card shape. ``compact``
+    removes only the repeated per-card ``does_not_establish`` field and carries
+    the same mandatory negative semantics once at collection level. This helper
+    does not register a bundle artifact or a new single-card schema.
+    """
+    if density not in LENS_CARD_DENSITIES:
+        raise ValueError(
+            f"density must be one of {LENS_CARD_DENSITIES}, got {density!r}"
+        )
+
+    cards = produce_lens_cards(paths)
+    if density == "compact":
+        cards = [
+            {
+                key: value
+                for key, value in card.items()
+                if key != "does_not_establish"
+            }
+            for card in cards
+        ]
+
+    return {
+        "kind": "lenskit.lens_card_collection",
+        "version": "1.0",
+        "authority": AUTHORITY,
+        "canonicality": CANONICALITY,
+        "density": density,
+        "cards": cards,
         "does_not_establish": list(DOES_NOT_ESTABLISH),
     }
 
