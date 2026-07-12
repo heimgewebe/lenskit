@@ -1497,15 +1497,14 @@
         "merger/lenskit/tests/test_reusable_workflow_contracts.py"
       ],
       "missing_evidence": [
-        "Transitive immutability inside externally maintained reusable workflows remains open under TASK-LENSKIT-AUDIT-CI-SUPPLY-CHAIN-UPSTREAM-TRANSITIVE-001.",
         "The successful no-command smoke does not establish every command path, permission combination, secret-rotation scenario, dependency safety, test completeness, regression absence, runtime correctness outside the measured path, or release readiness."
       ]
     },
     {
       "id": "TASK-LENSKIT-AUDIT-CI-SUPPLY-CHAIN-UPSTREAM-TRANSITIVE-001",
       "title": "Lenskit Transitive Reusable Workflow Pinning",
-      "status": "open",
-      "description": "The reached reusable-workflow graph is recursively hash-bound: metarepo PRs #646/#647 and WGX PR #639 are merged, Lenskit advances both callers, and contract v1.1 requires an exact closure inventory for every nested reusable workflow. Focused and broad local validation are complete; final Lenskit PR/main evidence remain before closure.",
+      "status": "done",
+      "description": "The reached reusable-workflow graph is recursively commit-pinned, hash-bound and runtime-verified. metarepo PRs #646/#647, WGX PR #639 and Lenskit PR #985 are merged; all 22 checks on Lenskit main pass; a real no-command issue-comment invoked the pinned dispatcher and exited before any repository dispatch or acknowledgement write.",
       "evidence": [
         "docs/diagnostics/lenskit-ci-supply-chain-transitive-closeout-20260712.json",
         "docs/proofs/lenskit-ci-supply-chain-transitive-closeout-v1-proof.md",
@@ -1513,12 +1512,12 @@
         ".github/workflows/wgx-guard.yml",
         ".github/reusable-workflow-contracts.json",
         "scripts/ci/check_reusable_workflow_contracts.py",
-        "merger/lenskit/tests/test_reusable_workflow_contracts.py"
+        "merger/lenskit/tests/test_reusable_workflow_contracts.py",
+        "docs/diagnostics/lenskit-ci-supply-chain-transitive-main-verification-20260712.json"
       ],
       "missing_evidence": [
-        "Lenskit pull-request checks have not yet passed at the final head.",
-        "Post-merge Lenskit main checks and the final status closeout are not yet recorded.",
-        "Pinning does not establish dependency safety, workflow correctness for every path, test completeness, regression absence, product readiness or release readiness."
+        "This scoped completion does not establish malicious-code absence, correctness of every command path, automatic discovery outside the recorded graph, test completeness, regression absence, product readiness or release readiness.",
+        "The dispatcher smoke emitted a non-failing deprecation warning for create-github-app-token input app-id; migration to client-id is outside this Lenskit task."
       ]
     },
     {
@@ -1561,7 +1560,7 @@
       ],
       "missing_evidence": [
         "The projection does not establish documentation completeness, semantic truth of every claim, complete evidence sufficiency for every task, product readiness or release readiness.",
-        "Canonical retrieval promotion, graph maintainability, semantic locking, public licensing and the final recursive upstream Action PR/main verification remain separately tracked."
+        "Canonical retrieval promotion, graph maintainability, semantic locking and public licensing remain separately tracked."
       ]
     },
     {
