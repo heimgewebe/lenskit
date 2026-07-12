@@ -8,6 +8,7 @@ import jsonschema
 import pytest
 
 from merger.lenskit.cli.main import main
+from merger.lenskit.core import repobrief_readonly_adapter as adapter_module
 from merger.lenskit.core.repobrief_readonly_adapter import (
     RepoBriefReadonlyAdapter,
     RepoBriefReadonlyAdapterError,
@@ -22,6 +23,20 @@ SCHEMA = ROOT / "merger/lenskit/contracts/repobrief-readonly-adapter-config.v1.s
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _seal_existing_artifact(bundle: dict, role: str) -> None:
+    manifest = bundle["manifest"]
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    for artifact in data["artifacts"]:
+        if artifact.get("role") != role:
+            continue
+        path = manifest.parent / artifact["path"]
+        artifact["bytes"] = path.stat().st_size
+        artifact["sha256"] = _sha(path)
+        manifest.write_text(json.dumps(data), encoding="utf-8")
+        return
+    raise AssertionError(f"fixture artifact missing: {role}")
 
 
 def _add_artifact(bundle: dict, role: str, filename: str, content: str) -> Path:
@@ -44,6 +59,7 @@ def _add_artifact(bundle: dict, role: str, filename: str, content: str) -> Path:
 
 def _adapter(tmp_path: Path) -> tuple[RepoBriefReadonlyAdapter, dict, Path]:
     bundle = _build_resolved_bundle(tmp_path)
+    _seal_existing_artifact(bundle, "sqlite_index")
     _add_artifact(
         bundle,
         "agent_reading_pack",
@@ -202,6 +218,57 @@ def test_adapter_queries_prebuilt_index_and_symbol_index_without_writes(
         for path in [bundle["index_path"].with_name(bundle["index_path"].name + suffix)]
     )
 
+
+def test_adapter_blocks_tampered_sqlite_index_before_query(tmp_path: Path) -> None:
+    adapter, bundle, _config = _adapter(tmp_path)
+    with bundle["index_path"].open("ab") as handle:
+        handle.write(b"tampered")
+
+    result = adapter.query_existing_index("demo", "hello", k=5)
+
+    assert result["status"] == "blocked"
+    assert result["error_code"] == "artifact_integrity_mismatch"
+    assert "query" not in result
+
+
+def test_adapter_blocks_index_changed_during_delegated_query(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter, bundle, _config = _adapter(tmp_path)
+    original = adapter_module.repobrief_access.query_existing_index
+
+    def mutate_after_query(*args, **kwargs):
+        result = original(*args, **kwargs)
+        with bundle["index_path"].open("ab") as handle:
+            handle.write(b"changed-after-read")
+        return result
+
+    monkeypatch.setattr(
+        adapter_module.repobrief_access,
+        "query_existing_index",
+        mutate_after_query,
+    )
+
+    result = adapter.query_existing_index("demo", "hello", k=5)
+
+    assert result["status"] == "blocked"
+    assert result["error_code"] == "artifact_integrity_mismatch"
+    assert "query" not in result
+    assert result["index_integrity_preflight"]["status"] == "available"
+    assert result["index_integrity_postflight"]["status"] == "blocked"
+
+
+def test_adapter_blocks_tampered_symbol_index_before_search(tmp_path: Path) -> None:
+    adapter, bundle, _config = _adapter(tmp_path)
+    symbol_path = bundle["manifest"].parent / "demo.python_symbol_index.json"
+    symbol_path.write_text(json.dumps({"symbols": []}) + "\n", encoding="utf-8")
+
+    result = adapter.symbol_search("demo", "hello_adapter", k=5)
+
+    assert result["status"] == "blocked"
+    assert result["error_code"] == "artifact_integrity_mismatch"
+    assert "symbol_search" not in result
 
 def test_adapter_dispatch_fails_closed_for_unknown_action(tmp_path: Path) -> None:
     adapter, _bundle, _config = _adapter(tmp_path)

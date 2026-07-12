@@ -74,6 +74,7 @@ DOES_NOT_ESTABLISH = (
     "review_completeness",
     "merge_readiness",
     "agent_quality_improvement",
+    "atomic protection against a hostile process that replaces and restores an index between integrity checks",
 )
 
 
@@ -294,6 +295,79 @@ class RepoBriefReadonlyAdapter:
         result["snapshot"] = repobrief_access.snapshot_status(registration.manifest)
         return result
 
+    def _verify_registered_artifact(
+        self,
+        registration: SnapshotRegistration,
+        role: str,
+    ) -> dict[str, Any]:
+        """Verify one manifest artifact before or after a delegated read."""
+
+        reference = repobrief_access.get_artifact(registration.manifest, role)
+        artifact = reference.get("artifact")
+        if reference.get("status") != "available" or not isinstance(artifact, dict):
+            return {
+                "status": reference.get("status", "missing"),
+                "error_code": "artifact_unavailable",
+                "artifact": artifact,
+            }
+        raw_path = artifact.get("absolute_path")
+        if not isinstance(raw_path, str):
+            return {
+                "status": "blocked",
+                "error_code": "artifact_path_missing",
+                "artifact": artifact,
+            }
+        artifact_path = Path(raw_path).resolve()
+        try:
+            artifact_path.relative_to(registration.manifest.parent.resolve())
+        except ValueError:
+            return {
+                "status": "blocked",
+                "error_code": "artifact_path_escape",
+                "artifact": artifact,
+            }
+        expected_bytes = artifact.get("bytes")
+        expected_sha = artifact.get("sha256")
+        if (
+            not isinstance(expected_bytes, int)
+            or not isinstance(expected_sha, str)
+            or _SHA256_RE.fullmatch(expected_sha) is None
+        ):
+            return {
+                "status": "blocked",
+                "error_code": "artifact_integrity_unavailable",
+                "artifact": artifact,
+            }
+        digest = hashlib.sha256()
+        actual_bytes = 0
+        try:
+            with artifact_path.open("rb") as handle:
+                while chunk := handle.read(1024 * 1024):
+                    actual_bytes += len(chunk)
+                    digest.update(chunk)
+        except OSError as exc:
+            return {
+                "status": "missing",
+                "error_code": "artifact_file_unavailable",
+                "error": str(exc),
+                "artifact": artifact,
+            }
+        actual_sha = digest.hexdigest()
+        if actual_bytes != expected_bytes or actual_sha != expected_sha:
+            return {
+                "status": "blocked",
+                "error_code": "artifact_integrity_mismatch",
+                "artifact": artifact,
+                "actual_bytes": actual_bytes,
+                "actual_sha256": actual_sha,
+            }
+        return {
+            "status": "available",
+            "artifact": artifact,
+            "actual_bytes": actual_bytes,
+            "actual_sha256": actual_sha,
+        }
+
     def artifact_get(
         self,
         snapshot_id: Any,
@@ -436,6 +510,7 @@ class RepoBriefReadonlyAdapter:
         try:
             result["content_json"] = json.loads(text)
         except json.JSONDecodeError:
+            # Plain UTF-8 text is a valid artifact response; JSON is optional.
             pass
         return result
 
@@ -494,6 +569,15 @@ class RepoBriefReadonlyAdapter:
             snapshot_id=registration.snapshot_id,
             manifest=registration.manifest,
         )
+        preflight = self._verify_registered_artifact(registration, "sqlite_index")
+        result["index_integrity_preflight"] = preflight
+        if preflight.get("status") != "available":
+            result["status"] = preflight.get("status", "blocked")
+            result["error_code"] = preflight.get(
+                "error_code",
+                "index_integrity_preflight_failed",
+            )
+            return result
         result["query"] = repobrief_access.query_existing_index(
             registration.manifest,
             query,
@@ -502,6 +586,16 @@ class RepoBriefReadonlyAdapter:
             resolve_evidence=resolve_evidence,
             project_sources=project_sources,
         )
+        postflight = self._verify_registered_artifact(registration, "sqlite_index")
+        result["index_integrity_postflight"] = postflight
+        if postflight.get("status") != "available":
+            result["status"] = postflight.get("status", "blocked")
+            result["error_code"] = postflight.get(
+                "error_code",
+                "index_integrity_postflight_failed",
+            )
+            result.pop("query", None)
+            return result
         result["status"] = result["query"].get("status", "invalid")
         return result
 
@@ -521,6 +615,18 @@ class RepoBriefReadonlyAdapter:
             snapshot_id=registration.snapshot_id,
             manifest=registration.manifest,
         )
+        preflight = self._verify_registered_artifact(
+            registration,
+            "python_symbol_index_json",
+        )
+        result["symbol_integrity_preflight"] = preflight
+        if preflight.get("status") != "available":
+            result["status"] = preflight.get("status", "blocked")
+            result["error_code"] = preflight.get(
+                "error_code",
+                "symbol_integrity_preflight_failed",
+            )
+            return result
         result["symbol_search"] = repobrief_access.search_symbol_index(
             registration.manifest,
             query,
@@ -528,6 +634,19 @@ class RepoBriefReadonlyAdapter:
             kind=kind,
             path=path,
         )
+        postflight = self._verify_registered_artifact(
+            registration,
+            "python_symbol_index_json",
+        )
+        result["symbol_integrity_postflight"] = postflight
+        if postflight.get("status") != "available":
+            result["status"] = postflight.get("status", "blocked")
+            result["error_code"] = postflight.get(
+                "error_code",
+                "symbol_integrity_postflight_failed",
+            )
+            result.pop("symbol_search", None)
+            return result
         result["status"] = result["symbol_search"].get("status", "invalid")
         return result
 
