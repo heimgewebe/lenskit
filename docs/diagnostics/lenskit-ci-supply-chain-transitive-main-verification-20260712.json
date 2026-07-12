@@ -190,9 +190,9 @@
   "closeout": {
     "pull_request": 986,
     "initial_evidence_commit": "8491acb6d3b29d396a4579366560dca4edb5ed8d",
-    "state_commit": null,
-    "state_tree": null,
+    "state_commit": "f368d9a2140483821813ebc3315b4597d566e973",
+    "state_tree": "38be3e87bd1e66bd69580487fb54f570138ce1a6",
     "binding_commit": null,
-    "status": "state_commit_pending"
+    "status": "state_bound"
   }
 }
