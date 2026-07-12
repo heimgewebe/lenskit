@@ -1,150 +1,90 @@
 # RepoBrief Read-only Adapter without Mirror Authority v1
 
-Status: design_ready  
+Status: implemented and locally runtime-validated on 2026-07-12
 Task: `TASK-REPOBRIEF-READONLY-ADAPTER-NO-MIRROR-001`
 
 ## Purpose
 
-This document defines a broader read-only adapter for RepoBrief consumers without granting repository mirror authority.
+The adapter is a small read-only interface over **already existing** RepoBrief
+bundles. A consumer supplies a configuration containing allowed directories and
+exact bundle manifests. The adapter does not search for repositories, mirror
+Git state or repair missing evidence.
 
-The adapter is a narrow consumer facade over existing snapshots, bundle artifacts, indexes, ranges, availability reports and task-facing helper results. It is not a repository mirror, not a synchronization layer and not a mutable workbench.
+Implementation:
 
-## Decision
+- `merger/lenskit/core/repobrief_readonly_adapter.py`
+- config schema: `merger/lenskit/contracts/repobrief-readonly-adapter-config.v1.schema.json`
+- CLI: `repobrief adapter list` and `repobrief adapter call`
+- compatibility contract: `docs/contracts/repobrief-readonly-adapter-compatibility.v1.json`
 
-RepoBrief should expose one shared read-only adapter contract for CLI, MCP-shaped handlers, library consumers and future Agent Workbench helpers.
+## Security model
 
-The adapter may only read or derive bounded views from already existing RepoBrief evidence surfaces. It must not acquire authority to clone, fetch, pull, refresh, create PRs, apply patches, run shells, read secrets or silently create snapshots.
+Configuration resolves relative paths against the config directory, resolves
+symlinks, and rejects a manifest outside every configured root. Only exact
+registered manifests become visible. There is no recursive discovery fallback.
 
-## Allowed read surfaces
+Artifact content reads additionally require:
 
-The adapter may expose:
+- a path inside the registered bundle directory;
+- manifest-declared byte length and SHA-256;
+- a maximum size of 16 MiB;
+- UTF-8 text. Binary content is described but not returned.
 
-| Surface | Allowed operation | Boundary |
-| --- | --- | --- |
-| Snapshot inventory | list known snapshots under an explicit bundle root | no filesystem crawl outside configured roots |
-| Bundle manifest | read manifest and artifact roles | manifest is inventory, not content truth |
-| Canonical brief source | read canonical Markdown ranges or full content when requested | canonical for snapshot only, not live repo |
-| Agent reading pack | read required-reading/navigation surface | navigation, not proof of context use |
-| Health and availability | read output/post-emit health, bundle surface validation and availability reports | diagnostic only |
-| Artifact by role | resolve an artifact path from manifest/known roles | no implicit generation |
-| Citation/range lookup | resolve existing citation/range maps | no semantic claim validation |
-| Existing indexes | query existing SQLite/chunk/retrieval indexes | stale/missing/degraded remains visible |
-| Workbench static artifacts | read existing graph, symbol, relation or card artifacts | static/navigation only |
-| Runtime query artifacts | read explicitly named query/session artifacts | debugging/replay only |
+An integrity mismatch returns `blocked`; it is not smoothed into missing or
+success.
 
-## Forbidden operations
+## Interface
 
-The adapter must not:
-
-- clone repositories;
-- fetch, pull, push, checkout or mutate Git;
-- inspect live working trees as a fallback for missing snapshot data;
-- create snapshots as a side effect of reads;
-- silently refresh stale or missing bundles;
-- create branches or pull requests;
-- apply, write, repair or stage patches;
-- run shells, tests, linters, build tools or sandboxes;
-- read secrets or privileged environment state;
-- execute deployment actions;
-- generate review verdicts;
-- auto-merge or label changes as safe.
-
-## Minimal adapter interface
-
-A later implementation should keep the surface small and explicit:
-
-| Method | Input | Output | Notes |
-| --- | --- | --- | --- |
-| `snapshot_list` | bundle root, optional repo/profile filters | snapshot summaries | no refresh |
-| `snapshot_status` | snapshot id/stem | status, freshness, availability | unknown/stale is reported, not fixed |
-| `artifact_get` | snapshot id/stem, role | artifact descriptor and optional content | role lookup only |
-| `canonical_range_get` | snapshot id/stem, range or citation id | canonical text span plus provenance | snapshot-bound |
-| `required_reading_resolve` | task profile, available roles | required/recommended/missing surfaces | protocol/navigation only |
-| `query_existing_index` | snapshot id/stem, query, index selector | ranked hits plus index status | no index creation |
-| `workbench_artifact_get` | snapshot id/stem, workbench artifact role | graph/symbol/card descriptor/content | static evidence only |
-| `runtime_artifact_get` | explicit artifact id/path | query/session artifact descriptor/content | debugging only |
-
-Every method should return explicit status fields such as `ok`, `missing`, `stale`, `degraded`, `invalid`, `not_applicable` or `forbidden` instead of smoothing failure into empty success.
-
-## Authority metadata
-
-Every returned object should carry, or be nestable under, these fields:
-
-- `authority`: `canonical_snapshot`, `navigation`, `diagnostic`, `static_analysis`, `external_evidence`, or `debugging`;
-- `canonicality`: whether the result is canonical content, a sidecar, an index, a diagnostic or a cache;
-- `snapshot_identity`: bundle stem/path and manifest hash when available;
-- `freshness_status`: `fresh`, `stale`, `unknown`, `not_comparable`, or `not_applicable`;
-- `availability_status`: `available`, `missing`, `degraded`, `invalid`, `profile_excluded`, or `not_applicable`;
-- `does_not_establish`: negative semantics appropriate to the surface.
-
-## Failure model
-
-The adapter should fail closed for authority crossings:
-
-| Condition | Expected result |
+| Action | Purpose |
 | --- | --- |
-| Missing snapshot | `missing`, no fallback to live repo |
-| Stale snapshot | `stale`, no refresh |
-| Invalid manifest | `invalid`, no artifact inference beyond safe diagnostics |
-| Missing artifact role | `missing`, no generation |
-| Missing index | `missing`, no index build |
-| Requested live Git/read side effect | `forbidden` |
-| Requested shell/test/patch operation | `forbidden` |
-| Ambiguous artifact | `degraded` or `invalid`, no guess |
+| `snapshot_list` | List exact registrations from the config. |
+| `snapshot_status` | Read health, availability and snapshot-bound freshness. |
+| `artifact_get` | Resolve and optionally integrity-check one manifest role. |
+| `canonical_range_get` | Resolve an existing range against canonical snapshot content. |
+| `required_reading_resolve` | Project required/recommended/missing reading for a task profile. |
+| `query_existing_index` | Query an existing SQLite index in read-only mode. |
+| `symbol_search` | Query an existing Python symbol index. |
+| `workbench_artifact_get` | Read only a bounded static Workbench role. |
+| `runtime_artifact_get` | Read only a bounded diagnostic/runtime role. |
 
-## Relationship to MCP
+Every response includes an empty write list, forbidden operations and explicit
+non-claims.
 
-RepoBrief MCP remains read-first. MCP resources and read-only tools may wrap this adapter, but the adapter must not inherit protocol, network, authentication, scheduler or write-tool authority.
+## Forbidden authority
 
-A future `snapshot_create` tool remains a separate explicit write exception for Brief Bundle generation only. It must not be callable through read-only adapter paths and must not authorize patch, shell, Git or PR behavior.
+No adapter action can clone, fetch, pull or push Git; run a shell; inspect a live
+worktree as fallback; create or refresh a snapshot; write bundle files; apply a
+patch; create a pull request; read secrets; or issue a review/merge verdict.
 
-## Relationship to Agent Workbench
+## CLI, library and MCP relationship
 
-The Agent Workbench may consume this adapter for deterministic code-understanding surfaces such as symbols, ranges, graph availability, relation hints and query helpers.
+The library class is the canonical adapter implementation. The CLI is a thin
+JSON wrapper over the same class. Existing MCP-shaped resources remain separate
+transport adapters over RepoBrief access helpers.
 
-Workbench outputs remain evidence or navigation surfaces. They must not state that a patch is correct, that the repo is understood, that tests are sufficient or that a PR is safe to merge.
+Some MCP resources are analogous to adapter reads, but parity is not implied:
+MCP can enumerate a supplied bundle root, while this adapter lists only explicit
+config registrations. The exact relationship and unbound methods are recorded
+in the compatibility contract. No MCP server, authentication or network binding
+is created by this implementation.
 
-## Non-goals
+The existing MCP `snapshot_create` function remains a separate explicit write
+tool. It is not reachable through adapter dispatch.
 
-This design does not implement:
+## Runtime evidence
 
-- an MCP protocol server;
-- snapshot creation;
-- repository synchronization;
-- git mirror management;
-- a patch runner;
-- a shell/test executor;
-- a secret broker;
-- auto-review or auto-fix behavior;
-- task registry mutation;
-- default retrieval promotion;
-- proof that the adapter improves agent correctness.
+A redacted `full-max` bundle from commit `7801ecc0…` contained 21 manifest
+artifacts. Post-emit health, surface validation, export safety and agent export
+all passed. Adapter listing, index queries, symbol search and the usefulness
+evaluation were then executed while hashing every bundle file before and after.
+The inventories were byte-identical and no SQLite sidecar appeared.
 
-## Acceptance for v1 design
+Machine-readable evidence:
 
-This design satisfies the first bounded step for `TASK-REPOBRIEF-READONLY-ADAPTER-NO-MIRROR-001` if review accepts that it defines:
+- `docs/diagnostics/repobrief-readonly-adapter-validation-20260712T2036Z.json`
 
-- allowed read surfaces;
-- forbidden mirror/mutation operations;
-- a minimal adapter interface;
-- required authority/freshness/availability metadata;
-- fail-closed behavior for missing/stale/invalid evidence;
-- relationship to MCP and Agent Workbench;
-- explicit non-goals and non-claims.
+## Non-claims
 
-A later implementation task should add code-level contracts and tests before any consumer depends on the adapter.
-
-## Does not establish
-
-This document does not establish:
-
-- adapter implementation;
-- MCP deployment;
-- runtime correctness;
-- test sufficiency;
-- review completeness;
-- retrieval quality;
-- repo understanding;
-- merge readiness;
-- security correctness;
-- absence of regressions.
+This implementation does not establish remote freshness, repository
+understanding, answer correctness, MCP deployment, transport security,
+authentication, test sufficiency, review completeness or merge readiness.

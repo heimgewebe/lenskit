@@ -1,0 +1,812 @@
+{
+  "answer_compliance_measurement": {
+    "natural_language_agent_answers_measured": false,
+    "status": "structured_context_only",
+    "structured_context_compliance_rate": 1.0
+  },
+  "comparison": {
+    "baseline": {
+      "guardrail_visibility_rate": 1.0,
+      "missing_evidence_visibility_rate": 1.0,
+      "path_recall": 0.375,
+      "question_count": 8,
+      "question_success_rate": 0.0,
+      "source_bytes_exposed": 23705,
+      "symbol_recall": 0.125,
+      "target_recall": 0.25
+    },
+    "baseline_condition": "entire_agent_reading_pack_literal_visibility",
+    "k": 10,
+    "path_regression": false,
+    "symbol_regression": false,
+    "target_recall_advantage": 0.75,
+    "workbench": {
+      "guardrail_visibility_rate": 1.0,
+      "missing_evidence_visibility_rate": 1.0,
+      "path_mrr_at_k": 0.3521374458874459,
+      "path_recall": 1.0,
+      "query_availability_rate": 1.0,
+      "question_count": 8,
+      "question_success_rate": 1.0,
+      "structured_answer_context_compliance_rate": 1.0,
+      "symbol_availability_rate": 1.0,
+      "symbol_mrr_at_k": 1.0,
+      "symbol_recall": 1.0,
+      "target_recall": 1.0
+    },
+    "workbench_condition": "readonly_index_query_plus_symbol_search"
+  },
+  "decision": {
+    "minimum_target_recall_advantage": 0.2,
+    "navigation_utility_established_for_goldset": true,
+    "reason": "fixed_goldset_advantage_without_central_recall_regression",
+    "requires_query_and_symbol_availability": true,
+    "workbench_default_promoted": false
+  },
+  "dimensions": {
+    "agent_answer_compliance": {
+      "interpretation": "the metric checks evidence, missing-evidence and non-claim fields before an answer, not whether an agent follows them",
+      "natural_language_answer_compliance": "not_measured_no_agent_answers",
+      "structured_context_compliance_rate": 1.0
+    },
+    "evidence_usefulness": {
+      "advantage": 0.75,
+      "baseline": 0.25,
+      "metric": "combined_target_recall_advantage",
+      "workbench": 1.0
+    },
+    "false_confidence_risk": {
+      "baseline_guardrail_visibility_rate": 1.0,
+      "behavioral_false_confidence": "not_measured_no_natural_language_answers",
+      "guardrail_omission_rate": 0.0,
+      "interpretation": "guardrail visibility is a proxy, not observed agent belief",
+      "workbench_guardrail_visibility_rate": 1.0
+    },
+    "missing_evidence_visibility": {
+      "baseline_report_visibility_rate": 1.0,
+      "interpretation": "the evaluator always reports missing expected paths and symbols explicitly",
+      "workbench_report_visibility_rate": 1.0
+    },
+    "navigation_value": {
+      "path_mrr_at_k": 0.3521374458874459,
+      "path_recall": 1.0,
+      "symbol_mrr_at_k": 1.0,
+      "symbol_recall": 1.0
+    }
+  },
+  "does_not_establish": [
+    "agent_quality_improvement",
+    "answer_correctness",
+    "repository_understanding",
+    "patch_correctness",
+    "test_sufficiency",
+    "review_completeness",
+    "merge_readiness",
+    "general_retrieval_quality",
+    "default_workbench_promotion"
+  ],
+  "false_confidence_measurement": {
+    "behavioral_agent_belief_measured": false,
+    "guardrail_visibility_measured": true,
+    "reason": "the deterministic evaluator measures visible caveats and omissions but does not produce natural-language agent answers",
+    "status": "proxy_only"
+  },
+  "goldset": {
+    "path": "repobrief_workbench_usefulness_goldset.v1.json",
+    "question_count": 8,
+    "sha256": "c79ef0423eac947db403b8e97031d17cf9f8403b534a3ec7b99193df90bce2a1"
+  },
+  "kind": "repobrief.workbench_usefulness_eval",
+  "questions": [
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [
+          "merger/lenskit/core/repobrief_readonly_adapter.py"
+        ],
+        "missing_symbols": [
+          "RepoBriefReadonlyAdapter"
+        ],
+        "mrr": 0.0,
+        "path_recall": 0.0,
+        "symbol_recall": 0.0,
+        "target_recall": 0.0
+      },
+      "expected_paths": [
+        "merger/lenskit/core/repobrief_readonly_adapter.py"
+      ],
+      "expected_symbols": [
+        "RepoBriefReadonlyAdapter"
+      ],
+      "id": "readonly-adapter-class",
+      "query": "RepoBrief protocol neutral read only adapter",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+          "merger/lenskit/core/repobrief_readonly_adapter.py",
+          "merger/lenskit/cli/cmd_repobrief.py"
+        ],
+        "observed_symbols": [
+          "RepoBriefReadonlyAdapterError",
+          "RepoBriefReadonlyAdapter"
+        ],
+        "path_mrr_at_k": 0.5,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+            "merger/lenskit/core/repobrief_readonly_adapter.py",
+            "merger/lenskit/cli/cmd_repobrief.py"
+          ],
+          "evidence_symbols": [
+            "RepoBriefReadonlyAdapterError",
+            "RepoBriefReadonlyAdapter"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    },
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [
+          "merger/lenskit/core/repobrief_readonly_adapter.py"
+        ],
+        "missing_symbols": [
+          "dispatch"
+        ],
+        "mrr": 0.0,
+        "path_recall": 0.0,
+        "symbol_recall": 0.0,
+        "target_recall": 0.0
+      },
+      "expected_paths": [
+        "merger/lenskit/core/repobrief_readonly_adapter.py"
+      ],
+      "expected_symbols": [
+        "dispatch"
+      ],
+      "id": "readonly-adapter-dispatch",
+      "query": "dispatch JSON request for read only adapter",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+          "merger/lenskit/tests/test_repobrief_readonly_adapter.py",
+          "merger/lenskit/cli/cmd_repobrief.py",
+          "merger/lenskit/core/repobrief_readonly_adapter.py"
+        ],
+        "observed_symbols": [
+          "dispatch",
+          "RepoBriefReadonlyAdapter.dispatch",
+          "test_adapter_dispatch_fails_closed_for_unknown_action"
+        ],
+        "path_mrr_at_k": 0.25,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+            "merger/lenskit/tests/test_repobrief_readonly_adapter.py",
+            "merger/lenskit/cli/cmd_repobrief.py",
+            "merger/lenskit/core/repobrief_readonly_adapter.py"
+          ],
+          "evidence_symbols": [
+            "dispatch",
+            "RepoBriefReadonlyAdapter.dispatch",
+            "test_adapter_dispatch_fails_closed_for_unknown_action"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    },
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [
+          "snapshot_status"
+        ],
+        "mrr": 0.0035460992907801418,
+        "path_recall": 1.0,
+        "symbol_recall": 0.0,
+        "target_recall": 0.5
+      },
+      "expected_paths": [
+        "merger/lenskit/core/repobrief_access.py"
+      ],
+      "expected_symbols": [
+        "snapshot_status"
+      ],
+      "id": "snapshot-status",
+      "query": "read status of existing RepoBrief snapshot",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "docs/architecture/repobrief-mcp-boundary.md",
+          "docs/architecture/repobrief.md",
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+          "docs/architecture/repobrief-readonly-adapter-no-mirror.md",
+          "merger/lenskit/cli/cmd_repobrief.py",
+          "docs/architecture/repobrief-agent-workbench-boundary.md",
+          "merger/lenskit/core/repobrief_readonly_adapter.py",
+          "docs/architecture/repobrief-agent-optimization-triage.md",
+          "docs/proofs/repobrief-live-source-citation-address-v1-proof.md",
+          "merger/lenskit/atlas/registry.py",
+          "merger/lenskit/core/repobrief_access.py",
+          "merger/lenskit/tests/test_repobrief_snapshot_cli.py"
+        ],
+        "observed_symbols": [
+          "update_snapshot_status",
+          "AtlasRegistry.update_snapshot_status",
+          "run_snapshot_status",
+          "snapshot_status",
+          "RepoBriefReadonlyAdapter.snapshot_status",
+          "test_repobrief_snapshot_status_reads_existing_manifest",
+          "test_repobrief_snapshot_status_matches_contract_schema",
+          "test_direct_repobrief_alias_dispatches_snapshot_status",
+          "test_legacy_lenskit_repobrief_subcommand_still_dispatches_snapshot_status"
+        ],
+        "path_mrr_at_k": 0.09090909090909091,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "docs/architecture/repobrief-mcp-boundary.md",
+            "docs/architecture/repobrief.md",
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+            "docs/architecture/repobrief-readonly-adapter-no-mirror.md",
+            "merger/lenskit/cli/cmd_repobrief.py",
+            "docs/architecture/repobrief-agent-workbench-boundary.md",
+            "merger/lenskit/core/repobrief_readonly_adapter.py",
+            "docs/architecture/repobrief-agent-optimization-triage.md",
+            "docs/proofs/repobrief-live-source-citation-address-v1-proof.md",
+            "merger/lenskit/atlas/registry.py",
+            "merger/lenskit/core/repobrief_access.py",
+            "merger/lenskit/tests/test_repobrief_snapshot_cli.py"
+          ],
+          "evidence_symbols": [
+            "update_snapshot_status",
+            "AtlasRegistry.update_snapshot_status",
+            "run_snapshot_status",
+            "snapshot_status",
+            "RepoBriefReadonlyAdapter.snapshot_status",
+            "test_repobrief_snapshot_status_reads_existing_manifest",
+            "test_repobrief_snapshot_status_matches_contract_schema",
+            "test_direct_repobrief_alias_dispatches_snapshot_status",
+            "test_legacy_lenskit_repobrief_subcommand_still_dispatches_snapshot_status"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    },
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [
+          "query_existing_index"
+        ],
+        "mrr": 0.0035460992907801418,
+        "path_recall": 1.0,
+        "symbol_recall": 0.0,
+        "target_recall": 0.5
+      },
+      "expected_paths": [
+        "merger/lenskit/core/repobrief_access.py"
+      ],
+      "expected_symbols": [
+        "query_existing_index"
+      ],
+      "id": "existing-index-query",
+      "query": "query an existing SQLite index without mutation",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+          "docs/architecture/repobrief-readonly-adapter-no-mirror.md",
+          "docs/diagnostics/retrieval-v2-default-promotion-legacy-20260708T152502Z.json",
+          "docs/diagnostics/retrieval-v2-default-promotion-review-intent-20260708T152502Z.json",
+          "merger/lenskit/cli/cmd_repobrief.py",
+          "merger/lenskit/core/repobrief_access.py",
+          "merger/lenskit/core/repobrief_readonly_adapter.py",
+          "merger/lenskit/tests/test_repobrief_access_boundary.py"
+        ],
+        "observed_symbols": [
+          "run_query_existing_index",
+          "query_existing_index",
+          "RepoBriefReadonlyAdapter.query_existing_index",
+          "test_query_existing_index_reports_missing_without_creating",
+          "test_query_existing_index_rejects_unbounded_k",
+          "test_query_existing_index_rejects_non_integer_k",
+          "test_query_existing_index_rejects_non_sqlite_artifact_path",
+          "test_query_existing_index_forces_read_only_query_mode",
+          "fake_execute_query",
+          "test_query_existing_index_forces_read_only_query_mode.fake_execute_query",
+          "test_query_existing_index_reads_prebuilt_sqlite_index_without_mutation"
+        ],
+        "path_mrr_at_k": 0.16666666666666666,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+            "docs/architecture/repobrief-readonly-adapter-no-mirror.md",
+            "docs/diagnostics/retrieval-v2-default-promotion-legacy-20260708T152502Z.json",
+            "docs/diagnostics/retrieval-v2-default-promotion-review-intent-20260708T152502Z.json",
+            "merger/lenskit/cli/cmd_repobrief.py",
+            "merger/lenskit/core/repobrief_access.py",
+            "merger/lenskit/core/repobrief_readonly_adapter.py",
+            "merger/lenskit/tests/test_repobrief_access_boundary.py"
+          ],
+          "evidence_symbols": [
+            "run_query_existing_index",
+            "query_existing_index",
+            "RepoBriefReadonlyAdapter.query_existing_index",
+            "test_query_existing_index_reports_missing_without_creating",
+            "test_query_existing_index_rejects_unbounded_k",
+            "test_query_existing_index_rejects_non_integer_k",
+            "test_query_existing_index_rejects_non_sqlite_artifact_path",
+            "test_query_existing_index_forces_read_only_query_mode",
+            "fake_execute_query",
+            "test_query_existing_index_forces_read_only_query_mode.fake_execute_query",
+            "test_query_existing_index_reads_prebuilt_sqlite_index_without_mutation"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    },
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [
+          "search_symbol_index"
+        ],
+        "mrr": 0.0035460992907801418,
+        "path_recall": 1.0,
+        "symbol_recall": 0.0,
+        "target_recall": 0.5
+      },
+      "expected_paths": [
+        "merger/lenskit/core/repobrief_access.py"
+      ],
+      "expected_symbols": [
+        "search_symbol_index"
+      ],
+      "id": "symbol-index-search",
+      "query": "search Python symbol index without importing target code",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+          "merger/lenskit/core/agent_reading_pack.py",
+          "merger/lenskit/cli/cmd_repobrief.py",
+          "docs/diagnostics/retrieval-v2-default-promotion-legacy-20260708T152502Z.json",
+          "docs/diagnostics/retrieval-v2-default-promotion-review-intent-20260708T152502Z.json",
+          "merger/lenskit/core/repobrief_access.py"
+        ],
+        "observed_symbols": [
+          "search_symbol_index"
+        ],
+        "path_mrr_at_k": 0.16666666666666666,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+            "merger/lenskit/core/agent_reading_pack.py",
+            "merger/lenskit/cli/cmd_repobrief.py",
+            "docs/diagnostics/retrieval-v2-default-promotion-legacy-20260708T152502Z.json",
+            "docs/diagnostics/retrieval-v2-default-promotion-review-intent-20260708T152502Z.json",
+            "merger/lenskit/core/repobrief_access.py"
+          ],
+          "evidence_symbols": [
+            "search_symbol_index"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    },
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [
+          "merger/lenskit/core/repobrief_mcp_resources.py"
+        ],
+        "missing_symbols": [
+          "list_mcp_resources"
+        ],
+        "mrr": 0.0,
+        "path_recall": 0.0,
+        "symbol_recall": 0.0,
+        "target_recall": 0.0
+      },
+      "expected_paths": [
+        "merger/lenskit/core/repobrief_mcp_resources.py"
+      ],
+      "expected_symbols": [
+        "list_mcp_resources"
+      ],
+      "id": "mcp-resource-list",
+      "query": "list RepoBrief MCP resources from existing bundle",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "docs/architecture/repobrief-mcp-boundary.md",
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+          "merger/lenskit/tests/test_repobrief_mcp_boundary_doc.py",
+          "docs/contracts/repobrief-readonly-adapter-compatibility.v1.json",
+          "docs/architecture/repobrief-agent-optimization-triage.md",
+          "docs/architecture/repobrief-readonly-adapter-no-mirror.md",
+          "merger/lenskit/core/repobrief_mcp_resources.py"
+        ],
+        "observed_symbols": [
+          "list_mcp_resources"
+        ],
+        "path_mrr_at_k": 0.14285714285714285,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "docs/architecture/repobrief-mcp-boundary.md",
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+            "merger/lenskit/tests/test_repobrief_mcp_boundary_doc.py",
+            "docs/contracts/repobrief-readonly-adapter-compatibility.v1.json",
+            "docs/architecture/repobrief-agent-optimization-triage.md",
+            "docs/architecture/repobrief-readonly-adapter-no-mirror.md",
+            "merger/lenskit/core/repobrief_mcp_resources.py"
+          ],
+          "evidence_symbols": [
+            "list_mcp_resources"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    },
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [
+          "merger/lenskit/core/repobrief_latest_complete.py"
+        ],
+        "missing_symbols": [
+          "evaluate_registry_freshness"
+        ],
+        "mrr": 0.0,
+        "path_recall": 0.0,
+        "symbol_recall": 0.0,
+        "target_recall": 0.0
+      },
+      "expected_paths": [
+        "merger/lenskit/core/repobrief_latest_complete.py"
+      ],
+      "expected_symbols": [
+        "evaluate_registry_freshness"
+      ],
+      "id": "latest-complete-freshness",
+      "query": "compare latest complete snapshot commit with live repository head",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+          "merger/lenskit/core/repobrief_latest_complete.py"
+        ],
+        "observed_symbols": [
+          "evaluate_registry_freshness"
+        ],
+        "path_mrr_at_k": 0.5,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json",
+            "merger/lenskit/core/repobrief_latest_complete.py"
+          ],
+          "evidence_symbols": [
+            "evaluate_registry_freshness"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    },
+    {
+      "baseline": {
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [
+          "scripts/release/check_identity_distribution_decisions.py"
+        ],
+        "missing_symbols": [],
+        "mrr": 0.022727272727272728,
+        "path_recall": 0.0,
+        "symbol_recall": 1.0,
+        "target_recall": 0.5
+      },
+      "expected_paths": [
+        "scripts/release/check_identity_distribution_decisions.py"
+      ],
+      "expected_symbols": [
+        "check"
+      ],
+      "id": "identity-distribution-check",
+      "query": "fail closed check for RepoBrief naming and distribution decisions",
+      "workbench": {
+        "explicit_missing_evidence": {
+          "paths": [],
+          "symbols": []
+        },
+        "guardrails_visible": true,
+        "missing_evidence_explicit": true,
+        "missing_paths": [],
+        "missing_symbols": [],
+        "observed_paths": [
+          "scripts/release/check_identity_distribution_decisions.py",
+          "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json"
+        ],
+        "observed_symbols": [
+          "check",
+          "main"
+        ],
+        "path_mrr_at_k": 1.0,
+        "path_recall": 1.0,
+        "query_guardrails_visible": true,
+        "query_status": "available",
+        "structured_answer_context": {
+          "compliant": true,
+          "does_not_establish": [
+            "agent_quality_improvement",
+            "answer_correctness",
+            "repository_understanding",
+            "patch_correctness",
+            "test_sufficiency",
+            "review_completeness",
+            "merge_readiness",
+            "general_retrieval_quality",
+            "default_workbench_promotion"
+          ],
+          "evidence_paths": [
+            "scripts/release/check_identity_distribution_decisions.py",
+            "docs/retrieval/repobrief_workbench_usefulness_goldset.v1.json"
+          ],
+          "evidence_symbols": [
+            "check",
+            "main"
+          ],
+          "missing_evidence": {
+            "paths": [],
+            "symbols": []
+          }
+        },
+        "symbol_guardrails_visible": true,
+        "symbol_mrr_at_k": 1.0,
+        "symbol_recall": 1.0,
+        "symbol_status": "available",
+        "target_recall": 1.0
+      }
+    }
+  ],
+  "scope": "deterministic_navigation_utility",
+  "source": {
+    "bundle_created_at": "2026-07-12T20:36:26Z",
+    "bundle_manifest_name": "lenskit-workbench-tech-7801ecc0-max-260712-2036_merge.bundle.manifest.json",
+    "bundle_manifest_sha256": "f71dabc733670e847570c6bda99e87f83be9f8f575c0eb42b7f6e5d30667e765",
+    "bundle_run_id": "lenskit-workbench-tech-7801ecc0-full-max-260712-2036",
+    "repositories": [
+      {
+        "git_commit": "7801ecc0e13cad70e041556e7ac08c1c7a9daf29",
+        "git_dirty": false,
+        "name": "lenskit-workbench-tech-7801ecc0",
+        "provenance_status": "present",
+        "repo_remote": "git@github.com:heimgewebe/lenskit.git"
+      }
+    ]
+  },
+  "status": "pass",
+  "version": "2.1"
+}
