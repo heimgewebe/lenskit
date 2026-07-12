@@ -1497,7 +1497,6 @@
         "merger/lenskit/tests/test_reusable_workflow_contracts.py"
       ],
       "missing_evidence": [
-        "Transitive immutability inside externally maintained reusable workflows remains open under TASK-LENSKIT-AUDIT-CI-SUPPLY-CHAIN-UPSTREAM-TRANSITIVE-001.",
         "The successful no-command smoke does not establish every command path, permission combination, secret-rotation scenario, dependency safety, test completeness, regression absence, runtime correctness outside the measured path, or release readiness."
       ]
     },
@@ -1561,7 +1560,7 @@
       ],
       "missing_evidence": [
         "The projection does not establish documentation completeness, semantic truth of every claim, complete evidence sufficiency for every task, product readiness or release readiness.",
-        "Canonical retrieval promotion, graph maintainability, semantic locking, public licensing and the final recursive upstream Action PR/main verification remain separately tracked."
+        "Canonical retrieval promotion, graph maintainability, semantic locking and public licensing remain separately tracked."
       ]
     },
     {
