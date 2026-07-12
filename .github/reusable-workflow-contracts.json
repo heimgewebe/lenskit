@@ -20,6 +20,17 @@
         "github.event.issue.pull_request != null",
         "github.event.comment.user.type != 'Bot'"
       ]
+    },
+    {
+      "caller_path": ".github/workflows/wgx-guard.yml",
+      "job": "guard",
+      "uses": "heimgewebe/wgx/.github/workflows/wgx-guard.yml@3d823f9d26be276eef97742335dee857a64e1715",
+      "source_content_sha256": "d184d82ab3dbc6d956a02b10b2645465bedcb6be2475bb3bee0a9f4aa091e82d",
+      "required_permissions": {
+        "contents": "read"
+      },
+      "required_secrets": [],
+      "required_if_fragments": []
     }
   ],
   "does_not_establish": [

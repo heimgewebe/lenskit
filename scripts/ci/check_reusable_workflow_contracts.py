@@ -59,7 +59,11 @@ def scan(root: Path, contract_path: Path = DEFAULT_CONTRACT) -> list[Finding]:
     findings: list[Finding] = []
     for contract in data.get("contracts", []):
         relative = str(contract["caller_path"])
-        caller = _load_mapping(root / relative)
+        caller_path = root / relative
+        if not caller_path.is_file():
+            findings.append(Finding(relative, "missing_caller_file", str(caller_path)))
+            continue
+        caller = _load_mapping(caller_path)
         job_name = str(contract["job"])
         jobs = caller.get("jobs") or {}
         job = jobs.get(job_name)
