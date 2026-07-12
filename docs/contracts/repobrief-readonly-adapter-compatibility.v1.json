@@ -1,0 +1,94 @@
+{
+  "kind": "repobrief.readonly_adapter_compatibility_contract",
+  "version": "1.0",
+  "observed_on": "2026-07-12",
+  "library_class": "merger.lenskit.core.repobrief_readonly_adapter.RepoBriefReadonlyAdapter",
+  "cli": {
+    "list": "repobrief adapter list --config CONFIG",
+    "call": "repobrief adapter call --config CONFIG --request REQUEST_JSON"
+  },
+  "semantics": {
+    "registered_snapshot_identity": "explicit config id plus exact manifest beneath an allowed root",
+    "read_only": "no adapter action may create or refresh snapshots, invoke Git or shell, write bundles, apply patches, create PRs or read secrets",
+    "failure": "missing, invalid, blocked or unavailable states remain explicit; no live-repository fallback"
+  },
+  "actions": [
+    {
+      "action": "snapshot_list",
+      "library_method": "snapshot_list",
+      "cli_binding": "adapter list",
+      "mcp_surface": "list_mcp_resources",
+      "parity_class": "analogous_inventory_only",
+      "note": "MCP lists manifests under a supplied bundle root; the adapter lists only config-registered manifests."
+    },
+    {
+      "action": "snapshot_status",
+      "library_method": "snapshot_status",
+      "cli_binding": "adapter call",
+      "mcp_surface": "repobrief://snapshot/{stem}/availability",
+      "parity_class": "shared_access_semantics"
+    },
+    {
+      "action": "artifact_get",
+      "library_method": "artifact_get",
+      "cli_binding": "adapter call",
+      "mcp_surface": "repobrief://snapshot/{stem}/artifact/{role}",
+      "parity_class": "shared_access_semantics"
+    },
+    {
+      "action": "canonical_range_get",
+      "library_method": "canonical_range_get",
+      "cli_binding": "adapter call",
+      "mcp_surface": null,
+      "parity_class": "not_bound"
+    },
+    {
+      "action": "required_reading_resolve",
+      "library_method": "required_reading_resolve",
+      "cli_binding": "adapter call",
+      "mcp_surface": null,
+      "parity_class": "not_bound"
+    },
+    {
+      "action": "query_existing_index",
+      "library_method": "query_existing_index",
+      "cli_binding": "adapter call",
+      "mcp_surface": null,
+      "parity_class": "not_bound"
+    },
+    {
+      "action": "symbol_search",
+      "library_method": "symbol_search",
+      "cli_binding": "adapter call",
+      "mcp_surface": null,
+      "parity_class": "not_bound"
+    },
+    {
+      "action": "workbench_artifact_get",
+      "library_method": "workbench_artifact_get",
+      "cli_binding": "adapter call",
+      "mcp_surface": "artifact/{role} for supported roles",
+      "parity_class": "role_bounded_analogous_read"
+    },
+    {
+      "action": "runtime_artifact_get",
+      "library_method": "runtime_artifact_get",
+      "cli_binding": "adapter call",
+      "mcp_surface": "artifact/{role} for supported roles",
+      "parity_class": "role_bounded_analogous_read"
+    }
+  ],
+  "non_parity": [
+    "The adapter is not an MCP protocol server.",
+    "MCP root discovery and adapter explicit registration are intentionally different.",
+    "Transport, authentication, scheduling and network binding are outside this contract.",
+    "MCP snapshot_create is a separate explicit write tool and is unreachable from adapter reads."
+  ],
+  "does_not_establish": [
+    "transport compatibility",
+    "MCP deployment",
+    "network security",
+    "answer correctness"
+  ],
+  "status": "implemented_and_tested"
+}

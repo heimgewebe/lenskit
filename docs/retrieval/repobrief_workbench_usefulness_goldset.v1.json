@@ -1,0 +1,81 @@
+{
+  "kind": "repobrief.workbench_usefulness_goldset",
+  "version": "1.0",
+  "questions": [
+    {
+      "id": "readonly-adapter-class",
+      "query": "RepoBrief protocol neutral read only adapter",
+      "symbol_query": "RepoBriefReadonlyAdapter",
+      "symbol_kind": "class",
+      "expected_paths": ["merger/lenskit/core/repobrief_readonly_adapter.py"],
+      "expected_symbols": ["RepoBriefReadonlyAdapter"]
+    },
+    {
+      "id": "readonly-adapter-dispatch",
+      "query": "dispatch JSON request for read only adapter",
+      "symbol_query": "dispatch",
+      "symbol_kind": "function",
+      "symbol_path_filter": "repobrief_readonly_adapter.py",
+      "expected_paths": ["merger/lenskit/core/repobrief_readonly_adapter.py"],
+      "expected_symbols": ["dispatch"]
+    },
+    {
+      "id": "snapshot-status",
+      "query": "read status of existing RepoBrief snapshot",
+      "symbol_query": "snapshot_status",
+      "symbol_kind": "function",
+      "expected_paths": ["merger/lenskit/core/repobrief_access.py"],
+      "expected_symbols": ["snapshot_status"]
+    },
+    {
+      "id": "existing-index-query",
+      "query": "query an existing SQLite index without mutation",
+      "symbol_query": "query_existing_index",
+      "symbol_kind": "function",
+      "expected_paths": ["merger/lenskit/core/repobrief_access.py"],
+      "expected_symbols": ["query_existing_index"]
+    },
+    {
+      "id": "symbol-index-search",
+      "query": "search Python symbol index without importing target code",
+      "symbol_query": "search_symbol_index",
+      "symbol_kind": "function",
+      "expected_paths": ["merger/lenskit/core/repobrief_access.py"],
+      "expected_symbols": ["search_symbol_index"]
+    },
+    {
+      "id": "mcp-resource-list",
+      "query": "list RepoBrief MCP resources from existing bundle",
+      "symbol_query": "list_mcp_resources",
+      "symbol_kind": "function",
+      "expected_paths": ["merger/lenskit/core/repobrief_mcp_resources.py"],
+      "expected_symbols": ["list_mcp_resources"]
+    },
+    {
+      "id": "latest-complete-freshness",
+      "query": "compare latest complete snapshot commit with live repository head",
+      "symbol_query": "evaluate_registry_freshness",
+      "symbol_kind": "function",
+      "expected_paths": ["merger/lenskit/core/repobrief_latest_complete.py"],
+      "expected_symbols": ["evaluate_registry_freshness"]
+    },
+    {
+      "id": "identity-distribution-check",
+      "query": "fail closed check for RepoBrief naming and distribution decisions",
+      "symbol_query": "check",
+      "symbol_kind": "function",
+      "symbol_path_filter": "check_identity_distribution_decisions.py",
+      "expected_paths": ["scripts/release/check_identity_distribution_decisions.py"],
+      "expected_symbols": ["check"]
+    }
+  ],
+  "does_not_establish": [
+    "agent quality improvement",
+    "answer correctness",
+    "repository understanding",
+    "patch correctness",
+    "test sufficiency",
+    "general retrieval quality",
+    "default workbench promotion"
+  ]
+}

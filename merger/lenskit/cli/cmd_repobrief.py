@@ -762,6 +762,40 @@ def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser)
     latest_status.add_argument("--registry", required=True, help="Path to latest-complete registry JSON")
     latest_status.add_argument("--repo", help="Optional local repo path for explicit HEAD drift comparison")
 
+    workbench_eval_parser = repobrief_subparsers.add_parser(
+        "workbench-eval",
+        help="Compare fixed navigation targets in the reading pack and read-only workbench",
+    )
+    workbench_eval_parser.add_argument("--config", required=True, help="Read-only adapter config JSON")
+    workbench_eval_parser.add_argument("--snapshot-id", required=True, help="Registered snapshot id")
+    workbench_eval_parser.add_argument("--goldset", required=True, help="Fixed usefulness goldset JSON")
+    workbench_eval_parser.add_argument("--k", type=int, default=10, help="Maximum query and symbol hits")
+
+    adapter_parser = repobrief_subparsers.add_parser(
+        "adapter",
+        help="Protocol-neutral read-only access to explicitly registered bundles",
+    )
+    adapter_subparsers = adapter_parser.add_subparsers(
+        dest="adapter_cmd",
+        required=True,
+        help="Read-only adapter commands",
+    )
+    adapter_list = adapter_subparsers.add_parser(
+        "list",
+        help="List snapshots explicitly registered in an adapter config",
+    )
+    adapter_list.add_argument("--config", required=True, help="Adapter config JSON")
+    adapter_call = adapter_subparsers.add_parser(
+        "call",
+        help="Dispatch one JSON request without creating or refreshing snapshots",
+    )
+    adapter_call.add_argument("--config", required=True, help="Adapter config JSON")
+    adapter_call.add_argument(
+        "--request",
+        required=True,
+        help="Request JSON path, or '-' to read one JSON object from stdin",
+    )
+
     patch_eval_parser = repobrief_subparsers.add_parser(
         "patch-evaluation",
         help="Read-only consumption of external Patch Evaluation Sidecar artifacts",
@@ -829,6 +863,10 @@ def run_repobrief(args: argparse.Namespace) -> int:
         return run_latest_complete_write(args)
     if args.repobrief_cmd == "latest-complete" and args.latest_complete_cmd == "status":
         return run_latest_complete_status(args)
+    if args.repobrief_cmd == "workbench-eval":
+        return run_workbench_eval(args)
+    if args.repobrief_cmd == "adapter":
+        return run_readonly_adapter(args)
     if args.repobrief_cmd == "patch-evaluation" and args.patch_evaluation_cmd == "validate":
         return run_patch_evaluation_validate(args)
     print("Unsupported RepoBrief command", file=sys.stderr)
@@ -970,6 +1008,50 @@ def run_latest_complete_status(args: argparse.Namespace) -> int:
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result.get("status") in {"ok", "warn"} else 1
+
+
+def run_workbench_eval(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.repobrief_workbench_usefulness import (
+        evaluate_workbench_usefulness,
+    )
+
+    try:
+        result = evaluate_workbench_usefulness(
+            args.config,
+            snapshot_id=args.snapshot_id,
+            goldset_path=args.goldset,
+            k=args.k,
+        )
+    except ValueError as exc:
+        print("repobrief workbench-eval: " + str(exc), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result.get("status") == "pass" else 1
+
+
+def run_readonly_adapter(args: argparse.Namespace) -> int:
+    from merger.lenskit.core.repobrief_readonly_adapter import (
+        RepoBriefReadonlyAdapter,
+        RepoBriefReadonlyAdapterError,
+    )
+
+    try:
+        adapter = RepoBriefReadonlyAdapter.from_config(args.config)
+        if args.adapter_cmd == "list":
+            result = adapter.snapshot_list()
+        else:
+            if args.request == "-":
+                request = json.load(sys.stdin)
+            else:
+                request = json.loads(
+                    Path(args.request).expanduser().resolve().read_text(encoding="utf-8")
+                )
+            result = adapter.dispatch(request)
+    except (RepoBriefReadonlyAdapterError, OSError, UnicodeError, json.JSONDecodeError) as exc:
+        print("repobrief adapter: " + str(exc), file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result.get("status") in {"available", "pass", "warn"} else 1
 
 
 def run_patch_evaluation_validate(args: argparse.Namespace) -> int:
