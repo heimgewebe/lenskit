@@ -66,10 +66,10 @@ python3 -m merger.lenskit.cli.main agent-pack produce <stem>.bundle.manifest.jso
 ### RepoBrief als lokaler MCP-Server
 
 Vorhandene Brief Bundles können direkt als MCP-Ressourcen und Werkzeuge für Coding-Agenten
-eingehängt werden:
+eingehängt werden. Für MCP-Clients ist der checkout-unabhängige Starter vorgesehen:
 
 ```bash
-python3 -m merger.lenskit.cli.repobrief_mcp_stdio \
+python3 /absoluter/pfad/zu/lenskit/scripts/repobrief-mcp-stdio.py \
   --bundle-root /absoluter/pfad/zu/briefs \
   --repo-root /absoluter/pfad/zum/repository
 ```
@@ -78,7 +78,8 @@ Der Server stellt standardmäßig `ask_context`, `grounding_verify`, `live_fresh
 `repobrief://snapshot/...`-Ressourcen bereit. Lesezugriffe erzeugen oder aktualisieren keinen
 Snapshot. Live-Freshness meldet abweichendes `HEAD` oder einen Dirty Working Tree als `stale`.
 Der schreibende `snapshot_create`-Pfad bleibt verborgen, solange der Server nicht ausdrücklich
-mit `--enable-snapshot-create` gestartet wird.
+mit `--enable-snapshot-create` gestartet wird. In diesem Modus sind Quellrepository und Ausgabeziel
+weiterhin an `--repo-root` und `--bundle-root` des Serverstarts gebunden.
 
 Konfiguration, Zustände und Sicherheitsgrenzen:
 [RepoBrief MCP stdio](docs/usage/repobrief-mcp-stdio.md).
