@@ -76,6 +76,11 @@ Die Fläche parst oder appliziert selbst keinen Diff.
 Klasse ist stärker als eine bloße Heuristik, aber keine Graphkante. Sie belegt
 weder Laufzeitabhängigkeit noch Testabdeckung oder Testhinlänglichkeit.
 
+Sobald mindestens ein `resolved_query`-Testkandidat vorliegt, werden bloß
+konventionell geratene Testpfade aus derselben Ausgabe unterdrückt. Fehlt ein
+aufgelöster Testtreffer, bleiben Heuristiken als ausdrücklich schwächerer
+Fallback sichtbar.
+
 ## Kohärenz und Degradation
 
 Die Kernartefakte müssen denselben `run_id` und denselben
@@ -135,8 +140,17 @@ parent-traversierende oder anderweitig nicht repository-relative Pfade werden
 vor Recall- und Größenmessung entfernt. `default_promoted` bleibt immer
 `false`; jede Standardaktivierung ist eine getrennte Entscheidung.
 
-Die erste Live-Kalibrierung vom 13. Juli 2026 verfehlte den Grabowski-Testpfad
-`tests/test_job_finalizer.py` und wurde deshalb nicht befördert. Dieser Slice
-schließt genau diese Lücke durch die zusätzliche Evidenzklasse
-`resolved_query`; der gleiche Drei-Repository-Goldset muss vor Abschluss erneut
-ohne Recall-Regression ausgeführt werden.
+Die erste Live-Kalibrierung vom 13. Juli 2026 verfehlte im Grabowski-Fall
+`tests/test_job_finalizer.py`. Der unveränderte Drei-Repository-Goldset wurde
+nach der Reparatur erneut auf denselben Zielcommits ausgeführt:
+
+- Baseline Recall: `1.0`;
+- Impact Recall: `1.0`;
+- keine Fallregression;
+- aggregierte Kontextpfadreduktion: `50 %`;
+- `default_promoted=false`.
+
+Damit ist die konkrete Live-Regression geschlossen und ein begrenzter
+Navigationsnutzen auf diesem Goldset belegt. Die Fläche bleibt opt-in. Ein
+breiter Agenten-Benchmark und eine gesonderte Entscheidung sind erforderlich,
+bevor sie als Standardroute empfohlen werden kann.
