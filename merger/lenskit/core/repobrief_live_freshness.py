@@ -40,6 +40,12 @@ def _load_manifest(path: Path) -> dict[str, Any]:
         raise ValueError("bundle manifest is not valid UTF-8 JSON") from exc
     if not isinstance(data, dict):
         raise ValueError("bundle manifest must be a JSON object")
+    if (
+        data.get("kind") != "repolens.bundle.manifest"
+        or not isinstance(data.get("run_id"), str)
+        or not isinstance(data.get("artifacts"), list)
+    ):
+        raise ValueError("bundle manifest does not have RepoBrief manifest shape")
     return data
 
 
@@ -153,10 +159,8 @@ def _repository_records(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 def _record_for_repo(
     records: list[dict[str, Any]],
-    repo_root: Path | None,
+    repo_root: Path,
 ) -> dict[str, Any] | None:
-    if repo_root is None:
-        return records[0] if len(records) == 1 else None
     resolved = str(repo_root.resolve())
     exact = [record for record in records if record.get("repo_root") == resolved]
     if len(exact) == 1:
@@ -175,6 +179,7 @@ def _base(
     repo_root: Path | None,
     snapshot: Mapping[str, Any] | None = None,
     current: Mapping[str, Any] | None = None,
+    read_only_git_probe: bool = True,
 ) -> dict[str, Any]:
     return {
         "kind": KIND,
@@ -186,22 +191,10 @@ def _base(
         "repo_root": str(repo_root) if repo_root is not None else None,
         "snapshot_provenance": dict(snapshot) if snapshot is not None else None,
         "current_provenance": dict(current) if current is not None else None,
-        "read_only_git_probe": True,
+        "read_only_git_probe": read_only_git_probe,
         "implicit_refresh": False,
         "does_not_establish": list(DOES_NOT_ESTABLISH),
     }
-
-
-def _selected_root(
-    snapshot: Mapping[str, Any],
-    explicit_root: Path | None,
-) -> Path | None:
-    if explicit_root is not None:
-        return explicit_root
-    recorded_root = snapshot.get("repo_root")
-    if isinstance(recorded_root, str) and recorded_root:
-        return Path(recorded_root).expanduser().resolve()
-    return None
 
 
 def _snapshot_gate(
@@ -277,10 +270,19 @@ def evaluate_live_freshness(
     repo_root: str | Path | None = None,
     probe: Probe = repository_live_provenance,
 ) -> dict[str, Any]:
-    """Compare snapshot provenance with one local checkout without refreshing it."""
+    """Compare snapshot provenance with one explicitly authorized local checkout."""
     manifest_path = Path(bundle_manifest).expanduser().resolve()
     records = _repository_records(_load_manifest(manifest_path))
-    explicit_root = Path(repo_root).expanduser().resolve() if repo_root is not None else None
+    if repo_root is None:
+        return _base(
+            status="not_comparable",
+            reason="repo_root_not_configured",
+            manifest_path=manifest_path,
+            repo_root=None,
+            read_only_git_probe=False,
+        )
+
+    explicit_root = Path(repo_root).expanduser().resolve()
     snapshot = _record_for_repo(records, explicit_root)
     if snapshot is None:
         reason = "snapshot_provenance_missing" if not records else "repository_selection_ambiguous"
@@ -291,29 +293,19 @@ def evaluate_live_freshness(
             repo_root=explicit_root,
         )
 
-    selected_root = _selected_root(snapshot, explicit_root)
-    if selected_root is None:
-        return _base(
-            status="not_comparable",
-            reason="repo_root_redacted_or_missing",
-            manifest_path=manifest_path,
-            repo_root=None,
-            snapshot=snapshot,
-        )
-
     blocked = _snapshot_gate(
         snapshot,
         manifest_path=manifest_path,
-        repo_root=selected_root,
+        repo_root=explicit_root,
     )
     if blocked is not None:
         return blocked
 
-    current = probe(selected_root)
+    current = probe(explicit_root)
     blocked = _current_gate(
         current,
         manifest_path=manifest_path,
-        repo_root=selected_root,
+        repo_root=explicit_root,
         snapshot=snapshot,
     )
     if blocked is not None:
@@ -324,7 +316,7 @@ def evaluate_live_freshness(
             status="stale",
             reason="git_head_mismatch",
             manifest_path=manifest_path,
-            repo_root=selected_root,
+            repo_root=explicit_root,
             snapshot=snapshot,
             current=current,
         )
@@ -332,7 +324,7 @@ def evaluate_live_freshness(
         status="fresh",
         reason="git_head_matches_and_working_tree_is_clean",
         manifest_path=manifest_path,
-        repo_root=selected_root,
+        repo_root=explicit_root,
         snapshot=snapshot,
         current=current,
     )
