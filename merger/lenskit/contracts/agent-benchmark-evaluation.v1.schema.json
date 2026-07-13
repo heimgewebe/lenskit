@@ -1,0 +1,160 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "lenskit/schema/agent-benchmark-evaluation.v1.schema.json",
+  "title": "RepoBrief Agent Benchmark Evaluation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "version",
+    "taskset_id",
+    "taskset_sha256",
+    "measurement_scope",
+    "run_count",
+    "valid_run_count",
+    "invalid_run_count",
+    "cases",
+    "classes",
+    "decision",
+    "does_not_establish"
+  ],
+  "properties": {
+    "kind": {"const": "repobrief.agent_benchmark_evaluation"},
+    "version": {"const": "1.0"},
+    "taskset_id": {"type": "string", "minLength": 1},
+    "taskset_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "measurement_scope": {"enum": ["synthetic_contract_fixture", "real_paired_agent_runs"]},
+    "run_count": {"type": "integer", "minimum": 0},
+    "valid_run_count": {"type": "integer", "minimum": 0},
+    "invalid_run_count": {"type": "integer", "minimum": 0},
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "category",
+          "repetition",
+          "pair_valid",
+          "baseline",
+          "treatment"
+        ],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "category": {"enum": ["navigation", "structural", "grounding_freshness"]},
+          "repetition": {"type": "integer", "minimum": 1},
+          "pair_valid": {"type": "boolean"},
+          "baseline": {"$ref": "#/definitions/score"},
+          "treatment": {"$ref": "#/definitions/score"}
+        }
+      }
+    },
+    "classes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "valid_pair_count",
+          "baseline_success_rate",
+          "treatment_success_rate",
+          "success_rate_delta",
+          "baseline_false_confidence_rate",
+          "treatment_false_confidence_rate",
+          "false_confidence_delta",
+          "efficiency",
+          "classification"
+        ],
+        "properties": {
+          "category": {"enum": ["navigation", "structural", "grounding_freshness"]},
+          "valid_pair_count": {"type": "integer", "minimum": 0},
+          "baseline_success_rate": {"type": "number", "minimum": 0, "maximum": 1},
+          "treatment_success_rate": {"type": "number", "minimum": 0, "maximum": 1},
+          "success_rate_delta": {"type": "number", "minimum": -1, "maximum": 1},
+          "baseline_false_confidence_rate": {"type": "number", "minimum": 0, "maximum": 1},
+          "treatment_false_confidence_rate": {"type": "number", "minimum": 0, "maximum": 1},
+          "false_confidence_delta": {"type": "number", "minimum": -1, "maximum": 1},
+          "efficiency": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["duration", "tool_calls", "input_tokens", "output_tokens", "tool_bytes"],
+            "properties": {
+              "duration": {"$ref": "#/definitions/efficiency_metric"},
+              "tool_calls": {"$ref": "#/definitions/efficiency_metric"},
+              "input_tokens": {"$ref": "#/definitions/efficiency_metric"},
+              "output_tokens": {"$ref": "#/definitions/efficiency_metric"},
+              "tool_bytes": {"$ref": "#/definitions/efficiency_metric"}
+            }
+          },
+          "classification": {"enum": ["useful", "neutral", "harmful", "insufficient_evidence", "synthetic_only"]}
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "useful_classes", "harmful_classes", "default_promoted", "reason"],
+      "properties": {
+        "status": {"enum": ["synthetic_only", "insufficient_evidence", "useful_class", "neutral", "harmful"]},
+        "useful_classes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "harmful_classes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "default_promoted": {"const": false},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "does_not_establish": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "definitions": {
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "valid",
+        "success",
+        "outcome_match",
+        "target_hit_rate",
+        "false_hit_count",
+        "citation_match_rate",
+        "false_confidence",
+        "duration_ms",
+        "tool_call_count",
+        "input_tokens",
+        "output_tokens",
+        "tool_bytes",
+        "invalid_reasons"
+      ],
+      "properties": {
+        "valid": {"type": "boolean"},
+        "success": {"type": "boolean"},
+        "outcome_match": {"type": "boolean"},
+        "target_hit_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "false_hit_count": {"type": "integer", "minimum": 0},
+        "citation_match_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "false_confidence": {"type": "boolean"},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "tool_call_count": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0},
+        "tool_bytes": {"type": "integer", "minimum": 0},
+        "invalid_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "efficiency_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline_mean", "treatment_mean", "improvement_ratio"],
+      "properties": {
+        "baseline_mean": {"type": "number", "minimum": 0},
+        "treatment_mean": {"type": "number", "minimum": 0},
+        "improvement_ratio": {"type": ["number", "null"], "minimum": -1000, "maximum": 1}
+      }
+    }
+  }
+}
