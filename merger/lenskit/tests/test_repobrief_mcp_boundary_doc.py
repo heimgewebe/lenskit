@@ -4,6 +4,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MCP_BOUNDARY_DOC = REPO_ROOT / "docs/architecture/repobrief-mcp-boundary.md"
 REPOBRIEF_DOC = REPO_ROOT / "docs/architecture/repobrief.md"
+MCP_USAGE_DOC = REPO_ROOT / "docs/usage/repobrief-mcp-stdio.md"
 
 MCP_RESOURCES = (
     "repobrief://snapshot/{stem}/manifest",
@@ -23,6 +24,7 @@ READ_ONLY_TOOLS = (
     "query_existing_index",
     "ask_context",
     "grounding_verify",
+    "live_freshness",
 )
 
 FORBIDDEN_OPERATIONS = (
@@ -58,9 +60,10 @@ def _read(path: Path) -> str:
 
 def test_mcp_boundary_doc_exists() -> None:
     assert MCP_BOUNDARY_DOC.exists()
+    assert MCP_USAGE_DOC.exists()
 
 
-def test_mcp_boundary_doc_lists_planned_resources() -> None:
+def test_mcp_boundary_doc_lists_resources() -> None:
     text = _read(MCP_BOUNDARY_DOC)
 
     for resource in MCP_RESOURCES:
@@ -80,10 +83,22 @@ def test_mcp_boundary_doc_lists_read_only_tools_and_create_boundary() -> None:
     assert "refresh bundles" in text
     assert "create snapshots" in text
     assert "`snapshot_create`" in text
-    assert "may write only Brief Bundle artifacts" in text
+    assert "may write only Brief Bundle" in text
     assert "must not be reachable as a side effect" in text
     assert "merger.lenskit.core.repobrief_mcp_tools" in text
-    assert "not an MCP protocol server" in text
+    assert "does not list or accept `snapshot_create` by default" in text
+
+
+def test_mcp_boundary_doc_names_local_stdio_server() -> None:
+    text = _read(MCP_BOUNDARY_DOC)
+
+    assert "Local stdio protocol server" in text
+    assert "merger.lenskit.cli.repobrief_mcp_stdio" in text
+    assert "tools/list" in text
+    assert "resources/read" in text
+    assert "newline-delimited" in text
+    assert "not a networked MCP protocol server" in text
+    assert "no TCP/HTTP listener" in text
 
 
 def test_mcp_boundary_doc_lists_snapshot_create_guards() -> None:
@@ -119,24 +134,47 @@ def test_mcp_boundary_doc_says_reads_do_not_refresh_or_write() -> None:
     text = _read(MCP_BOUNDARY_DOC)
 
     assert "reads existing Brief Bundles" in text
-    assert "Reading a bundle must never trigger snapshot creation" in text
+    assert "Reading a bundle must never trigger snapshot" in text
     assert "Read-only tools must not write files" in text
     assert "A stale, missing, degraded, or invalid snapshot must be reported" in text
     assert "silently regenerated" in text
 
 
-def test_repobrief_doc_links_to_mcp_boundary_without_claiming_implementation() -> None:
+def test_mcp_boundary_doc_bounds_live_git_probe() -> None:
+    text = _read(MCP_BOUNDARY_DOC)
+
+    assert "Bounded local Git probe" in text
+    assert "operator-provided `--repo-root`" in text
+    assert "disables optional locks" in text
+    assert "ignores global and system Git configuration" in text
+    assert "Missing cleanliness evidence" in text
+    assert "never invokes `git_fetch`, `git_pull`, or `git_push`" in text
+
+
+def test_repobrief_doc_links_to_implemented_mcp_surface() -> None:
     text = _read(REPOBRIEF_DOC)
 
     assert "[RepoBrief MCP Boundary](repobrief-mcp-boundary.md)" in text
-    assert "code-level `snapshot_create` tool handler exists" in text
-    assert "does not assert that an MCP server" in text
+    assert "local MCP stdio server now binds" in text
+    assert "not a network service" in text
+    assert "explicit `snapshot_create` handler remains hidden" in text
+    assert "[RepoBrief MCP stdio](../usage/repobrief-mcp-stdio.md)" in text
 
 
 def test_mcp_boundary_doc_names_concrete_readonly_resource_adapter() -> None:
     text = _read(MCP_BOUNDARY_DOC)
 
     assert "merger.lenskit.core.repobrief_mcp_resources" in text
-    assert "manifest`, `canonical`, `reading-pack`, `health`, `availability`" in text
-    assert "not a networked MCP protocol server" in text
+    assert "`manifest`, `canonical`, `reading-pack`, `health`, `availability`" in text
     assert "health, freshness, and availability context" in text
+
+
+def test_mcp_usage_doc_has_start_and_client_configuration() -> None:
+    text = _read(MCP_USAGE_DOC)
+
+    assert "python3 -m merger.lenskit.cli.repobrief_mcp_stdio" in text
+    assert '"mcpServers"' in text
+    assert "--bundle-root" in text
+    assert "--repo-root" in text
+    assert "--enable-snapshot-create" in text
+    assert "repo_root_not_configured" not in text
