@@ -5,6 +5,7 @@ an LLM, model credentials, token estimation, or a synthetic usefulness claim.
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import tempfile
@@ -29,10 +30,9 @@ from merger.lenskit.core.agent_benchmark_common import (
     validate_taskset,
     write_json_atomic,
 )
-from merger.lenskit.core.agent_benchmark_evaluation import (
-    evaluate_paired_runs,
-    score_receipt,
-)
+from merger.lenskit.core.agent_benchmark_evaluation import score_receipt
+from merger.lenskit.core.agent_benchmark_integrity import evaluate_paired_runs
+from merger.lenskit.core.agent_benchmark_policy import BENCHMARK_REPETITIONS
 from merger.lenskit.core.agent_benchmark_receipts import validate_receipt
 
 
@@ -148,19 +148,21 @@ def build_run_requests(
     *,
     runner: Mapping[str, Any],
     manifest_bindings: Mapping[str, Mapping[str, Any]],
-    repetitions: int = 2,
+    repetitions: int = BENCHMARK_REPETITIONS,
 ) -> list[dict[str, Any]]:
     """Build isolated and deterministically balanced paired run requests."""
 
     require_valid_taskset(taskset)
-    if repetitions < 1:
-        raise AgentBenchmarkError("repetitions must be at least 1")
+    if repetitions != BENCHMARK_REPETITIONS:
+        raise AgentBenchmarkError(
+            f"benchmark v1 requires exactly {BENCHMARK_REPETITIONS} repetitions"
+        )
     if not runner.get("provider") or not runner.get("model"):
         raise AgentBenchmarkError("runner provider and model are required")
     repositories = _repository_map(taskset)
     taskset_hash = sha256_json(taskset)
     requests: list[dict[str, Any]] = []
-    for repetition in range(1, repetitions + 1):
+    for repetition in range(1, BENCHMARK_REPETITIONS + 1):
         for case_index, raw_case in enumerate(list_value(taskset.get("cases"))):
             case = mapping_value(raw_case)
             repository = repositories[str(case["repository_id"])]
@@ -199,8 +201,8 @@ def _read_runner_output(
 
 def _decode_runner_output(raw: bytes) -> dict[str, Any]:
     try:
-        value = __import__("json").loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AgentBenchmarkError("runner stdout is not one UTF-8 JSON object") from exc
     if not isinstance(value, dict):
         raise AgentBenchmarkError("runner stdout must be one JSON object")
