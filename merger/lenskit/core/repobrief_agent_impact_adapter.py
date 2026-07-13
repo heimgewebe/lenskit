@@ -18,6 +18,11 @@ from merger.lenskit.core.repobrief_readonly_adapter import (
 )
 
 MAX_RELATION_CARDS = 10_000
+_CORE_JSON_CONTRACTS = {
+    "architecture_graph_json": ("lenskit.architecture.graph", "nodes", "edges"),
+    "python_symbol_index_json": ("lenskit.python_symbol_index", "symbols"),
+    "entrypoints_json": ("lenskit.entrypoints", "entrypoints"),
+}
 
 
 @dataclass(frozen=True)
@@ -69,6 +74,42 @@ def _artifact_status(role: str, response: dict[str, Any]) -> dict[str, Any]:
         "bytes": artifact.get("bytes") if isinstance(artifact, dict) else None,
         "sha256": artifact.get("sha256") if isinstance(artifact, dict) else None,
     }
+
+
+def _json_parse_status(response: dict[str, Any]) -> str:
+    text = response.get("content_text")
+    if not isinstance(text, str):
+        return "invalid_json"
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        return "invalid_json"
+    return "invalid_schema"
+
+
+def _core_json_status(role: str, response: dict[str, Any]) -> dict[str, Any]:
+    status = _artifact_status(role, response)
+    if status["status"] != "available":
+        return status
+    document = response.get("content_json")
+    if not isinstance(document, dict):
+        failure = _json_parse_status(response)
+        status.update({"status": failure, "error_code": failure})
+        return status
+    expected_kind, *array_fields = _CORE_JSON_CONTRACTS[role]
+    valid_identity = (
+        document.get("kind") == expected_kind
+        and document.get("version") == "1.0"
+    )
+    valid_arrays = all(isinstance(document.get(field), list) for field in array_fields)
+    if not valid_identity or not valid_arrays:
+        status.update(
+            {
+                "status": "invalid_schema",
+                "error_code": "core_artifact_contract_invalid",
+            }
+        )
+    return status
 
 
 def _target_query(target_path: Any, target_symbol: Any, changed_paths: Any) -> str:
@@ -130,9 +171,9 @@ class RepoBriefAgentImpactAdapter(RepoBriefReadonlyAdapter):
         query_response: dict[str, Any],
     ) -> list[dict[str, Any]]:
         statuses = [
-            _artifact_status("architecture_graph_json", sources.graph),
-            _artifact_status("python_symbol_index_json", sources.symbols),
-            _artifact_status("entrypoints_json", sources.entrypoints),
+            _core_json_status("architecture_graph_json", sources.graph),
+            _core_json_status("python_symbol_index_json", sources.symbols),
+            _core_json_status("entrypoints_json", sources.entrypoints),
             _artifact_status("relation_cards_jsonl", sources.cards),
         ]
         if query_response:
