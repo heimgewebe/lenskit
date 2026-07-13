@@ -13,6 +13,7 @@ from merger.lenskit.cli.repobrief_mcp_stdio import PROTOCOL_VERSION
 from merger.lenskit.core.repobrief_live_freshness import evaluate_live_freshness
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+MCP_LAUNCHER = REPO_ROOT / "scripts/repobrief-mcp-stdio.py"
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -59,7 +60,11 @@ def _manifest(path: Path, *, repo: Path, commit: str) -> Path:
     return manifest
 
 
-def test_mcp_stdio_module_process_completes_real_handshake(tmp_path: Path) -> None:
+def test_mcp_stdio_launcher_completes_handshake_outside_checkout(tmp_path: Path) -> None:
+    client_cwd = tmp_path / "client-cwd"
+    bundle_root = tmp_path / "bundles"
+    client_cwd.mkdir()
+    bundle_root.mkdir()
     requests = [
         {
             "jsonrpc": "2.0",
@@ -86,12 +91,11 @@ def test_mcp_stdio_module_process_completes_real_handshake(tmp_path: Path) -> No
     completed = subprocess.run(
         [
             sys.executable,
-            "-m",
-            "merger.lenskit.cli.repobrief_mcp_stdio",
+            str(MCP_LAUNCHER),
             "--bundle-root",
-            str(tmp_path),
+            str(bundle_root),
         ],
-        cwd=REPO_ROOT,
+        cwd=client_cwd,
         input="".join(json.dumps(request) + "\n" for request in requests),
         capture_output=True,
         text=True,
