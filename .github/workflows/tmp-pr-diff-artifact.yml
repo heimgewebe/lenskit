@@ -1,9 +1,6 @@
 name: temporary-pr-diff-artifact
 
-on:
-  push:
-    branches:
-      - feat/agent-impact-context-v1
+on: [push, pull_request]
 
 permissions:
   contents: read
