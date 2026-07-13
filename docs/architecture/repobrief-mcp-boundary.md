@@ -2,15 +2,50 @@
 
 RepoBrief MCP is a read-first boundary for existing RepoBrief snapshots.
 
-The MCP surface reads existing Brief Bundles. Reading a bundle must never trigger snapshot creation, refresh, Git access, pull-request actions, patch writing, shell execution, review automation, or secret access.
+The MCP surface reads existing Brief Bundles. Reading a bundle must never trigger snapshot
+creation, refresh, Git mutation, network synchronization, pull-request actions, patch writing,
+shell execution, review automation, or secret access. An explicitly configured live-freshness
+check may run a bounded local read-only Git probe; it reports drift and never repairs it.
 
-This document defines the boundary before an MCP protocol server exists. Code-level MCP-shaped handlers may exist before protocol binding; their presence is not evidence that an MCP server or MCP resources are deployed.
+RepoBrief now has a local stdio protocol server. It is not a networked MCP protocol server:
+there is no TCP/HTTP listener, authentication layer, remote scheduler, or service deployment in
+this slice. The server binds existing code-level handlers and resources to MCP JSON-RPC without
+creating a parallel truth or retrieval layer.
 
-RepoBrief MCP may later expose integrated Agent Workbench resources when they are deterministic read-only code-understanding surfaces. Mutable Patch Evaluation Sidecar authority for patch application, worktrees, shell/test execution, and patch-evaluation artifacts is defined separately in [RepoBrief Agent Workbench Boundary](repobrief-agent-workbench-boundary.md). That authority must not be smuggled into RepoBrief resources or read-only tools.
+RepoBrief MCP may later expose integrated Agent Workbench resources when they are deterministic
+read-only code-understanding surfaces. Mutable Patch Evaluation Sidecar authority for patch
+application, worktrees, shell/test execution, and patch-evaluation artifacts is defined separately
+in [RepoBrief Agent Workbench Boundary](repobrief-agent-workbench-boundary.md). That authority
+must not be smuggled into RepoBrief resources or read-only tools.
+
+## Local stdio protocol server
+
+The concrete server lives in:
+
+```text
+merger.lenskit.cli.repobrief_mcp_stdio
+```
+
+Start the default read-only server with:
+
+```bash
+python3 -m merger.lenskit.cli.repobrief_mcp_stdio \
+  --bundle-root /absolute/path/to/briefs \
+  --repo-root /absolute/path/to/repository
+```
+
+It implements the MCP initialization lifecycle and the `tools/list`, `tools/call`,
+`resources/list`, `resources/templates/list`, and `resources/read` methods over newline-delimited
+stdio JSON-RPC messages. Standard output is reserved for protocol messages. Client setup and the
+stable command contract are documented in [RepoBrief MCP stdio](../usage/repobrief-mcp-stdio.md).
+
+`--repo-root` is the sole checkout permission for the protocol server. Without it, live freshness
+is `not_comparable` and no Git probe runs. A tool argument or bundle manifest cannot redirect the
+server to inspect another checkout.
 
 ## Resources-first surface
 
-RepoBrief MCP should expose stable resources before tools. Planned resources are:
+RepoBrief MCP exposes these stable resources:
 
 - `repobrief://snapshot/{stem}/manifest`
 - `repobrief://snapshot/{stem}/canonical`
@@ -21,11 +56,22 @@ RepoBrief MCP should expose stable resources before tools. Planned resources are
 
 These resources are read-only views over files that already exist in a Brief Bundle.
 
-The concrete code-level resource adapter lives in `merger.lenskit.core.repobrief_mcp_resources`. It implements resource template listing and resource reads for `manifest`, `canonical`, `reading-pack`, `health`, `availability`, and arbitrary `artifact/{role}` resources. Each read returns snapshot health, freshness, and availability context or an explicit explanation when the manifest is unavailable. The adapter is still not a networked MCP protocol server.
+The concrete code-level resource adapter lives in
+`merger.lenskit.core.repobrief_mcp_resources`. It implements resource template listing and
+resource reads for `manifest`, `canonical`, `reading-pack`, `health`, `availability`, and arbitrary
+`artifact/{role}` resources. Each read returns health, freshness, and availability context or an
+explicit explanation when the manifest is unavailable. Resource content retains its existing
+size, path, and integrity checks.
 
 ## Read-only tools
 
-The initial MCP tools are read-only helpers:
+The MCP tools available by default are:
+
+- `ask_context`
+- `grounding_verify`
+- `live_freshness`
+
+The underlying read-only library surface also contains:
 
 - `snapshot_list`
 - `snapshot_status`
@@ -33,26 +79,53 @@ The initial MCP tools are read-only helpers:
 - `required_reading_resolve`
 - `range_get`
 - `query_existing_index`
-- `ask_context`
-- `grounding_verify`
 
-Read-only tools must not write files, refresh bundles, create snapshots, mutate Git state, open pull requests, apply patches, run shells, execute reviews, execute fixes, merge changes, or read secrets. A stale, missing, degraded, or invalid snapshot must be reported as such instead of being silently regenerated.
+Read-only tools must not write files, refresh bundles, create snapshots, mutate Git state, open
+pull requests, apply patches, run shells, execute reviews, execute fixes, merge changes, or read
+secrets. A stale, missing, degraded, or invalid snapshot must be reported as such instead of being
+silently regenerated.
 
-## Read-only frontdoor tools
+`ask_context` exposes the same request/context-pack semantics as `repobrief ask`: it builds a
+context pack from existing artifacts and must not create or refresh snapshots.
 
-`ask_context` exposes the same request/context-pack semantics as `repobrief ask`: it builds a context pack from existing artifacts and must not create or refresh snapshots.
+`grounding_verify` exposes the same declaration/verdict semantics as the Answer Grounding
+verifier: it checks declared citations, ranges, task-profile evidence, and caveats against existing
+inputs. It must not run reviews, apply fixes, mutate Git, read secrets, or authorize merges.
 
-`grounding_verify` exposes the same declaration/verdict semantics as the Answer Grounding verifier: it checks declared citations, ranges, task-profile evidence and caveats against existing inputs. It must not run reviews, apply fixes, mutate Git, read secrets, or authorize merges.
+`live_freshness` compares the snapshot's recorded commit and cleanliness with the one checkout
+explicitly configured at server startup. It returns `fresh`, `stale`, `unknown`, or
+`not_comparable`. It does not compare remote branches and does not claim pull-request freshness.
 
-Both tools are code-level MCP-shaped handlers only. Their presence does not establish MCP server availability, transport security, authentication, runtime correctness or answer correctness.
+## Bounded local Git probe
+
+The live-freshness probe is a narrow exception to the general no-Git read boundary. It may run
+only local, read-only Git operations required to establish:
+
+- repository presence;
+- current `HEAD`;
+- branch name;
+- working-tree dirtiness, including untracked files.
+
+The probe:
+
+- never invokes `git_fetch`, `git_pull`, or `git_push`;
+- disables optional locks and terminal prompts;
+- disables fsmonitor and the untracked cache for the probe;
+- ignores global and system Git configuration;
+- has a fixed timeout;
+- is bound to the operator-provided `--repo-root` in MCP mode.
+
+A dirty snapshot, dirty current tree, or changed `HEAD` is `stale`. Missing cleanliness evidence
+is never treated as fresh.
 
 ## Explicit write path
 
-RepoBrief exposes one code-level MCP-shaped write handler for a future protocol adapter:
+RepoBrief exposes one explicit write handler:
 
 - `snapshot_create`
 
-The handler lives in `merger.lenskit.core.repobrief_mcp_tools`. It may write only Brief Bundle artifacts. It must not be reachable as a side effect of resource reads or read-only tools.
+The handler lives in `merger.lenskit.core.repobrief_mcp_tools`. It may write only Brief Bundle
+artifacts. It must not be reachable as a side effect of resource reads or read-only tools.
 
 `snapshot_create` requires:
 
@@ -62,7 +135,9 @@ The handler lives in `merger.lenskit.core.repobrief_mcp_tools`. It may write onl
 - a timeout guard,
 - a size guard.
 
-The current implementation is a deterministic tool handler, not an MCP protocol server. It does not expose transport, authentication, network binding, resource routing, or scheduler behaviour by itself.
+The stdio server does not list or accept `snapshot_create` by default. The operator must start it
+with `--enable-snapshot-create`. This opt-in does not add Git, patch, PR, shell, review, fix, or
+merge authority.
 
 ## Forbidden operations
 
@@ -80,11 +155,14 @@ RepoBrief MCP must not expose or indirectly trigger these operations:
 - `secret_read`
 - `snapshot_create_side_effect`
 
-The forbidden list applies to resource reads, read-only tools, and future write-tool orchestration unless a later architecture document explicitly narrows a safe operation. By default, absence of permission is the design.
+The forbidden list applies to resource reads, read-only tools, and write-tool orchestration unless
+a later architecture document explicitly narrows a safe operation. By default, absence of
+permission is the design.
 
 ## Negative semantics
 
-RepoBrief MCP must preserve RepoBrief negative semantics. A successful resource read, tool result, health check, or index query does not establish:
+RepoBrief MCP preserves RepoBrief negative semantics. A successful resource read, tool result,
+health check, index query, protocol exchange, or `fresh` verdict does not establish:
 
 - `truth`
 - `correctness`
@@ -96,4 +174,4 @@ RepoBrief MCP must preserve RepoBrief negative semantics. A successful resource 
 - `claims_true`
 - `forensic_ready`
 
-MCP can improve access to evidence. It must not turn access into proof.
+MCP improves access to evidence. It must not turn access or freshness into proof.
