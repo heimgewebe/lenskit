@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from merger.lenskit.core.repobrief_live_freshness import evaluate_live_freshness
 
 
@@ -125,13 +127,22 @@ def test_live_freshness_is_unknown_when_snapshot_cleanliness_is_missing(tmp_path
     assert result["reason"] == "snapshot_working_tree_cleanliness_unavailable"
 
 
-def test_live_freshness_is_not_comparable_without_repo_root(tmp_path):
-    manifest = _manifest(tmp_path, repo_root=None)
+def test_live_freshness_requires_explicit_repo_root_and_does_not_probe(tmp_path):
+    recorded_repo = tmp_path / "recorded-repo"
+    recorded_repo.mkdir()
+    manifest = _manifest(tmp_path, repo_root=recorded_repo)
+    calls = []
 
-    result = evaluate_live_freshness(manifest, probe=lambda _path: {})
+    def probe(path):
+        calls.append(path)
+        raise AssertionError("manifest path must not authorize a Git probe")
+
+    result = evaluate_live_freshness(manifest, probe=probe)
 
     assert result["status"] == "not_comparable"
-    assert result["reason"] == "repo_root_redacted_or_missing"
+    assert result["reason"] == "repo_root_not_configured"
+    assert result["read_only_git_probe"] is False
+    assert calls == []
 
 
 def test_live_freshness_rejects_explicit_mismatched_repository(tmp_path):
@@ -149,3 +160,11 @@ def test_live_freshness_rejects_explicit_mismatched_repository(tmp_path):
 
     assert result["status"] == "unknown"
     assert result["reason"] == "repository_selection_ambiguous"
+
+
+def test_live_freshness_rejects_non_repobrief_manifest_shape(tmp_path):
+    manifest = tmp_path / "fake.bundle.manifest.json"
+    manifest.write_text(json.dumps({"kind": "other", "artifacts": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="RepoBrief manifest shape"):
+        evaluate_live_freshness(manifest, repo_root=tmp_path)
