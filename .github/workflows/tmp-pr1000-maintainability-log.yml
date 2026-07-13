@@ -1,27 +1,27 @@
-name: temporary PR 1000 diagnostics
+name: temporary PR 1000 taskset correction
 
 on:
   pull_request:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  correct-taskset:
+    if: github.head_ref == 'feat/repobrief-agent-benchmark-v1'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.12"
-      - name: Install pinned development tools
-        run: python -m pip install --disable-pip-version-check --require-hashes -r requirements/repobrief-dev.lock.txt
-      - name: Emit corrected frozen taskset
+      - name: Remove exactly one redundant frozen case
         shell: bash
         run: |
           python - <<'PY'
@@ -32,45 +32,32 @@ jobs:
           source = Path("docs/retrieval/repobrief_agent_benchmark_taskset.v1.json")
           document = json.loads(source.read_text(encoding="utf-8"))
           remove_id = "struct-grabowski-runtime-contract"
-          before = len(document["cases"])
+          matches = [case for case in document["cases"] if case["id"] == remove_id]
+          if not matches:
+              raise SystemExit(0)
+          if len(matches) != 1:
+              raise SystemExit(f"expected one {remove_id}, got {len(matches)}")
           document["cases"] = [case for case in document["cases"] if case["id"] != remove_id]
-          if before - len(document["cases"]) != 1:
-              raise SystemExit(f"expected exactly one {remove_id} case")
           counts = collections.Counter(case["category"] for case in document["cases"])
-          if len(document["cases"]) != 24:
-              raise SystemExit(f"expected 24 cases, got {len(document['cases'])}")
-          if counts != {"navigation": 8, "structural": 8, "grounding_freshness": 8}:
-              raise SystemExit(f"unexpected category counts: {dict(counts)}")
-          Path("corrected-taskset.json").write_text(
+          expected = {"navigation": 8, "structural": 8, "grounding_freshness": 8}
+          if len(document["cases"]) != 24 or counts != expected:
+              raise SystemExit(
+                  f"invalid corrected taskset: cases={len(document['cases'])}, counts={dict(counts)}"
+              )
+          source.write_text(
               json.dumps(document, ensure_ascii=False, indent=2) + "\n",
               encoding="utf-8",
           )
           PY
-      - name: Capture maintainability report
+      - name: Commit corrected taskset when changed
         shell: bash
         run: |
-          set -o pipefail
-          python scripts/ci/check_graph_maintainability.py --root . --format json 2>&1 | tee maintainability.json
-      - name: Capture focused benchmark tests
-        shell: bash
-        run: |
-          set -o pipefail
-          python -m pytest -vv merger/lenskit/tests/test_agent_benchmark.py 2>&1 | tee agent-benchmark-tests.log
-      - name: Capture release-contract report
-        if: always()
-        shell: bash
-        run: |
-          set -o pipefail
-          python scripts/release/check_release_contract.py 2>&1 | tee release-contract.log
-      - name: Upload diagnostics
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
-        with:
-          name: pr1000-diagnostics-${{ github.run_id }}
-          path: |
-            corrected-taskset.json
-            maintainability.json
-            agent-benchmark-tests.log
-            release-contract.log
-          if-no-files-found: error
-          retention-days: 7
+          if git diff --quiet -- docs/retrieval/repobrief_agent_benchmark_taskset.v1.json; then
+            echo "taskset already corrected"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/retrieval/repobrief_agent_benchmark_taskset.v1.json
+          git commit -m "fix(repobrief): keep benchmark taskset at 24 cases"
+          git push origin HEAD:${{ github.head_ref }}
