@@ -7,6 +7,7 @@
         "src/db.py"
       ],
       "baseline_recall": 0.25,
+      "context_path_reduction_ratio": -6.0,
       "expected_paths": [
         "src/db.py",
         "tests/test_app.py",
@@ -34,6 +35,7 @@
         "src/app.py"
       ],
       "baseline_recall": 0.3333333333333333,
+      "context_path_reduction_ratio": -6.0,
       "expected_paths": [
         "src/app.py",
         "tests/test_app.py",
@@ -58,7 +60,7 @@
   "decision": {
     "default_promoted": false,
     "navigation_utility_established_for_goldset": true,
-    "reason": "fixed_goldset_threshold_met_without_case_regression"
+    "reason": "fixed_goldset_recall_threshold_met_without_case_regression"
   },
   "does_not_establish": [
     "agent_quality_improvement",
@@ -76,8 +78,12 @@
   "kind": "repobrief.agent_impact_usefulness_eval",
   "measurement_scope": "synthetic_contract_fixture",
   "metrics": {
+    "baseline_mean_context_path_count": 1.0,
     "baseline_target_recall": 0.29166666666666663,
+    "context_path_reduction_ratio": -6.0,
+    "impact_mean_context_path_count": 7.0,
     "impact_target_recall": 1.0,
+    "minimum_context_path_reduction_at_equal_or_better_recall": 0.2,
     "minimum_target_recall_advantage": 0.2,
     "missing_evidence_visibility_rate": 0.0,
     "no_case_regression": true,
