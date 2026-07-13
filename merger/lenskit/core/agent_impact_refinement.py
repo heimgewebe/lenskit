@@ -4,7 +4,6 @@ The refinement layer never promotes retrieval hits to graph edges, runtime
 relationships, test coverage, or review authority. It only adds explicitly
 labelled navigation candidates to an already built impact context.
 """
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -42,10 +41,11 @@ def is_repository_relative_path(value: Any) -> bool:
         or text.endswith("/")
     ):
         return False
+    raw_parts = text.split("/")
+    if any(part in {"", ".", ".."} for part in raw_parts):
+        return False
     path = PurePosixPath(text)
-    return bool(path.parts) and not any(
-        part in {"", ".", ".."} for part in path.parts
-    )
+    return bool(path.parts)
 
 
 def _is_test_path(path: str) -> bool:
