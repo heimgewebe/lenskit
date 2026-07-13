@@ -1,6 +1,6 @@
 name: temporary-pr996-pytest-log
 
-on: [pull_request]
+on: [push, pull_request]
 
 permissions:
   contents: read
