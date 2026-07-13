@@ -8,6 +8,7 @@ verdicts. Every relation keeps its source direction and evidence level.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -43,6 +44,27 @@ MUTATION_BOUNDARY = {
     "read_paths_do_not_refresh": True,
 }
 
+_CORE_SOURCES = {
+    "architecture_graph_json",
+    "python_symbol_index_json",
+    "entrypoints_json",
+}
+_BLOCKING_SOURCE_STATUSES = {
+    "blocked",
+    "stale",
+    "stale_or_mismatched",
+    "invalid_json",
+    "invalid_schema",
+}
+
+
+@dataclass(frozen=True)
+class _Request:
+    mode: str
+    max_items: int
+    target_symbol: str | None
+    paths: frozenset[str]
+
 
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
@@ -66,16 +88,18 @@ def _clean_text(value: Any, *, field: str, required: bool = False) -> str | None
 def _repo_path(value: Any, *, field: str) -> str:
     text = _clean_text(value, field=field, required=True)
     assert text is not None
-    if (
+    invalid_shape = (
         text.startswith("/")
         or "\\" in text
         or "//" in text
         or text.endswith("/")
-    ):
-        raise ValueError(f"{field} must be a canonical repository-relative path")
+    )
     path = PurePosixPath(text)
-    if any(part in {"", ".", ".."} for part in path.parts):
-        raise ValueError(f"{field} must not contain empty, dot or parent segments")
+    invalid_segment = any(part in {"", ".", ".."} for part in path.parts)
+    if invalid_shape or invalid_segment:
+        raise ValueError(
+            f"{field} must be a canonical repository-relative path"
+        )
     return path.as_posix()
 
 
@@ -84,9 +108,47 @@ def _bounded_int(value: Any, *, field: str, default: int) -> int:
         return default
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{field} must be an integer")
-    if value < 1 or value > MAX_ITEMS_LIMIT:
+    if not 1 <= value <= MAX_ITEMS_LIMIT:
         raise ValueError(f"{field} must be between 1 and {MAX_ITEMS_LIMIT}")
     return value
+
+
+def _changed_path_set(changed_paths: Any) -> set[str]:
+    if changed_paths is None:
+        return set()
+    if isinstance(changed_paths, (str, bytes, bytearray, Mapping)):
+        raise TypeError("changed_paths must be an iterable of path strings")
+    return {
+        _repo_path(value, field="changed_paths[]")
+        for value in changed_paths
+    }
+
+
+def _request(
+    *,
+    target_path: Any,
+    target_symbol: Any,
+    changed_paths: Any,
+    mode: Any,
+    max_items: Any,
+) -> _Request:
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES!r}")
+    paths = _changed_path_set(changed_paths)
+    if target_path is not None:
+        paths.add(_repo_path(target_path, field="target_path"))
+    symbol = _clean_text(target_symbol, field="target_symbol")
+    if not paths and not symbol:
+        raise ValueError(
+            "at least one of target_path, target_symbol or changed_paths "
+            "is required"
+        )
+    return _Request(
+        mode=str(mode),
+        max_items=_bounded_int(max_items, field="max_items", default=25),
+        target_symbol=symbol,
+        paths=frozenset(paths),
+    )
 
 
 def _identity(document: Any) -> tuple[str | None, str | None]:
@@ -121,22 +183,12 @@ def _merge_source_states(
         source = raw.get("source")
         if not isinstance(source, str) or not source:
             continue
-        current = by_source.setdefault(source, {"source": source})
-        current.update(dict(raw))
+        by_source.setdefault(source, {"source": source}).update(dict(raw))
     return [by_source[name] for name in sorted(by_source)]
 
 
-def _coherence(
-    sources: list[dict[str, Any]],
-) -> tuple[str, str | None, str | None, list[dict[str, Any]]]:
-    identities = {
-        (item.get("run_id"), item.get("canonical_dump_index_sha256"))
-        for item in sources
-        if item.get("status") == "available"
-        and item.get("run_id")
-        and item.get("canonical_dump_index_sha256")
-    }
-    gaps = [
+def _unavailable_gaps(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
         {
             "source": item.get("source"),
             "status": item.get("status"),
@@ -145,57 +197,61 @@ def _coherence(
         for item in sources
         if item.get("status") != "available"
     ]
-    gaps.extend(
+
+
+def _identity_gaps(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
         {
             "source": item.get("source"),
             "status": "identity_missing",
             "reason": "available_source_has_no_bundle_identity",
         }
         for item in sources
-        if item.get("status") == "available"
+        if item.get("source") in _CORE_SOURCES
+        and item.get("status") == "available"
         and not (
             item.get("run_id")
             and item.get("canonical_dump_index_sha256")
         )
-        and item.get("source")
-        in {
-            "architecture_graph_json",
-            "python_symbol_index_json",
-            "entrypoints_json",
-        }
-    )
-    blocking_sources = [
-        item
-        for item in sources
-        if item.get("source")
-        in {
-            "architecture_graph_json",
-            "python_symbol_index_json",
-            "entrypoints_json",
-        }
-        and item.get("status")
-        in {
-            "blocked",
-            "stale",
-            "stale_or_mismatched",
-            "invalid_json",
-            "invalid_schema",
-        }
     ]
-    if blocking_sources:
+
+
+def _blocking_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "source": item.get("source"),
+            "status": item.get("status"),
+            "error_code": item.get("error_code"),
+        }
+        for item in sources
+        if item.get("source") in _CORE_SOURCES
+        and item.get("status") in _BLOCKING_SOURCE_STATUSES
+    ]
+
+
+def _identity_set(sources: list[dict[str, Any]]) -> set[tuple[str, str]]:
+    return {
+        (str(item["run_id"]), str(item["canonical_dump_index_sha256"]))
+        for item in sources
+        if item.get("status") == "available"
+        and item.get("run_id")
+        and item.get("canonical_dump_index_sha256")
+    }
+
+
+def _coherence(
+    sources: list[dict[str, Any]],
+) -> tuple[str, str | None, str | None, list[dict[str, Any]]]:
+    gaps = _unavailable_gaps(sources) + _identity_gaps(sources)
+    blocked = _blocking_sources(sources)
+    identities = _identity_set(sources)
+    if blocked:
         gaps.append(
             {
                 "source": "artifact_coherence",
                 "status": "blocked",
                 "reason": "required_source_untrusted",
-                "sources": [
-                    {
-                        "source": item.get("source"),
-                        "status": item.get("status"),
-                        "error_code": item.get("error_code"),
-                    }
-                    for item in blocking_sources
-                ],
+                "sources": blocked,
             }
         )
         return "blocked", None, None, gaps
@@ -217,7 +273,7 @@ def _coherence(
         return "blocked", None, None, gaps
     if identities:
         run_id, digest = next(iter(identities))
-        return "coherent", str(run_id), str(digest), gaps
+        return "coherent", run_id, digest, gaps
     gaps.append(
         {
             "source": "artifact_coherence",
@@ -243,13 +299,12 @@ def _path_class(path: str) -> str:
         return "test"
     if path.startswith("docs/") or "/docs/" in f"/{path}":
         return "documentation"
-    if (
+    is_contract = (
         "/contracts/" in f"/{path}"
         or path.startswith("contracts/")
         or path.endswith(".schema.json")
-    ):
-        return "contract"
-    return "implementation"
+    )
+    return "contract" if is_contract else "implementation"
 
 
 def _node_index(
@@ -264,11 +319,43 @@ def _node_index(
         path = raw.get("path")
         if not isinstance(node_id, str) or not node_id:
             continue
-        node = dict(raw)
-        nodes_by_id[node_id] = node
-        if isinstance(path, str) and path and path not in id_by_path:
-            id_by_path[path] = node_id
+        nodes_by_id[node_id] = dict(raw)
+        if isinstance(path, str) and path:
+            id_by_path.setdefault(path, node_id)
     return nodes_by_id, id_by_path
+
+
+def _symbol_matches(
+    symbol: Mapping[str, Any],
+    *,
+    folded_symbol: str | None,
+    target_paths: set[str],
+) -> tuple[bool, bool]:
+    values = (
+        symbol.get("id"),
+        symbol.get("name"),
+        symbol.get("qualified_name"),
+    )
+    exact = bool(
+        folded_symbol
+        and any(
+            isinstance(value, str) and value.casefold() == folded_symbol
+            for value in values
+        )
+    )
+    path = symbol.get("path")
+    return exact, isinstance(path, str) and path in target_paths
+
+
+def _symbol_key(symbol: Mapping[str, Any]) -> str:
+    return str(
+        symbol.get("id")
+        or (
+            symbol.get("path"),
+            symbol.get("qualified_name"),
+            symbol.get("start_line"),
+        )
+    )
 
 
 def _matching_symbols(
@@ -284,26 +371,17 @@ def _matching_symbols(
     for raw in _items(symbol_index.get("symbols")):
         if not isinstance(raw, Mapping):
             continue
-        symbol = dict(raw)
-        path = symbol.get("path")
-        values = (
-            symbol.get("id"),
-            symbol.get("name"),
-            symbol.get("qualified_name"),
+        exact, path_match = _symbol_matches(
+            raw,
+            folded_symbol=folded,
+            target_paths=target_paths,
         )
-        exact = bool(
-            folded
-            and any(
-                isinstance(value, str) and value.casefold() == folded
-                for value in values
-            )
-        )
-        path_match = isinstance(path, str) and path in target_paths
-        if not exact and not path_match:
+        if not (exact or path_match):
             continue
+        symbol = dict(raw)
         matches.append(symbol)
-        if exact and isinstance(path, str):
-            derived_paths.add(path)
+        if exact and isinstance(symbol.get("path"), str):
+            derived_paths.add(str(symbol["path"]))
     matches.sort(
         key=lambda item: (
             str(item.get("path", "")),
@@ -313,15 +391,7 @@ def _matching_symbols(
     )
     unique: dict[str, dict[str, Any]] = {}
     for symbol in matches:
-        key = str(
-            symbol.get("id")
-            or (
-                symbol.get("path"),
-                symbol.get("qualified_name"),
-                symbol.get("start_line"),
-            )
-        )
-        unique.setdefault(key, symbol)
+        unique.setdefault(_symbol_key(symbol), symbol)
     ordered = list(unique.values())
     return ordered[:max_items], derived_paths, len(ordered) > max_items
 
@@ -335,15 +405,12 @@ def _relation_record(
 ) -> dict[str, Any]:
     target_path = target_node.get("path")
     peer_path = peer_node.get("path")
+    evidence = edge.get("evidence")
     return {
         "direction": direction,
         "edge_type": edge.get("edge_type"),
         "evidence_level": edge.get("evidence_level"),
-        "evidence": (
-            dict(edge["evidence"])
-            if isinstance(edge.get("evidence"), Mapping)
-            else None
-        ),
+        "evidence": dict(evidence) if isinstance(evidence, Mapping) else None,
         "target": {
             "node_id": target_node.get("node_id"),
             "path": target_path,
@@ -364,6 +431,38 @@ def _relation_record(
     }
 
 
+def _edge_records(
+    edge: Mapping[str, Any],
+    *,
+    target_ids: set[str],
+    nodes_by_id: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    src = edge.get("src")
+    dst = edge.get("dst")
+    if not isinstance(src, str) or not isinstance(dst, str):
+        return []
+    records: list[dict[str, Any]] = []
+    if src in target_ids and dst in nodes_by_id:
+        records.append(
+            _relation_record(
+                edge,
+                direction="outgoing",
+                target_node=nodes_by_id[src],
+                peer_node=nodes_by_id[dst],
+            )
+        )
+    if dst in target_ids and src in nodes_by_id:
+        records.append(
+            _relation_record(
+                edge,
+                direction="incoming",
+                target_node=nodes_by_id[dst],
+                peer_node=nodes_by_id[src],
+            )
+        )
+    return records
+
+
 def _relations(
     graph: Mapping[str, Any],
     *,
@@ -372,32 +471,16 @@ def _relations(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str], bool]:
     nodes_by_id, id_by_path = _node_index(graph)
     target_ids = {id_by_path[path] for path in target_paths if path in id_by_path}
-    records: list[dict[str, Any]] = []
-    for raw in _items(graph.get("edges")):
-        if not isinstance(raw, Mapping):
-            continue
-        src = raw.get("src")
-        dst = raw.get("dst")
-        if not isinstance(src, str) or not isinstance(dst, str):
-            continue
-        if src in target_ids and dst in nodes_by_id:
-            records.append(
-                _relation_record(
-                    raw,
-                    direction="outgoing",
-                    target_node=nodes_by_id[src],
-                    peer_node=nodes_by_id[dst],
-                )
-            )
-        if dst in target_ids and src in nodes_by_id:
-            records.append(
-                _relation_record(
-                    raw,
-                    direction="incoming",
-                    target_node=nodes_by_id[dst],
-                    peer_node=nodes_by_id[src],
-                )
-            )
+    records = [
+        record
+        for raw in _items(graph.get("edges"))
+        if isinstance(raw, Mapping)
+        for record in _edge_records(
+            raw,
+            target_ids=target_ids,
+            nodes_by_id=nodes_by_id,
+        )
+    ]
     records.sort(
         key=lambda item: (
             str(item.get("direction", "")),
@@ -415,63 +498,69 @@ def _relations(
     return records[:max_items], records, peer_paths, len(records) > max_items
 
 
-def _related_tests(
-    *,
+def _graph_test_candidates(
+    relations: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": str(peer["path"]),
+            "evidence_type": "graph_edge",
+            "direction": relation.get("direction"),
+            "edge_type": relation.get("edge_type"),
+            "evidence_level": relation.get("evidence_level"),
+            "evidence": relation.get("evidence"),
+        }
+        for relation in relations
+        for peer in [_mapping(relation.get("peer"))]
+        if peer.get("is_test") and isinstance(peer.get("path"), str)
+    ]
+
+
+def _test_path_guesses(target_path: str) -> set[str]:
+    path = PurePosixPath(target_path)
+    stem = path.stem
+    return {
+        f"tests/test_{stem}.py",
+        f"merger/lenskit/tests/test_{stem}.py",
+        (path.parent / "tests" / f"test_{stem}.py").as_posix(),
+    }
+
+
+def _conventional_test_candidates(
     target_paths: set[str],
-    all_relations: list[dict[str, Any]],
-    symbol_index: Mapping[str, Any],
-    max_items: int,
-) -> tuple[list[dict[str, Any]], bool]:
+    known_paths: set[str],
+) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
-    for relation in all_relations:
-        peer = _mapping(relation.get("peer"))
-        peer_path = peer.get("path")
-        if peer.get("is_test") and isinstance(peer_path, str):
+    python_targets = [
+        path
+        for path in sorted(target_paths)
+        if PurePosixPath(path).suffix == ".py" and not _is_test_path(path)
+    ]
+    for target_path in python_targets:
+        for guess in sorted(_test_path_guesses(target_path)):
+            present = guess in known_paths
             candidates.append(
                 {
-                    "path": peer_path,
-                    "evidence_type": "graph_edge",
-                    "direction": relation.get("direction"),
-                    "edge_type": relation.get("edge_type"),
-                    "evidence_level": relation.get("evidence_level"),
-                    "evidence": relation.get("evidence"),
+                    "path": guess,
+                    "evidence_type": (
+                        "symbol_index_path_match" if present else "heuristic"
+                    ),
+                    "reason": (
+                        "conventional_test_path_present_in_symbol_index"
+                        if present
+                        else "python_test_naming_convention"
+                    ),
                 }
             )
+    return candidates
 
-    known_paths = {
-        str(item.get("path"))
-        for item in _items(symbol_index.get("symbols"))
-        if isinstance(item, Mapping) and isinstance(item.get("path"), str)
-    }
-    for target_path in sorted(target_paths):
-        path = PurePosixPath(target_path)
-        if path.suffix != ".py" or _is_test_path(target_path):
-            continue
-        stem = path.stem
-        guesses = {
-            f"tests/test_{stem}.py",
-            f"merger/lenskit/tests/test_{stem}.py",
-            (path.parent / "tests" / f"test_{stem}.py").as_posix(),
-        }
-        for guess in sorted(guesses):
-            if guess in known_paths:
-                candidates.append(
-                    {
-                        "path": guess,
-                        "evidence_type": "symbol_index_path_match",
-                        "reason": "conventional_test_path_present_in_symbol_index",
-                    }
-                )
-            else:
-                candidates.append(
-                    {
-                        "path": guess,
-                        "evidence_type": "heuristic",
-                        "reason": "python_test_naming_convention",
-                    }
-                )
 
-    rank = {"graph_edge": 0, "symbol_index_path_match": 1, "heuristic": 2}
+def _unique_ranked(
+    candidates: list[dict[str, Any]],
+    *,
+    rank: Mapping[str, int],
+    max_items: int,
+) -> tuple[list[dict[str, Any]], bool]:
     unique: dict[tuple[str, str], dict[str, Any]] = {}
     for item in candidates:
         path = item.get("path")
@@ -488,6 +577,27 @@ def _related_tests(
     return ordered[:max_items], len(ordered) > max_items
 
 
+def _related_tests(
+    *,
+    target_paths: set[str],
+    all_relations: list[dict[str, Any]],
+    symbol_index: Mapping[str, Any],
+    max_items: int,
+) -> tuple[list[dict[str, Any]], bool]:
+    known_paths = {
+        str(item["path"])
+        for item in _items(symbol_index.get("symbols"))
+        if isinstance(item, Mapping) and isinstance(item.get("path"), str)
+    }
+    candidates = _graph_test_candidates(all_relations)
+    candidates.extend(_conventional_test_candidates(target_paths, known_paths))
+    return _unique_ranked(
+        candidates,
+        rank={"graph_edge": 0, "symbol_index_path_match": 1, "heuristic": 2},
+        max_items=max_items,
+    )
+
+
 def _query_items(query_context: Any) -> list[dict[str, Any]]:
     root = _mapping(query_context)
     query = _mapping(root.get("query"))
@@ -501,14 +611,9 @@ def _query_items(query_context: Any) -> list[dict[str, Any]]:
     ]
 
 
-def _supporting_context(
-    *,
-    all_relations: list[dict[str, Any]],
-    query_context: Any,
-    max_items: int,
-) -> tuple[list[dict[str, Any]], bool]:
+def _graph_support(relations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
-    for relation in all_relations:
+    for relation in relations:
         peer = _mapping(relation.get("peer"))
         path = peer.get("path")
         if not isinstance(path, str):
@@ -526,6 +631,11 @@ def _supporting_context(
                 "evidence_level": relation.get("evidence_level"),
             }
         )
+    return candidates
+
+
+def _query_support(query_context: Any) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
     for item in _query_items(query_context):
         path = item.get("path")
         if not isinstance(path, str):
@@ -543,21 +653,21 @@ def _supporting_context(
                 "range_status": item.get("range_status"),
             }
         )
-    unique: dict[tuple[str, str], dict[str, Any]] = {}
-    for item in candidates:
-        unique.setdefault(
-            (str(item.get("path")), str(item.get("evidence_type"))),
-            item,
-        )
-    rank = {"graph_edge": 0, "resolved_query": 1}
-    ordered = sorted(
-        unique.values(),
-        key=lambda item: (
-            rank.get(str(item.get("evidence_type")), 99),
-            str(item.get("path", "")),
-        ),
+    return candidates
+
+
+def _supporting_context(
+    *,
+    all_relations: list[dict[str, Any]],
+    query_context: Any,
+    max_items: int,
+) -> tuple[list[dict[str, Any]], bool]:
+    candidates = _graph_support(all_relations) + _query_support(query_context)
+    return _unique_ranked(
+        candidates,
+        rank={"graph_edge": 0, "resolved_query": 1},
+        max_items=max_items,
     )
-    return ordered[:max_items], len(ordered) > max_items
 
 
 def _entrypoints(
@@ -622,6 +732,72 @@ def _relation_cards(
     return matches[:max_items], len(matches) > max_items
 
 
+def _symbol_reads(symbols: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": symbol.get("path"),
+            "range_ref": symbol.get("range_ref"),
+            "qualified_name": symbol.get("qualified_name"),
+            "reason": "target_symbol",
+            "priority": 0,
+        }
+        for symbol in symbols
+    ]
+
+
+def _path_reads(
+    target_paths: set[str],
+    symbols: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    symbol_paths = {
+        str(symbol["path"])
+        for symbol in symbols
+        if isinstance(symbol.get("path"), str)
+    }
+    return [
+        {
+            "path": path,
+            "range_ref": None,
+            "qualified_name": None,
+            "reason": "target_path",
+            "priority": 1,
+        }
+        for path in sorted(target_paths - symbol_paths)
+    ]
+
+
+def _relation_reads(relations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": _mapping(relation.get("peer")).get("path"),
+            "range_ref": None,
+            "qualified_name": None,
+            "reason": f"{relation.get('direction')}_graph_relation",
+            "priority": 2,
+        }
+        for relation in relations
+    ]
+
+
+def _section_reads(
+    items: list[dict[str, Any]],
+    *,
+    reason_prefix: str,
+    reason_field: str,
+    priority: int,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "path": item.get("path"),
+            "range_ref": None,
+            "qualified_name": None,
+            "reason": f"{reason_prefix}{item.get(reason_field)}",
+            "priority": priority,
+        }
+        for item in items
+    ]
+
+
 def _first_reads(
     *,
     target_paths: set[str],
@@ -631,70 +807,30 @@ def _first_reads(
     supporting: list[dict[str, Any]],
     max_items: int,
 ) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    for symbol in target_symbols:
-        candidates.append(
-            {
-                "path": symbol.get("path"),
-                "range_ref": symbol.get("range_ref"),
-                "qualified_name": symbol.get("qualified_name"),
-                "reason": "target_symbol",
-                "priority": 0,
-            }
+    candidates = _symbol_reads(target_symbols)
+    candidates.extend(_path_reads(target_paths, target_symbols))
+    candidates.extend(_relation_reads(relations))
+    candidates.extend(
+        _section_reads(
+            related_tests,
+            reason_prefix="related_test:",
+            reason_field="evidence_type",
+            priority=3,
         )
-    symbol_paths = {
-        symbol.get("path")
-        for symbol in target_symbols
-        if isinstance(symbol.get("path"), str)
-    }
-    for path in sorted(target_paths - symbol_paths):
-        candidates.append(
-            {
-                "path": path,
-                "range_ref": None,
-                "qualified_name": None,
-                "reason": "target_path",
-                "priority": 1,
-            }
+    )
+    candidates.extend(
+        _section_reads(
+            supporting,
+            reason_prefix="supporting_",
+            reason_field="path_class",
+            priority=4,
         )
-    for relation in relations:
-        peer = _mapping(relation.get("peer"))
-        candidates.append(
-            {
-                "path": peer.get("path"),
-                "range_ref": None,
-                "qualified_name": None,
-                "reason": f"{relation.get('direction')}_graph_relation",
-                "priority": 2,
-            }
-        )
-    for item in related_tests:
-        candidates.append(
-            {
-                "path": item.get("path"),
-                "range_ref": None,
-                "qualified_name": None,
-                "reason": f"related_test:{item.get('evidence_type')}",
-                "priority": 3,
-            }
-        )
-    for item in supporting:
-        candidates.append(
-            {
-                "path": item.get("path"),
-                "range_ref": None,
-                "qualified_name": None,
-                "reason": f"supporting_{item.get('path_class')}",
-                "priority": 4,
-            }
-        )
-
-    unique: dict[tuple[Any, Any], dict[str, Any]] = {}
+    )
+    unique: dict[tuple[str, Any], dict[str, Any]] = {}
     for item in candidates:
-        if not isinstance(item.get("path"), str):
-            continue
-        key = (item.get("path"), item.get("range_ref"))
-        unique.setdefault(key, item)
+        path = item.get("path")
+        if isinstance(path, str):
+            unique.setdefault((path, item.get("range_ref")), item)
     ordered = sorted(
         unique.values(),
         key=lambda item: (
@@ -741,6 +877,96 @@ def _base_result(
     }
 
 
+def _invalid_result(
+    exc: Exception,
+    *,
+    mode: Any,
+    target_path: Any,
+    target_symbol: Any,
+) -> dict[str, Any]:
+    result = _base_result(
+        status="invalid",
+        mode=mode,
+        target_path=target_path,
+        target_symbol=target_symbol,
+    )
+    result.update(
+        {
+            "error": str(exc),
+            "error_code": "agent_impact_request_invalid",
+        }
+    )
+    return result
+
+
+def _blocked_result(
+    request: _Request,
+    *,
+    source_states: list[dict[str, Any]],
+    coherence: str,
+    gaps: list[dict[str, Any]],
+) -> dict[str, Any]:
+    paths = sorted(request.paths)
+    result = _base_result(
+        status="blocked",
+        mode=request.mode,
+        target_path=paths[0] if len(paths) == 1 else None,
+        target_symbol=request.target_symbol,
+    )
+    result["target"]["paths"] = paths
+    result["source_statuses"] = source_states
+    result["provenance"] = {
+        "status": coherence,
+        "run_id": None,
+        "canonical_dump_index_sha256": None,
+    }
+    result["gaps"] = gaps
+    return result
+
+
+def _target_gaps(
+    *,
+    paths: set[str],
+    id_by_path: Mapping[str, str],
+    target_symbol: str | None,
+    target_symbols: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    gaps: list[dict[str, Any]] = []
+    missing_paths = sorted(path for path in paths if path not in id_by_path)
+    if missing_paths:
+        gaps.append(
+            {
+                "source": "architecture_graph_json",
+                "status": "missing_target",
+                "reason": "target_path_not_present_as_graph_node",
+                "paths": missing_paths,
+            }
+        )
+    if target_symbol and not target_symbols:
+        gaps.append(
+            {
+                "source": "python_symbol_index_json",
+                "status": "missing_target",
+                "reason": "target_symbol_not_found",
+                "symbol": target_symbol,
+            }
+        )
+    return gaps
+
+
+def _result_status(
+    *,
+    resolved_target: bool,
+    gaps: list[dict[str, Any]],
+    coherence: str,
+) -> str:
+    if not resolved_target:
+        return "missing_target"
+    if gaps or coherence == "unknown":
+        return "partial"
+    return "available"
+
+
 def build_agent_impact_context(
     *,
     target_path: Any = None,
@@ -758,45 +984,25 @@ def build_agent_impact_context(
     """Build a bounded impact/edit context from existing Lenskit artifacts."""
 
     try:
-        if mode not in MODES:
-            raise ValueError(f"mode must be one of {MODES!r}")
-        limit = _bounded_int(max_items, field="max_items", default=25)
-        clean_symbol = _clean_text(target_symbol, field="target_symbol")
-        paths: set[str] = set()
-        if target_path is not None:
-            paths.add(_repo_path(target_path, field="target_path"))
-        if changed_paths is not None:
-            if isinstance(changed_paths, (str, bytes, bytearray, Mapping)):
-                raise TypeError(
-                    "changed_paths must be an iterable of path strings"
-                )
-            for value in changed_paths:
-                paths.add(_repo_path(value, field="changed_paths[]"))
-        if not paths and not clean_symbol:
-            raise ValueError(
-                "at least one of target_path, target_symbol or changed_paths "
-                "is required"
-            )
+        request = _request(
+            target_path=target_path,
+            target_symbol=target_symbol,
+            changed_paths=changed_paths,
+            mode=mode,
+            max_items=max_items,
+        )
     except (TypeError, ValueError) as exc:
-        result = _base_result(
-            status="invalid",
+        return _invalid_result(
+            exc,
             mode=mode,
             target_path=target_path,
             target_symbol=target_symbol,
         )
-        result.update(
-            {
-                "error": str(exc),
-                "error_code": "agent_impact_request_invalid",
-            }
-        )
-        return result
 
     graph = _mapping(architecture_graph)
     symbols = _mapping(symbol_index)
     entrypoint_doc = _mapping(entrypoints)
     cards = list(relation_cards) if isinstance(relation_cards, list) else []
-
     states = _merge_source_states(
         [
             _source_state("architecture_graph_json", graph),
@@ -806,100 +1012,84 @@ def build_agent_impact_context(
         source_statuses,
     )
     coherence, run_id, digest, gaps = _coherence(states)
-
-    result = _base_result(
-        status="blocked" if coherence == "blocked" else "available",
-        mode=mode,
-        target_path=None,
-        target_symbol=clean_symbol,
-    )
-    result["source_statuses"] = states
-    result["provenance"] = {
-        "status": coherence,
-        "run_id": run_id,
-        "canonical_dump_index_sha256": digest,
-    }
     if coherence == "blocked":
-        result["gaps"] = gaps
-        result["target"]["paths"] = sorted(paths)
-        result["target"]["path"] = (
-            sorted(paths)[0] if len(paths) == 1 else None
+        return _blocked_result(
+            request,
+            source_states=states,
+            coherence=coherence,
+            gaps=gaps,
         )
-        return result
 
+    paths = set(request.paths)
     target_symbols, derived_paths, symbols_truncated = _matching_symbols(
         symbols,
-        target_symbol=clean_symbol,
+        target_symbol=request.target_symbol,
         target_paths=paths,
-        max_items=limit,
+        max_items=request.max_items,
     )
     paths.update(derived_paths)
-
-    relations, all_relations, peer_paths, relations_truncated = _relations(
+    relations, all_relations, peers, relations_truncated = _relations(
         graph,
         target_paths=paths,
-        max_items=limit,
+        max_items=request.max_items,
     )
     related_tests, tests_truncated = _related_tests(
         target_paths=paths,
         all_relations=all_relations,
         symbol_index=symbols,
-        max_items=limit,
+        max_items=request.max_items,
     )
     supporting, supporting_truncated = _supporting_context(
         all_relations=all_relations,
         query_context=query_context,
-        max_items=limit,
+        max_items=request.max_items,
     )
     entrypoint_hits, entrypoints_truncated = _entrypoints(
         entrypoint_doc,
-        relevant_paths=paths | peer_paths,
-        max_items=limit,
+        relevant_paths=paths | peers,
+        max_items=request.max_items,
     )
     card_hits, cards_truncated = _relation_cards(
         cards,
         target_paths=paths,
-        max_items=limit,
+        max_items=request.max_items,
     )
 
     _nodes_by_id, id_by_path = _node_index(graph)
-    missing_paths = sorted(path for path in paths if path not in id_by_path)
-    if missing_paths:
-        gaps.append(
-            {
-                "source": "architecture_graph_json",
-                "status": "missing_target",
-                "reason": "target_path_not_present_as_graph_node",
-                "paths": missing_paths,
-            }
+    gaps.extend(
+        _target_gaps(
+            paths=paths,
+            id_by_path=id_by_path,
+            target_symbol=request.target_symbol,
+            target_symbols=target_symbols,
         )
-    if clean_symbol and not target_symbols:
-        gaps.append(
-            {
-                "source": "python_symbol_index_json",
-                "status": "missing_target",
-                "reason": "target_symbol_not_found",
-                "symbol": clean_symbol,
-            }
-        )
-
+    )
     resolved_target = bool(
         target_symbols or any(path in id_by_path for path in paths)
     )
-    status = "available"
-    if not resolved_target:
-        status = "missing_target"
-    elif gaps or coherence == "unknown":
-        status = "partial"
-
+    result = _base_result(
+        status=_result_status(
+            resolved_target=resolved_target,
+            gaps=gaps,
+            coherence=coherence,
+        ),
+        mode=request.mode,
+        target_path=sorted(paths)[0] if len(paths) == 1 else None,
+        target_symbol=request.target_symbol,
+    )
     result.update(
         {
-            "status": status,
             "target": {
                 "path": sorted(paths)[0] if len(paths) == 1 else None,
                 "paths": sorted(paths),
-                "symbol": clean_symbol,
+                "symbol": request.target_symbol,
             },
+            "provenance": {
+                "status": coherence,
+                "run_id": run_id,
+                "canonical_dump_index_sha256": digest,
+            },
+            "source_statuses": states,
             "target_symbols": target_symbols,
             "relations": relations,
             "related_tests": related_tests,
@@ -908,7 +1098,7 @@ def build_agent_impact_context(
             "relation_cards": card_hits,
             "gaps": gaps,
             "truncation": {
-                "max_items_per_section": limit,
+                "max_items_per_section": request.max_items,
                 "target_symbols": symbols_truncated,
                 "relations": relations_truncated,
                 "related_tests": tests_truncated,
@@ -923,7 +1113,7 @@ def build_agent_impact_context(
             },
         }
     )
-    if mode == "edit":
+    if request.mode == "edit":
         result["edit_context"] = {
             "recommended_first_reads": _first_reads(
                 target_paths=paths,
@@ -931,7 +1121,7 @@ def build_agent_impact_context(
                 relations=relations,
                 related_tests=related_tests,
                 supporting=supporting,
-                max_items=limit,
+                max_items=request.max_items,
             ),
             "relation_count": len(relations),
             "related_test_count": len(related_tests),
