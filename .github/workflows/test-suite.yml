@@ -40,18 +40,7 @@ jobs:
           python -m pip install --disable-pip-version-check --require-hashes -r requirements/repobrief-dev.lock.txt
 
       - name: Run full pytest suite
-        run: |
-          set -o pipefail
-          pytest -q -m "not browser and not doc_freshness_live" 2>&1 | tee pytest-full.log
-
-      - name: Upload pytest diagnostics after failure
-        if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
-        with:
-          name: pytest-full-${{ github.run_id }}
-          path: pytest-full.log
-          if-no-files-found: error
-          retention-days: 7
+        run: pytest -q -m "not browser and not doc_freshness_live"
 
 
   release-candidate:
