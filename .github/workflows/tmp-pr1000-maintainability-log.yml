@@ -1,0 +1,32 @@
+name: temporary PR 1000 maintainability diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        with:
+          python-version: "3.12"
+      - name: Capture maintainability report
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/ci/check_graph_maintainability.py --root . --format json \
+            2>&1 | tee maintainability.json
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
+        with:
+          name: pr1000-maintainability-${{ github.run_id }}
+          path: maintainability.json
+          if-no-files-found: error
+          retention-days: 7
