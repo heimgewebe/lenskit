@@ -5,6 +5,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 MCP_BOUNDARY_DOC = REPO_ROOT / "docs/architecture/repobrief-mcp-boundary.md"
 REPOBRIEF_DOC = REPO_ROOT / "docs/architecture/repobrief.md"
 MCP_USAGE_DOC = REPO_ROOT / "docs/usage/repobrief-mcp-stdio.md"
+MCP_LAUNCHER = REPO_ROOT / "scripts/repobrief-mcp-stdio.py"
 
 MCP_RESOURCES = (
     "repobrief://snapshot/{stem}/manifest",
@@ -58,9 +59,10 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_mcp_boundary_doc_exists() -> None:
+def test_mcp_boundary_surfaces_exist() -> None:
     assert MCP_BOUNDARY_DOC.exists()
     assert MCP_USAGE_DOC.exists()
+    assert MCP_LAUNCHER.exists()
 
 
 def test_mcp_boundary_doc_lists_resources() -> None:
@@ -89,11 +91,12 @@ def test_mcp_boundary_doc_lists_read_only_tools_and_create_boundary() -> None:
     assert "does not list or accept `snapshot_create` by default" in text
 
 
-def test_mcp_boundary_doc_names_local_stdio_server() -> None:
+def test_mcp_boundary_doc_names_local_stdio_server_and_launcher() -> None:
     text = _read(MCP_BOUNDARY_DOC)
 
     assert "Local stdio protocol server" in text
     assert "merger.lenskit.cli.repobrief_mcp_stdio" in text
+    assert "scripts/repobrief-mcp-stdio.py" in text
     assert "tools/list" in text
     assert "resources/read" in text
     assert "newline-delimited" in text
@@ -101,17 +104,15 @@ def test_mcp_boundary_doc_names_local_stdio_server() -> None:
     assert "no TCP/HTTP listener" in text
 
 
-def test_mcp_boundary_doc_lists_snapshot_create_guards() -> None:
+def test_mcp_boundary_doc_binds_snapshot_create_to_startup_paths() -> None:
     text = _read(MCP_BOUNDARY_DOC)
 
-    for guard in (
-        "explicit repository",
-        "explicit snapshot profile",
-        "controlled output root",
-        "timeout guard",
-        "size guard",
-    ):
-        assert guard in text
+    assert "both `--enable-snapshot-create` and an explicit `--repo-root`" in text
+    assert "source repository is fixed to the startup `--repo-root`" in text
+    assert "output root is fixed to the startup `--bundle-root`" in text
+    assert "cannot supply replacement `repo` or `output_root`" in text
+    assert "explicit snapshot profile" in text
+    assert "timeout, size, output-path" in text
 
 
 def test_mcp_boundary_doc_lists_forbidden_operations() -> None:
@@ -145,10 +146,12 @@ def test_mcp_boundary_doc_bounds_live_git_probe() -> None:
 
     assert "Bounded local Git probe" in text
     assert "operator-provided `--repo-root`" in text
+    assert "manifest-recorded local path remains evidence only" in text
     assert "disables optional locks" in text
     assert "ignores global and system Git configuration" in text
     assert "Missing cleanliness evidence" in text
     assert "never invokes `git_fetch`, `git_pull`, or `git_push`" in text
+    assert "No Git subprocess runs when `--repo-root` is absent" in text
 
 
 def test_repobrief_doc_links_to_implemented_mcp_surface() -> None:
@@ -169,12 +172,15 @@ def test_mcp_boundary_doc_names_concrete_readonly_resource_adapter() -> None:
     assert "health, freshness, and availability context" in text
 
 
-def test_mcp_usage_doc_has_start_and_client_configuration() -> None:
+def test_mcp_usage_doc_has_stable_start_and_client_configuration() -> None:
     text = _read(MCP_USAGE_DOC)
 
+    assert "python3 /absolute/path/to/lenskit/scripts/repobrief-mcp-stdio.py" in text
     assert "python3 -m merger.lenskit.cli.repobrief_mcp_stdio" in text
     assert '"mcpServers"' in text
+    assert '"/absolute/path/to/lenskit/scripts/repobrief-mcp-stdio.py"' in text
     assert "--bundle-root" in text
     assert "--repo-root" in text
     assert "--enable-snapshot-create" in text
+    assert "cannot choose another source repository or output root" in text
     assert "repo_root_not_configured" not in text
