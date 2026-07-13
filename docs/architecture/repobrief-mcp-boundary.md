@@ -7,7 +7,7 @@ creation, refresh, Git mutation, network synchronization, pull-request actions, 
 shell execution, review automation, or secret access. An explicitly configured live-freshness
 check may run a bounded local read-only Git probe; it reports drift and never repairs it.
 
-RepoBrief now has a local stdio protocol server. It is not a networked MCP protocol server:
+RepoBrief has a local stdio protocol server. It is not a networked MCP protocol server:
 there is no TCP/HTTP listener, authentication layer, remote scheduler, or service deployment in
 this slice. The server binds existing code-level handlers and resources to MCP JSON-RPC without
 creating a parallel truth or retrieval layer.
@@ -20,16 +20,22 @@ must not be smuggled into RepoBrief resources or read-only tools.
 
 ## Local stdio protocol server
 
-The concrete server lives in:
+The implementation lives in:
 
 ```text
 merger.lenskit.cli.repobrief_mcp_stdio
 ```
 
-Start the default read-only server with:
+The checkout-independent launcher lives in:
+
+```text
+scripts/repobrief-mcp-stdio.py
+```
+
+Start the default read-only server with an absolute launcher path:
 
 ```bash
-python3 -m merger.lenskit.cli.repobrief_mcp_stdio \
+python3 /absolute/path/to/lenskit/scripts/repobrief-mcp-stdio.py \
   --bundle-root /absolute/path/to/briefs \
   --repo-root /absolute/path/to/repository
 ```
@@ -41,7 +47,8 @@ stable command contract are documented in [RepoBrief MCP stdio](../usage/repobri
 
 `--repo-root` is the sole checkout permission for the protocol server. Without it, live freshness
 is `not_comparable` and no Git probe runs. A tool argument or bundle manifest cannot redirect the
-server to inspect another checkout.
+server to inspect another checkout. A manifest-recorded local path remains evidence only; it does
+not grant filesystem authority.
 
 ## Resources-first surface
 
@@ -116,7 +123,7 @@ The probe:
 - is bound to the operator-provided `--repo-root` in MCP mode.
 
 A dirty snapshot, dirty current tree, or changed `HEAD` is `stale`. Missing cleanliness evidence
-is never treated as fresh.
+is never treated as fresh. No Git subprocess runs when `--repo-root` is absent.
 
 ## Explicit write path
 
@@ -127,17 +134,19 @@ RepoBrief exposes one explicit write handler:
 The handler lives in `merger.lenskit.core.repobrief_mcp_tools`. It may write only Brief Bundle
 artifacts. It must not be reachable as a side effect of resource reads or read-only tools.
 
-`snapshot_create` requires:
-
-- an explicit repository,
-- an explicit snapshot profile,
-- a controlled output root,
-- a timeout guard,
-- a size guard.
-
 The stdio server does not list or accept `snapshot_create` by default. The operator must start it
-with `--enable-snapshot-create`. This opt-in does not add Git, patch, PR, shell, review, fix, or
-merge authority.
+with both `--enable-snapshot-create` and an explicit `--repo-root`.
+
+When enabled:
+
+- the source repository is fixed to the startup `--repo-root`;
+- the output root is fixed to the startup `--bundle-root` directory, or the parent of an exact
+  manifest supplied as `--bundle-root`;
+- the MCP client cannot supply replacement `repo` or `output_root` arguments;
+- the MCP client must select an explicit snapshot profile;
+- existing timeout, size, output-path, and output-not-inside-repository guards remain active.
+
+This opt-in does not add Git mutation, patch, PR, shell, review, fix, secret, or merge authority.
 
 ## Forbidden operations
 
