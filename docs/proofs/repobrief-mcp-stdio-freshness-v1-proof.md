@@ -1,8 +1,8 @@
 # RepoBrief MCP stdio and live freshness v1 proof
 
-Status: review-ready implementation; final PR-head attestation remains PR metadata.  
-Bureau: `heimgewebe/bureau#468`  
-Pull request: `heimgewebe/lenskit#992`  
+Status: review-ready implementation; final PR-head attestation remains PR metadata.
+Bureau: `heimgewebe/bureau#468`
+Pull request: `heimgewebe/lenskit#992`
 Branch: `feat/repobrief-mcp-stdio-freshness-v1`
 
 ## Result
