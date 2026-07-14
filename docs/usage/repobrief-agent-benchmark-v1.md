@@ -19,6 +19,9 @@ damit ein anderes Experiment.
 `runner.json` enthält keine Zugangsdaten. Es bindet nur die Konfiguration, die
 später für beide Bedingungen identisch sein muss:
 
+Für einen generischen externen Runner kann die Datei weiterhin providerneutral
+bleiben:
+
 ```json
 {
   "provider": "provider-name",
@@ -28,6 +31,24 @@ später für beide Bedingungen identisch sein muss:
   }
 }
 ```
+
+Ein Grabowski-Liveplan über Claude Code muss dagegen den ausführbaren Vertrag
+explizit binden:
+
+```json
+{
+  "execution_contract": "grabowski-claude-code-live-v1",
+  "provider": "anthropic-claude-code",
+  "model": "claude-haiku-4-5-20251001",
+  "sampling": {}
+}
+```
+
+Der Vertrag wird in jeden erzeugten Request übernommen. Die mehrdeutige
+Providerkennung `anthropic`, ein anderer Provider unter diesem Vertrag, ein
+unbekannter Vertrag oder ein nicht leeres Samplingobjekt werden bereits beim
+Planen abgelehnt. Damit kann ein formal erzeugter Plan nicht erst beim späteren
+Live-Runner an diesen Identitätsunterschieden scheitern.
 
 Der externe Runner muss dieselbe Provider-, Modell- und Sampling-Identität in
 jeder Laufquittung zurückgeben.

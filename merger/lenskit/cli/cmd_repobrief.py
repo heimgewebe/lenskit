@@ -141,6 +141,22 @@ def should_emit_export_safety_report(profile: str) -> bool:
     return _export_safety_requirement(profile) in {"required", "recommended"}
 
 
+def resolve_snapshot_redaction(
+    profile: str, requested: bool | None
+) -> tuple[bool, str, bool]:
+    required = bool(
+        profile_policy(profile)["export_semantics"].get("redaction_required")
+    )
+    if requested is None:
+        return required, "profile_required_default" if required else "profile_default", required
+    if required and requested is False:
+        raise ValueError(
+            f"profile {profile} requires secret redaction; "
+            "--no-redact-secrets is not permitted"
+        )
+    return bool(requested), "explicit", required
+
+
 def emit_export_safety_report(bundle_manifest: Path | None, profile: str) -> Path | None:
     if bundle_manifest is None or not should_emit_export_safety_report(profile):
         return None
@@ -514,13 +530,19 @@ def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser)
     create_parser.add_argument("--path-filter")
     create_parser.add_argument("--ext", action="append")
     create_parser.add_argument("--output-mode", choices=["archive", "retrieval", "dual"])
-    create_parser.add_argument("--redact-secrets", action="store_true")
+    create_redaction = create_parser.add_mutually_exclusive_group()
+    create_redaction.add_argument(
+        "--redact-secrets", action="store_true", dest="redact_secrets"
+    )
+    create_redaction.add_argument(
+        "--no-redact-secrets", action="store_false", dest="redact_secrets"
+    )
     create_parser.add_argument("--no-include-hidden", action="store_false", dest="include_hidden")
     create_parser.add_argument(
         "--latest-complete-registry",
         help="Explicitly write/update a RepoBrief latest-complete registry JSON for this created snapshot",
     )
-    create_parser.set_defaults(include_hidden=True)
+    create_parser.set_defaults(include_hidden=True, redact_secrets=None)
 
     status_parser = snapshot_subparsers.add_parser("status", help="Read status for an existing Brief Snapshot")
     status_parser.add_argument("--bundle-manifest", required=True, help="Path to a Brief Bundle manifest")
@@ -736,9 +758,15 @@ def register_repobrief_command_groups(repobrief_parser: argparse.ArgumentParser)
     external_refresh_parser.add_argument("--path-filter")
     external_refresh_parser.add_argument("--ext", action="append")
     external_refresh_parser.add_argument("--output-mode", choices=["archive", "retrieval", "dual"])
-    external_refresh_parser.add_argument("--redact-secrets", action="store_true")
+    refresh_redaction = external_refresh_parser.add_mutually_exclusive_group()
+    refresh_redaction.add_argument(
+        "--redact-secrets", action="store_true", dest="redact_secrets"
+    )
+    refresh_redaction.add_argument(
+        "--no-redact-secrets", action="store_false", dest="redact_secrets"
+    )
     external_refresh_parser.add_argument("--no-include-hidden", action="store_false", dest="include_hidden")
-    external_refresh_parser.set_defaults(include_hidden=True)
+    external_refresh_parser.set_defaults(include_hidden=True, redact_secrets=None)
 
     latest_parser = repobrief_subparsers.add_parser(
         "latest-complete",
@@ -1319,6 +1347,9 @@ def build_snapshot_create_result(args: argparse.Namespace) -> dict[str, Any]:
     if out == repo or repo in out.parents:
         raise ValueError("bad output path")
 
+    redact_secrets, redaction_source, redaction_required = resolve_snapshot_redaction(
+        profile, getattr(args, "redact_secrets", None)
+    )
     output_plan = profile_output_mode_plan(profile, args.output_mode)
     output_mode = output_plan["selected_output_mode"]
     conflicts = tuple(output_plan["conflicts"])
@@ -1364,7 +1395,7 @@ def build_snapshot_create_result(args: argparse.Namespace) -> dict[str, Any]:
         ext_filter=ext_filter,
         extras=extras,
         output_mode=output_mode,
-        redact_secrets=args.redact_secrets,
+        redact_secrets=redact_secrets,
         include_hidden=args.include_hidden,
         generator_info=generator_info,
     )
@@ -1407,6 +1438,11 @@ def build_snapshot_create_result(args: argparse.Namespace) -> dict[str, Any]:
         "profile": profile,
         "output_mode": output_mode,
         "output_plan": output_plan,
+        "redaction": {
+            "enabled": redact_secrets,
+            "required": redaction_required,
+            "source": redaction_source,
+        },
         "repo": str(repo),
         "out": str(out),
         "bundle_manifest": str(artifacts.bundle_manifest) if artifacts.bundle_manifest else None,

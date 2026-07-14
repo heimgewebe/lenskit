@@ -931,10 +931,13 @@ def test_snapshot_create_finalizes_every_manifest_artifact(tmp_path, capsys):
     ]
 
 
-def test_snapshot_create_blocks_agent_export_without_redaction(tmp_path, capsys):
+@pytest.mark.parametrize("profile", ["agent-portable", "public-share"])
+def test_snapshot_create_defaults_required_profiles_to_redaction(
+    profile, tmp_path, capsys
+):
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / "README.md").write_text("# blocked\n", encoding="utf-8")
+    (repo / "README.md").write_text("# safe default\n", encoding="utf-8")
     out = tmp_path / "briefs"
 
     rc = main([
@@ -946,24 +949,28 @@ def test_snapshot_create_blocks_agent_export_without_redaction(tmp_path, capsys)
         "--out",
         str(out),
         "--profile",
-        "agent-portable",
+        profile,
     ])
 
     result = json.loads(capsys.readouterr().out)
-    finalization = result["finalization"]
-    assert rc == 1
-    assert result["status"] == "fail"
-    assert finalization["post_emit_health_status"] == "pass"
-    assert finalization["agent_export_gate_status"] == "fail"
-    assert finalization["export_safety_status"] == "fail"
-    assert "agent_export_gate:fail" in finalization["errors"]
-    assert "export_safety_report:fail" in finalization["errors"]
+    assert rc == 0
+    assert result["status"] == "ok"
+    assert result["redaction"] == {
+        "enabled": True,
+        "required": True,
+        "source": "profile_required_default",
+    }
+    assert result["finalization"]["agent_export_gate_status"] == "pass"
+    assert result["finalization"]["export_safety_status"] == "pass"
 
 
-def test_snapshot_create_blocks_public_export_without_redaction(tmp_path, capsys):
+@pytest.mark.parametrize("profile", ["agent-portable", "public-share"])
+def test_snapshot_create_rejects_explicit_redaction_disable_before_output(
+    profile, tmp_path, capsys
+):
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / "README.md").write_text("# blocked public export\n", encoding="utf-8")
+    (repo / "README.md").write_text("# reject unsafe override\n", encoding="utf-8")
     out = tmp_path / "briefs"
 
     rc = main([
@@ -975,18 +982,15 @@ def test_snapshot_create_blocks_public_export_without_redaction(tmp_path, capsys
         "--out",
         str(out),
         "--profile",
-        "public-share",
+        profile,
+        "--no-redact-secrets",
     ])
 
-    result = json.loads(capsys.readouterr().out)
-    finalization = result["finalization"]
-    assert rc == 1
-    assert result["status"] == "fail"
-    assert finalization["post_emit_health_status"] == "pass"
-    assert finalization["agent_export_gate_status"] == "fail"
-    assert finalization["export_safety_status"] == "fail"
-    assert "agent_export_gate:fail" in finalization["errors"]
-    assert "export_safety_report:fail" in finalization["errors"]
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "requires secret redaction" in captured.err
+    assert not captured.out
+    assert not out.exists()
 
 
 def test_add_manifest_artifact_preserves_existing_contract_metadata(tmp_path):

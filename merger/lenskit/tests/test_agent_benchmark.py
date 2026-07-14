@@ -260,6 +260,95 @@ def test_pair_plan_rejects_non_frozen_repetition_count() -> None:
         )
 
 
+def test_claude_code_live_contract_is_bound_into_requests() -> None:
+    runner = {
+        "execution_contract": "grabowski-claude-code-live-v1",
+        "provider": "anthropic-claude-code",
+        "model": "claude-haiku-4-5-20251001",
+        "sampling": {},
+    }
+
+    requests = build_run_requests(
+        _taskset(),
+        runner=runner,
+        manifest_bindings=BINDINGS,
+        repetitions=2,
+    )
+
+    assert requests
+    assert all(request["runner"] == runner for request in requests)
+    Draft7Validator(_schema("request")).validate(requests[0])
+
+
+@pytest.mark.parametrize(
+    ("runner", "expected"),
+    [
+        (
+            {
+                "provider": "anthropic",
+                "model": "claude-haiku-4-5-20251001",
+                "sampling": {},
+            },
+            "ambiguous provider anthropic",
+        ),
+        (
+            {
+                "execution_contract": "grabowski-claude-code-live-v1",
+                "provider": "fixture-provider",
+                "model": "fixture-model",
+                "sampling": {},
+            },
+            "requires provider anthropic-claude-code",
+        ),
+        (
+            {
+                "execution_contract": "grabowski-claude-code-live-v1",
+                "provider": "anthropic-claude-code",
+                "model": "claude-haiku-4-5-20251001",
+                "sampling": {"temperature": 0},
+            },
+            "requires an explicit empty sampling object",
+        ),
+        (
+            {
+                "execution_contract": "grabowski-claude-code-live-v1",
+                "provider": "anthropic-claude-code",
+                "model": "claude-haiku-4-5-20251001",
+            },
+            "requires an explicit empty sampling object",
+        ),
+        (
+            {
+                "execution_contract": "grabowski-claude-code-live-v1",
+                "provider": "anthropic-claude-code",
+                "model": "claude-haiku-4-5-20251001",
+                "sampling": [],
+            },
+            "requires an explicit empty sampling object",
+        ),
+        (
+            {
+                "execution_contract": "unknown-live-contract",
+                "provider": "fixture-provider",
+                "model": "fixture-model",
+                "sampling": {},
+            },
+            "unsupported runner execution contract",
+        ),
+    ],
+)
+def test_runner_contract_rejects_non_executable_configuration(
+    runner: dict, expected: str
+) -> None:
+    with pytest.raises(AgentBenchmarkError, match=expected):
+        build_run_requests(
+            _taskset(),
+            runner=runner,
+            manifest_bindings=BINDINGS,
+            repetitions=2,
+        )
+
+
 def test_pair_plan_requires_treatment_manifest_binding() -> None:
     taskset = _taskset()
     incomplete = dict(BINDINGS)

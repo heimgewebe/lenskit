@@ -36,6 +36,42 @@ from merger.lenskit.core.agent_benchmark_policy import BENCHMARK_REPETITIONS
 from merger.lenskit.core.agent_benchmark_receipts import validate_receipt
 
 
+CLAUDE_CODE_LIVE_CONTRACT = "grabowski-claude-code-live-v1"
+CLAUDE_CODE_PROVIDER = "anthropic-claude-code"
+
+
+def _validate_runner_configuration(runner: Mapping[str, Any]) -> None:
+    provider = runner.get("provider")
+    model = runner.get("model")
+    if not isinstance(provider, str) or not provider:
+        raise AgentBenchmarkError("runner provider and model are required")
+    if not isinstance(model, str) or not model:
+        raise AgentBenchmarkError("runner provider and model are required")
+
+    sampling_value = runner.get("sampling")
+    sampling = mapping_value(sampling_value)
+    execution_contract = runner.get("execution_contract")
+    if execution_contract is not None and execution_contract != CLAUDE_CODE_LIVE_CONTRACT:
+        raise AgentBenchmarkError(
+            f"unsupported runner execution contract: {execution_contract}"
+        )
+    if provider == "anthropic":
+        raise AgentBenchmarkError(
+            "ambiguous provider anthropic is not executable; use anthropic-claude-code"
+        )
+    if execution_contract == CLAUDE_CODE_LIVE_CONTRACT and provider != CLAUDE_CODE_PROVIDER:
+        raise AgentBenchmarkError(
+            f"runner contract {CLAUDE_CODE_LIVE_CONTRACT} requires provider "
+            f"{CLAUDE_CODE_PROVIDER}"
+        )
+    if provider == CLAUDE_CODE_PROVIDER and (
+        not isinstance(sampling_value, Mapping) or sampling
+    ):
+        raise AgentBenchmarkError(
+            "provider anthropic-claude-code requires an explicit empty sampling object"
+        )
+
+
 def _repository_map(taskset: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     return {
         str(item["id"]): dict(item)
@@ -130,6 +166,11 @@ def _build_request(
             "provider": str(runner["provider"]),
             "model": str(runner["model"]),
             "sampling": dict(mapping_value(runner.get("sampling"))),
+            **(
+                {"execution_contract": str(runner["execution_contract"])}
+                if runner.get("execution_contract") is not None
+                else {}
+            ),
         },
         "repobrief": _repobrief_binding(
             condition, repository_id, manifest_bindings
@@ -157,8 +198,7 @@ def build_run_requests(
         raise AgentBenchmarkError(
             f"benchmark v1 requires exactly {BENCHMARK_REPETITIONS} repetitions"
         )
-    if not runner.get("provider") or not runner.get("model"):
-        raise AgentBenchmarkError("runner provider and model are required")
+    _validate_runner_configuration(runner)
     repositories = _repository_map(taskset)
     taskset_hash = sha256_json(taskset)
     requests: list[dict[str, Any]] = []
