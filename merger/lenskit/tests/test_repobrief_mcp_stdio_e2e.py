@@ -110,7 +110,7 @@ def test_mcp_stdio_launcher_completes_handshake_outside_checkout(tmp_path: Path)
     assert responses[0]["result"]["protocolVersion"] == PROTOCOL_VERSION
     assert {
         tool["name"] for tool in responses[1]["result"]["tools"]
-    } == {"ask_context", "grounding_verify", "live_freshness"}
+    } == {"ask_context", "grounding_verify", "live_freshness", "find_symbol"}
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git executable unavailable")

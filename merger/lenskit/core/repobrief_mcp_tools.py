@@ -343,3 +343,34 @@ def grounding_verify(
         "mutation_boundary": _read_only_boundary(),
         "does_not_establish": list(DOES_NOT_ESTABLISH),
     }
+
+
+def find_symbol(
+    *,
+    bundle_manifest: str | Path,
+    name: str,
+    kind: str | None = None,
+    path: str | None = None,
+    k: int = 25,
+) -> dict[str, Any]:
+    """MCP-shaped read-only frontdoor for symbol-definition lookup.
+
+    Locates Python symbol definitions (function/class/async_function) in the
+    snapshot's deterministic symbol index, ranking exact matches first. Answers
+    "where is X defined?" with a path and line range — the navigation primitive
+    that content retrieval (ask_context) does not provide. It does not establish
+    that a symbol is called, correct, or fresh against the working tree.
+    """
+    from merger.lenskit.core.repobrief_access import search_symbol_index
+
+    result = search_symbol_index(bundle_manifest, name, k=k, kind=kind, path=path)
+    return {
+        "kind": READ_ONLY_KIND,
+        "version": READ_ONLY_VERSION,
+        "tool": "find_symbol",
+        "status": result.get("status", "invalid"),
+        "result": result,
+        "result_semantics": "repobrief.symbol_search.v1",
+        "mutation_boundary": _read_only_boundary(),
+        "does_not_establish": list(DOES_NOT_ESTABLISH),
+    }

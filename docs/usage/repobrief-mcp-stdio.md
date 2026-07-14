@@ -58,7 +58,8 @@ Read-only by default:
 
 - `ask_context`: builds the existing cited context pack from one registered bundle;
 - `grounding_verify`: runs the existing declaration and evidence verifier;
-- `live_freshness`: compares the snapshot commit and cleanliness with the configured checkout.
+- `live_freshness`: compares the snapshot commit and cleanliness with the configured checkout;
+- `find_symbol`: locates Python symbol definitions by name in the snapshot's symbol index (exact matches first), answering "where is X defined?" with a path and line range; each call also attaches the live freshness of the snapshot.
 
 Optional explicit write tool:
 
