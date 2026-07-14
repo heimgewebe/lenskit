@@ -71,6 +71,12 @@ but it cannot choose another source repository or output root. The source remain
 when `--bundle-root` names one exact manifest. Existing timeout, size, path, and output-not-inside-
 repository guards still apply.
 
+Snapshot profiles whose canonical policy sets `redaction_required=true` now enable secret
+redaction by default before generation. An explicit `--no-redact-secrets` override for such a
+profile is rejected before the output directory is created. The JSON result records whether
+redaction was enabled, required by the profile, and selected explicitly or by the safe profile
+default.
+
 ## Exposed resources
 
 The server lists and reads the existing resource surface:
