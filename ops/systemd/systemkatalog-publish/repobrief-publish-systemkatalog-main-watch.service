@@ -1,9 +1,0 @@
-[Unit]
-Description=RepoBrief Systemkatalog main watcher
-
-[Service]
-Type=oneshot
-ExecStart=/home/alex/.local/bin/repobrief-publish-systemkatalog-main-if-changed
-Nice=10
-IOSchedulingClass=best-effort
-IOSchedulingPriority=6
