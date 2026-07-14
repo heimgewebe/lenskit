@@ -1268,9 +1268,9 @@ def search_symbol_index(
     q = query.strip().casefold()
     kind_filter = kind.strip() if isinstance(kind, str) and kind.strip() else None
     path_filter = path.strip().casefold() if isinstance(path, str) and path.strip() else None
-    matched: list[dict[str, Any]] = []
+    matched: list[tuple[int, int, dict[str, Any]]] = []
     omitted_by_filter = 0
-    for symbol in symbols:
+    for position, symbol in enumerate(symbols):
         haystack = " ".join(
             str(symbol.get(field, ""))
             for field in ("name", "qualified_name", "module", "path", "kind")
@@ -1284,10 +1284,17 @@ def search_symbol_index(
         if path_filter and path_filter not in str(symbol.get("path", "")).casefold():
             omitted_by_filter += 1
             continue
-        matched.append(_symbol_record(symbol))
-        if len(matched) > k:
-            break
-    hits = matched[:k]
+        # Rank exact name/qualified_name matches before substring matches so a
+        # definition lookup surfaces the symbol itself first. Ties keep index
+        # order (stable), preserving prior behavior when no exact match exists.
+        exact = 0 if q and (
+            str(symbol.get("name", "")).casefold() == q
+            or str(symbol.get("qualified_name", "")).casefold() == q
+        ) else 1
+        matched.append((exact, position, symbol))
+    matched.sort(key=lambda item: (item[0], item[1]))
+    # Build the (heavier) records only for the k rows that are actually returned.
+    hits = [_symbol_record(symbol) for _, _, symbol in matched[:k]]
     availability = _availability_model_for_manifest(manifest_path)
     return {
         "kind": SYMBOL_SEARCH_KIND,

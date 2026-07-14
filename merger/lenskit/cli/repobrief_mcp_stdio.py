@@ -92,6 +92,31 @@ def _tool_definitions(enable_snapshot_create: bool) -> list[dict[str, Any]]:
             },
             "annotations": _read_annotations(),
         },
+        {
+            "name": "find_symbol",
+            "title": "RepoBrief symbol locator",
+            "description": (
+                "Locate Python symbol definitions (function/class/async_function) by name "
+                "in an existing RepoBrief bundle. Answers 'where is X defined?' with an "
+                "exact path and line range."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "bundle_manifest": {"type": "string"},
+                    "name": {"type": "string", "minLength": 1},
+                    "kind": {
+                        "type": ["string", "null"],
+                        "enum": [None, "class", "function", "async_function"],
+                    },
+                    "path": {"type": ["string", "null"]},
+                    "k": {"type": "integer", "minimum": 1, "maximum": 200, "default": 25},
+                },
+                "required": ["bundle_manifest", "name"],
+                "additionalProperties": False,
+            },
+            "annotations": _read_annotations(),
+        },
     ]
     if enable_snapshot_create:
         tools.append(
@@ -331,6 +356,29 @@ class RepoBriefMcpStdioServer:
         payload["live_freshness"] = self._safe_live_freshness(manifest)
         return payload
 
+    def _call_find_symbol(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
+        call_args = dict(arguments)
+        # Fail closed at the transport boundary: reject an empty name (which would
+        # otherwise list the first k symbols) or an unknown kind, independent of
+        # any client-side inputSchema enforcement.
+        name = call_args.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise McpProtocolError(-32602, "find_symbol requires a non-empty name")
+        kind = call_args.get("kind")
+        if kind is not None and kind not in repobrief_mcp_tools.FIND_SYMBOL_KINDS:
+            raise McpProtocolError(
+                -32602,
+                "find_symbol kind must be one of class, function, async_function, or null",
+                {"allowed_kinds": list(repobrief_mcp_tools.FIND_SYMBOL_KINDS)},
+            )
+        manifest = self._guard_manifest(call_args.get("bundle_manifest"))
+        call_args["bundle_manifest"] = str(manifest)
+        payload = repobrief_mcp_tools.find_symbol(**call_args)
+        # Nav results reflect the snapshot; surface freshness so the agent knows
+        # whether the index may lag the live working tree.
+        payload["live_freshness"] = self._safe_live_freshness(manifest)
+        return payload
+
     def _call_snapshot_create(self, arguments: Mapping[str, Any]) -> dict[str, Any]:
         if not self.enable_snapshot_create or self.repo_root is None:
             raise McpProtocolError(-32602, "snapshot_create is disabled")
@@ -354,6 +402,8 @@ class RepoBriefMcpStdioServer:
         if name == "live_freshness":
             manifest = self._guard_manifest(arguments.get("bundle_manifest"))
             return self._safe_live_freshness(manifest)
+        if name == "find_symbol":
+            return self._call_find_symbol(arguments)
         if name == "snapshot_create":
             return self._call_snapshot_create(arguments)
         raise McpProtocolError(-32602, f"unknown or disabled tool: {name}")

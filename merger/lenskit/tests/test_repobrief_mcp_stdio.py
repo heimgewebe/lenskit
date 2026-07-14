@@ -86,6 +86,7 @@ def test_mcp_stdio_lists_read_tools_and_hides_snapshot_create_by_default(tmp_pat
         "ask_context",
         "grounding_verify",
         "live_freshness",
+        "find_symbol",
     }
 
 
