@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from merger.lenskit.core import (
+    external_manifest_reference as external_manifest_reference_module,
+)
 from merger.lenskit.core.external_manifest_reference import (
     ExternalManifestReferenceError,
     build_external_manifest_reference,
@@ -160,6 +163,34 @@ def test_rejects_non_bundle_manifest(tmp_path: Path) -> None:
     ):
         build_external_manifest_reference(
             path, repository="heimgewebe-katalog", ref="main"
+        )
+
+
+def test_build_rejects_manifest_swapped_to_symlink_after_path_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle_path = write_bundle(tmp_path)
+    outside = tmp_path / "outside.bundle.manifest.json"
+    outside.write_bytes(bundle_path.read_bytes())
+    original_guard = external_manifest_reference_module._require_inside_publication_root
+
+    def swap_after_guard(path: Path, publication_root: Path | None) -> None:
+        original_guard(path, publication_root)
+        path.unlink()
+        path.symlink_to(outside)
+
+    monkeypatch.setattr(
+        external_manifest_reference_module,
+        "_require_inside_publication_root",
+        swap_after_guard,
+    )
+
+    with pytest.raises(ExternalManifestReferenceError, match="existing regular file"):
+        build_external_manifest_reference(
+            bundle_path,
+            repository="heimgewebe-katalog",
+            ref="main",
+            publication_root=tmp_path,
         )
 
 

@@ -299,26 +299,15 @@ def _require_path_inside_root(path: Path, root: Path, label: str) -> None:
 
 def _read_materialization_manifest(
     source_manifest: Path,
-) -> tuple[bytes, dict[str, Any]]:
-    try:
-        manifest_bytes = source_manifest.read_bytes()
-    except FileNotFoundError as exc:
-        raise ExternalManifestReferenceError(
-            f"bundle manifest does not exist: {source_manifest}"
-        ) from exc
-    try:
-        bundle = json.loads(manifest_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ExternalManifestReferenceError(
-            f"bundle manifest is not valid UTF-8 JSON: {source_manifest}"
-        ) from exc
-    if not isinstance(bundle, dict):
-        raise ExternalManifestReferenceError("bundle manifest must be a JSON object")
+) -> tuple[dict[str, Any], int, str]:
+    bundle, manifest_bytes, manifest_sha256 = _read_json_object_with_integrity(
+        source_manifest
+    )
     if bundle.get("kind") != BUNDLE_KIND:
         raise ExternalManifestReferenceError(
             "bundle manifest kind must be repolens.bundle.manifest"
         )
-    return manifest_bytes, bundle
+    return bundle, manifest_bytes, manifest_sha256
 
 
 def _declared_materialization_rows(
@@ -612,12 +601,12 @@ def materialize_external_bundle(
     repository = _registry_segment(repository, "repository")
     ref = _registry_segment(ref, "ref")
     source_manifest = Path(bundle_manifest_path).expanduser().resolve()
-    manifest_content, bundle = _read_materialization_manifest(source_manifest)
+    bundle, manifest_bytes, manifest_sha256 = _read_materialization_manifest(
+        source_manifest
+    )
 
     root = Path(publication_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
-    manifest_sha256 = hashlib.sha256(manifest_content).hexdigest()
-    manifest_bytes = len(manifest_content)
     localized_dir = root / "external" / "_bundles" / repository / ref / manifest_sha256
     localized_manifest = localized_dir / source_manifest.name
     _require_path_inside_root(localized_dir, root, "localized bundle directory")
