@@ -29,22 +29,6 @@ class ExternalManifestReferenceError(ValueError):
     """Raised when an external manifest reference cannot be built."""
 
 
-def _read_json_object(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise ExternalManifestReferenceError(
-            f"bundle manifest does not exist: {path}"
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise ExternalManifestReferenceError(
-            f"bundle manifest is not valid JSON: {path}"
-        ) from exc
-    if not isinstance(data, dict):
-        raise ExternalManifestReferenceError("bundle manifest must be a JSON object")
-    return data
-
-
 def _relative_path(target: Path, base_dir: Path) -> str:
     return Path(os.path.relpath(target.resolve(), base_dir.resolve())).as_posix()
 
@@ -83,17 +67,37 @@ def _open_regular_file(path: Path, label: str) -> tuple[int, int]:
 
 
 def _digest_regular_file(path: Path, label: str) -> tuple[int, str]:
-    fd, observed_bytes = _open_regular_file(path, label)
+    fd, _ = _open_regular_file(path, label)
     digest = hashlib.sha256()
+    observed_bytes = 0
     with os.fdopen(fd, "rb", closefd=True) as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            observed_bytes += len(chunk)
             digest.update(chunk)
     return observed_bytes, digest.hexdigest()
 
 
-def _sha256_file(path: Path) -> str:
-    _, digest = _digest_regular_file(path, "file")
-    return digest
+def _read_json_object_with_integrity(
+    path: Path,
+) -> tuple[dict[str, Any], int, str]:
+    fd, _ = _open_regular_file(path, "bundle manifest")
+    digest = hashlib.sha256()
+    chunks: list[bytes] = []
+    observed_bytes = 0
+    with os.fdopen(fd, "rb", closefd=True) as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            observed_bytes += len(chunk)
+            digest.update(chunk)
+            chunks.append(chunk)
+    try:
+        data = json.loads(b"".join(chunks).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ExternalManifestReferenceError(
+            f"bundle manifest is not valid UTF-8 JSON: {path}"
+        ) from exc
+    if not isinstance(data, dict):
+        raise ExternalManifestReferenceError("bundle manifest must be a JSON object")
+    return data, observed_bytes, digest.hexdigest()
 
 
 def _bundle_member(bundle_dir: Path, raw_path: str, label: str) -> tuple[Path, str]:
@@ -182,12 +186,15 @@ def _linked_sidecar_rows(
         if normalized in seen_paths:
             continue
         seen_paths.add(normalized)
+        linked_bytes, linked_sha256 = _digest_regular_file(
+            linked_path, f"bundle manifest link {link_key}"
+        )
         rows.append(
             {
                 "role": role,
                 "path": _relative_path(linked_path, output_base),
-                "sha256": _sha256_file(linked_path),
-                "bytes": linked_path.stat().st_size,
+                "sha256": linked_sha256,
+                "bytes": linked_bytes,
                 "contentType": "application/json",
             }
         )
@@ -400,87 +407,6 @@ def _materialization_members(
             "bundle artifact path must not collide with the bundle manifest filename"
         )
     return members
-
-
-def _require_materialized_directory(localized_dir: Path) -> None:
-    try:
-        metadata = localized_dir.lstat()
-    except OSError as exc:
-        raise ExternalManifestReferenceError(
-            f"localized bundle path must be an existing directory: {localized_dir}"
-        ) from exc
-    if not stat.S_ISDIR(metadata.st_mode):
-        raise ExternalManifestReferenceError(
-            f"localized bundle path must be an existing directory: {localized_dir}"
-        )
-
-
-def _expected_materialized_tree_entries(
-    localized_manifest: Path, members: dict[str, dict[str, Any]]
-) -> tuple[set[str], set[str]]:
-    files = {localized_manifest.name, *members.keys()}
-    directories: set[str] = set()
-    for relative_path in files:
-        parent = Path(relative_path).parent
-        while parent != Path("."):
-            directories.add(parent.as_posix())
-            parent = parent.parent
-    return files, directories
-
-
-def _require_materialized_tree_entry(candidate: Path, *, expected_type: str) -> None:
-    metadata = candidate.lstat()
-    valid = (
-        stat.S_ISDIR(metadata.st_mode)
-        if expected_type == "directory"
-        else stat.S_ISREG(metadata.st_mode)
-    )
-    if not valid:
-        raise ExternalManifestReferenceError(
-            "localized bundle tree must contain only regular files and "
-            f"directories: {candidate}"
-        )
-
-
-def _observed_materialized_tree_entries(
-    localized_dir: Path,
-) -> tuple[set[str], set[str]]:
-    files: set[str] = set()
-    directories: set[str] = set()
-    for current_root, directory_names, file_names in os.walk(
-        localized_dir, topdown=True, followlinks=False
-    ):
-        current = Path(current_root)
-        for name in directory_names:
-            candidate = current / name
-            _require_materialized_tree_entry(candidate, expected_type="directory")
-            directories.add(candidate.relative_to(localized_dir).as_posix())
-        for name in file_names:
-            candidate = current / name
-            _require_materialized_tree_entry(candidate, expected_type="file")
-            files.add(candidate.relative_to(localized_dir).as_posix())
-    return files, directories
-
-
-def _require_exact_materialized_tree_entries(
-    *,
-    expected_files: set[str],
-    expected_directories: set[str],
-    actual_files: set[str],
-    actual_directories: set[str],
-) -> None:
-    if actual_files == expected_files and actual_directories == expected_directories:
-        return
-    missing = sorted(
-        (expected_files - actual_files) | (expected_directories - actual_directories)
-    )
-    unexpected = sorted(
-        (actual_files - expected_files) | (actual_directories - expected_directories)
-    )
-    raise ExternalManifestReferenceError(
-        "localized bundle tree entries mismatch: "
-        f"missing={missing}, unexpected={unexpected}"
-    )
 
 
 def _expected_materialized_entries(
@@ -757,7 +683,9 @@ def build_external_manifest_reference(
         manifest_path,
         Path(publication_root) if publication_root is not None else None,
     )
-    bundle = _read_json_object(manifest_path)
+    bundle, manifest_bytes, manifest_sha256 = _read_json_object_with_integrity(
+        manifest_path
+    )
     if bundle.get("kind") != BUNDLE_KIND:
         raise ExternalManifestReferenceError(
             "bundle manifest kind must be repolens.bundle.manifest"
@@ -786,8 +714,8 @@ def build_external_manifest_reference(
             "path": _relative_path(manifest_path, output_base),
             "runId": bundle.get("run_id"),
             "createdAt": created_at,
-            "sha256": _sha256_file(manifest_path),
-            "bytes": manifest_path.stat().st_size,
+            "sha256": manifest_sha256,
+            "bytes": manifest_bytes,
         },
         "snapshotProvenance": snapshot_provenance
         if isinstance(snapshot_provenance, dict)
