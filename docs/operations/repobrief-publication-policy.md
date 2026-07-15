@@ -6,7 +6,7 @@
 
 Two disjoint roots are mandatory:
 
-- **Evidence root:** durable publication records, pins, plans, locks and transaction journals. Record state transitions are written atomically; payload pruning never removes this evidence.
+- **Evidence root:** durable publication records, pins, plans, locks and transaction journals. Record state transitions are written atomically; payload pruning never removes this evidence. Existing and newly created evidence/lock directories must be owned by the current user, must not be group- or world-writable, and symlinked directory chains are rejected. Metadata reads, hashes, atomic replacements and lock acquisition are anchored to already-open directory handles; parent replacement is detected. Lock files are opened without following symlinks and normalized to mode `0600`.
 - **Payload root:** large, regenerable RepoBrief bundle directories.
 
 The policy refuses nested or identical roots. Retention removes only a validated payload directory. The durable record, identity digest, manifest digest, payload digest, byte count and prune receipt remain available after payload removal.
@@ -77,7 +77,7 @@ scripts/ops/rb-publication-policy complete \
 
 ## Retention contract
 
-The default policy retains the union of:
+The policy enforces non-reducible retention floors and retains the union of:
 
 - the latest **3** successful full payloads;
 - the newest successful payload for each of the latest **7 UTC days**;
@@ -85,7 +85,7 @@ The default policy retains the union of:
 - every explicit pin;
 - incomplete or failed payloads younger than **48 hours**.
 
-Daily and weekly anchors are deterministic. Explicit pins are separate evidence objects and therefore survive normal record updates. Failed TTL age starts at the failure timestamp; incomplete TTL age starts at reservation.
+The values 3/7/8 and 48 hours are minimums, not merely defaults: CLI input and embedded plans cannot lower them. Daily and weekly anchors are deterministic. Explicit pins are separate evidence objects and therefore survive normal record updates. Failed TTL age starts at the failure timestamp; incomplete TTL age starts at reservation. An expired incomplete or failed record whose payload directory was never created is recorded as pruned without deleting any filesystem path; a missing successful payload remains a hard error.
 
 Create a dry-run plan:
 
@@ -99,7 +99,7 @@ scripts/ops/rb-publication-policy plan \
 The plan binds every candidate to:
 
 - exact record path and record SHA-256;
-- exact payload path;
+- exact payload path, bound again to the durable record before apply and recovery;
 - device and inode identity;
 - deterministic payload-tree SHA-256;
 - byte count and retention reason.
@@ -112,7 +112,7 @@ scripts/ops/rb-publication-policy apply \
   --expected-plan-sha256 <plan-sha256>
 ```
 
-A pin added after planning causes apply to retain the generation. A changed record, changed payload, missing retained payload, unexpected metadata entry or unresolved transaction fails closed.
+A pin added after planning causes apply to retain the generation. A changed record, changed payload, missing retained payload, unexpected metadata entry or unresolved transaction fails closed. Plans do not rely on a fixed wall-clock validity window: apply recomputes the current selection under the stream lock and skips candidates that are now retained; record, path and payload identity must still match exactly.
 
 ## Transaction and crash recovery
 
@@ -150,4 +150,4 @@ Remove the pin with `unpin --record <record-path>`. Orphaned or malformed pin me
 
 The existing fleet publisher already computes a scoped content identity and skips unchanged successful publications. The policy module supplies the stronger durable reservation, anchor selection, pin, TTL and evidence/payload separation contract.
 
-Integration with `scripts/ops/rb-publish-fleet` must occur only after the active RBV1-T026 retention hardening is merged. Until then, the policy is intentionally implemented in disjoint files so the in-flight publisher, its tests and its retention documentation are not overwritten or concurrently edited.
+RBV1-T026 is merged. This policy remains a separate control module and is not silently wired into the live fleet publisher by this change. Any production integration requires its own exact dry-run, payload-candidate binding and rollout evidence; this implementation performs no live retention by itself.

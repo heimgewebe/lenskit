@@ -11,17 +11,31 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import datetime as dt
-import fcntl
 import hashlib
 import json
 import os
 import re
-import shutil
 import stat
-import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Iterator
+
+from merger.lenskit.core.rooted_filesystem import (
+    RootedFilesystemError,
+    atomic_write_bytes,
+    bind_directory,
+    exclusive_file_lock,
+    digest_regular_file,
+    lstat_path,
+    make_directories,
+    make_directory_exclusive,
+    path_exists,
+    read_regular_bytes,
+    remove_regular_file,
+    remove_tree,
+    rename_path,
+    secure_absolute,
+)
 
 POLICY_SCHEMA = "repobrief.publication-policy.v1"
 RECORD_SCHEMA = "repobrief.publication-record.v1"
@@ -51,6 +65,82 @@ _KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _GENERATION_RE = re.compile(r"^\d{8}T\d{12}Z-[0-9a-f]{12}$")
 _TRANSACTION_RE = re.compile(r"^[0-9a-f]{32}$")
 UTC = dt.timezone.utc
+
+_RECORD_REQUIRED_KEYS = frozenset(
+    {
+        "schema",
+        "policy_schema",
+        "generation_id",
+        "repository",
+        "lane",
+        "identity",
+        "identity_sha256",
+        "state",
+        "payload_state",
+        "payload_relpath",
+        "created_at",
+        "updated_at",
+        "completed_at",
+        "failed_at",
+        "failure_reason",
+        "manifest_relpath",
+        "manifest_sha256",
+        "payload_tree_sha256",
+        "payload_bytes",
+        "pruned_at",
+        "prune_reason",
+    }
+)
+_RECORD_ALLOWED_KEYS = _RECORD_REQUIRED_KEYS | frozenset(
+    {"prune_transaction_id", "missing_payload_confirmed"}
+)
+_PIN_KEYS = frozenset(
+    {"schema", "repository", "lane", "generation_id", "reason", "pinned_at"}
+)
+_PLAN_KEYS = frozenset(
+    {
+        "schema",
+        "policy_schema",
+        "plan_id",
+        "repository",
+        "lane",
+        "generated_at",
+        "policy",
+        "retained",
+        "retention_reasons",
+        "entries",
+        "plan_sha256",
+    }
+)
+_PLAN_ENTRY_KEYS = frozenset(
+    {
+        "generation_id",
+        "record_relpath",
+        "record_sha256",
+        "payload_relpath",
+        "payload_missing",
+        "payload_snapshot",
+        "reason",
+    }
+)
+_SNAPSHOT_KEYS = frozenset({"device", "inode", "tree_sha256", "bytes"})
+_TRANSACTION_KEYS = frozenset(
+    {
+        "schema",
+        "transaction_id",
+        "plan_id",
+        "repository",
+        "lane",
+        "generation_id",
+        "record_relpath",
+        "source_relpath",
+        "quarantine_relpath",
+        "snapshot",
+        "reason",
+        "state",
+        "updated_at",
+    }
+)
 
 
 class PublicationPolicyError(RuntimeError):
@@ -105,16 +195,27 @@ class RetentionPolicy:
     incomplete_ttl_seconds: int = DEFAULT_INCOMPLETE_TTL_SECONDS
 
     def __post_init__(self) -> None:
+        minimums = {
+            "recent": DEFAULT_RECENT,
+            "daily": DEFAULT_DAILY,
+            "weekly": DEFAULT_WEEKLY,
+            "incomplete_ttl_seconds": DEFAULT_INCOMPLETE_TTL_SECONDS,
+        }
         for label, value in (
             ("recent", self.recent),
             ("daily", self.daily),
             ("weekly", self.weekly),
             ("incomplete_ttl_seconds", self.incomplete_ttl_seconds),
         ):
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise ValueError(f"{label} must be a non-negative integer")
-        if self.recent == 0:
-            raise ValueError("recent must retain at least one successful generation")
+            minimum = minimums[label]
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value < minimum
+            ):
+                raise ValueError(
+                    f"{label} must be an integer >= {minimum}"
+                )
 
     def as_dict(self) -> dict[str, int]:
         return dataclasses.asdict(self)
@@ -137,11 +238,11 @@ def canonical_sha256(value: object) -> str:
 
 
 def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    try:
+        _, digest = digest_regular_file(path)
+    except RootedFilesystemError as exc:
+        raise PublicationPolicyError(f"cannot hash regular file: {path}") from exc
+    return digest
 
 
 def utc_now() -> dt.datetime:
@@ -170,33 +271,172 @@ def _is_under(path: Path, root: Path) -> bool:
     return path == root or root in path.parents
 
 
-def _atomic_write_json(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, raw_tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    tmp = Path(raw_tmp)
+def _assert_object_keys(
+    payload: dict[str, Any],
+    *,
+    required: frozenset[str],
+    allowed: frozenset[str] | None = None,
+    label: str,
+) -> None:
+    actual = set(payload)
+    permitted = allowed or required
+    missing = sorted(required - actual)
+    unexpected = sorted(actual - permitted)
+    if missing or unexpected:
+        details: list[str] = []
+        if missing:
+            details.append("missing=" + ",".join(missing))
+        if unexpected:
+            details.append("unexpected=" + ",".join(unexpected))
+        raise PublicationPolicyError(
+            f"{label} has invalid keys: {'; '.join(details)}"
+        )
+
+
+def _trusted_path_exists(path: Path, *, label: str) -> bool:
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-    finally:
-        if tmp.exists():
-            tmp.unlink()
+        return path_exists(path)
+    except RootedFilesystemError as exc:
+        raise PublicationPolicyError(
+            f"{label} cannot be inspected through trusted directories: {path}"
+        ) from exc
+
+
+def _validate_generation_ids(value: object, *, label: str) -> list[str]:
+    if not isinstance(value, list):
+        raise PublicationPolicyError(f"{label} is malformed")
+    if not all(
+        isinstance(item, str) and _GENERATION_RE.fullmatch(item) for item in value
+    ):
+        raise PublicationPolicyError(f"{label} is malformed")
+    if len(value) != len(set(value)) or value != sorted(value):
+        raise PublicationPolicyError(f"{label} is not canonical")
+    return value
+
+
+def _validate_reason_list(value: object) -> None:
+    allowed = {"pin", "recent", "daily", "weekly", "incomplete-ttl"}
+    if (
+        not isinstance(value, list)
+        or not value
+        or value != sorted(set(value))
+        or not all(reason in allowed for reason in value)
+    ):
+        raise PublicationPolicyError("retention plan reasons are malformed")
+
+
+def _validate_retention_reasons(
+    value: object, *, retained: list[str]
+) -> dict[str, list[str]]:
+    if not isinstance(value, dict):
+        raise PublicationPolicyError("retention plan reasons are malformed")
+    for generation_id, reasons in value.items():
+        if not isinstance(generation_id, str) or not _GENERATION_RE.fullmatch(
+            generation_id
+        ):
+            raise PublicationPolicyError("retention plan reasons are malformed")
+        _validate_reason_list(reasons)
+    if set(value) != set(retained):
+        raise PublicationPolicyError("retention plan reasons do not match retained set")
+    return value
+
+
+def _path_is_directory(path: Path) -> bool:
+    try:
+        if not path_exists(path):
+            return False
+        return stat.S_ISDIR(lstat_path(path).st_mode)
+    except RootedFilesystemError as exc:
+        raise PublicationPolicyError(
+            f"path cannot be inspected through trusted directories: {path}"
+        ) from exc
+
+
+def _parse_snapshot(snapshot_raw: object, *, label: str) -> TreeSnapshot:
+    if not isinstance(snapshot_raw, dict):
+        raise PublicationPolicyError(f"{label} must be an object")
+    _assert_object_keys(snapshot_raw, required=_SNAPSHOT_KEYS, label=label)
+    device = snapshot_raw.get("device")
+    inode = snapshot_raw.get("inode")
+    tree_sha256 = snapshot_raw.get("tree_sha256")
+    payload_bytes = snapshot_raw.get("bytes")
+    if (
+        isinstance(device, bool)
+        or not isinstance(device, int)
+        or device < 0
+        or isinstance(inode, bool)
+        or not isinstance(inode, int)
+        or inode < 0
+        or not isinstance(tree_sha256, str)
+        or not _SHA256_RE.fullmatch(tree_sha256)
+        or isinstance(payload_bytes, bool)
+        or not isinstance(payload_bytes, int)
+        or payload_bytes < 0
+    ):
+        raise PublicationPolicyError(f"{label} has invalid values")
+    return TreeSnapshot(device, inode, tree_sha256, payload_bytes)
+
+
+def _atomic_write_json(path: Path, payload: dict[str, object]) -> None:
+    absolute = secure_absolute(path)
+    if path_exists(absolute):
+        metadata = lstat_path(absolute)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid():
+            raise PublicationPolicyError(
+                f"metadata target is not an owner-controlled regular file: {absolute}"
+            )
+    raw = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    try:
+        receipt = atomic_write_bytes(absolute, raw, mode=0o600)
+    except RootedFilesystemError as exc:
+        raise PublicationPolicyError(
+            f"cannot atomically write metadata: {absolute}"
+        ) from exc
+    if receipt.get("durability") != "durable":
+        raise PublicationPolicyError(
+            f"metadata durability is unconfirmed after replacement: {absolute}"
+        )
+
+
+def _assert_owned_directory(path: Path, label: str) -> None:
+    try:
+        metadata = lstat_path(path)
+    except RootedFilesystemError as exc:
+        raise PublicationPolicyError(
+            f"{label} is not a trusted directory: {path}"
+        ) from exc
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise PublicationPolicyError(f"{label} is not a regular directory: {path}")
+    if metadata.st_uid != os.geteuid():
+        raise PublicationPolicyError(f"{label} is not owned by the current user: {path}")
+    if stat.S_IMODE(metadata.st_mode) & 0o022:
+        raise PublicationPolicyError(f"{label} is writable by another principal: {path}")
+
+
+def _ensure_owned_directory_chain(root: Path, target: Path, label: str) -> None:
+    try:
+        relative = target.relative_to(root)
+    except ValueError as exc:
+        raise PublicationPolicyError(f"{label} escapes managed root: {target}") from exc
+    try:
+        with bind_directory(root, create=True):
+            make_directories(target, mode=0o700)
+            _assert_owned_directory(root, label)
+            current = root
+            for part in relative.parts:
+                current = current / part
+                _assert_owned_directory(current, label)
+    except RootedFilesystemError as exc:
+        raise PublicationPolicyError(
+            f"{label} cannot be opened through trusted directory handles: {target}"
+        ) from exc
 
 
 def _strict_json(path: Path) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file():
-        raise PublicationPolicyError(f"metadata is not a regular file: {path}")
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        raw = read_regular_bytes(path)
+        value = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PublicationPolicyError(f"cannot parse metadata {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise PublicationPolicyError(f"metadata is not a JSON object: {path}")
@@ -253,8 +493,8 @@ class PublicationPolicyStore:
     """Manage publication evidence and regenerable payloads with strict separation."""
 
     def __init__(self, *, evidence_root: Path, payload_root: Path) -> None:
-        self.evidence_root = evidence_root.expanduser().resolve(strict=False)
-        self.payload_root = payload_root.expanduser().resolve(strict=False)
+        self.evidence_root = secure_absolute(evidence_root)
+        self.payload_root = secure_absolute(payload_root)
         if self.evidence_root == self.payload_root or _is_under(
             self.evidence_root, self.payload_root
         ) or _is_under(self.payload_root, self.evidence_root):
@@ -287,31 +527,72 @@ class PublicationPolicyStore:
             if not _KEY_RE.fullmatch(value):
                 raise ValueError(f"{label} is not a safe publication key: {value!r}")
 
+    def _write_evidence_json(
+        self, path: Path, payload: dict[str, object]
+    ) -> None:
+        resolved = secure_absolute(path)
+        if not _is_under(resolved, self.evidence_root):
+            raise PublicationPolicyError(
+                f"evidence write escapes managed root: {path}"
+            )
+        try:
+            with bind_directory(self.evidence_root, create=True):
+                _ensure_owned_directory_chain(
+                    self.evidence_root, resolved.parent, "evidence directory"
+                )
+                _atomic_write_json(resolved, payload)
+        except RootedFilesystemError as exc:
+            raise PublicationPolicyError(
+                f"evidence write lost its trusted directory binding: {path}"
+            ) from exc
+
     @contextlib.contextmanager
     def stream_lock(self, repository: str, lane: str) -> Iterator[None]:
         lock_path = self._lock_path(repository, lane)
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with lock_path.open("a+b") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        try:
+            with bind_directory(self.evidence_root, create=True):
+                _ensure_owned_directory_chain(
+                    self.evidence_root, lock_path.parent, "lock directory"
+                )
+                with exclusive_file_lock(lock_path, mode=0o600):
+                    metadata = lstat_path(lock_path)
+                    if (
+                        not stat.S_ISREG(metadata.st_mode)
+                        or metadata.st_uid != os.geteuid()
+                        or stat.S_IMODE(metadata.st_mode) != 0o600
+                    ):
+                        raise PublicationPolicyError(
+                            f"stream lock is not owner-controlled: {lock_path}"
+                        )
+                    yield
+        except RootedFilesystemError as exc:
+            raise PublicationPolicyError(
+                f"cannot open trusted stream lock: {lock_path}"
+            ) from exc
 
     def _payload_path(self, raw_path: Path, *, must_exist: bool) -> Path:
-        path = raw_path.expanduser().resolve(strict=False)
+        path = secure_absolute(raw_path)
         if not _is_under(path, self.payload_root) or path == self.payload_root:
             raise PublicationPolicyError(
                 f"payload path escapes the managed payload root: {raw_path}"
             )
-        if self.payload_root.exists() and (
-            self.payload_root.is_symlink() or not self.payload_root.is_dir()
-        ):
+        try:
+            if path_exists(self.payload_root):
+                root_metadata = lstat_path(self.payload_root)
+                if not stat.S_ISDIR(root_metadata.st_mode):
+                    raise PublicationPolicyError(
+                        f"payload root is not a regular directory: {self.payload_root}"
+                    )
+            if must_exist:
+                metadata = lstat_path(path)
+                if not stat.S_ISDIR(metadata.st_mode):
+                    raise PublicationPolicyError(
+                        f"payload directory is unavailable: {path}"
+                    )
+        except RootedFilesystemError as exc:
             raise PublicationPolicyError(
-                f"payload root is not a regular directory: {self.payload_root}"
-            )
-        if must_exist and (path.is_symlink() or not path.is_dir()):
-            raise PublicationPolicyError(f"payload directory is unavailable: {path}")
+                f"payload path is not reachable through trusted directories: {path}"
+            ) from exc
         return path
 
     def _payload_relpath(self, path: Path) -> str:
@@ -323,8 +604,8 @@ class PublicationPolicyStore:
         return self._records_dir(repository, lane) / f"{generation_id}.json"
 
     def _record_reference(self, record_path: Path) -> tuple[str, str, str]:
-        resolved = record_path.expanduser().resolve(strict=False)
-        records_root = (self.evidence_root / "records").resolve(strict=False)
+        resolved = secure_absolute(record_path)
+        records_root = secure_absolute(self.evidence_root / "records")
         if not _is_under(resolved, records_root):
             raise PublicationPolicyError(f"record path escapes evidence root: {record_path}")
         relative = resolved.relative_to(records_root)
@@ -340,6 +621,12 @@ class PublicationPolicyStore:
     def _load_record(self, path: Path) -> dict[str, Any]:
         repository, lane, generation_id = self._record_reference(path)
         record = _strict_json(path)
+        _assert_object_keys(
+            record,
+            required=_RECORD_REQUIRED_KEYS,
+            allowed=_RECORD_ALLOWED_KEYS,
+            label="publication record",
+        )
         if (
             record.get("schema") != RECORD_SCHEMA
             or record.get("repository") != repository
@@ -407,6 +694,7 @@ class PublicationPolicyStore:
                 unexpected.append(path)
                 continue
             payload = _strict_json(path)
+            _assert_object_keys(payload, required=_PIN_KEYS, label="publication pin")
             generation_id = path.stem
             if (
                 payload.get("schema") != PIN_SCHEMA
@@ -433,8 +721,15 @@ class PublicationPolicyStore:
         now: dt.datetime | None = None,
         incomplete_ttl_seconds: int = DEFAULT_INCOMPLETE_TTL_SECONDS,
     ) -> dict[str, object]:
-        if incomplete_ttl_seconds < 0:
-            raise ValueError("incomplete_ttl_seconds must be non-negative")
+        if (
+            isinstance(incomplete_ttl_seconds, bool)
+            or not isinstance(incomplete_ttl_seconds, int)
+            or incomplete_ttl_seconds < DEFAULT_INCOMPLETE_TTL_SECONDS
+        ):
+            raise ValueError(
+                "incomplete_ttl_seconds must be an integer >= "
+                f"{DEFAULT_INCOMPLETE_TTL_SECONDS}"
+            )
         observed_at = now or utc_now()
         payload = self._payload_path(payload_path, must_exist=False)
         with self.stream_lock(identity.repository, identity.lane):
@@ -446,10 +741,7 @@ class PublicationPolicyStore:
                 payload_state = record["payload_state"]
                 existing_payload = self._record_payload(record, must_exist=False)
                 if state == "success" and payload_state == "present":
-                    if existing_payload.is_symlink() or not existing_payload.is_dir():
-                        raise PublicationPolicyError(
-                            f"successful publication payload is missing: {existing_payload}"
-                        )
+                    existing_payload = self._record_payload(record, must_exist=True)
                     return {
                         "status": "noop",
                         "identity_sha256": identity.sha256,
@@ -465,7 +757,10 @@ class PublicationPolicyStore:
                             "record_path": str(path),
                             "payload_path": str(existing_payload),
                         }
-            if payload.exists() or payload.is_symlink():
+            payload_exists = _trusted_path_exists(
+                payload, label="new publication payload path"
+            )
+            if payload_exists:
                 raise PublicationPolicyError(
                     f"new publication payload path already exists: {payload}"
                 )
@@ -499,11 +794,14 @@ class PublicationPolicyStore:
                 "pruned_at": None,
                 "prune_reason": None,
             }
-            if record_path.exists() or record_path.is_symlink():
+            record_exists = _trusted_path_exists(
+                record_path, label="publication record path"
+            )
+            if record_exists:
                 raise PublicationPolicyError(
                     f"publication generation already exists: {record_path}"
                 )
-            _atomic_write_json(record_path, record)
+            self._write_evidence_json(record_path, record)
             return {
                 "status": "created",
                 "identity_sha256": identity.sha256,
@@ -528,10 +826,18 @@ class PublicationPolicyStore:
             if record["state"] != "incomplete":
                 raise PublicationPolicyError("only incomplete publications can complete")
             payload = self._record_payload(record, must_exist=True)
-            manifest = manifest_path.expanduser().resolve(strict=True)
-            if manifest.is_symlink() or not manifest.is_file() or not _is_under(
-                manifest, payload
-            ):
+            manifest = secure_absolute(manifest_path)
+            if not _is_under(manifest, payload):
+                raise PublicationPolicyError(
+                    "manifest must be a regular file inside the publication payload"
+                )
+            try:
+                manifest_metadata = lstat_path(manifest)
+            except RootedFilesystemError as exc:
+                raise PublicationPolicyError(
+                    "manifest must be a regular file inside the publication payload"
+                ) from exc
+            if not stat.S_ISREG(manifest_metadata.st_mode):
                 raise PublicationPolicyError(
                     "manifest must be a regular file inside the publication payload"
                 )
@@ -547,7 +853,7 @@ class PublicationPolicyStore:
                     "payload_bytes": snapshot.bytes,
                 }
             )
-            _atomic_write_json(record_path, record)
+            self._write_evidence_json(record_path, record)
             return {
                 "status": "completed",
                 "record_path": str(record_path),
@@ -587,7 +893,7 @@ class PublicationPolicyStore:
                     "failure_reason": reason.strip(),
                 }
             )
-            _atomic_write_json(record_path, record)
+            self._write_evidence_json(record_path, record)
             return {"status": "failed", "record_path": str(record_path)}
 
     def _assert_payload_available_for_pin(
@@ -598,9 +904,11 @@ class PublicationPolicyStore:
         generation_id: str,
         record: dict[str, Any],
     ) -> None:
-        payload = self._record_payload(record, must_exist=False)
-        if not payload.is_symlink() and payload.is_dir():
+        try:
+            self._record_payload(record, must_exist=True)
             return
+        except PublicationPolicyError:
+            pass
         for transaction_path in self._open_transactions(repository, lane):
             transaction = _strict_json(transaction_path)
             if self._transaction_generation_id(
@@ -616,11 +924,9 @@ class PublicationPolicyStore:
                 quarantine,
                 expected_snapshot,
             ) = self._reconcile_context(transaction_path, repository, lane)
-            if (
-                not quarantine.is_symlink()
-                and quarantine.is_dir()
-                and tree_snapshot(quarantine) == expected_snapshot
-            ):
+            if _path_is_directory(quarantine) and tree_snapshot(
+                quarantine
+            ) == expected_snapshot:
                 return
         raise PublicationPolicyError(
             "only publications with a present or recoverable payload can be pinned"
@@ -658,7 +964,7 @@ class PublicationPolicyStore:
                 "reason": reason.strip(),
                 "pinned_at": format_time(observed_at),
             }
-            _atomic_write_json(pin_path, payload)
+            self._write_evidence_json(pin_path, payload)
             return {"status": "pinned", "pin_path": str(pin_path)}
 
     def unpin(self, record_path: Path) -> dict[str, object]:
@@ -666,7 +972,7 @@ class PublicationPolicyStore:
         with self.stream_lock(repository, lane):
             self._load_record(record_path)
             pin_path = self._pin_path(repository, lane, generation_id)
-            pin_path.unlink(missing_ok=True)
+            remove_regular_file(pin_path, missing_ok=True)
             return {"status": "unpinned", "pin_path": str(pin_path)}
 
     @staticmethod
@@ -777,38 +1083,45 @@ class PublicationPolicyStore:
         allowed_missing: set[str],
     ) -> list[dict[str, object]]:
         candidates: list[dict[str, object]] = []
-        missing_retained: list[str] = []
+        missing_retained_successes: list[str] = []
         for path, record in records:
             generation_id = record["generation_id"]
             if record["payload_state"] == "pruned":
                 continue
             payload = self._record_payload(record, must_exist=False)
-            payload_missing = payload.is_symlink() or not payload.is_dir()
+            payload_missing = not _path_is_directory(payload)
             if generation_id in retained:
-                if payload_missing and generation_id not in allowed_missing:
-                    missing_retained.append(generation_id)
+                if (
+                    payload_missing
+                    and record["state"] == "success"
+                    and generation_id not in allowed_missing
+                ):
+                    missing_retained_successes.append(generation_id)
                 continue
-            if payload_missing and generation_id not in allowed_missing:
-                raise PublicationPolicyError(
-                    f"unretained payload is missing or invalid: {payload}"
-                )
             reason = (
                 "history-policy"
                 if record["state"] == "success"
                 else "incomplete-ttl-expired"
             )
+            if payload_missing and generation_id not in allowed_missing:
+                if record["state"] == "success":
+                    raise PublicationPolicyError(
+                        f"unretained successful payload is missing: {payload}"
+                    )
+                reason = "incomplete-ttl-expired-missing-payload"
             candidates.append(
                 {
                     "generation_id": generation_id,
                     "record_path": str(path),
                     "payload_path": str(payload),
+                    "payload_missing": payload_missing,
                     "reason": reason,
                 }
             )
-        if missing_retained:
+        if missing_retained_successes:
             raise PublicationPolicyError(
-                "retained publication payloads are missing: "
-                + ", ".join(sorted(missing_retained))
+                "retained successful publication payloads are missing: "
+                + ", ".join(sorted(missing_retained_successes))
             )
         return sorted(candidates, key=lambda row: str(row["generation_id"]))
 
@@ -907,7 +1220,8 @@ class PublicationPolicyStore:
             for candidate in selection["candidates"]:
                 record_path = Path(str(candidate["record_path"]))
                 payload_path = Path(str(candidate["payload_path"]))
-                snapshot = tree_snapshot(payload_path)
+                payload_missing = candidate.get("payload_missing") is True
+                snapshot = None if payload_missing else tree_snapshot(payload_path)
                 entries.append(
                     {
                         "generation_id": candidate["generation_id"],
@@ -918,7 +1232,10 @@ class PublicationPolicyStore:
                         "payload_relpath": payload_path.relative_to(
                             self.payload_root
                         ).as_posix(),
-                        "payload_snapshot": snapshot.as_dict(),
+                        "payload_missing": payload_missing,
+                        "payload_snapshot": (
+                            snapshot.as_dict() if snapshot is not None else None
+                        ),
                         "reason": candidate["reason"],
                     }
                 )
@@ -939,7 +1256,7 @@ class PublicationPolicyStore:
 
     def write_plan(self, path: Path, plan: dict[str, object]) -> None:
         self._validate_plan(plan)
-        _atomic_write_json(path.expanduser().resolve(strict=False), plan)
+        _atomic_write_json(secure_absolute(path), plan)
 
     @staticmethod
     def _assert_unique_plan_entries(entries: list[object]) -> None:
@@ -947,6 +1264,9 @@ class PublicationPolicyStore:
         for entry in entries:
             if not isinstance(entry, dict):
                 raise PublicationPolicyError("retention plan entry must be an object")
+            _assert_object_keys(
+                entry, required=_PLAN_ENTRY_KEYS, label="retention plan entry"
+            )
             generation_id = entry.get("generation_id")
             if not isinstance(generation_id, str) or not _GENERATION_RE.fullmatch(
                 generation_id
@@ -958,9 +1278,7 @@ class PublicationPolicyStore:
                 )
             generation_ids.add(generation_id)
 
-    def _validate_plan(self, plan: dict[str, object]) -> RetentionPolicy:
-        if plan.get("schema") != PLAN_SCHEMA or plan.get("policy_schema") != POLICY_SCHEMA:
-            raise PublicationPolicyError("unsupported retention plan schema")
+    def _validate_plan_digest(self, plan: dict[str, object]) -> None:
         plan_sha = plan.get("plan_sha256")
         if not isinstance(plan_sha, str) or not _SHA256_RE.fullmatch(plan_sha):
             raise PublicationPolicyError("retention plan lacks a valid hash")
@@ -968,6 +1286,8 @@ class PublicationPolicyStore:
         unhashed.pop("plan_sha256", None)
         if canonical_sha256(unhashed) != plan_sha:
             raise PublicationPolicyError("retention plan hash mismatch")
+
+    def _validate_plan_identity(self, plan: dict[str, object]) -> None:
         plan_id = plan.get("plan_id")
         if not isinstance(plan_id, str) or not _TRANSACTION_RE.fullmatch(plan_id):
             raise PublicationPolicyError("invalid retention plan id")
@@ -976,18 +1296,43 @@ class PublicationPolicyStore:
         if not isinstance(repository, str) or not isinstance(lane, str):
             raise PublicationPolicyError("retention plan lacks stream identity")
         self._validate_stream(repository, lane)
+        parse_time(plan.get("generated_at"))
+
+    @staticmethod
+    def _validate_plan_policy(plan: dict[str, object]) -> RetentionPolicy:
         raw_policy = plan.get("policy")
         if not isinstance(raw_policy, dict):
             raise PublicationPolicyError("retention plan lacks policy")
         try:
-            policy = RetentionPolicy(**raw_policy)
+            return RetentionPolicy(**raw_policy)
         except (TypeError, ValueError) as exc:
             raise PublicationPolicyError("invalid retention policy") from exc
+
+    def _validate_plan_projection(self, plan: dict[str, object]) -> None:
+        retained = _validate_generation_ids(
+            plan.get("retained"), label="retention plan retained set"
+        )
+        _validate_retention_reasons(
+            plan.get("retention_reasons"), retained=retained
+        )
         entries = plan.get("entries")
         if not isinstance(entries, list):
             raise PublicationPolicyError("retention plan entries must be a list")
         self._assert_unique_plan_entries(entries)
-        parse_time(plan.get("generated_at"))
+        entry_ids = {
+            str(entry["generation_id"]) for entry in entries if isinstance(entry, dict)
+        }
+        if entry_ids & set(retained):
+            raise PublicationPolicyError("retention plan retains and prunes one generation")
+
+    def _validate_plan(self, plan: dict[str, object]) -> RetentionPolicy:
+        _assert_object_keys(plan, required=_PLAN_KEYS, label="retention plan")
+        if plan.get("schema") != PLAN_SCHEMA or plan.get("policy_schema") != POLICY_SCHEMA:
+            raise PublicationPolicyError("unsupported retention plan schema")
+        self._validate_plan_digest(plan)
+        self._validate_plan_identity(plan)
+        policy = self._validate_plan_policy(plan)
+        self._validate_plan_projection(plan)
         return policy
 
     def _transaction_path(self, transaction_id: str) -> Path:
@@ -1000,7 +1345,7 @@ class PublicationPolicyStore:
         if not isinstance(transaction_id, str):
             raise PublicationPolicyError("transaction lacks id")
         path = self._transaction_path(transaction_id)
-        _atomic_write_json(path, payload)
+        self._write_evidence_json(path, payload)
         return path
 
     def _set_transaction_state(
@@ -1028,7 +1373,39 @@ class PublicationPolicyStore:
                 "prune_transaction_id": transaction_id,
             }
         )
-        _atomic_write_json(record_path, record)
+        self._write_evidence_json(record_path, record)
+
+    def _mark_missing_payload_pruned(
+        self,
+        record_path: Path,
+        *,
+        reason: str,
+        now: dt.datetime,
+    ) -> None:
+        record = self._load_record(record_path)
+        if record["state"] == "success":
+            raise PublicationPolicyError(
+                "missing successful payload cannot be reconciled as an expired attempt"
+            )
+        payload = self._record_payload(record, must_exist=False)
+        payload_present = _trusted_path_exists(
+            payload, label="missing-payload candidate"
+        )
+        if payload_present:
+            raise PublicationPolicyError(
+                f"missing-payload candidate became present: {payload}"
+            )
+        record.update(
+            {
+                "payload_state": "pruned",
+                "updated_at": format_time(now),
+                "pruned_at": format_time(now),
+                "prune_reason": reason,
+                "prune_transaction_id": None,
+                "missing_payload_confirmed": True,
+            }
+        )
+        self._write_evidence_json(record_path, record)
 
     def _open_transactions(self, repository: str, lane: str) -> list[Path]:
         directory = self._transactions_dir()
@@ -1044,6 +1421,9 @@ class PublicationPolicyStore:
             ):
                 raise PublicationPolicyError(f"unexpected transaction entry: {path}")
             payload = _strict_json(path)
+            _assert_object_keys(
+                payload, required=_TRANSACTION_KEYS, label="prune transaction"
+            )
             if payload.get("schema") != TRANSACTION_SCHEMA:
                 raise PublicationPolicyError(f"unsupported transaction schema: {path}")
             state_value = payload.get("state")
@@ -1059,44 +1439,101 @@ class PublicationPolicyStore:
 
     def _validate_plan_entry(
         self, entry: object, repository: str, lane: str
-    ) -> tuple[str, Path, Path, TreeSnapshot, str]:
+    ) -> tuple[str, Path, Path, TreeSnapshot | None, str, bool]:
         if not isinstance(entry, dict):
             raise PublicationPolicyError("retention plan entry must be an object")
+        _assert_object_keys(
+            entry, required=_PLAN_ENTRY_KEYS, label="retention plan entry"
+        )
         generation_id = entry.get("generation_id")
         record_relpath = entry.get("record_relpath")
         payload_relpath = entry.get("payload_relpath")
         snapshot_raw = entry.get("payload_snapshot")
         reason = entry.get("reason")
+        payload_missing = entry.get("payload_missing")
         if (
             not isinstance(generation_id, str)
             or not _GENERATION_RE.fullmatch(generation_id)
             or not isinstance(record_relpath, str)
             or not isinstance(payload_relpath, str)
-            or not isinstance(snapshot_raw, dict)
             or not isinstance(reason, str)
+            or not isinstance(payload_missing, bool)
         ):
             raise PublicationPolicyError("malformed retention plan entry")
-        record_path = (self.evidence_root / record_relpath).resolve(strict=False)
-        expected_record = self._record_path(repository, lane, generation_id).resolve(
-            strict=False
+        record_path = secure_absolute(self.evidence_root / record_relpath)
+        expected_record = secure_absolute(
+            self._record_path(repository, lane, generation_id)
         )
         if record_path != expected_record:
             raise PublicationPolicyError("retention plan record path mismatch")
         payload_path = self._payload_path(
-            self.payload_root / payload_relpath, must_exist=True
+            self.payload_root / payload_relpath, must_exist=not payload_missing
         )
-        try:
-            snapshot = TreeSnapshot(
-                device=int(snapshot_raw["device"]),
-                inode=int(snapshot_raw["inode"]),
-                tree_sha256=str(snapshot_raw["tree_sha256"]),
-                bytes=int(snapshot_raw["bytes"]),
+        if payload_missing:
+            if (
+                snapshot_raw is not None
+                or reason != "incomplete-ttl-expired-missing-payload"
+            ):
+                raise PublicationPolicyError(
+                    "missing-payload retention entry is inconsistent"
+                )
+            return (
+                generation_id,
+                record_path,
+                payload_path,
+                None,
+                reason,
+                True,
             )
-        except (KeyError, TypeError, ValueError) as exc:
-            raise PublicationPolicyError("invalid payload snapshot") from exc
-        if not _SHA256_RE.fullmatch(snapshot.tree_sha256) or snapshot.bytes < 0:
-            raise PublicationPolicyError("invalid payload snapshot values")
-        return generation_id, record_path, payload_path, snapshot, reason
+        snapshot = _parse_snapshot(
+            snapshot_raw, label="retention plan payload snapshot"
+        )
+        return (
+            generation_id,
+            record_path,
+            payload_path,
+            snapshot,
+            reason,
+            False,
+        )
+
+    def _validate_plan_record_binding(
+        self,
+        *,
+        entry: dict[str, object],
+        record_path: Path,
+        payload_path: Path,
+        payload_missing: bool,
+    ) -> None:
+        if sha256_file(record_path) != entry.get("record_sha256"):
+            raise PublicationPolicyError(
+                f"record changed after retention planning: {record_path}"
+            )
+        record = self._load_record(record_path)
+        bound_payload_path = self._record_payload(
+            record, must_exist=not payload_missing
+        )
+        if bound_payload_path != payload_path:
+            raise PublicationPolicyError(
+                f"retention plan payload path is not bound to record: {record_path}"
+            )
+
+    @staticmethod
+    def _validate_current_candidate_semantics(
+        *,
+        current_candidate: dict[str, object],
+        record_path: Path,
+        payload_missing: bool,
+        reason: str,
+    ) -> None:
+        current_missing = current_candidate.get("payload_missing") is True
+        if (
+            payload_missing != current_missing
+            or reason != current_candidate.get("reason")
+        ):
+            raise PublicationPolicyError(
+                f"retention plan candidate semantics changed: {record_path}"
+            )
 
     def apply_plan(
         self,
@@ -1118,7 +1555,7 @@ class PublicationPolicyStore:
                 repository, lane, policy=policy, now=observed_at
             )
             current_candidates = {
-                str(row["generation_id"]) for row in current["candidates"]
+                str(row["generation_id"]): row for row in current["candidates"]
             }
             for raw_entry in plan["entries"]:
                 (
@@ -1127,18 +1564,41 @@ class PublicationPolicyStore:
                     payload_path,
                     expected_snapshot,
                     reason,
+                    payload_missing,
                 ) = self._validate_plan_entry(raw_entry, repository, lane)
-                if generation_id not in current_candidates:
+                entry = raw_entry
+                assert isinstance(entry, dict)
+                self._validate_plan_record_binding(
+                    entry=entry,
+                    record_path=record_path,
+                    payload_path=payload_path,
+                    payload_missing=payload_missing,
+                )
+                current_candidate = current_candidates.get(generation_id)
+                if current_candidate is None:
                     results.append(
                         {"generation_id": generation_id, "status": "retained-now"}
                     )
                     continue
-                entry = raw_entry
-                assert isinstance(entry, dict)
-                if sha256_file(record_path) != entry.get("record_sha256"):
-                    raise PublicationPolicyError(
-                        f"record changed after retention planning: {record_path}"
+                self._validate_current_candidate_semantics(
+                    current_candidate=current_candidate,
+                    record_path=record_path,
+                    payload_missing=payload_missing,
+                    reason=reason,
+                )
+                if payload_missing:
+                    self._mark_missing_payload_pruned(
+                        record_path, reason=reason, now=observed_at
                     )
+                    results.append(
+                        {
+                            "generation_id": generation_id,
+                            "status": "recorded-missing-payload",
+                            "payload_bytes": 0,
+                        }
+                    )
+                    continue
+                assert expected_snapshot is not None
                 if tree_snapshot(payload_path) != expected_snapshot:
                     raise PublicationPolicyError(
                         f"payload changed after retention planning: {payload_path}"
@@ -1146,7 +1606,7 @@ class PublicationPolicyStore:
                 transaction_id = uuid.uuid4().hex
                 quarantine = (
                     self._quarantine_root() / transaction_id / generation_id
-                ).resolve(strict=False)
+                )
                 transaction: dict[str, object] = {
                     "schema": TRANSACTION_SCHEMA,
                     "transaction_id": transaction_id,
@@ -1169,7 +1629,7 @@ class PublicationPolicyStore:
                     "updated_at": format_time(observed_at),
                 }
                 self._write_transaction(transaction)
-                quarantine.parent.mkdir(parents=True, exist_ok=False)
+                make_directory_exclusive(quarantine.parent, mode=0o700)
                 if tree_snapshot(payload_path) != expected_snapshot:
                     self._set_transaction_state(
                         transaction, "aborted-safe-source", observed_at
@@ -1178,9 +1638,9 @@ class PublicationPolicyStore:
                     raise PublicationPolicyError(
                         f"payload changed before quarantine: {payload_path}"
                     )
-                os.replace(payload_path, quarantine)
+                rename_path(payload_path, quarantine)
                 if tree_snapshot(quarantine) != expected_snapshot:
-                    os.replace(quarantine, payload_path)
+                    rename_path(quarantine, payload_path)
                     self._set_transaction_state(
                         transaction, "restored", observed_at
                     )
@@ -1189,14 +1649,18 @@ class PublicationPolicyStore:
                     )
                 self._set_transaction_state(transaction, "quarantined", observed_at)
                 if tree_snapshot(quarantine) != expected_snapshot:
-                    os.replace(quarantine, payload_path)
+                    rename_path(quarantine, payload_path)
                     self._set_transaction_state(
                         transaction, "restored", observed_at
                     )
                     raise PublicationPolicyError(
                         f"quarantined payload changed before deletion: {payload_path}"
                     )
-                shutil.rmtree(quarantine)
+                remove_tree(
+                    quarantine,
+                    expected_device=expected_snapshot.device,
+                    expected_inode=expected_snapshot.inode,
+                )
                 self._mark_pruned(
                     record_path,
                     reason=reason,
@@ -1245,26 +1709,12 @@ class PublicationPolicyStore:
     def _snapshot_from_transaction(
         transaction_path: Path, snapshot_raw: object
     ) -> TreeSnapshot:
-        if not isinstance(snapshot_raw, dict):
-            raise PublicationPolicyError(
-                f"malformed transaction snapshot: {transaction_path}"
-            )
         try:
-            snapshot = TreeSnapshot(
-                device=int(snapshot_raw["device"]),
-                inode=int(snapshot_raw["inode"]),
-                tree_sha256=str(snapshot_raw["tree_sha256"]),
-                bytes=int(snapshot_raw["bytes"]),
-            )
-        except (KeyError, TypeError, ValueError) as exc:
+            return _parse_snapshot(snapshot_raw, label="prune transaction snapshot")
+        except PublicationPolicyError as exc:
             raise PublicationPolicyError(
                 f"malformed transaction snapshot: {transaction_path}"
             ) from exc
-        if not _SHA256_RE.fullmatch(snapshot.tree_sha256) or snapshot.bytes < 0:
-            raise PublicationPolicyError(
-                f"malformed transaction snapshot: {transaction_path}"
-            )
-        return snapshot
 
     def _reconcile_context(
         self, transaction_path: Path, repository: str, lane: str
@@ -1272,6 +1722,9 @@ class PublicationPolicyStore:
         dict[str, Any], str, str, Path, Path, Path, TreeSnapshot
     ]:
         transaction = _strict_json(transaction_path)
+        _assert_object_keys(
+            transaction, required=_TRANSACTION_KEYS, label="prune transaction"
+        )
         transaction_id = transaction_path.stem
         generation_id = self._transaction_generation_id(
             transaction_path, transaction
@@ -1284,9 +1737,9 @@ class PublicationPolicyStore:
             raise PublicationPolicyError(
                 f"malformed transaction paths: {transaction_path}"
             )
-        record_path = (self.evidence_root / str(record_relpath)).resolve(strict=False)
-        expected_record = self._record_path(repository, lane, generation_id).resolve(
-            strict=False
+        record_path = secure_absolute(self.evidence_root / str(record_relpath))
+        expected_record = secure_absolute(
+            self._record_path(repository, lane, generation_id)
         )
         if record_path != expected_record:
             raise PublicationPolicyError(
@@ -1295,12 +1748,18 @@ class PublicationPolicyStore:
         source = self._payload_path(
             self.payload_root / str(source_relpath), must_exist=False
         )
+        record = self._load_record(record_path)
+        expected_source = self._record_payload(record, must_exist=False)
+        if source != expected_source:
+            raise PublicationPolicyError(
+                f"transaction source path is not bound to record: {transaction_path}"
+            )
         quarantine = self._payload_path(
             self.payload_root / str(quarantine_relpath), must_exist=False
         )
         expected_quarantine = (
             self._quarantine_root() / transaction_id / generation_id
-        ).resolve(strict=False)
+        )
         if quarantine != expected_quarantine:
             raise PublicationPolicyError(
                 f"transaction quarantine path mismatch: {transaction_path}"
@@ -1362,12 +1821,16 @@ class PublicationPolicyStore:
                 f"transaction quarantine identity mismatch: {transaction_path}"
             )
         if generation_id in retained:
-            source.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(quarantine, source)
+            make_directories(source.parent, mode=0o700)
+            rename_path(quarantine, source)
             self._set_transaction_state(transaction, "restored", observed_at)
             status = "restored"
         else:
-            shutil.rmtree(quarantine)
+            remove_tree(
+                quarantine,
+                expected_device=expected_snapshot.device,
+                expected_inode=expected_snapshot.inode,
+            )
             self._mark_pruned(
                 record_path,
                 reason=str(transaction.get("reason") or "reconciled"),
@@ -1414,8 +1877,12 @@ class PublicationPolicyStore:
             quarantine,
             expected_snapshot,
         ) = self._reconcile_context(transaction_path, repository, lane)
-        source_exists = source.exists() or source.is_symlink()
-        quarantine_exists = quarantine.exists() or quarantine.is_symlink()
+        source_exists = _trusted_path_exists(
+            source, label="transaction source path"
+        )
+        quarantine_exists = _trusted_path_exists(
+            quarantine, label="transaction quarantine path"
+        )
         if source_exists and quarantine_exists:
             raise PublicationPolicyError(
                 f"transaction has two payload copies: {transaction_path}"

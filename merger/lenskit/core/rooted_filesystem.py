@@ -386,6 +386,33 @@ def make_directories(path: str | Path, *, mode: int = 0o755) -> None:
         os.close(fd)
 
 
+def make_directory_exclusive(path: str | Path, *, mode: int = 0o700) -> None:
+    """Create exactly one directory without accepting a pre-existing entry."""
+    parent_fd, name, absolute = _open_parent(path, create=True)
+    try:
+        os.mkdir(name, mode=mode, dir_fd=parent_fd)
+        child_fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+        try:
+            metadata = os.fstat(child_fd)
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise RootedFilesystemError(
+                    f"created entry is not a directory: {absolute}"
+                )
+            os.fsync(child_fd)
+        finally:
+            os.close(child_fd)
+        os.fsync(parent_fd)
+        _assert_directory_fd_matches_path(parent_fd, absolute.parent)
+    except RootedFilesystemError:
+        raise
+    except OSError as exc:
+        raise RootedFilesystemError(
+            f"rooted exclusive directory creation failed: {absolute}: {exc}"
+        ) from exc
+    finally:
+        os.close(parent_fd)
+
+
 def fsync_directory(path: str | Path) -> None:
     fd = _open_directory(path, create=False)
     try:
@@ -543,6 +570,39 @@ def exclusive_write_bytes(
     except OSError as exc:
         raise RootedFilesystemError(
             f"rooted exclusive write failed: {absolute}: {exc}"
+        ) from exc
+    finally:
+        os.close(parent_fd)
+
+
+def remove_regular_file(path: str | Path, *, missing_ok: bool = False) -> bool:
+    """Remove one regular file through its already-open parent directory."""
+    try:
+        parent_fd, name, absolute = _open_parent(path, create=False)
+    except FileNotFoundError:
+        if missing_ok:
+            return False
+        raise
+    try:
+        try:
+            metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            if missing_ok:
+                return False
+            raise
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RootedFilesystemError(
+                f"refusing to remove a non-regular file: {absolute}"
+            )
+        os.unlink(name, dir_fd=parent_fd)
+        os.fsync(parent_fd)
+        _assert_directory_fd_matches_path(parent_fd, absolute.parent)
+        return True
+    except RootedFilesystemError:
+        raise
+    except OSError as exc:
+        raise RootedFilesystemError(
+            f"rooted regular-file removal failed: {absolute}: {exc}"
         ) from exc
     finally:
         os.close(parent_fd)
@@ -774,7 +834,12 @@ def _remove_tree_fd(parent_fd: int, name: str) -> None:
     os.rmdir(name, dir_fd=parent_fd)
 
 
-def remove_tree(path: str | Path) -> None:
+def remove_tree(
+    path: str | Path,
+    *,
+    expected_device: int | None = None,
+    expected_inode: int | None = None,
+) -> None:
     if not path_exists(path):
         return
     parent_fd, name, absolute = _open_parent(path, create=False)
@@ -783,6 +848,14 @@ def remove_tree(path: str | Path) -> None:
         if not stat.S_ISDIR(metadata.st_mode):
             raise RootedFilesystemError(
                 f"refusing to remove a non-directory tree root: {absolute}"
+            )
+        if expected_device is not None and metadata.st_dev != expected_device:
+            raise RootedFilesystemError(
+                f"tree device changed before removal: {absolute}"
+            )
+        if expected_inode is not None and metadata.st_ino != expected_inode:
+            raise RootedFilesystemError(
+                f"tree inode changed before removal: {absolute}"
             )
         _remove_tree_fd(parent_fd, name)
         os.fsync(parent_fd)
@@ -808,6 +881,7 @@ def exclusive_file_lock(path: str | Path, *, mode: int = 0o600) -> Iterator[None
         metadata = os.fstat(fd)
         if not stat.S_ISREG(metadata.st_mode):
             raise RootedFilesystemError(f"lock entry is not a regular file: {absolute}")
+        os.fchmod(fd, mode)
         fcntl.flock(fd, fcntl.LOCK_EX)
         _assert_directory_fd_matches_path(parent_fd, absolute.parent)
         yield

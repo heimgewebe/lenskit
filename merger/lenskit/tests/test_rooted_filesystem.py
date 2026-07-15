@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -11,8 +12,11 @@ from merger.lenskit.core.rooted_filesystem import (
     atomic_write_bytes,
     bind_directory,
     copy_verified_file,
+    make_directory_exclusive,
     exclusive_file_lock,
     read_regular_bytes,
+    remove_regular_file,
+    remove_tree,
     read_tree,
 )
 
@@ -38,6 +42,19 @@ def test_bound_traversal_rejects_symlinked_parent_component(tmp_path: Path) -> N
             atomic_write_bytes(root / "linked" / "escaped.json", b"no\n")
 
     assert not (outside / "escaped.json").exists()
+
+
+def test_exclusive_directory_creation_rejects_existing_entry(tmp_path: Path) -> None:
+    root = tmp_path / "publication"
+    root.mkdir()
+    target = root / "transaction"
+
+    with bind_directory(root):
+        make_directory_exclusive(target)
+        with pytest.raises(RootedFilesystemError, match="exclusive directory"):
+            make_directory_exclusive(target)
+
+    assert target.is_dir()
 
 
 def test_atomic_write_detects_parent_replacement_without_writing_replacement(
@@ -94,6 +111,27 @@ def test_regular_file_open_rejects_symlink(tmp_path: Path) -> None:
             read_regular_bytes(linked)
 
 
+def test_remove_regular_file_rejects_symlink_and_removes_regular_file(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "publication"
+    root.mkdir()
+    victim = tmp_path / "victim.json"
+    victim.write_text("keep", encoding="utf-8")
+    linked = root / "linked.json"
+    linked.symlink_to(victim)
+
+    with bind_directory(root):
+        with pytest.raises(RootedFilesystemError, match="non-regular"):
+            remove_regular_file(linked)
+        regular = root / "pin.json"
+        regular.write_text("{}", encoding="utf-8")
+        assert remove_regular_file(regular) is True
+        assert remove_regular_file(regular, missing_ok=True) is False
+
+    assert victim.read_text(encoding="utf-8") == "keep"
+
+
 def test_tree_read_rejects_symlink_and_special_entries(tmp_path: Path) -> None:
     root = tmp_path / "publication"
     root.mkdir()
@@ -103,6 +141,41 @@ def test_tree_read_rejects_symlink_and_special_entries(tmp_path: Path) -> None:
     with bind_directory(root):
         with pytest.raises(RootedFilesystemError, match="symlink or special"):
             read_tree(root)
+
+
+def test_lock_normalizes_existing_file_mode(tmp_path: Path) -> None:
+    root = tmp_path / "publication"
+    lock = root / "lane" / "publish.lock"
+    lock.parent.mkdir(parents=True)
+    lock.write_text("", encoding="utf-8")
+    lock.chmod(0o666)
+
+    with bind_directory(root):
+        with exclusive_file_lock(lock, mode=0o600):
+            assert stat.S_IMODE(lock.stat().st_mode) == 0o600
+
+
+def test_remove_tree_binds_expected_root_identity(tmp_path: Path) -> None:
+    root = tmp_path / "publication"
+    tree = root / "tree"
+    tree.mkdir(parents=True)
+    (tree / "payload").write_text("keep", encoding="utf-8")
+    metadata = tree.stat()
+
+    with bind_directory(root):
+        with pytest.raises(RootedFilesystemError, match="inode changed"):
+            remove_tree(
+                tree,
+                expected_device=metadata.st_dev,
+                expected_inode=metadata.st_ino + 1,
+            )
+        remove_tree(
+            tree,
+            expected_device=metadata.st_dev,
+            expected_inode=metadata.st_ino,
+        )
+
+    assert not tree.exists()
 
 
 def test_lock_rejects_parent_identity_change(tmp_path: Path) -> None:
