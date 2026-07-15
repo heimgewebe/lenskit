@@ -39,8 +39,17 @@ FLEET_LOG = LOG_ROOT / "fleet.log"
 LOCK_PATH = STATE_ROOT.parent / "fleet.lock"
 DEFAULT_RETENTION = 3
 MAX_RETENTION = 10
-FINGERPRINT_SCHEMA = "repobrief.fleet-publication-fingerprint.v2"
+FINGERPRINT_SCHEMA = "repobrief.fleet-publication-fingerprint.v3"
 STATE_SCHEMA = "repobrief.fleet-publication-state.v1"
+GENERATOR_INPUT_PATHS = (
+    "merger/lenskit/__init__.py",
+    "merger/lenskit/cli/__init__.py",
+    "merger/lenskit/cli/repobrief.py",
+    "merger/lenskit/cli/cmd_repobrief.py",
+    "merger/lenskit/core",
+    "merger/lenskit/contracts",
+    "merger/lenskit/retrieval",
+)
 VERSION_DIR_RE = re.compile(r"^\d{8}T\d{6}Z(?:-[0-9a-f]{12})?$")
 EXCLUDE = {
     ".repobrief-tools",
@@ -301,6 +310,49 @@ def prepare_managed_worktree(
     assert_managed_worktree_clean(path, expected_repo)
 
 
+def generator_inputs_sha(worktree: Path) -> str:
+    raw = run(
+        [
+            "git",
+            "-C",
+            str(worktree),
+            "ls-tree",
+            "-rz",
+            "--full-tree",
+            "HEAD",
+            "--",
+            *GENERATOR_INPUT_PATHS,
+        ]
+    ).stdout
+    entries: list[dict[str, str]] = []
+    for record in raw.split("\0"):
+        if not record:
+            continue
+        metadata, path = record.split("\t", 1)
+        mode, object_type, object_id = metadata.split(" ")
+        if object_type != "blob":
+            raise RuntimeError(
+                f"unexpected generator input object {object_type!r} at {path!r}"
+            )
+        entries.append(
+            {
+                "mode": mode,
+                "object_id": object_id,
+                "path": path,
+            }
+        )
+    entries.sort(key=lambda entry: entry["path"].encode("utf-8", errors="surrogateescape"))
+    required_files = {
+        "merger/lenskit/cli/repobrief.py",
+        "merger/lenskit/cli/cmd_repobrief.py",
+    }
+    present_paths = {entry["path"] for entry in entries}
+    missing = sorted(required_files - present_paths)
+    if missing:
+        raise RuntimeError(f"missing required generator inputs: {missing}")
+    return canonical_sha256(entries)
+
+
 def ensure_tool_worktree() -> tuple[str, str]:
     run(["git", "-C", str(LENSKIT_REPO), "fetch", "origin", "--prune"])
     prepare_managed_worktree(
@@ -309,10 +361,7 @@ def ensure_tool_worktree() -> tuple[str, str]:
         target="origin/main",
     )
     tool_sha = run(["git", "-C", str(TOOL_WT), "rev-parse", "HEAD"]).stdout.strip()
-    tool_tree = run(
-        ["git", "-C", str(TOOL_WT), "rev-parse", "HEAD:merger/lenskit"]
-    ).stdout.strip()
-    return tool_sha, tool_tree
+    return tool_sha, generator_inputs_sha(TOOL_WT)
 
 
 def remote_head(repo_path: Path) -> tuple[str, str, str]:
@@ -364,14 +413,14 @@ def state_path(entry: RepoEntry, ref_segment: str) -> Path:
 def build_fingerprint(
     *,
     source_sha: str,
-    tool_tree_sha: str,
+    generator_inputs_sha: str,
     publication_repository: str,
     config: PublicationConfig,
 ) -> tuple[str, dict[str, object]]:
     identity: dict[str, object] = {
         "schema": FINGERPRINT_SCHEMA,
         "source_sha": source_sha,
-        "tool_tree_sha": tool_tree_sha,
+        "generator_inputs_sha": generator_inputs_sha,
         "publication_repository": publication_repository,
         "configuration": config.as_dict(),
     }
@@ -949,7 +998,7 @@ def main(argv: list[str]) -> int:
             f"== fleet {mode} {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} "
             f"entries={len(entries)} limit={args.limit} retention={args.retention} =="
         )
-        tool_sha, tool_tree_sha = ensure_tool_worktree()
+        tool_sha, generator_sha = ensure_tool_worktree()
         changed = published = skipped = failed = queued = prune_failed = 0
         details: list[dict[str, object]] = []
         protected: set[Path] = set()
@@ -961,7 +1010,7 @@ def main(argv: list[str]) -> int:
                 registry_repository = publication_repository(entry)
                 fingerprint, identity = build_fingerprint(
                     source_sha=source_sha,
-                    tool_tree_sha=tool_tree_sha,
+                    generator_inputs_sha=generator_sha,
                     publication_repository=registry_repository,
                     config=config,
                 )
@@ -1063,7 +1112,7 @@ def main(argv: list[str]) -> int:
             "prune_failed": prune_failed,
             "retention": args.retention,
             "tool_sha": tool_sha,
-            "tool_tree_sha": tool_tree_sha,
+            "generator_inputs_sha": generator_sha,
             "force_reason": args.reason if args.force_republish else None,
             "details": details,
         }

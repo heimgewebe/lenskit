@@ -5,11 +5,13 @@
 The fleet publisher uses a content identity instead of a timestamp as the generation decision. A repository is regenerated only when at least one input that can alter the result changes:
 
 - the remote default-branch commit;
-- the Lenskit generator tree under `merger/lenskit`;
+- the canonical RepoBrief generator inputs: the two RepoBrief CLI entry files plus `core`, `contracts`, and `retrieval`;
 - the explicit publication configuration.
 - the collision-free publication identity (`owner__repository`).
 
 A timestamp remains in the directory name only to order the retained history. It is not sufficient to trigger generation.
+
+Service, Web UI, test and documentation-only changes are deliberately outside the generator-input digest. They cannot alter a RepoBrief bundle produced by the `external-manifest refresh` command and therefore must not regenerate the fleet. The digest is built from Git blob identities, modes and paths for the allowlisted generator inputs; missing mandatory CLI entry files fail closed.
 
 Stable external manifests and consumer-local bundle paths use `owner__repository` rather than the repository name alone. This prevents repositories with the same name under different GitHub owners from sharing one publication address. Existing name-only external paths are left in place as frozen compatibility data; the fleet publisher no longer updates them.
 
@@ -44,7 +46,7 @@ The enabled watcher uses `OnCalendar=hourly` with a bounded randomized delay. A 
 
 Legacy source-only state markers are intentionally not trusted as proof that generator and configuration inputs are unchanged. The first explicit reactivation can therefore produce one controlled publication per repository before normal fingerprint-based skipping begins.
 
-The publication fingerprint schema is now v2 because the owner-qualified publication identity is part of the content decision. Therefore the first enabled fleet cycle after this migration intentionally republishes each inventoried repository once into its collision-free address. A second immediate cycle with unchanged source commits, generator code and configuration must skip every repository.
+The publication fingerprint schema is v3 because it combines the owner-qualified publication identity with a scoped generator-input digest. Therefore the first enabled fleet cycle after this migration intentionally republishes each inventoried repository once into its collision-free address. A second immediate cycle with unchanged source commits, generator code and configuration must skip every repository.
 
 Dry-run current, legacy, and retired special storage:
 
