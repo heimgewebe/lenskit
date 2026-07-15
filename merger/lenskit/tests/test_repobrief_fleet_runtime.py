@@ -407,8 +407,11 @@ def test_runtime_has_one_hourly_changed_only_timer_and_no_force_fallback() -> No
     assert "--if-changed" in service
     assert "--retention 3" in service
     assert "--force" not in service
-    assert "OnUnitActiveSec=1h" in timer
+    assert "OnCalendar=hourly" in timer
+    assert "OnBootSec=" not in timer
+    assert "OnUnitActiveSec=" not in timer
     assert "RandomizedDelaySec=10min" in timer
+    assert "Persistent=true" in timer
     assert sorted(path.name for path in UNIT_DIR.iterdir()) == [
         "rb-publish-fleet-watch.service",
         "rb-publish-fleet-watch.timer",

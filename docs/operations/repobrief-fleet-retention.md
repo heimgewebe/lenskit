@@ -39,6 +39,9 @@ Keeping only one version saves more storage but removes useful comparison and re
 
 The installer leaves automatic publication paused unless invoked with `--enable`. This prevents an installation or migration from silently resuming generation.
 
+The enabled watcher uses `OnCalendar=hourly` with a bounded randomized delay. A calendar timer always receives a future deadline when enabled, even if the machine has already been running longer than the former boot-relative delay. `Persistent=true` performs one catch-up run after downtime.
+
+
 Legacy source-only state markers are intentionally not trusted as proof that generator and configuration inputs are unchanged. The first explicit reactivation can therefore produce one controlled publication per repository before normal fingerprint-based skipping begins.
 
 The publication fingerprint schema is now v2 because the owner-qualified publication identity is part of the content decision. Therefore the first enabled fleet cycle after this migration intentionally republishes each inventoried repository once into its collision-free address. A second immediate cycle with unchanged source commits, generator code and configuration must skip every repository.
