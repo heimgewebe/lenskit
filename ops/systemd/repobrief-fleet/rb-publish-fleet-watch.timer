@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly changed-only RepoBrief fleet publication
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+RandomizedDelaySec=10min
+Persistent=true
+Unit=rb-publish-fleet-watch.service
+
+[Install]
+WantedBy=timers.target

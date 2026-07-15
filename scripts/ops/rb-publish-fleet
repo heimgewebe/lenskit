@@ -1,0 +1,1088 @@
+#!/usr/bin/env python3
+"""Publish bounded RepoBrief/rLens bundles for changed repository states only.
+
+The publisher is fail-closed around generation identity:
+- unchanged source + generator + configuration is skipped;
+- successful publications retain only a bounded history;
+- destructive storage cleanup is a separate, dry-run-by-default operation.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterable
+
+REPOS_ROOT = Path(os.environ.get("RB_REPOS_ROOT", "/home/alex/repos"))
+LENSKIT_REPO = REPOS_ROOT / "lenskit"
+TOOL_WT = REPOS_ROOT / ".repobrief-tools" / "lenskit-main"
+SOURCE_ROOT = REPOS_ROOT / ".repobrief-sources"
+LEGACY_OUT_ROOT = REPOS_ROOT / "merges" / "repobrief-auto"
+PUB_ROOT = REPOS_ROOT / "manifest-publications"
+SPECIAL_OUT_ROOT = PUB_ROOT / "repobrief-auto"
+STATE_ROOT = Path(
+    os.environ.get("RB_STATE_ROOT", "/home/alex/.local/state/repobrief-publish/fleet")
+)
+LOG_ROOT = Path(os.environ.get("RB_LOG_ROOT", "/home/alex/logs/repobrief-publish"))
+FLEET_LOG = LOG_ROOT / "fleet.log"
+LOCK_PATH = STATE_ROOT.parent / "fleet.lock"
+DEFAULT_RETENTION = 3
+MAX_RETENTION = 10
+FINGERPRINT_SCHEMA = "repobrief.fleet-publication-fingerprint.v1"
+STATE_SCHEMA = "repobrief.fleet-publication-state.v1"
+VERSION_DIR_RE = re.compile(r"^\d{8}T\d{6}Z(?:-[0-9a-f]{12})?$")
+EXCLUDE = {
+    ".repobrief-tools",
+    ".repobrief-sources",
+    ".vibe-lab-worktrees",
+    "merges",
+    "manifest-publications",
+}
+EXCLUDED_REPO_KEYS = {"heimgewebe/vault-gewebe", "heimgewebe/heim-assi"}
+
+
+@dataclass(frozen=True)
+class RepoEntry:
+    key: str
+    owner: str
+    repo: str
+    path: Path
+    remote: str
+
+
+@dataclass(frozen=True)
+class PublicationConfig:
+    profile: str
+    output_mode: str = "dual"
+    redact_secrets: bool = True
+    max_bytes: int = 0
+    split_size: str = "25MB"
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "profile": self.profile,
+            "output_mode": self.output_mode,
+            "redact_secrets": self.redact_secrets,
+            "max_bytes": self.max_bytes,
+            "split_size": self.split_size,
+        }
+
+
+def run(
+    argv: list[str], cwd: Path | None = None, check: bool = True
+) -> subprocess.CompletedProcess[str]:
+    cp = subprocess.run(
+        argv,
+        cwd=str(cwd) if cwd else None,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if check and cp.returncode != 0:
+        raise RuntimeError(
+            f"command failed rc={cp.returncode}: {' '.join(argv)}\n{cp.stdout}"
+        )
+    return cp
+
+
+def log(msg: str) -> None:
+    LOG_ROOT.mkdir(parents=True, exist_ok=True)
+    with FLEET_LOG.open("a", encoding="utf-8") as fh:
+        fh.write(msg + "\n")
+
+
+def atomic_write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, raw_tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    tmp = Path(raw_tmp)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def canonical_sha256(payload: dict[str, object]) -> str:
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def parse_github_remote(remote: str) -> tuple[str, str] | None:
+    if remote.startswith("/") or remote.startswith("file:"):
+        return None
+    match = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$", remote)
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
+def is_top_level_git(path: Path) -> bool:
+    cp = run(
+        ["git", "-C", str(path), "rev-parse", "--is-inside-work-tree"],
+        check=False,
+    )
+    if cp.returncode != 0 or cp.stdout.strip() != "true":
+        return False
+    top = run(
+        ["git", "-C", str(path), "rev-parse", "--show-toplevel"], check=False
+    ).stdout.strip()
+    return bool(top) and Path(top).resolve() == path.resolve()
+
+
+def score_candidate(owner: str, repo: str, path: Path) -> int:
+    score = 0
+    if path.name == repo:
+        score += 100
+    if path.name.startswith(repo + "-"):
+        score += 10
+    if path.name in {
+        "bureau",
+        "cabinet",
+        "grabowski",
+        "lenskit",
+        "weltgewebe",
+        "vibe-lab",
+        "heimlern",
+        "plexer",
+        "chronik",
+        "schauwerk",
+        "commonworld",
+        "wgx",
+        "systemkatalog",
+    }:
+        score += 50
+    if owner == "heimgewebe":
+        score += 5
+    return score
+
+
+def discover() -> list[RepoEntry]:
+    best: dict[str, tuple[int, RepoEntry]] = {}
+    for path in sorted(REPOS_ROOT.iterdir()):
+        if not path.is_dir() or path.name in EXCLUDE or path.name.startswith("."):
+            continue
+        if not is_top_level_git(path):
+            continue
+        remote = run(
+            ["git", "-C", str(path), "remote", "get-url", "origin"], check=False
+        ).stdout.strip()
+        parsed = parse_github_remote(remote)
+        if not parsed:
+            continue
+        owner, repo = parsed
+        key = f"{owner}/{repo}"
+        if key in EXCLUDED_REPO_KEYS:
+            continue
+        entry = RepoEntry(key=key, owner=owner, repo=repo, path=path, remote=remote)
+        score = score_candidate(owner, repo, path)
+        previous = best.get(key)
+        if (
+            previous is None
+            or score > previous[0]
+            or (score == previous[0] and len(path.name) < len(previous[1].path.name))
+        ):
+            best[key] = (score, entry)
+    return [item[1] for item in sorted(best.values(), key=lambda row: row[1].key)]
+
+
+def safe_segment(raw: str) -> str:
+    value = re.sub(r"[^A-Za-z0-9._-]+", "-", raw).strip(".-_/")
+    if not value:
+        raise ValueError(f"cannot form safe segment from {raw!r}")
+    return value
+
+
+def publication_config(entry: RepoEntry) -> PublicationConfig:
+    profile = "agent-portable" if entry.repo == "vault-gewebe" else "full-max"
+    return PublicationConfig(profile=profile)
+
+
+def git_common_dir(repo: Path) -> Path:
+    cp = run(
+        ["git", "-C", str(repo), "rev-parse", "--git-common-dir"],
+        check=False,
+    )
+    if cp.returncode != 0:
+        raise RuntimeError(f"not a Git repository: {repo}")
+    raw = Path(cp.stdout.strip())
+    return (raw if raw.is_absolute() else repo / raw).resolve()
+
+
+def assert_managed_worktree_clean(path: Path, expected_repo: Path) -> None:
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError(f"managed worktree path is not a real directory: {path}")
+    top = run(
+        ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+        check=False,
+    )
+    if top.returncode != 0 or Path(top.stdout.strip()).resolve() != path.resolve():
+        raise RuntimeError(f"managed path is not the expected worktree root: {path}")
+    if git_common_dir(path) != git_common_dir(expected_repo):
+        raise RuntimeError(f"managed worktree belongs to another repository: {path}")
+    attached = run(
+        ["git", "-C", str(path), "symbolic-ref", "--quiet", "HEAD"],
+        check=False,
+    )
+    if attached.returncode == 0:
+        raise RuntimeError(
+            f"managed worktree is attached to a branch; refusing to move it: {path}"
+        )
+    status = run(
+        [
+            "git",
+            "-C",
+            str(path),
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignored=matching",
+        ]
+    ).stdout.strip()
+    if status:
+        sample = "\n".join(status.splitlines()[:20])
+        raise RuntimeError(
+            f"managed worktree is not clean; refusing reset or cleanup: {path}\n{sample}"
+        )
+
+
+def prepare_managed_worktree(
+    path: Path,
+    *,
+    expected_repo: Path,
+    target: str,
+) -> None:
+    if path.exists() or path.is_symlink():
+        assert_managed_worktree_clean(path, expected_repo)
+        run(["git", "-C", str(path), "reset", "--hard", target])
+        assert_managed_worktree_clean(path, expected_repo)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    run(
+        [
+            "git",
+            "-C",
+            str(expected_repo),
+            "worktree",
+            "add",
+            "--detach",
+            str(path),
+            target,
+        ]
+    )
+    assert_managed_worktree_clean(path, expected_repo)
+
+
+def ensure_tool_worktree() -> tuple[str, str]:
+    run(["git", "-C", str(LENSKIT_REPO), "fetch", "origin", "--prune"])
+    prepare_managed_worktree(
+        TOOL_WT,
+        expected_repo=LENSKIT_REPO,
+        target="origin/main",
+    )
+    tool_sha = run(["git", "-C", str(TOOL_WT), "rev-parse", "HEAD"]).stdout.strip()
+    tool_tree = run(
+        ["git", "-C", str(TOOL_WT), "rev-parse", "HEAD:merger/lenskit"]
+    ).stdout.strip()
+    return tool_sha, tool_tree
+
+
+def remote_head(repo_path: Path) -> tuple[str, str, str]:
+    run(["git", "-C", str(repo_path), "fetch", "origin", "--prune"])
+    head = run(
+        [
+            "git",
+            "-C",
+            str(repo_path),
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "--short",
+        ],
+        check=False,
+    ).stdout.strip()
+    if not head:
+        run(
+            ["git", "-C", str(repo_path), "remote", "set-head", "origin", "-a"],
+            check=False,
+        )
+        head = run(
+            [
+                "git",
+                "-C",
+                str(repo_path),
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "--short",
+            ],
+            check=False,
+        ).stdout.strip()
+    for ref in [head, "origin/main", "origin/master"]:
+        if not ref:
+            continue
+        cp = run(["git", "-C", str(repo_path), "rev-parse", ref], check=False)
+        if cp.returncode == 0:
+            branch = ref.split("/", 1)[1] if ref.startswith("origin/") else ref
+            return ref, branch, cp.stdout.strip()
+    raise RuntimeError(f"no remote default branch for {repo_path}")
+
+
+def state_path(entry: RepoEntry, ref_segment: str) -> Path:
+    stem = (
+        safe_segment(entry.owner) + "__" + safe_segment(entry.repo) + "__" + ref_segment
+    )
+    return STATE_ROOT / f"{stem}.state.json"
+
+
+def build_fingerprint(
+    *,
+    source_sha: str,
+    tool_tree_sha: str,
+    config: PublicationConfig,
+) -> tuple[str, dict[str, object]]:
+    identity: dict[str, object] = {
+        "schema": FINGERPRINT_SCHEMA,
+        "source_sha": source_sha,
+        "tool_tree_sha": tool_tree_sha,
+        "configuration": config.as_dict(),
+    }
+    return canonical_sha256(identity), identity
+
+
+def load_state(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def write_state(
+    path: Path,
+    *,
+    fingerprint: str,
+    identity: dict[str, object],
+    repository: str,
+    ref: str,
+    publication_dir: Path | None,
+) -> None:
+    atomic_write_json(
+        path,
+        {
+            "schema": STATE_SCHEMA,
+            "fingerprint": fingerprint,
+            "identity": identity,
+            "repository": repository,
+            "ref": ref,
+            "publication_dir": str(publication_dir) if publication_dir else None,
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        },
+    )
+
+
+def parse_cli_json(text: str) -> dict[str, object]:
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        data = json.loads(text[start : end + 1])
+    if not isinstance(data, dict):
+        raise ValueError("RepoBrief CLI result is not a JSON object")
+    return data
+
+
+def ensure_source_worktree(entry: RepoEntry, ref_segment: str, sha: str) -> Path:
+    source_wt = SOURCE_ROOT / (
+        safe_segment(entry.owner) + "__" + safe_segment(entry.repo) + "__" + ref_segment
+    )
+    SOURCE_ROOT.mkdir(parents=True, exist_ok=True)
+    prepare_managed_worktree(
+        source_wt,
+        expected_repo=entry.path,
+        target=sha,
+    )
+    return source_wt
+
+
+def version_dirs(group: Path) -> list[Path]:
+    if not group.exists():
+        return []
+    rows = [
+        path
+        for path in group.iterdir()
+        if path.is_dir()
+        and not path.is_symlink()
+        and VERSION_DIR_RE.fullmatch(path.name)
+    ]
+    return sorted(
+        rows, key=lambda path: (path.stat().st_mtime_ns, path.name), reverse=True
+    )
+
+
+def path_is_protected(path: Path, protected: set[Path]) -> bool:
+    resolved = path.resolve()
+    return any(
+        resolved == item or item in resolved.parents or resolved in item.parents
+        for item in protected
+    )
+
+
+def tree_bytes(path: Path) -> int:
+    total = 0
+    for root, directories, files in os.walk(path, followlinks=False):
+        root_path = Path(root)
+        directories[:] = [
+            name for name in directories if not (root_path / name).is_symlink()
+        ]
+        for name in files:
+            candidate = root_path / name
+            if candidate.is_symlink():
+                continue
+            try:
+                total += candidate.stat().st_size
+            except FileNotFoundError:
+                continue
+    return total
+
+
+def remove_tree(path: Path, *, apply: bool, root: Path) -> None:
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError(f"refusing to prune non-directory or symlink: {path}")
+    resolved_root = root.resolve()
+    resolved_path = path.resolve()
+    if resolved_path == resolved_root or resolved_root not in resolved_path.parents:
+        raise RuntimeError(
+            f"refusing to prune path outside managed root {root}: {path}"
+        )
+    if apply:
+        shutil.rmtree(path)
+
+
+def discard_generated_output(path: Path, *, root: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    remove_tree(path, apply=True, root=root)
+
+
+def retained_manifest_hashes(versions: Iterable[Path]) -> set[str]:
+    retained: set[str] = set()
+    for version in versions:
+        for manifest in version.glob("*_merge.bundle.manifest.json"):
+            if manifest.is_file() and not manifest.is_symlink():
+                retained.add(sha256_file(manifest))
+    return retained
+
+
+def stable_manifest_target(manifest: Path) -> Path:
+    if not manifest.is_file() or manifest.is_symlink():
+        raise RuntimeError(f"stable manifest is not a regular file: {manifest}")
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"cannot read stable manifest {manifest}: {exc}") from exc
+    bundle_manifest = data.get("bundleManifest")
+    if not isinstance(bundle_manifest, dict):
+        raise RuntimeError(f"stable manifest lacks bundleManifest object: {manifest}")
+    relative_path = bundle_manifest.get("path")
+    if not isinstance(relative_path, str) or not relative_path:
+        raise RuntimeError(f"stable manifest lacks bundleManifest.path: {manifest}")
+    target = (manifest.parent / relative_path).resolve()
+    publication_root = PUB_ROOT.resolve()
+    if target != publication_root and publication_root not in target.parents:
+        raise RuntimeError(
+            f"stable manifest target escapes publication root: {manifest}"
+        )
+    if not target.is_file() or target.is_symlink():
+        raise RuntimeError(f"stable manifest target is unavailable: {target}")
+    return target
+
+
+def stable_manifest_targets(repository: str, ref: str) -> set[Path]:
+    retained: set[Path] = set()
+    for family in ("repobrief", "lenskit"):
+        manifest = PUB_ROOT / "external" / family / repository / ref / "manifest.json"
+        if manifest.exists() or manifest.is_symlink():
+            retained.add(stable_manifest_target(manifest))
+    return retained
+
+
+def all_stable_manifest_targets() -> set[Path]:
+    retained: set[Path] = set()
+    external_root = PUB_ROOT / "external"
+    for family in ("repobrief", "lenskit"):
+        family_root = external_root / family
+        if not family_root.exists():
+            continue
+        for manifest in sorted(family_root.glob("*/*/manifest.json")):
+            retained.add(stable_manifest_target(manifest))
+    return retained
+
+
+def stable_manifest_hashes(repository: str, ref: str) -> set[str]:
+    return {sha256_file(target) for target in stable_manifest_targets(repository, ref)}
+
+
+def prune_group(
+    group: Path,
+    *,
+    keep: int,
+    apply: bool,
+    protected: set[Path],
+) -> dict[str, object]:
+    versions = version_dirs(group)
+    retained = versions[:keep]
+    removable = [
+        path for path in versions[keep:] if not path_is_protected(path, protected)
+    ]
+    protected_old = [
+        path for path in versions[keep:] if path_is_protected(path, protected)
+    ]
+    removable_bytes = sum(tree_bytes(path) for path in removable)
+    for path in removable:
+        remove_tree(path, apply=apply, root=group)
+    return {
+        "group": str(group),
+        "found": len(versions),
+        "retained": [str(path) for path in retained],
+        "protected_old": [str(path) for path in protected_old],
+        "removed": [str(path) for path in removable] if apply else [],
+        "would_remove": [] if apply else [str(path) for path in removable],
+        "removed_bytes": removable_bytes if apply else 0,
+        "would_remove_bytes": 0 if apply else removable_bytes,
+    }
+
+
+def prune_current_group(
+    group: Path,
+    *,
+    repository: str,
+    ref: str,
+    keep: int,
+    apply: bool,
+    protected: set[Path],
+) -> dict[str, object]:
+    stable_targets = stable_manifest_targets(repository, ref)
+    effective_protected = set(protected) | stable_targets
+    versions = version_dirs(group)
+    retained_versions = versions[:keep] + [
+        path for path in versions[keep:] if path_is_protected(path, effective_protected)
+    ]
+    report = prune_group(
+        group,
+        keep=keep,
+        apply=apply,
+        protected=effective_protected,
+    )
+    keep_hashes = retained_manifest_hashes(retained_versions)
+    keep_hashes.update(sha256_file(target) for target in stable_targets)
+    report["stable_manifest_targets"] = sorted(str(path) for path in stable_targets)
+    localized = PUB_ROOT / "external" / "_bundles" / repository / ref
+    localized_dirs = (
+        [
+            path
+            for path in localized.iterdir()
+            if path.is_dir() and not path.is_symlink()
+        ]
+        if localized.exists()
+        else []
+    )
+    localized_removable = [
+        path
+        for path in localized_dirs
+        if path.name not in keep_hashes
+        and not path_is_protected(path, effective_protected)
+    ]
+    localized_removable_bytes = sum(tree_bytes(path) for path in localized_removable)
+    for path in localized_removable:
+        remove_tree(path, apply=apply, root=localized)
+    report["localized_group"] = str(localized)
+    report["retained_manifest_hashes"] = sorted(keep_hashes)
+    report["localized_removed"] = (
+        [str(path) for path in localized_removable] if apply else []
+    )
+    report["localized_would_remove"] = (
+        [] if apply else [str(path) for path in localized_removable]
+    )
+    report["localized_removed_bytes"] = localized_removable_bytes if apply else 0
+    report["localized_would_remove_bytes"] = 0 if apply else localized_removable_bytes
+    return report
+
+
+def prune_all_current(
+    *, keep: int, apply: bool, protected: set[Path]
+) -> list[dict[str, object]]:
+    root = PUB_ROOT / "bundles"
+    reports: list[dict[str, object]] = []
+    if not root.exists():
+        return reports
+    for repo_group in sorted(root.iterdir()):
+        if not repo_group.is_dir() or repo_group.is_symlink():
+            continue
+        repository = repo_group.name.rsplit("__", 1)[-1]
+        for ref_group in sorted(repo_group.iterdir()):
+            if not ref_group.is_dir() or ref_group.is_symlink():
+                continue
+            reports.append(
+                prune_current_group(
+                    ref_group,
+                    repository=repository,
+                    ref=ref_group.name,
+                    keep=keep,
+                    apply=apply,
+                    protected=protected,
+                )
+            )
+    return reports
+
+
+def prune_all_legacy(
+    *, keep: int, apply: bool, protected: set[Path]
+) -> list[dict[str, object]]:
+    reports: list[dict[str, object]] = []
+    if not LEGACY_OUT_ROOT.exists():
+        return reports
+    for repo_group in sorted(LEGACY_OUT_ROOT.iterdir()):
+        if not repo_group.is_dir() or repo_group.is_symlink():
+            continue
+        for ref_group in sorted(repo_group.iterdir()):
+            if not ref_group.is_dir() or ref_group.is_symlink():
+                continue
+            reports.append(
+                prune_group(
+                    ref_group,
+                    keep=keep,
+                    apply=apply,
+                    protected=protected,
+                )
+            )
+    return reports
+
+
+def prune_all_special(
+    *, keep: int, apply: bool, protected: set[Path]
+) -> list[dict[str, object]]:
+    reports: list[dict[str, object]] = []
+    if not SPECIAL_OUT_ROOT.exists():
+        return reports
+    for group in sorted(SPECIAL_OUT_ROOT.iterdir()):
+        if not group.is_dir() or group.is_symlink():
+            continue
+        reports.append(
+            prune_group(
+                group,
+                keep=keep,
+                apply=apply,
+                protected=protected,
+            )
+        )
+    return reports
+
+
+def publish(
+    entry: RepoEntry,
+    *,
+    remote_ref: str,
+    branch: str,
+    sha: str,
+    tool_sha: str,
+    fingerprint: str,
+    config: PublicationConfig,
+) -> tuple[dict[str, object], Path]:
+    repository = safe_segment(entry.repo)
+    ref_segment = safe_segment(branch)
+    source_wt = ensure_source_worktree(entry, ref_segment, sha)
+    out_base = (
+        PUB_ROOT
+        / "bundles"
+        / (safe_segment(entry.owner) + "__" + repository)
+        / ref_segment
+    )
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    out_dir = out_base / f"{stamp}-{fingerprint[:12]}"
+    out_base.mkdir(parents=True, exist_ok=True)
+    command = [
+        "python3",
+        "-B",
+        "-m",
+        "merger.lenskit.cli.repobrief",
+        "external-manifest",
+        "refresh",
+        "--repo",
+        str(source_wt),
+        "--out",
+        str(out_dir),
+        "--publication-root",
+        str(PUB_ROOT),
+        "--repository",
+        repository,
+        "--ref",
+        ref_segment,
+        "--profile",
+        config.profile,
+        "--output-mode",
+        config.output_mode,
+        "--max-bytes",
+        str(config.max_bytes),
+        "--split-size",
+        config.split_size,
+    ]
+    if config.redact_secrets:
+        command.append("--redact-secrets")
+    cp = run(command, cwd=TOOL_WT, check=False)
+    LOG_ROOT.mkdir(parents=True, exist_ok=True)
+    raw_log = LOG_ROOT / f"fleet-{safe_segment(entry.owner)}__{repository}.stdout.txt"
+    raw_log.write_text(cp.stdout, encoding="utf-8")
+    if cp.returncode != 0:
+        discard_generated_output(out_dir, root=out_base)
+        tail = cp.stdout[-2000:] if cp.stdout else "<empty stdout>"
+        raise RuntimeError(f"repobrief refresh failed rc={cp.returncode}: {tail}")
+    data = parse_cli_json(cp.stdout)
+    manifests = list(out_dir.glob("*_merge.bundle.manifest.json"))
+    if not out_dir.is_dir() or not manifests:
+        discard_generated_output(out_dir, root=out_base)
+        raise RuntimeError(
+            "RepoBrief refresh returned success without a bundle manifest"
+        )
+    repo_log = LOG_ROOT / f"fleet-{safe_segment(entry.owner)}__{repository}.json"
+    repo_log.write_text(
+        json.dumps(
+            {
+                "entry": {
+                    "key": entry.key,
+                    "path": str(entry.path),
+                    "remote": entry.remote,
+                },
+                "remote_ref": remote_ref,
+                "sha": sha,
+                "tool_sha": tool_sha,
+                "fingerprint": fingerprint,
+                "result": data,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return data, out_dir
+
+
+def validate_retention(value: int) -> int:
+    if value < 1 or value > MAX_RETENTION:
+        raise ValueError(f"retention must be between 1 and {MAX_RETENTION}")
+    return value
+
+
+def acquire_lock() -> Any:
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    handle = LOCK_PATH.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    return handle
+
+
+def cleanup_mode(args: argparse.Namespace) -> int:
+    protected = {Path(raw).expanduser().resolve() for raw in args.protect_path}
+    stable_targets = all_stable_manifest_targets()
+    protected.update(stable_targets)
+    apply = bool(args.apply_prune)
+    reports: dict[str, object] = {
+        "status": "ok",
+        "mode": "apply" if apply else "dry-run",
+        "retention": args.retention,
+        "protected_paths": sorted(str(path) for path in protected),
+        "stable_manifest_targets": sorted(str(path) for path in stable_targets),
+    }
+    if args.prune_current:
+        reports["current"] = prune_all_current(
+            keep=args.retention, apply=apply, protected=protected
+        )
+    if args.prune_legacy:
+        reports["legacy"] = prune_all_legacy(
+            keep=args.retention, apply=apply, protected=protected
+        )
+    if args.prune_special:
+        reports["special"] = prune_all_special(
+            keep=args.retention, apply=apply, protected=protected
+        )
+    LOG_ROOT.mkdir(parents=True, exist_ok=True)
+    receipt = LOG_ROOT / (
+        "fleet-prune-apply-last.json" if apply else "fleet-prune-dry-run-last.json"
+    )
+    reports["receipt"] = str(receipt)
+    atomic_write_json(receipt, reports)
+    print(json.dumps(reports, indent=2, sort_keys=True))
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--inventory", action="store_true")
+    parser.add_argument("--if-changed", action="store_true")
+    parser.add_argument("--force", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--force-republish", action="store_true")
+    parser.add_argument("--reason")
+    parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--retention", type=int, default=DEFAULT_RETENTION)
+    parser.add_argument(
+        "--repo",
+        action="append",
+        dest="repo_keys",
+        help="Only process this owner/repository key; repeatable",
+    )
+    parser.add_argument("--prune-current", action="store_true")
+    parser.add_argument("--prune-legacy", action="store_true")
+    parser.add_argument("--prune-special", action="store_true")
+    parser.add_argument("--apply-prune", action="store_true")
+    parser.add_argument("--protect-path", action="append", default=[])
+    args = parser.parse_args(argv)
+    try:
+        args.retention = validate_retention(args.retention)
+    except ValueError as exc:
+        parser.error(str(exc))
+    if args.force:
+        parser.error(
+            "--force is disabled; use targeted --force-republish with --repo and --reason"
+        )
+    if args.force_republish and (not args.repo_keys or not args.reason):
+        parser.error(
+            "--force-republish requires at least one --repo and a non-empty --reason"
+        )
+    cleanup_requested = args.prune_current or args.prune_legacy or args.prune_special
+    if args.apply_prune and not cleanup_requested:
+        parser.error(
+            "--apply-prune requires --prune-current, --prune-legacy, or --prune-special"
+        )
+    if cleanup_requested:
+        cleanup_lock = acquire_lock()
+        if cleanup_lock is None:
+            print(
+                json.dumps(
+                    {"status": "busy", "reason": "fleet publisher already running"}
+                )
+            )
+            return 0
+        try:
+            return cleanup_mode(args)
+        finally:
+            cleanup_lock.close()
+
+    entries = discover()
+    if args.repo_keys:
+        wanted = set(args.repo_keys)
+        entries = [entry for entry in entries if entry.key in wanted]
+        missing = sorted(wanted - {entry.key for entry in entries})
+        if missing:
+            print(
+                json.dumps(
+                    {"status": "invalid", "missing_repositories": missing},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 2
+    if args.inventory:
+        print(
+            json.dumps(
+                {
+                    "count": len(entries),
+                    "repos": [
+                        {"key": row.key, "path": str(row.path), "remote": row.remote}
+                        for row in entries
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    lock = acquire_lock()
+    if lock is None:
+        print(
+            json.dumps({"status": "busy", "reason": "fleet publisher already running"})
+        )
+        return 0
+    try:
+        STATE_ROOT.mkdir(parents=True, exist_ok=True)
+        LOG_ROOT.mkdir(parents=True, exist_ok=True)
+        mode = "targeted-force" if args.force_republish else "if-changed"
+        log(
+            f"== fleet {mode} {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} "
+            f"entries={len(entries)} limit={args.limit} retention={args.retention} =="
+        )
+        tool_sha, tool_tree_sha = ensure_tool_worktree()
+        changed = published = skipped = failed = queued = prune_failed = 0
+        details: list[dict[str, object]] = []
+        protected: set[Path] = set()
+        for entry in entries:
+            try:
+                remote_ref, branch, source_sha = remote_head(entry.path)
+                ref_segment = safe_segment(branch)
+                config = publication_config(entry)
+                fingerprint, identity = build_fingerprint(
+                    source_sha=source_sha,
+                    tool_tree_sha=tool_tree_sha,
+                    config=config,
+                )
+                publication_state_path = state_path(entry, ref_segment)
+                state = load_state(publication_state_path)
+                previous_fingerprint = state.get("fingerprint") if state else None
+                should_publish = (
+                    args.force_republish or previous_fingerprint != fingerprint
+                )
+                if not should_publish:
+                    skipped += 1
+                    details.append(
+                        {
+                            "repo": entry.key,
+                            "status": "unchanged",
+                            "source_sha": source_sha,
+                            "fingerprint": fingerprint,
+                        }
+                    )
+                    continue
+                changed += 1
+                if args.limit and published >= args.limit:
+                    queued += 1
+                    details.append(
+                        {
+                            "repo": entry.key,
+                            "status": "queued",
+                            "source_sha": source_sha,
+                            "fingerprint": fingerprint,
+                        }
+                    )
+                    continue
+                data, out_dir = publish(
+                    entry,
+                    remote_ref=remote_ref,
+                    branch=branch,
+                    sha=source_sha,
+                    tool_sha=tool_sha,
+                    fingerprint=fingerprint,
+                    config=config,
+                )
+                write_state(
+                    publication_state_path,
+                    fingerprint=fingerprint,
+                    identity=identity,
+                    repository=entry.key,
+                    ref=ref_segment,
+                    publication_dir=out_dir,
+                )
+                published += 1
+                try:
+                    prune_report = prune_current_group(
+                        out_dir.parent,
+                        repository=safe_segment(entry.repo),
+                        ref=ref_segment,
+                        keep=args.retention,
+                        apply=True,
+                        protected=protected,
+                    )
+                except Exception as exc:
+                    prune_failed += 1
+                    prune_report = {
+                        "status": "warn",
+                        "error": str(exc)[:2000],
+                    }
+                    log(f"PRUNE-FAILED {entry.key}: {exc}")
+                generated = None
+                publication = data.get("publication")
+                if isinstance(publication, dict):
+                    rows = publication.get("published")
+                    if isinstance(rows, list) and rows and isinstance(rows[0], dict):
+                        generated = rows[0].get("generatedAt")
+                details.append(
+                    {
+                        "repo": entry.key,
+                        "status": "published",
+                        "source_sha": source_sha,
+                        "fingerprint": fingerprint,
+                        "generatedAt": generated,
+                        "publication_dir": str(out_dir),
+                        "prune": prune_report,
+                    }
+                )
+            except Exception as exc:
+                failed += 1
+                details.append(
+                    {"repo": entry.key, "status": "failed", "error": str(exc)[:2000]}
+                )
+                log(f"FAILED {entry.key}: {exc}")
+        summary: dict[str, object] = {
+            "status": "ok" if failed == 0 else "warn",
+            "mode": mode,
+            "count": len(entries),
+            "changed": changed,
+            "published": published,
+            "skipped": skipped,
+            "queued": queued,
+            "failed": failed,
+            "prune_failed": prune_failed,
+            "retention": args.retention,
+            "tool_sha": tool_sha,
+            "tool_tree_sha": tool_tree_sha,
+            "force_reason": args.reason if args.force_republish else None,
+            "details": details,
+        }
+        atomic_write_json(LOG_ROOT / "fleet-last.json", summary)
+        log(
+            json.dumps(
+                {
+                    key: summary[key]
+                    for key in (
+                        "status",
+                        "mode",
+                        "count",
+                        "changed",
+                        "published",
+                        "skipped",
+                        "queued",
+                        "failed",
+                        "prune_failed",
+                        "retention",
+                    )
+                },
+                sort_keys=True,
+            )
+        )
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0 if failed == 0 else 1
+    finally:
+        lock.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
