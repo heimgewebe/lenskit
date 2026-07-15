@@ -91,31 +91,31 @@ def test_fingerprint_is_stable_and_covers_all_output_inputs() -> None:
     config = module.PublicationConfig(profile="full-max")
     first, identity = module.build_fingerprint(
         source_sha="a" * 40,
-        tool_tree_sha="b" * 40,
+        generator_inputs_sha="b" * 40,
         publication_repository="heimgewebe__demo",
         config=config,
     )
     repeated, repeated_identity = module.build_fingerprint(
         source_sha="a" * 40,
-        tool_tree_sha="b" * 40,
+        generator_inputs_sha="b" * 40,
         publication_repository="heimgewebe__demo",
         config=config,
     )
     source_changed, _ = module.build_fingerprint(
         source_sha="c" * 40,
-        tool_tree_sha="b" * 40,
+        generator_inputs_sha="b" * 40,
         publication_repository="heimgewebe__demo",
         config=config,
     )
     tool_changed, _ = module.build_fingerprint(
         source_sha="a" * 40,
-        tool_tree_sha="d" * 40,
+        generator_inputs_sha="d" * 40,
         publication_repository="heimgewebe__demo",
         config=config,
     )
     config_changed, _ = module.build_fingerprint(
         source_sha="a" * 40,
-        tool_tree_sha="b" * 40,
+        generator_inputs_sha="b" * 40,
         publication_repository="heimgewebe__demo",
         config=module.PublicationConfig(profile="agent-portable"),
     )
@@ -125,13 +125,47 @@ def test_fingerprint_is_stable_and_covers_all_output_inputs() -> None:
     assert len(first) == 64
     namespace_changed, _ = module.build_fingerprint(
         source_sha="a" * 40,
-        tool_tree_sha="b" * 40,
+        generator_inputs_sha="b" * 40,
         publication_repository="other__demo",
         config=config,
     )
 
     assert len({first, source_changed, tool_changed, config_changed, namespace_changed}) == 5
 
+
+
+def test_generator_inputs_sha_ignores_service_and_test_only_changes(tmp_path: Path) -> None:
+    module = load_publisher()
+    repo, _ = initialize_repository(tmp_path, "lenskit")
+    tracked = {
+        "merger/lenskit/__init__.py": "",
+        "merger/lenskit/cli/__init__.py": "",
+        "merger/lenskit/cli/repobrief.py": "entrypoint\n",
+        "merger/lenskit/cli/cmd_repobrief.py": "command\n",
+        "merger/lenskit/core/merge.py": "generator v1\n",
+        "merger/lenskit/contracts/bundle.json": "{}\n",
+        "merger/lenskit/retrieval/query.py": "query v1\n",
+        "merger/lenskit/service/app.py": "service v1\n",
+        "merger/lenskit/tests/test_only.py": "test v1\n",
+    }
+    for relative, content in tracked.items():
+        path = repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "generator baseline")
+    baseline = module.generator_inputs_sha(repo)
+
+    (repo / "merger/lenskit/service/app.py").write_text("service v2\n", encoding="utf-8")
+    (repo / "merger/lenskit/tests/test_only.py").write_text("test v2\n", encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "non-generator changes")
+    assert module.generator_inputs_sha(repo) == baseline
+
+    (repo / "merger/lenskit/core/merge.py").write_text("generator v2\n", encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "generator change")
+    assert module.generator_inputs_sha(repo) != baseline
 
 def test_version_dirs_accepts_old_and_fingerprinted_names_only(tmp_path: Path) -> None:
     module = load_publisher()
