@@ -1,4 +1,5 @@
 """Bounded read-only RepoBrief call navigation over coherent v1 artifacts."""
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -306,7 +307,7 @@ def _refresh_manifest_artifact(manifest: Path, role: str, artifact: Path) -> Non
 
 def test_navigation_cache_reuses_validated_call_state(tmp_path, monkeypatch):
     manifest = _bundle(tmp_path)
-    original = repobrief_access._load_call_graph
+    original = repobrief_access._load_call_graph_source
     calls = 0
 
     def counted(manifest_path):
@@ -314,7 +315,7 @@ def test_navigation_cache_reuses_validated_call_state(tmp_path, monkeypatch):
         calls += 1
         return original(manifest_path)
 
-    monkeypatch.setattr(repobrief_access, "_load_call_graph", counted)
+    monkeypatch.setattr(repobrief_access, "_load_call_graph_source", counted)
 
     cold = find_references(manifest, "target", k=10)
     warm = find_references(manifest, "target", k=10)
@@ -407,7 +408,7 @@ def test_cache_detects_same_size_change_with_restored_mtime(tmp_path):
 
 def test_call_graph_change_invalidates_cached_navigation_state(tmp_path, monkeypatch):
     manifest, call_graph, _ = _write_bundle(tmp_path)
-    original = repobrief_access._load_call_graph
+    original = repobrief_access._load_call_graph_source
     loads = 0
 
     def counted(manifest_path):
@@ -415,7 +416,7 @@ def test_call_graph_change_invalidates_cached_navigation_state(tmp_path, monkeyp
         loads += 1
         return original(manifest_path)
 
-    monkeypatch.setattr(repobrief_access, "_load_call_graph", counted)
+    monkeypatch.setattr(repobrief_access, "_load_call_graph_source", counted)
     before = find_references(manifest, "target", k=10)
 
     payload = json.loads(call_graph.read_text(encoding="utf-8"))
@@ -433,7 +434,7 @@ def test_call_graph_change_invalidates_cached_navigation_state(tmp_path, monkeyp
 
 def test_symbol_change_invalidates_cached_symbol_state(tmp_path, monkeypatch):
     manifest, _, symbol_index = _write_bundle(tmp_path)
-    original = repobrief_access._load_symbol_index
+    original = repobrief_access._load_symbol_index_source
     loads = 0
 
     def counted(manifest_path):
@@ -441,7 +442,7 @@ def test_symbol_change_invalidates_cached_symbol_state(tmp_path, monkeypatch):
         loads += 1
         return original(manifest_path)
 
-    monkeypatch.setattr(repobrief_access, "_load_symbol_index", counted)
+    monkeypatch.setattr(repobrief_access, "_load_symbol_index_source", counted)
     before = get_callers(manifest, "target", path="pkg/target.py", k=10)
 
     payload = json.loads(symbol_index.read_text(encoding="utf-8"))
@@ -491,8 +492,8 @@ def test_navigation_cache_is_lru_bounded(tmp_path):
         assert find_references(manifest, "target")["status"] == "available"
 
     assert len(repobrief_access._CALL_NAVIGATION_CACHE) == 2
-    assert manifests[0] not in repobrief_access._CALL_NAVIGATION_CACHE
-    assert manifests[-1] in repobrief_access._CALL_NAVIGATION_CACHE
+    assert not any(k.manifest_path == manifests[0] for k in repobrief_access._CALL_NAVIGATION_CACHE)
+    assert any(k.manifest_path == manifests[-1] for k in repobrief_access._CALL_NAVIGATION_CACHE)
 
 
 def test_find_references_returns_bounded_s0_and_s1_evidence(tmp_path):
@@ -593,7 +594,7 @@ def test_invalid_navigation_name_fails_before_artifact_io(tmp_path, monkeypatch,
     def fail_if_loaded(_manifest_path):
         raise AssertionError("invalid primitive input must not load the call graph")
 
-    monkeypatch.setattr(repobrief_access, "_load_call_graph", fail_if_loaded)
+    monkeypatch.setattr(repobrief_access, "_load_call_graph_source", fail_if_loaded)
 
     result = reader(tmp_path / "missing.bundle.manifest.json", "")
 
@@ -863,3 +864,108 @@ def test_call_graph_change_during_symbol_index_build_fails_closed(
     result = get_callers(manifest, "target", path="pkg/target.py")
     assert result["status"] == "invalid"
     assert result["error_code"] == "python_call_graph_source_changed_during_load"
+
+
+def test_warm_navigation_cache_does_not_reload_artifact_json(tmp_path, monkeypatch):
+    manifest = _bundle(tmp_path)
+    assert get_callers(manifest, "target", path="pkg/target.py")["status"] == "available"
+
+    def forbidden_source_load(*_args, **_kwargs):
+        raise AssertionError("warm navigation cache must not reload artifact JSON")
+
+    monkeypatch.setattr(
+        repobrief_access, "_read_registered_artifact_source", forbidden_source_load
+    )
+
+    assert find_references(manifest, "target")["status"] == "available"
+    assert get_callers(manifest, "target", path="pkg/target.py")["status"] == "available"
+
+
+def test_call_graph_loader_swap_fails_closed_even_when_original_is_restored(
+    tmp_path, monkeypatch
+):
+    manifest, call_graph, _ = _write_bundle(tmp_path)
+    original_graph = call_graph.read_bytes()
+    original_manifest = manifest.read_bytes()
+    alternate_payload = json.loads(original_graph)
+    alternate_payload["calls"][0]["simple_name"] = "renamed"
+    alternate_payload["calls"][0]["callee_expression"] = "renamed"
+    alternate_graph = json.dumps(alternate_payload).encode("utf-8")
+    alternate_manifest = json.loads(original_manifest)
+    record = next(
+        item
+        for item in alternate_manifest["artifacts"]
+        if item["role"] == "python_call_graph_json"
+    )
+    record["bytes"] = len(alternate_graph)
+    record["sha256"] = hashlib.sha256(alternate_graph).hexdigest()
+    alternate_manifest_bytes = json.dumps(alternate_manifest).encode("utf-8")
+    original_loader = repobrief_access._load_call_graph_source
+
+    def swapped_loader(manifest_path):
+        call_graph.write_bytes(alternate_graph)
+        manifest.write_bytes(alternate_manifest_bytes)
+        loaded = original_loader(manifest_path)
+        call_graph.write_bytes(original_graph)
+        manifest.write_bytes(original_manifest)
+        return loaded
+
+    monkeypatch.setattr(repobrief_access, "_load_call_graph_source", swapped_loader)
+
+    result = find_references(manifest, "target")
+
+    assert result["status"] == "invalid"
+    assert result["error_code"] == "python_call_graph_source_changed_during_load"
+
+
+def test_navigation_uses_actual_hash_when_manifest_omits_bytes_and_sha256(tmp_path):
+    manifest, call_graph, _ = _write_bundle(tmp_path)
+    manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+    for artifact in manifest_payload["artifacts"]:
+        artifact.pop("bytes", None)
+        artifact.pop("sha256", None)
+    manifest.write_text(json.dumps(manifest_payload), encoding="utf-8")
+
+    before = find_references(manifest, "target")
+    before_callers = get_callers(manifest, "target", path="pkg/target.py")
+    payload = json.loads(call_graph.read_text(encoding="utf-8"))
+    payload["calls"][0]["simple_name"] = "renamed"
+    payload["calls"][0]["callee_expression"] = "renamed"
+    call_graph.write_text(json.dumps(payload), encoding="utf-8")
+    after = find_references(manifest, "target")
+    after_callers = get_callers(manifest, "target", path="pkg/target.py")
+
+    assert before["status"] == "available"
+    assert before_callers["status"] == "available"
+    assert before["total_match_count"] == 4
+    assert after["status"] == "available"
+    assert after["total_match_count"] == 3
+    assert after_callers["status"] == "available"
+    assert len(repobrief_access._CALL_NAVIGATION_CACHE) == 2
+    assert len({key.artifact_sha256 for key in repobrief_access._CALL_NAVIGATION_CACHE}) == 2
+
+
+def test_parallel_navigation_is_isolated_for_same_and_different_bundles(tmp_path):
+    first_dir = tmp_path / "first"
+    second_dir = tmp_path / "second"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    first = _bundle(first_dir)
+    second = _bundle(second_dir)
+    manifests = [first, first, second, second] * 4
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(
+            executor.map(
+                lambda item: get_callers(
+                    item, "target", path="pkg/target.py", k=10
+                ),
+                manifests,
+            )
+        )
+
+    assert all(result["status"] == "available" for result in results)
+    assert all(result["total_caller_count"] == 1 for result in results)
+    assert {
+        key.manifest_path for key in repobrief_access._CALL_NAVIGATION_CACHE
+    } == {str(first.resolve()), str(second.resolve())}

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from copy import deepcopy
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -1202,70 +1201,76 @@ def _symbol_record(symbol: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _load_symbol_index(manifest_path: Path) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-    artifact_result = get_artifact(manifest_path, SYMBOL_INDEX_ROLE)
-    artifact = artifact_result.get("artifact") if isinstance(artifact_result, dict) else None
-    if not isinstance(artifact, dict) or not artifact.get("absolute_path"):
-        return None, artifact, {
+def _load_symbol_index_source(
+    manifest_path: Path,
+) -> tuple[
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+    _LoadedArtifactSource | None,
+    dict[str, Any] | None,
+]:
+    source, artifact, failure, detail = _read_registered_artifact_source(
+        manifest_path, SYMBOL_INDEX_ROLE
+    )
+    if failure == "missing":
+        return None, artifact, None, {
             "status": "missing",
             "error_code": "python_symbol_index_json_missing",
             "error": "python_symbol_index_json artifact is not present in the bundle manifest",
         }
-    index_path = Path(str(artifact["absolute_path"]))
-    if not index_path.exists():
-        return None, artifact, {
+    if failure == "file_missing":
+        return None, artifact, None, {
             "status": "missing",
             "error_code": "python_symbol_index_json_file_missing",
             "error": "python_symbol_index_json artifact file does not exist",
         }
-    try:
-        raw = index_path.read_bytes()
-    except OSError as exc:
-        return None, artifact, {
-            "status": "invalid",
-            "error_code": "python_symbol_index_json_unreadable",
-            "error": str(exc),
-        }
-    declared_bytes = artifact.get("bytes")
-    if (
-        isinstance(declared_bytes, int)
-        and not isinstance(declared_bytes, bool)
-        and declared_bytes != len(raw)
-    ):
-        return None, artifact, {
+    if failure == "bytes_mismatch":
+        return None, artifact, None, {
             "status": "invalid",
             "error_code": "python_symbol_index_json_bytes_mismatch",
             "error": "python_symbol_index_json byte count does not match the bundle manifest",
         }
-    declared_sha256 = artifact.get("sha256")
-    if _is_sha256(declared_sha256) and hashlib.sha256(raw).hexdigest() != declared_sha256:
-        return None, artifact, {
+    if failure == "sha256_mismatch":
+        return None, artifact, None, {
             "status": "invalid",
             "error_code": "python_symbol_index_json_sha256_mismatch",
             "error": "python_symbol_index_json content hash does not match the bundle manifest",
         }
+    if source is None:
+        return None, artifact, None, {
+            "status": "invalid",
+            "error_code": "python_symbol_index_json_unreadable",
+            "error": detail or "python_symbol_index_json could not be read",
+        }
     try:
-        data = json.loads(raw.decode("utf-8"))
+        data = json.loads(source.raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        return None, artifact, {
+        return None, artifact, None, {
             "status": "invalid",
             "error_code": "python_symbol_index_json_unreadable",
             "error": str(exc),
         }
     if not isinstance(data, dict) or data.get("kind") != "lenskit.python_symbol_index":
-        return None, artifact, {
+        return None, artifact, None, {
             "status": "invalid",
             "error_code": "python_symbol_index_json_invalid_kind",
             "error": "python_symbol_index_json must be a lenskit.python_symbol_index object",
         }
     symbols = data.get("symbols")
     if not isinstance(symbols, list):
-        return None, artifact, {
+        return None, artifact, None, {
             "status": "invalid",
             "error_code": "python_symbol_index_symbols_invalid",
             "error": "python_symbol_index_json symbols must be an array",
         }
-    return data, artifact, None
+    return data, artifact, source, None
+
+
+def _load_symbol_index(
+    manifest_path: Path,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    data, artifact, _source, error = _load_symbol_index_source(manifest_path)
+    return data, artifact, error
 
 
 def search_symbol_index(
@@ -1394,16 +1399,19 @@ _CALL_NAVIGATION_CACHE_MAX_ENTRIES = 2
 
 @dataclass(frozen=True, slots=True)
 class _ArtifactSourceFingerprint:
+    manifest_path: str
     manifest_sha256: str
     role: str
     absolute_path: str
-    declared_sha256: str | None
-    declared_bytes: int | None
-    device: int
-    inode: int
-    size: int
-    mtime_ns: int
-    ctime_ns: int
+    artifact_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class _LoadedArtifactSource:
+    manifest: dict[str, Any]
+    artifact: dict[str, Any]
+    raw: bytes
+    fingerprint: _ArtifactSourceFingerprint
 
 
 @dataclass(frozen=True, slots=True)
@@ -1430,8 +1438,8 @@ class _ValidatedCallQuery:
     path_filter: str | None
 
 
-_CALL_NAVIGATION_CACHE: OrderedDict[str, _CallNavigationState] = OrderedDict()
-_SYMBOL_NAVIGATION_CACHE: OrderedDict[str, _SymbolNavigationState] = OrderedDict()
+_CALL_NAVIGATION_CACHE: OrderedDict[_ArtifactSourceFingerprint, _CallNavigationState] = OrderedDict()
+_SYMBOL_NAVIGATION_CACHE: OrderedDict[tuple[_ArtifactSourceFingerprint, _ArtifactSourceFingerprint], _SymbolNavigationState] = OrderedDict()
 _CALL_NAVIGATION_CACHE_LOCK = RLock()
 
 
@@ -1442,60 +1450,147 @@ def _clear_call_navigation_caches() -> None:
         _SYMBOL_NAVIGATION_CACHE.clear()
 
 
-def _artifact_source_fingerprint(
+def _read_registered_artifact_source(
     manifest_path: Path, role: str
-) -> _ArtifactSourceFingerprint | None:
+) -> tuple[
+    _LoadedArtifactSource | None,
+    dict[str, Any] | None,
+    str | None,
+    str | None,
+]:
     try:
         manifest_bytes = manifest_path.read_bytes()
         manifest = json.loads(manifest_bytes)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, None, "unreadable", str(exc)
     if not isinstance(manifest, dict):
-        return None
-    artifact = next(
-        (
-            item
-            for item in _artifact_list(manifest)
-            if item.get("role") == role
-        ),
-        None,
-    )
-    if not isinstance(artifact, dict):
-        return None
-    artifact_path = _safe_artifact_path(manifest_path.parent, artifact.get("path"))
-    if artifact_path is None:
-        return None
+        return None, None, "unreadable", "bundle manifest must be a JSON object"
     try:
-        stat = artifact_path.stat()
-    except OSError:
-        return None
-    declared_sha256 = artifact.get("sha256")
-    declared_bytes = artifact.get("bytes")
-    return _ArtifactSourceFingerprint(
+        artifact_payload = next(
+            (item for item in _artifact_list(manifest) if item.get("role") == role),
+            None,
+        )
+    except ValueError as exc:
+        return None, None, "unreadable", str(exc)
+    if not isinstance(artifact_payload, dict):
+        return None, None, "missing", None
+    artifact = _artifact_record(manifest_path, artifact_payload)
+    artifact_path = _safe_artifact_path(
+        manifest_path.parent, artifact_payload.get("path")
+    )
+    if artifact_path is None:
+        return None, artifact, "missing", None
+    if not artifact_path.exists():
+        return None, artifact, "file_missing", None
+    try:
+        raw = artifact_path.read_bytes()
+    except OSError as exc:
+        return None, artifact, "unreadable", str(exc)
+    declared_bytes = artifact_payload.get("bytes")
+    if (
+        isinstance(declared_bytes, int)
+        and not isinstance(declared_bytes, bool)
+        and declared_bytes != len(raw)
+    ):
+        return None, artifact, "bytes_mismatch", None
+    actual_sha256 = hashlib.sha256(raw).hexdigest()
+    declared_sha256 = artifact_payload.get("sha256")
+    if _is_sha256(declared_sha256) and actual_sha256 != declared_sha256:
+        return None, artifact, "sha256_mismatch", None
+    fingerprint = _ArtifactSourceFingerprint(
+        manifest_path=str(manifest_path.resolve()),
         manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
         role=role,
         absolute_path=str(artifact_path),
-        declared_sha256=declared_sha256 if isinstance(declared_sha256, str) else None,
-        declared_bytes=(
-            declared_bytes
-            if isinstance(declared_bytes, int) and not isinstance(declared_bytes, bool)
-            else None
+        artifact_sha256=actual_sha256,
+    )
+    return (
+        _LoadedArtifactSource(
+            manifest=manifest,
+            artifact=artifact,
+            raw=raw,
+            fingerprint=fingerprint,
         ),
-        device=stat.st_dev,
-        inode=stat.st_ino,
-        size=stat.st_size,
-        mtime_ns=stat.st_mtime_ns,
-        ctime_ns=stat.st_ctime_ns,
+        artifact,
+        None,
+        None,
+    )
+
+
+def _artifact_source_fingerprint(
+    manifest_path: Path, role: str
+) -> _ArtifactSourceFingerprint | None:
+    source, _artifact, _failure, _detail = _read_registered_artifact_source(
+        manifest_path, role
+    )
+    return source.fingerprint if source is not None else None
+
+
+def _artifact_source_is_current(fingerprint: _ArtifactSourceFingerprint) -> bool:
+    try:
+        manifest_before = Path(fingerprint.manifest_path).read_bytes()
+        if hashlib.sha256(manifest_before).hexdigest() != fingerprint.manifest_sha256:
+            return False
+        artifact_bytes = Path(fingerprint.absolute_path).read_bytes()
+        manifest_after = Path(fingerprint.manifest_path).read_bytes()
+    except OSError:
+        return False
+    return (
+        hashlib.sha256(artifact_bytes).hexdigest() == fingerprint.artifact_sha256
+        and hashlib.sha256(manifest_after).hexdigest() == fingerprint.manifest_sha256
     )
 
 
 def _cache_state(
-    cache: OrderedDict[str, Any], key: str, state: Any
+    cache: OrderedDict[Any, Any], key: Any, state: Any
 ) -> None:
     cache[key] = state
     cache.move_to_end(key)
     while len(cache) > _CALL_NAVIGATION_CACHE_MAX_ENTRIES:
         cache.popitem(last=False)
+
+
+def _cached_call_navigation_state(
+    manifest_path: Path,
+) -> _CallNavigationState | None:
+    resolved_manifest = str(manifest_path.resolve())
+    with _CALL_NAVIGATION_CACHE_LOCK:
+        candidates = [
+            (fingerprint, state)
+            for fingerprint, state in reversed(list(_CALL_NAVIGATION_CACHE.items()))
+            if fingerprint.manifest_path == resolved_manifest
+        ]
+    for fingerprint, state in candidates:
+        if not _artifact_source_is_current(fingerprint):
+            continue
+        with _CALL_NAVIGATION_CACHE_LOCK:
+            if _CALL_NAVIGATION_CACHE.get(fingerprint) is state:
+                _CALL_NAVIGATION_CACHE.move_to_end(fingerprint)
+                return state
+    return None
+
+
+def _cached_symbol_navigation_state(
+    manifest_path: Path, call_state: _CallNavigationState
+) -> _SymbolNavigationState | None:
+    resolved_manifest = str(manifest_path.resolve())
+    with _CALL_NAVIGATION_CACHE_LOCK:
+        candidates = [
+            (cache_key, state)
+            for cache_key, state in reversed(list(_SYMBOL_NAVIGATION_CACHE.items()))
+            if cache_key[0] == call_state.fingerprint
+            and cache_key[1].manifest_path == resolved_manifest
+        ]
+    for cache_key, state in candidates:
+        if not _artifact_source_is_current(cache_key[1]):
+            continue
+        if not _artifact_source_is_current(call_state.fingerprint):
+            return None
+        with _CALL_NAVIGATION_CACHE_LOCK:
+            if _SYMBOL_NAVIGATION_CACHE.get(cache_key) is state:
+                _SYMBOL_NAVIGATION_CACHE.move_to_end(cache_key)
+                return state
+    return None
 
 
 def _call_nav_does_not_establish() -> list[str]:
@@ -1611,53 +1706,58 @@ def _call_graph_error(
     return {"status": status, "error_code": error_code, "error": error}
 
 
-def _read_call_graph_artifact(
+def _read_call_graph_source(
     manifest_path: Path,
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-    artifact_result = get_artifact(manifest_path, CALL_GRAPH_ROLE)
-    artifact = artifact_result.get("artifact") if isinstance(artifact_result, dict) else None
-    if not isinstance(artifact, dict) or not artifact.get("absolute_path"):
-        return None, artifact, _call_graph_error(
+) -> tuple[
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+    _LoadedArtifactSource | None,
+    dict[str, Any] | None,
+]:
+    source, artifact, failure, detail = _read_registered_artifact_source(
+        manifest_path, CALL_GRAPH_ROLE
+    )
+    if failure == "missing":
+        return None, artifact, None, _call_graph_error(
             "python_call_graph_json_missing",
             "python_call_graph_json artifact is not present in the bundle manifest",
             status="missing",
         )
-    graph_path = Path(str(artifact["absolute_path"]))
-    if not graph_path.exists():
-        return None, artifact, _call_graph_error(
+    if failure == "file_missing":
+        return None, artifact, None, _call_graph_error(
             "python_call_graph_json_file_missing",
             "python_call_graph_json artifact file does not exist",
             status="missing",
         )
-    try:
-        raw = graph_path.read_bytes()
-    except OSError as exc:
-        return None, artifact, _call_graph_error(
-            "python_call_graph_json_unreadable", str(exc)
-        )
-    declared_bytes = artifact.get("bytes")
-    if (
-        isinstance(declared_bytes, int)
-        and not isinstance(declared_bytes, bool)
-        and declared_bytes != len(raw)
-    ):
-        return None, artifact, _call_graph_error(
+    if failure == "bytes_mismatch":
+        return None, artifact, None, _call_graph_error(
             "python_call_graph_json_bytes_mismatch",
             "python_call_graph_json byte count does not match the bundle manifest",
         )
-    declared_sha256 = artifact.get("sha256")
-    if _is_sha256(declared_sha256) and hashlib.sha256(raw).hexdigest() != declared_sha256:
-        return None, artifact, _call_graph_error(
+    if failure == "sha256_mismatch":
+        return None, artifact, None, _call_graph_error(
             "python_call_graph_json_sha256_mismatch",
             "python_call_graph_json content hash does not match the bundle manifest",
         )
+    if source is None:
+        return None, artifact, None, _call_graph_error(
+            "python_call_graph_json_unreadable",
+            detail or "python_call_graph_json could not be read",
+        )
     try:
-        data = json.loads(raw.decode("utf-8"))
+        data = json.loads(source.raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        return None, artifact, _call_graph_error(
+        return None, artifact, None, _call_graph_error(
             "python_call_graph_json_unreadable", str(exc)
         )
-    return data, artifact, None
+    return data, artifact, source, None
+
+
+def _read_call_graph_artifact(
+    manifest_path: Path,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    data, artifact, _source, error = _read_call_graph_source(manifest_path)
+    return data, artifact, error
 
 
 def _call_graph_identity_error(data: Any) -> dict[str, Any] | None:
@@ -1810,17 +1910,24 @@ def _call_graph_counts_error(data: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _call_graph_manifest_binding_error(
-    data: dict[str, Any], manifest_path: Path
+    data: dict[str, Any],
+    manifest_path: Path,
+    *,
+    manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    manifest = _read_json_object(manifest_path)
-    manifest_run_id = manifest.get("run_id")
+    manifest_payload = manifest if manifest is not None else _read_json_object(manifest_path)
+    manifest_run_id = manifest_payload.get("run_id")
     if _is_non_empty_string(manifest_run_id) and manifest_run_id != data["run_id"]:
         return _call_graph_error(
             "python_call_graph_json_run_id_mismatch",
             "python_call_graph_json run_id does not match the bundle manifest run_id",
         )
     dump_index = next(
-        (item for item in _artifact_list(manifest) if item.get("role") == "dump_index_json"),
+        (
+            item
+            for item in _artifact_list(manifest_payload)
+            if item.get("role") == "dump_index_json"
+        ),
         None,
     )
     if (
@@ -1835,13 +1942,18 @@ def _call_graph_manifest_binding_error(
     return None
 
 
-def _load_call_graph(
+def _load_call_graph_source(
     manifest_path: Path,
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-    """Strictly load a registered, integrity-checked Python call graph."""
-    data, artifact, error = _read_call_graph_artifact(manifest_path)
+) -> tuple[
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+    _LoadedArtifactSource | None,
+    dict[str, Any] | None,
+]:
+    data, artifact, source, error = _read_call_graph_source(manifest_path)
     if error is not None:
-        return None, artifact, error
+        return None, artifact, None, error
+    assert data is not None and source is not None
     for validator in (
         _call_graph_identity_error,
         _call_graph_model_error,
@@ -1850,36 +1962,37 @@ def _load_call_graph(
     ):
         error = validator(data)
         if error is not None:
-            return None, artifact, error
-    error = _call_graph_manifest_binding_error(data, manifest_path)
+            return None, artifact, None, error
+    error = _call_graph_manifest_binding_error(
+        data, manifest_path, manifest=source.manifest
+    )
     if error is not None:
-        return None, artifact, error
-    return data, artifact, None
+        return None, artifact, None, error
+    return data, artifact, source, None
+
+
+def _load_call_graph(
+    manifest_path: Path,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    """Strictly load a registered, integrity-checked Python call graph."""
+    data, artifact, _source, error = _load_call_graph_source(manifest_path)
+    return data, artifact, error
 
 
 def _load_call_navigation_state(
     manifest_path: Path,
 ) -> tuple[_CallNavigationState | None, dict[str, Any] | None, dict[str, Any] | None]:
     """Load and index one call graph, reusing it only while its source is unchanged."""
-    cache_key = str(manifest_path)
-    before = _artifact_source_fingerprint(manifest_path, CALL_GRAPH_ROLE)
-    if before is not None:
-        with _CALL_NAVIGATION_CACHE_LOCK:
-            cached = _CALL_NAVIGATION_CACHE.get(cache_key)
-            if cached is not None and cached.fingerprint == before:
-                _CALL_NAVIGATION_CACHE.move_to_end(cache_key)
-                return cached, cached.artifact, None
+    cached = _cached_call_navigation_state(manifest_path)
+    if cached is not None:
+        return cached, cached.artifact, None
 
-    data, artifact, error = _load_call_graph(manifest_path)
+    data, artifact, source, error = _load_call_graph_source(manifest_path)
     if error is not None:
-        with _CALL_NAVIGATION_CACHE_LOCK:
-            _CALL_NAVIGATION_CACHE.pop(cache_key, None)
-            _SYMBOL_NAVIGATION_CACHE.pop(cache_key, None)
         return None, artifact, error
-    assert data is not None
+    assert data is not None and source is not None
     index = CallNavigationIndex.build(data["calls"])
-    after = _artifact_source_fingerprint(manifest_path, CALL_GRAPH_ROLE)
-    if before is None or after is None or before != after:
+    if not _artifact_source_is_current(source.fingerprint):
         return None, artifact, _call_graph_error(
             "python_call_graph_source_changed_during_load",
             "python_call_graph_json source changed while navigation state was loading",
@@ -1888,13 +2001,10 @@ def _load_call_navigation_state(
         data=data,
         artifact=artifact,
         index=index,
-        fingerprint=after,
+        fingerprint=source.fingerprint,
     )
     with _CALL_NAVIGATION_CACHE_LOCK:
-        _cache_state(_CALL_NAVIGATION_CACHE, cache_key, state)
-        symbol_state = _SYMBOL_NAVIGATION_CACHE.get(cache_key)
-        if symbol_state is not None and symbol_state.call_fingerprint != after:
-            _SYMBOL_NAVIGATION_CACHE.pop(cache_key, None)
+        _cache_state(_CALL_NAVIGATION_CACHE, source.fingerprint, state)
     return state, artifact, None
 
 
@@ -1902,25 +2012,16 @@ def _load_symbol_navigation_state(
     manifest_path: Path, call_state: _CallNavigationState
 ) -> tuple[_SymbolNavigationState | None, dict[str, Any] | None, dict[str, Any] | None]:
     """Load a coherent symbol index bound to the cached call-graph source."""
-    cache_key = str(manifest_path)
-    before = _artifact_source_fingerprint(manifest_path, SYMBOL_INDEX_ROLE)
-    if before is not None:
-        with _CALL_NAVIGATION_CACHE_LOCK:
-            cached = _SYMBOL_NAVIGATION_CACHE.get(cache_key)
-            if (
-                cached is not None
-                and cached.call_fingerprint == call_state.fingerprint
-                and cached.symbol_fingerprint == before
-            ):
-                _SYMBOL_NAVIGATION_CACHE.move_to_end(cache_key)
-                return cached, cached.artifact, None
+    cached = _cached_symbol_navigation_state(manifest_path, call_state)
+    if cached is not None:
+        return cached, cached.artifact, None
 
-    symbol_data, symbol_artifact, error = _load_symbol_index(manifest_path)
+    symbol_data, symbol_artifact, source, error = _load_symbol_index_source(
+        manifest_path
+    )
     if error is not None:
-        with _CALL_NAVIGATION_CACHE_LOCK:
-            _SYMBOL_NAVIGATION_CACHE.pop(cache_key, None)
         return None, symbol_artifact, error
-    assert symbol_data is not None
+    assert symbol_data is not None and source is not None
     error = _symbol_index_identity_error(symbol_data, call_state.data)
     if error is not None:
         return None, symbol_artifact, error
@@ -1932,14 +2033,12 @@ def _load_symbol_navigation_state(
     if error is not None:
         return None, symbol_artifact, error
     index = SymbolNavigationIndex.build(symbols)
-    after = _artifact_source_fingerprint(manifest_path, SYMBOL_INDEX_ROLE)
-    if before is None or after is None or before != after:
+    if not _artifact_source_is_current(source.fingerprint):
         return None, symbol_artifact, _call_graph_error(
             "python_symbol_index_source_changed_during_load",
             "python_symbol_index_json source changed while navigation state was loading",
         )
-    after_call = _artifact_source_fingerprint(manifest_path, CALL_GRAPH_ROLE)
-    if after_call is None or after_call != call_state.fingerprint:
+    if not _artifact_source_is_current(call_state.fingerprint):
         return None, symbol_artifact, _call_graph_error(
             "python_call_graph_source_changed_during_load",
             "python_call_graph_json source changed while navigation state was loading",
@@ -1949,8 +2048,9 @@ def _load_symbol_navigation_state(
         artifact=symbol_artifact,
         index=index,
         call_fingerprint=call_state.fingerprint,
-        symbol_fingerprint=after,
+        symbol_fingerprint=source.fingerprint,
     )
+    cache_key = (call_state.fingerprint, source.fingerprint)
     with _CALL_NAVIGATION_CACHE_LOCK:
         _cache_state(_SYMBOL_NAVIGATION_CACHE, cache_key, state)
     return state, symbol_artifact, None
@@ -1998,8 +2098,16 @@ def _call_site_record(call: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _detached_json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _detached_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_detached_json_value(item) for item in value]
+    return value
+
+
 def _detached_record(value: Any) -> dict[str, Any] | None:
-    return deepcopy(value) if isinstance(value, dict) else None
+    return _detached_json_value(value) if isinstance(value, dict) else None
 
 
 def _call_graph_metadata(data: dict[str, Any]) -> dict[str, Any]:
