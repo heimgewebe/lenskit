@@ -5,6 +5,7 @@ covers every safe resolution rule (local module function, imported internal
 name, module alias, self/cls method, direct recursion) plus the conservative
 outcomes (ambiguous, dynamic, foreign, module scope, parse errors).
 """
+import ast
 import json
 from pathlib import Path
 
@@ -12,9 +13,12 @@ import jsonschema
 
 from merger.lenskit.architecture.call_graph import (
     DOES_NOT_ESTABLISH,
+    _CallGraphVisitor,
+    _Resolver,
     extract_python_calls,
     generate_call_graph_document,
 )
+from merger.lenskit.core.repobrief_access import _call_record_is_valid
 
 GOLDSET_TEXT_PY = '''import os.path
 import utilkit.numbers as num
@@ -140,6 +144,7 @@ def test_call_graph_does_not_establish_contains_required_boundaries(tmp_path):
         "runtime_reachability",
         "dynamic_dispatch_resolution",
         "dependency_completeness",
+        "transitive_import_resolution",
         "import_success",
         "test_sufficiency",
         "review_completeness",
@@ -289,11 +294,43 @@ def test_parse_errors_are_counted_and_documented_bounded(tmp_path):
     doc = generate_call_graph_document(tmp_path, "run-1", "a" * 64)
 
     assert doc["skipped_files_count"] == 1
+    assert doc["skipped_errors_total_count"] == 1
+    assert doc["skipped_errors_truncated"] is False
     assert len(doc["skipped_errors"]) == 1
     assert "utilkit/broken.py" in doc["skipped_errors"][0]
     assert "SyntaxError" in doc["skipped_errors"][0]
     # The broken file contributes no call records.
     assert all(call["path"] != "utilkit/broken.py" for call in doc["calls"])
+
+
+def test_parse_error_truncation_is_explicit(tmp_path):
+    for index in range(25):
+        (tmp_path / f"broken_{index:02d}.py").write_text(
+            "def broken(:\n", encoding="utf-8"
+        )
+
+    doc = generate_call_graph_document(tmp_path, "run-1", "a" * 64)
+
+    assert doc["skipped_files_count"] == 25
+    assert doc["skipped_errors_total_count"] == 25
+    assert len(doc["skipped_errors"]) == 20
+    assert doc["skipped_errors_truncated"] is True
+
+
+def test_missing_ast_end_position_is_normalized_to_valid_range():
+    tree = ast.parse("def caller():\n    return target()\n")
+    call_node = next(node for node in ast.walk(tree) if isinstance(node, ast.Call))
+    call_node.end_lineno = None
+    call_node.end_col_offset = None
+
+    visitor = _CallGraphVisitor("sample.py", is_package=False)
+    visitor.visit(tree)
+    state = visitor.state
+    record = _Resolver({state.module: [state]}).resolve(state, state.calls[0])
+
+    assert record["start_line"] == record["end_line"] == 2
+    assert record["end_col"] == record["start_col"]
+    assert _call_record_is_valid(record) is True
 
 
 SCOPE_GOLDSET_PY = '''
@@ -499,9 +536,12 @@ def test_module_name_collision_preserves_all_calls_and_refuses_resolution(tmp_pa
         encoding="utf-8",
     )
     (tmp_path / "consumer.py").write_text(
+        "import foo\n"
         "from foo import target\n\n"
         "def caller():\n"
-        "    return target()\n",
+        "    return target()\n\n"
+        "def alias_caller():\n"
+        "    return foo.target()\n",
         encoding="utf-8",
     )
 
@@ -525,6 +565,22 @@ def test_module_name_collision_preserves_all_calls_and_refuses_resolution(tmp_pa
     assert imported["evidence_level"] == "S0"
     assert imported["resolution_reason"] == "imported_internal_name_module_collision"
     assert set(imported["candidate_target_ids"]) == {
+        "py:foo.py:function:target",
+        "py:foo:__init__.py:function:target",
+    }
+
+
+    aliased = next(
+        call
+        for call in calls
+        if call["path"] == "consumer.py"
+        and call["caller_qualified_name"] == "alias_caller"
+        and call["callee_expression"] == "foo.target"
+    )
+    assert aliased["resolution_status"] == "ambiguous"
+    assert aliased["evidence_level"] == "S0"
+    assert aliased["resolution_reason"] == "module_alias_call_module_collision"
+    assert set(aliased["candidate_target_ids"]) == {
         "py:foo.py:function:target",
         "py:foo:__init__.py:function:target",
     }

@@ -1340,7 +1340,7 @@ CALL_RESOLUTION_STATUSES = ("resolved", "candidate", "ambiguous", "unresolved")
 CALL_EVIDENCE_LEVELS = ("S0", "S1")
 CALL_RELATION_TYPES = ("calls", "constructs")
 _CALL_CALLER_KINDS = ("module", "class", "function", "async_function")
-_CALL_GRAPH_DOES_NOT_ESTABLISH = (
+_CALL_GRAPH_REQUIRED_NONCLAIMS = (
     "complete_call_graph",
     "runtime_reachability",
     "dynamic_dispatch_resolution",
@@ -1350,10 +1350,19 @@ _CALL_GRAPH_DOES_NOT_ESTABLISH = (
     "review_completeness",
     "merge_readiness",
 )
+_CALL_GRAPH_DOES_NOT_ESTABLISH = (
+    *_CALL_GRAPH_REQUIRED_NONCLAIMS,
+    "transitive_import_resolution",
+)
+
+
+_CALL_NAV_DOES_NOT_ESTABLISH = tuple(
+    dict.fromkeys([*_DOES_NOT_ESTABLISH, *_CALL_GRAPH_DOES_NOT_ESTABLISH])
+)
 
 
 def _call_nav_does_not_establish() -> list[str]:
-    return list(dict.fromkeys([*_DOES_NOT_ESTABLISH, *_CALL_GRAPH_DOES_NOT_ESTABLISH]))
+    return list(_CALL_NAV_DOES_NOT_ESTABLISH)
 
 
 def _string_list_valid(value: Any) -> bool:
@@ -1539,12 +1548,29 @@ def _call_graph_model_error(data: dict[str, Any]) -> dict[str, Any] | None:
             "python_call_graph_evidence_model_invalid",
             "python_call_graph_json evidence_model must define non-empty S0 and S1 semantics",
         )
+    skipped_files_count = data.get("skipped_files_count")
+    skipped_errors = data.get("skipped_errors")
+    skipped_errors_total_count = data.get(
+        "skipped_errors_total_count", skipped_files_count
+    )
+    skipped_errors_truncated = data.get(
+        "skipped_errors_truncated",
+        isinstance(skipped_errors, list)
+        and _is_int_not_bool(skipped_errors_total_count)
+        and skipped_errors_total_count > len(skipped_errors),
+    )
     diagnostics_valid = (
-        _is_int_not_bool(data.get("skipped_files_count"))
-        and data["skipped_files_count"] >= 0
-        and isinstance(data.get("skipped_errors"), list)
-        and len(data["skipped_errors"]) <= 20
-        and all(isinstance(item, str) for item in data["skipped_errors"])
+        _is_int_not_bool(skipped_files_count)
+        and skipped_files_count >= 0
+        and isinstance(skipped_errors, list)
+        and len(skipped_errors) <= 20
+        and all(isinstance(item, str) for item in skipped_errors)
+        and _is_int_not_bool(skipped_errors_total_count)
+        and skipped_errors_total_count == skipped_files_count
+        and skipped_errors_total_count >= len(skipped_errors)
+        and isinstance(skipped_errors_truncated, bool)
+        and skipped_errors_truncated
+        == (skipped_errors_total_count > len(skipped_errors))
     )
     if not diagnostics_valid:
         return _call_graph_error(
@@ -1554,7 +1580,7 @@ def _call_graph_model_error(data: dict[str, Any]) -> dict[str, Any] | None:
     nonclaims = data.get("does_not_establish")
     if (
         not _string_list_valid(nonclaims)
-        or not set(_CALL_GRAPH_DOES_NOT_ESTABLISH).issubset(nonclaims)
+        or not set(_CALL_GRAPH_REQUIRED_NONCLAIMS).issubset(nonclaims)
     ):
         return _call_graph_error(
             "python_call_graph_nonclaims_invalid",
@@ -1703,6 +1729,15 @@ def _call_graph_metadata(data: dict[str, Any]) -> dict[str, Any]:
         "relation_counts": data.get("relation_counts"),
         "skipped_files_count": data.get("skipped_files_count"),
         "skipped_errors": data.get("skipped_errors"),
+        "skipped_errors_total_count": data.get(
+            "skipped_errors_total_count", data.get("skipped_files_count")
+        ),
+        "skipped_errors_truncated": data.get(
+            "skipped_errors_truncated",
+            isinstance(data.get("skipped_errors"), list)
+            and _is_int_not_bool(data.get("skipped_files_count"))
+            and data["skipped_files_count"] > len(data["skipped_errors"]),
+        ),
     }
 
 
@@ -1723,7 +1758,13 @@ def _validated_call_query(
     path: Any,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, str, str | None] | dict[str, Any]:
     def _extra(artifact: dict[str, Any] | None) -> dict[str, Any]:
-        return {"name": name, "k": k, "call_graph": artifact, **_call_empty(kind)}
+        return {
+            "name": name,
+            "k": k,
+            "filters": {"path": path},
+            "call_graph": artifact,
+            **_call_empty(kind),
+        }
 
     if not isinstance(name, str) or not name.strip():
         return _invalid_read_result(

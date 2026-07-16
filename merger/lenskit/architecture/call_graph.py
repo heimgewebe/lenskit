@@ -11,7 +11,7 @@ import os
 from operator import attrgetter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from merger.lenskit.architecture.symbol_index import (
     EXCLUDED_DIRS,
@@ -31,6 +31,7 @@ DOES_NOT_ESTABLISH = (
     "runtime_reachability",
     "dynamic_dispatch_resolution",
     "dependency_completeness",
+    "transitive_import_resolution",
     "import_success",
     "test_sufficiency",
     "review_completeness",
@@ -40,28 +41,18 @@ DOES_NOT_ESTABLISH = (
 _FUNCTION_KINDS = ("function", "async_function")
 
 
-@dataclass
+@dataclass(frozen=True)
 class _ScopeFrame:
+    """Immutable lexical-scope snapshot shared safely by recorded calls."""
+
     name: str | None
     kind: str
-    local_bindings: set[str] = field(default_factory=set)
-    global_names: set[str] = field(default_factory=set)
-    nonlocal_names: set[str] = field(default_factory=set)
+    local_bindings: frozenset[str] = field(default_factory=frozenset)
+    global_names: frozenset[str] = field(default_factory=frozenset)
+    nonlocal_names: frozenset[str] = field(default_factory=frozenset)
     start_line: int | None = None
     end_line: int | None = None
     receiver_name: str | None = None
-
-    def copy(self) -> "_ScopeFrame":
-        return _ScopeFrame(
-            name=self.name,
-            kind=self.kind,
-            local_bindings=set(self.local_bindings),
-            global_names=set(self.global_names),
-            nonlocal_names=set(self.nonlocal_names),
-            start_line=self.start_line,
-            end_line=self.end_line,
-            receiver_name=self.receiver_name,
-        )
 
 
 class _ModuleState:
@@ -191,9 +182,9 @@ def _function_frame(
     return _ScopeFrame(
         name=name,
         kind=kind,
-        local_bindings=collector.local,
-        global_names=collector.global_names,
-        nonlocal_names=collector.nonlocal_names,
+        local_bindings=frozenset(collector.local),
+        global_names=frozenset(collector.global_names),
+        nonlocal_names=frozenset(collector.nonlocal_names),
         start_line=int(getattr(node, "lineno", 0) or 0) or None,
         end_line=int(getattr(node, "end_lineno", 0) or 0) or None,
         receiver_name=receiver_name,
@@ -207,7 +198,7 @@ def _class_frame(node: ast.ClassDef) -> _ScopeFrame:
     return _ScopeFrame(
         name=node.name,
         kind="class",
-        local_bindings=collector.local,
+        local_bindings=frozenset(collector.local),
         start_line=int(getattr(node, "lineno", 0) or 0) or None,
         end_line=int(getattr(node, "end_lineno", 0) or 0) or None,
     )
@@ -327,7 +318,9 @@ class _CallGraphVisitor(ast.NodeVisitor):
         for child in ast.walk(node):
             if isinstance(child, ast.comprehension):
                 local.update(_target_names(child.target))
-        self.stack.append(_ScopeFrame(name=None, kind="comprehension", local_bindings=local))
+        self.stack.append(
+            _ScopeFrame(name=None, kind="comprehension", local_bindings=frozenset(local))
+        )
         self.generic_visit(node)
         self.stack.pop()
 
@@ -403,17 +396,31 @@ class _CallGraphVisitor(ast.NodeVisitor):
         return None
 
     def visit_Call(self, node: ast.Call) -> Any:
-        start = getattr(node, "lineno", None)
-        end = getattr(node, "end_lineno", None) or start
-        if isinstance(start, int) and isinstance(end, int):
+        start_line = getattr(node, "lineno", None)
+        if isinstance(start_line, int) and start_line >= 1:
+            start_col = max(int(getattr(node, "col_offset", 0) or 0), 0)
+            raw_end_line = getattr(node, "end_lineno", None)
+            end_line = (
+                raw_end_line
+                if isinstance(raw_end_line, int) and raw_end_line >= start_line
+                else start_line
+            )
+            raw_end_col = getattr(node, "end_col_offset", None)
+            if isinstance(raw_end_col, int) and raw_end_col >= 0:
+                end_col = raw_end_col
+            else:
+                end_col = start_col if end_line == start_line else 0
+            if end_line == start_line and end_col < start_col:
+                end_col = start_col
             self.state.calls.append(
                 {
-                    "start_line": start,
-                    "start_col": int(getattr(node, "col_offset", 0)),
-                    "end_line": end,
-                    "end_col": int(getattr(node, "end_col_offset", 0) or 0),
+                    "start_line": start_line,
+                    "start_col": start_col,
+                    "end_line": end_line,
+                    "end_col": end_col,
                     "func": node.func,
-                    "stack": [frame.copy() for frame in self.stack],
+                    # The stack list changes while traversing; its frozen frames do not.
+                    "stack": tuple(self.stack),
                 }
             )
         self.generic_visit(node)
@@ -432,11 +439,11 @@ def _dotted_parts(node: ast.expr) -> list[str] | None:
     return None
 
 
-def _named_frames(stack: list[_ScopeFrame]) -> list[_ScopeFrame]:
+def _named_frames(stack: Sequence[_ScopeFrame]) -> list[_ScopeFrame]:
     return [frame for frame in stack if frame.name and frame.kind in CALLER_KINDS]
 
 
-def _caller_fields(path: str, stack: list[_ScopeFrame]) -> dict[str, Any]:
+def _caller_fields(path: str, stack: Sequence[_ScopeFrame]) -> dict[str, Any]:
     named = _named_frames(stack)
     if not named:
         return {
@@ -523,7 +530,7 @@ class _Resolver:
         return _verdict("unresolved", f"{reason_prefix}_name_not_found")
 
     def _shadow_reason(
-        self, name: str, stack: list[_ScopeFrame]
+        self, name: str, stack: Sequence[_ScopeFrame]
     ) -> tuple[str | None, bool]:
         inside_function = False
         for frame in reversed(stack):
@@ -542,7 +549,7 @@ class _Resolver:
         return None, False
 
     def _recursive_target(
-        self, state: _ModuleState, name: str, stack: list[_ScopeFrame]
+        self, state: _ModuleState, name: str, stack: Sequence[_ScopeFrame]
     ) -> dict[str, Any] | None:
         for depth in range(len(stack), 0, -1):
             frame = stack[depth - 1]
@@ -618,7 +625,7 @@ class _Resolver:
         return _verdict("unresolved", "unknown_name")
 
     def _resolve_name(
-        self, state: _ModuleState, name: str, stack: list[_ScopeFrame]
+        self, state: _ModuleState, name: str, stack: Sequence[_ScopeFrame]
     ) -> dict[str, Any]:
         shadow_reason, force_module = self._shadow_reason(name, stack)
         if shadow_reason:
@@ -645,7 +652,7 @@ class _Resolver:
         return self._local_binding_verdict(local_functions, local_classes)
 
     def _direct_method_context(
-        self, root: str, stack: list[_ScopeFrame]
+        self, root: str, stack: Sequence[_ScopeFrame]
     ) -> tuple[_ScopeFrame, _ScopeFrame] | None:
         function_index: int | None = None
         for index in range(len(stack) - 1, -1, -1):
@@ -663,7 +670,7 @@ class _Resolver:
         return method, stack[function_index - 1]
 
     def _resolve_receiver_dotted(
-        self, state: _ModuleState, parts: list[str], stack: list[_ScopeFrame]
+        self, state: _ModuleState, parts: list[str], stack: Sequence[_ScopeFrame]
     ) -> dict[str, Any]:
         if len(parts) != 2:
             return _verdict("unresolved", "nested_receiver_attribute_call")
@@ -690,7 +697,7 @@ class _Resolver:
         return _verdict("unresolved", "method_not_defined_in_same_class")
 
     def _resolve_module_dotted(
-        self, state: _ModuleState, parts: list[str], stack: list[_ScopeFrame]
+        self, state: _ModuleState, parts: list[str], stack: Sequence[_ScopeFrame]
     ) -> dict[str, Any]:
         shadow_reason, _ = self._shadow_reason(parts[0], stack)
         if shadow_reason:
@@ -716,7 +723,7 @@ class _Resolver:
         return _verdict("unresolved", "dynamic_attribute_call")
 
     def _resolve_dotted(
-        self, state: _ModuleState, parts: list[str], stack: list[_ScopeFrame]
+        self, state: _ModuleState, parts: list[str], stack: Sequence[_ScopeFrame]
     ) -> dict[str, Any]:
         if parts[0] in ("self", "cls"):
             return self._resolve_receiver_dotted(state, parts, stack)
@@ -825,5 +832,7 @@ def generate_call_graph_document(
         "calls": calls,
         "skipped_files_count": skipped_count,
         "skipped_errors": skipped_errors,
+        "skipped_errors_total_count": skipped_count,
+        "skipped_errors_truncated": skipped_count > len(skipped_errors),
         "does_not_establish": list(DOES_NOT_ESTABLISH),
     }
