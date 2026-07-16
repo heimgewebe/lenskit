@@ -5149,6 +5149,19 @@ def generate_derived_manifest(base_name_func, run_id, dump_sha256, artifacts_map
     out_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
     return out_path
 
+
+def _handle_snapshot_retrieval_measurement_error(exc, *, debug: bool) -> None:
+    """Degrade only an unavailable optional validator; re-raise all data errors."""
+
+    if exc.code != "canonical_validation_unavailable":
+        raise exc
+    if debug:
+        print(
+            "Skipping canonical retrieval evaluation: jsonschema is unavailable",
+            file=sys.stderr,
+        )
+
+
 def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id, hub_path, generator_info, repo_names, debug, repo_summaries=None) -> List[Path]:
     derived_paths = []
     sqlite_index_path = None
@@ -5203,15 +5216,7 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
                 )
                 derived_paths.append(eval_json_path)
         except SnapshotRetrievalMeasurementError as exc:
-            if exc.code == "canonical_validation_unavailable":
-                if debug:
-                    print(
-                        "Skipping canonical retrieval evaluation: "
-                        "jsonschema is unavailable",
-                        file=sys.stderr,
-                    )
-            else:
-                raise
+            _handle_snapshot_retrieval_measurement_error(exc, debug=debug)
         except Exception as e:
             if debug:
                 print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
