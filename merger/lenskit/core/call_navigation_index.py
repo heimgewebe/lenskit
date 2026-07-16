@@ -20,7 +20,9 @@ CallerIdentity = tuple[str | None, str, str | None, str | None, int | None, int 
 def _freeze_postings(
     values: Mapping[Any, list[int]],
 ) -> Mapping[Any, tuple[int, ...]]:
-    return MappingProxyType({key: tuple(positions) for key, positions in values.items()})
+    return MappingProxyType(
+        {key: tuple(positions) for key, positions in values.items()}
+    )
 
 
 def _trigrams(value: str) -> frozenset[str]:
@@ -59,9 +61,7 @@ def _call_position_key(call: CallRow) -> tuple[str, int, int]:
     )
 
 
-def _validated_positions(
-    value: Any, *, call_count: int, label: str
-) -> tuple[int, ...]:
+def _validated_positions(value: Any, *, call_count: int, label: str) -> tuple[int, ...]:
     if not isinstance(value, list):
         raise ValueError(f"persisted call navigation index {label} is invalid")
     positions = tuple(value)
@@ -89,9 +89,7 @@ def _persisted_postings(
     result: dict[str, tuple[int, ...]] = {}
     for key, positions in raw.items():
         if not isinstance(key, str):
-            raise ValueError(
-                f"persisted call navigation index {field} key is invalid"
-            )
+            raise ValueError(f"persisted call navigation index {field} key is invalid")
         result[key] = _validated_positions(
             positions,
             call_count=call_count,
@@ -221,7 +219,9 @@ class CallNavigationIndex:
         trigrams = _trigrams(query)
         if not trigrams:
             return set(range(len(self.calls)))
-        postings = [self.expression_trigram_positions.get(item, ()) for item in trigrams]
+        postings = [
+            self.expression_trigram_positions.get(item, ()) for item in trigrams
+        ]
         if not postings or any(not positions for positions in postings):
             return set()
         smallest, *remaining = sorted(postings, key=len)
@@ -260,7 +260,9 @@ class CallNavigationIndex:
 
     def calls_for_symbol(self, symbol: SymbolRow) -> list[CallRow]:
         identity = caller_identity_from_symbol(symbol)
-        return [self.calls[position] for position in self.caller_positions.get(identity, ())]
+        return [
+            self.calls[position] for position in self.caller_positions.get(identity, ())
+        ]
 
     def persisted_projection(self, source_calls_sha256: str) -> dict[str, Any]:
         """Create the deterministic sidecar candidate used only by the benchmark."""
@@ -272,7 +274,9 @@ class CallNavigationIndex:
             {"identity": list(key), "positions": list(self.caller_positions[key])}
             for key in sorted(
                 self.caller_positions,
-                key=lambda item: tuple("" if value is None else str(value) for value in item),
+                key=lambda item: tuple(
+                    "" if value is None else str(value) for value in item
+                ),
             )
         ]
         return {
@@ -324,7 +328,10 @@ class SymbolNavigationIndex:
         matches = []
         for position in self.exact_query_positions.get(query, ()):
             symbol = self.symbols[position]
-            if path_filter and path_filter not in str(symbol.get("path", "")).casefold():
+            if (
+                path_filter
+                and path_filter not in str(symbol.get("path", "")).casefold()
+            ):
                 continue
             matches.append(symbol)
         return sorted(
