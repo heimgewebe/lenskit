@@ -54,9 +54,10 @@ def test_small_benchmark_proves_equivalence_and_reports_all_candidates(tmp_path)
     assert tier["equivalence"]["byte_equivalent"] is True
     assert tier["linear_scan"]["bundle_bytes"] > 0
     assert tier["process_local_index"]["build_retained_bytes"] > 0
-    assert tier["process_local_index"]["build_peak_bytes"] >= tier[
-        "process_local_index"
-    ]["build_retained_bytes"]
+    assert (
+        tier["process_local_index"]["build_peak_bytes"]
+        >= tier["process_local_index"]["build_retained_bytes"]
+    )
     assert tier["persisted_sidecar"]["sidecar_bytes"] > 0
     assert tier["persisted_sidecar"]["source_hash_bound"] is True
 
@@ -70,10 +71,7 @@ def test_committed_measurement_and_proof_are_consistent():
         / "repobrief-call-navigation-scale-index-v1.measurement.json"
     )
     proof_path = (
-        root
-        / "docs"
-        / "proofs"
-        / "repobrief-call-navigation-scale-index-v1-proof.md"
+        root / "docs" / "proofs" / "repobrief-call-navigation-scale-index-v1-proof.md"
     )
     raw = measurement_path.read_bytes()
     measurement = json.loads(raw)
@@ -87,8 +85,7 @@ def test_committed_measurement_and_proof_are_consistent():
     assert measurement["decision"]["cache_max_entries"] == 2
     assert measurement["mcp"]["cold_warm_byte_equivalent"] is True
     assert all(
-        tier["equivalence"]["byte_equivalent"] is True
-        for tier in measurement["tiers"]
+        tier["equivalence"]["byte_equivalent"] is True for tier in measurement["tiers"]
     )
     assert all(
         tier["process_local_index"]["warm_query_batch"]["median_ms"]

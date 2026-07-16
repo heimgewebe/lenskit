@@ -22,11 +22,7 @@ def _call(position: int) -> dict:
     status = ("resolved", "candidate", "unresolved")[position % 3]
     target_id = f"py:pkg:t{target}.py:function:target_{target}"
     simple_name = f"target_{target}"
-    expression = (
-        simple_name
-        if position % 5
-        else f"registry.handlers.{simple_name}"
-    )
+    expression = simple_name if position % 5 else f"registry.handlers.{simple_name}"
     return {
         "path": f"pkg/c{caller}.py",
         "start_line": position // 47 + 1,
@@ -99,9 +95,7 @@ def test_symbol_index_preserves_exact_selection_and_duplicate_order():
         "other/c1.py",
         "pkg/c1.py",
     ]
-    assert [row["path"] for row in index.select("caller_1", "pkg/")] == [
-        "pkg/c1.py"
-    ]
+    assert [row["path"] for row in index.select("caller_1", "pkg/")] == ["pkg/c1.py"]
     assert index.select("missing", None) == []
 
 
@@ -128,9 +122,7 @@ def test_persisted_candidate_reconstructs_equivalent_index_and_rejects_wrong_sou
     assert restored.reference_calls("target_7") == original.reference_calls("target_7")
     assert restored.target_related_calls(
         "py:pkg:t7.py:function:target_7", "target_7"
-    ) == original.target_related_calls(
-        "py:pkg:t7.py:function:target_7", "target_7"
-    )
+    ) == original.target_related_calls("py:pkg:t7.py:function:target_7", "target_7")
     with pytest.raises(ValueError, match="source binding mismatch"):
         CallNavigationIndex.from_persisted_projection(calls, projection, "0" * 64)
 

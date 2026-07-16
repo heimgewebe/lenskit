@@ -165,7 +165,10 @@ def _query_set(calls: Sequence[dict[str, Any]], limit: int = 20) -> dict[str, An
         if call.get("simple_name")
     )
     references = [
-        name for name, _ in sorted(name_counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+        name
+        for name, _ in sorted(
+            name_counts.items(), key=lambda item: (-item[1], item[0])
+        )[:limit]
     ]
 
     targets: dict[tuple[str, str], None] = {}
@@ -325,7 +328,9 @@ def benchmark_tier(
     }
 
 
-def _count(calls: Sequence[dict[str, Any]], field: str, keys: Sequence[str]) -> dict[str, int]:
+def _count(
+    calls: Sequence[dict[str, Any]], field: str, keys: Sequence[str]
+) -> dict[str, int]:
     result = {key: 0 for key in keys}
     for call in calls:
         result[str(call[field])] += 1
@@ -509,7 +514,9 @@ def run_benchmark(
     skipped_files_count = None
     skipped_errors: list[str] = []
     if include_real_repo:
-        real_calls, skipped_files_count, skipped_errors = extract_python_calls(repo_path)
+        real_calls, skipped_files_count, skipped_errors = extract_python_calls(
+            repo_path
+        )
         tiers.append(
             benchmark_tier(
                 real_calls,
@@ -518,9 +525,7 @@ def run_benchmark(
                 cold_repetitions=cold_repetitions,
             )
         )
-    equivalence_pass = all(
-        tier["equivalence"]["byte_equivalent"] for tier in tiers
-    )
+    equivalence_pass = all(tier["equivalence"]["byte_equivalent"] for tier in tiers)
     report = {
         "kind": "repobrief.call_navigation_scale_benchmark",
         "version": "1.0",
@@ -572,7 +577,9 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=".")
     parser.add_argument("--output")
-    parser.add_argument("--synthetic-call-count", type=int, default=DEFAULT_SYNTHETIC_CALL_COUNT)
+    parser.add_argument(
+        "--synthetic-call-count", type=int, default=DEFAULT_SYNTHETIC_CALL_COUNT
+    )
     parser.add_argument("--query-repetitions", type=int, default=7)
     parser.add_argument("--cold-repetitions", type=int, default=3)
     parser.add_argument("--mcp-repetitions", type=int, default=10)
@@ -582,12 +589,15 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if min(
-        args.synthetic_call_count,
-        args.query_repetitions,
-        args.cold_repetitions,
-        args.mcp_repetitions,
-    ) < 1:
+    if (
+        min(
+            args.synthetic_call_count,
+            args.query_repetitions,
+            args.cold_repetitions,
+            args.mcp_repetitions,
+        )
+        < 1
+    ):
         raise SystemExit("benchmark counts must be positive")
     report = run_benchmark(
         args.repo,
