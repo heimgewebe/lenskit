@@ -280,6 +280,66 @@ def _relation_path_value(value: Any) -> str | None:
     return None
 
 
+def _relation_candidate_from_line(
+    line: str,
+    *,
+    row_number: int,
+    query: str,
+    compact_query: str,
+    bytes_per_token: float,
+) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        card = json.loads(line)
+    except ValueError as exc:
+        return None, str(exc)
+    if not isinstance(card, dict):
+        return None, "row_not_object"
+
+    source_path = _relation_path_value(card.get("source"))
+    target_path = _relation_path_value(card.get("target"))
+    evidence = card.get("evidence") if isinstance(card.get("evidence"), dict) else {}
+    haystack = " ".join(
+        str(value)
+        for value in (
+            card.get("relation"),
+            source_path,
+            target_path,
+            evidence.get("source_path"),
+            evidence.get("start_line"),
+            evidence.get("end_line"),
+        )
+    ).casefold()
+    if query and query not in haystack:
+        compact_haystack = _compact_match_text(haystack)
+        if not compact_query or compact_query not in compact_haystack:
+            return None, None
+
+    label = f"{source_path or '?'} -> {target_path or '?'} {card.get('relation') or ''}"
+    return _candidate(
+        candidate_id=f"relation:{row_number}",
+        source="relation_cards_jsonl",
+        priority=25 + row_number,
+        estimated_tokens=_estimate_tokens_from_text(label, bytes_per_token),
+        selection_reason="relation_card_match",
+        citations=[{
+            "artifact_role": "relation_cards_jsonl",
+            "source_path": source_path,
+            "target_path": target_path,
+            "evidence": evidence,
+            "evidence_level": card.get("evidence_level"),
+        }],
+        payload={
+            "title": label,
+            "artifact_role": "relation_cards_jsonl",
+            "path": source_path,
+            "relation": card.get("relation"),
+            "source_path": source_path,
+            "target_path": target_path,
+            "evidence": evidence,
+        },
+    ), None
+
+
 def _relation_candidates(
     status: Mapping[str, Any],
     *,
@@ -304,6 +364,7 @@ def _relation_candidates(
             "error_code": "relation_cards_jsonl_file_missing",
             "reason": "relation_cards_jsonl artifact file does not exist",
         }]
+
     q = query.strip().casefold()
     compact_query = _compact_match_text(q) if q else ""
     candidates: list[dict[str, Any]] = []
@@ -314,62 +375,21 @@ def _relation_candidates(
             for row_number, line in enumerate(rows, start=1):
                 if not line.strip():
                     continue
-                try:
-                    card = json.loads(line)
-                except ValueError as exc:
-                    invalid_row_count += 1
-                    if len(errors) < 10:
-                        errors.append({"row": row_number, "error": str(exc)})
-                    continue
-                if not isinstance(card, dict):
-                    invalid_row_count += 1
-                    if len(errors) < 10:
-                        errors.append({"row": row_number, "error": "row_not_object"})
-                    continue
-                source_path = _relation_path_value(card.get("source"))
-                target_path = _relation_path_value(card.get("target"))
-                evidence = card.get("evidence") if isinstance(card.get("evidence"), dict) else {}
-                haystack = " ".join(
-                    str(value)
-                    for value in (
-                        card.get("relation"),
-                        source_path,
-                        target_path,
-                        evidence.get("source_path"),
-                        evidence.get("start_line"),
-                        evidence.get("end_line"),
-                    )
-                ).casefold()
-                if q and q not in haystack:
-                    compact_haystack = _compact_match_text(haystack)
-                    if not compact_query or compact_query not in compact_haystack:
-                        continue
-                label = f"{source_path or '?'} -> {target_path or '?'} {card.get('relation') or ''}"
-                candidates.append(
-                    _candidate(
-                        candidate_id=f"relation:{row_number}",
-                        source="relation_cards_jsonl",
-                        priority=25 + row_number,
-                        estimated_tokens=_estimate_tokens_from_text(label, bytes_per_token),
-                        selection_reason="relation_card_match",
-                        citations=[{
-                            "artifact_role": "relation_cards_jsonl",
-                            "source_path": source_path,
-                            "target_path": target_path,
-                            "evidence": evidence,
-                            "evidence_level": card.get("evidence_level"),
-                        }],
-                        payload={
-                            "title": label,
-                            "artifact_role": "relation_cards_jsonl",
-                            "path": source_path,
-                            "relation": card.get("relation"),
-                            "source_path": source_path,
-                            "target_path": target_path,
-                            "evidence": evidence,
-                        },
-                    )
+                candidate, error = _relation_candidate_from_line(
+                    line,
+                    row_number=row_number,
+                    query=q,
+                    compact_query=compact_query,
+                    bytes_per_token=bytes_per_token,
                 )
+                if error is not None:
+                    invalid_row_count += 1
+                    if len(errors) < 10:
+                        errors.append({"row": row_number, "error": error})
+                    continue
+                if candidate is None:
+                    continue
+                candidates.append(candidate)
                 if len(candidates) >= signal_k:
                     while rows.read(RELATION_STREAM_VALIDATION_CHARS):
                         pass
@@ -381,6 +401,7 @@ def _relation_candidates(
             "error_code": "relation_cards_jsonl_unreadable",
             "reason": str(exc),
         }]
+
     gaps: list[dict[str, Any]] = []
     if invalid_row_count:
         gaps.append({"source": "relation_cards_jsonl", "status": "invalid_rows", "row_errors": errors})
@@ -388,7 +409,6 @@ def _relation_candidates(
         gaps.append({"source": "relation_cards_jsonl", "status": "empty", "reason": "relation card search returned no candidates"})
     signal_status = "warn" if invalid_row_count else "available"
     return candidates, {"status": signal_status, "hit_count": len(candidates), "invalid_row_count": invalid_row_count}, gaps
-
 
 def _required_reading_candidates(
     status: Mapping[str, Any],
