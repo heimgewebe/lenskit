@@ -1,3 +1,4 @@
+import builtins
 import hashlib
 import json
 from pathlib import Path
@@ -260,3 +261,38 @@ def test_derived_snapshot_does_not_swallow_invalid_canonical_goldset(tmp_path):
         SnapshotRetrievalMeasurementError, match="canonical_goldset_invalid"
     ):
         build_derived_artifacts(**args)
+
+
+def test_derived_snapshot_degrades_when_jsonschema_is_unavailable(
+    tmp_path, monkeypatch
+):
+    base, _, args = _setup(tmp_path)
+    repo_root = tmp_path / "repo1"
+    goldset = repo_root / "docs/retrieval/review_queries.v1.json"
+    goldset.parent.mkdir(parents=True)
+    source_goldset = (
+        Path(__file__).resolve().parents[3]
+        / "docs/retrieval/review_queries.v1.json"
+    )
+    goldset.write_bytes(source_goldset.read_bytes())
+    args["repo_summaries"] = [{"root": repo_root, "name": "repo1"}]
+
+    original_import = builtins.__import__
+
+    def import_without_jsonschema(name, *import_args, **import_kwargs):
+        if name == "jsonschema":
+            raise ImportError("simulated Pythonista runtime without jsonschema")
+        return original_import(name, *import_args, **import_kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_jsonschema)
+
+    derived_paths = build_derived_artifacts(**args)
+
+    sqlite_path = args["chunk_path"].with_suffix(".index.sqlite")
+    eval_path = base.with_suffix(".retrieval_eval.json")
+    graph_path = base.with_suffix(".graph_index.json")
+    assert sqlite_path in derived_paths
+    assert eval_path not in derived_paths
+    assert not eval_path.exists()
+    assert graph_path in derived_paths
+

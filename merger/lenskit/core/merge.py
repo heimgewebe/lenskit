@@ -5202,8 +5202,16 @@ def build_derived_artifacts(dump_index_path, chunk_path, base_name_func, run_id,
                     encoding="utf-8",
                 )
                 derived_paths.append(eval_json_path)
-        except SnapshotRetrievalMeasurementError:
-            raise
+        except SnapshotRetrievalMeasurementError as exc:
+            if exc.code == "canonical_validation_unavailable":
+                if debug:
+                    print(
+                        "Skipping canonical retrieval evaluation: "
+                        "jsonschema is unavailable",
+                        file=sys.stderr,
+                    )
+            else:
+                raise
         except Exception as e:
             if debug:
                 print(f"Error building derived index or evaluating: {e}", file=sys.stderr)
