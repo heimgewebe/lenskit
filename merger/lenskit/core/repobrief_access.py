@@ -1482,6 +1482,23 @@ def _strict_source_hash_enabled() -> bool:
     }
 
 
+def _read_stable_artifact_bytes(
+    artifact_path: Path,
+) -> tuple[bytes | None, os.stat_result | None, str | None, str | None]:
+    try:
+        with artifact_path.open("rb") as stream:
+            stat_before = os.fstat(stream.fileno())
+            raw = stream.read()
+            stat_after = os.fstat(stream.fileno())
+    except FileNotFoundError:
+        return None, None, "file_missing", None
+    except OSError as exc:
+        return None, None, "unreadable", str(exc)
+    if _file_identity(stat_before) != _file_identity(stat_after):
+        return None, None, "source_changed", None
+    return raw, stat_after, None, None
+
+
 def _read_registered_artifact_source(
     manifest_path: Path, role: str
 ) -> tuple[
@@ -1512,17 +1529,10 @@ def _read_registered_artifact_source(
     )
     if artifact_path is None:
         return None, artifact, "missing", None
-    try:
-        with artifact_path.open("rb") as stream:
-            stat_before = os.fstat(stream.fileno())
-            raw = stream.read()
-            stat_after = os.fstat(stream.fileno())
-    except FileNotFoundError:
-        return None, artifact, "file_missing", None
-    except OSError as exc:
-        return None, artifact, "unreadable", str(exc)
-    if _file_identity(stat_before) != _file_identity(stat_after):
-        return None, artifact, "source_changed", None
+    raw, artifact_stat, failure, detail = _read_stable_artifact_bytes(artifact_path)
+    if failure is not None:
+        return None, artifact, failure, detail
+    assert raw is not None and artifact_stat is not None
     declared_bytes = artifact_payload.get("bytes")
     if (
         isinstance(declared_bytes, int)
@@ -1540,11 +1550,11 @@ def _read_registered_artifact_source(
         role=role,
         absolute_path=str(artifact_path),
         artifact_sha256=actual_sha256,
-        device=stat_after.st_dev,
-        inode=stat_after.st_ino,
-        size=stat_after.st_size,
-        mtime_ns=stat_after.st_mtime_ns,
-        ctime_ns=stat_after.st_ctime_ns,
+        device=artifact_stat.st_dev,
+        inode=artifact_stat.st_ino,
+        size=artifact_stat.st_size,
+        mtime_ns=artifact_stat.st_mtime_ns,
+        ctime_ns=artifact_stat.st_ctime_ns,
     )
     return (
         _LoadedArtifactSource(
