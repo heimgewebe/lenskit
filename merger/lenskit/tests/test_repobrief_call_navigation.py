@@ -363,6 +363,22 @@ def test_get_callees_returns_resolved_targets_and_unresolved_sites(tmp_path):
     assert result["unresolved_call_sites"][0]["evidence_level"] == "S0"
 
 
+def test_invalid_navigation_payloads_preserve_filters_and_full_shape(tmp_path):
+    manifest = _bundle(tmp_path)
+
+    access_result = find_references(manifest, "", path="pkg/a.py")
+    wrapped = repobrief_mcp_tools.find_references(
+        bundle_manifest=str(manifest), name="", path="pkg/a.py"
+    )
+
+    assert access_result["status"] == "invalid"
+    assert access_result["filters"] == {"path": "pkg/a.py"}
+    assert access_result["hits"] == []
+    assert access_result["call_graph"] is None
+    assert wrapped["status"] == "invalid"
+    assert wrapped["result"] == access_result
+
+
 def test_navigation_path_filter_and_invalid_k_fail_closed(tmp_path):
     manifest = _bundle(tmp_path)
     filtered = find_references(manifest, "target", path="pkg/b.py")

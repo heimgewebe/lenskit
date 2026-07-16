@@ -55,6 +55,8 @@
       "items": {"type": "string"},
       "maxItems": 20
     },
+    "skipped_errors_total_count": {"type": "integer", "minimum": 0},
+    "skipped_errors_truncated": {"type": "boolean"},
     "does_not_establish": {
       "type": "array",
       "items": {
@@ -64,6 +66,7 @@
           "runtime_reachability",
           "dynamic_dispatch_resolution",
           "dependency_completeness",
+          "transitive_import_resolution",
           "import_success",
           "test_sufficiency",
           "review_completeness",

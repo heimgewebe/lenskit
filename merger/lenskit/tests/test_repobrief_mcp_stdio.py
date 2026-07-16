@@ -331,6 +331,34 @@ def test_serve_stdio_returns_parse_error_without_traceback(tmp_path):
     assert response["error"] == {"code": -32700, "message": "parse error"}
 
 
+def test_mcp_stdio_rejects_invalid_call_navigation_params_at_transport(tmp_path):
+    manifest = _manifest(tmp_path)
+    server = RepoBriefMcpStdioServer(bundle_root=tmp_path)
+    _initialize(server)
+
+    response = server.handle_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "find_references",
+                "arguments": {
+                    "bundle_manifest": str(manifest),
+                    "name": "",
+                    "path": "pkg/a.py",
+                    "k": 25,
+                },
+            },
+        }
+    )
+
+    assert response["error"] == {
+        "code": -32602,
+        "message": "find_references requires a non-empty name",
+    }
+
+
 def test_mcp_stdio_dispatches_get_callees_and_adds_freshness(tmp_path, monkeypatch):
     manifest = _manifest(tmp_path)
     server = RepoBriefMcpStdioServer(bundle_root=tmp_path)

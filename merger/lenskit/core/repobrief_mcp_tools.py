@@ -428,29 +428,6 @@ def _call_navigation_result(
     }
 
 
-def _invalid_call_navigation(
-    tool: str,
-    result_kind: str,
-    result_semantics: str,
-    empty_key: str,
-    error: str,
-    error_code: str,
-) -> dict[str, Any]:
-    return _call_navigation_result(
-        tool,
-        "invalid",
-        {
-            "kind": result_kind,
-            "version": "v1",
-            "status": "invalid",
-            "error": error,
-            "error_code": error_code,
-            empty_key: [],
-            "hit_count": 0,
-        },
-        result_semantics,
-    )
-
 
 def find_references(
     *,
@@ -469,19 +446,9 @@ def find_references(
     artifact yields a missing/invalid result and never triggers a refresh.
     """
     from merger.lenskit.core.repobrief_access import (
-        CALL_REFERENCES_KIND,
         find_references as access_find_references,
     )
 
-    if not isinstance(name, str) or not name.strip():
-        return _invalid_call_navigation(
-            "find_references",
-            CALL_REFERENCES_KIND,
-            "repobrief.call_reference_search.v1",
-            "hits",
-            "name must be a non-empty string",
-            "name_invalid",
-        )
     result = access_find_references(bundle_manifest, name, path=path, k=k)
     return _call_navigation_result(
         "find_references",
@@ -507,19 +474,9 @@ def get_callers(
     Fails closed like ``find_references``; reads never refresh the snapshot.
     """
     from merger.lenskit.core.repobrief_access import (
-        CALL_CALLERS_KIND,
         get_callers as access_get_callers,
     )
 
-    if not isinstance(name, str) or not name.strip():
-        return _invalid_call_navigation(
-            "get_callers",
-            CALL_CALLERS_KIND,
-            "repobrief.call_callers.v1",
-            "callers",
-            "name must be a non-empty string",
-            "name_invalid",
-        )
     result = access_get_callers(bundle_manifest, name, path=path, k=k)
     return _call_navigation_result(
         "get_callers",
@@ -544,19 +501,9 @@ def get_callees(
     Reads never refresh the snapshot and do not establish runtime reachability.
     """
     from merger.lenskit.core.repobrief_access import (
-        CALL_CALLEES_KIND,
         get_callees as access_get_callees,
     )
 
-    if not isinstance(name, str) or not name.strip():
-        return _invalid_call_navigation(
-            "get_callees",
-            CALL_CALLEES_KIND,
-            "repobrief.call_callees.v1",
-            "callees",
-            "name must be a non-empty string",
-            "name_invalid",
-        )
     result = access_get_callees(bundle_manifest, name, path=path, k=k)
     return _call_navigation_result(
         "get_callees",
