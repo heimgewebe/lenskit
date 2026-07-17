@@ -54,7 +54,7 @@ def test_contract_rejects_blocked_disposition_without_record():
         Draft7Validator(schema).validate(result)
 
 
-def test_v2_contract_rejects_weak_negative_semantics():
+def test_v2_contract_rejects_weak_negative_semantics_id():
     schema = _schema()
     result = _result()
     result["does_not_prove"] = ["A", "B", "C", "D", "E"]
@@ -62,7 +62,7 @@ def test_v2_contract_rejects_weak_negative_semantics():
         Draft7Validator(schema).validate(result)
 
 
-def test_v1_contract_now_rejects_weak_negative_semantics():
+def test_v1_contract_now_rejects_weak_negative_semantics_id():
     schema = _schema("v1")
     legacy = {
         "version": "audit_finding_set.v1",
@@ -88,3 +88,71 @@ def test_v1_contract_now_rejects_weak_negative_semantics():
     }
     with pytest.raises(ValidationError):
         Draft7Validator(schema).validate(legacy)
+
+
+def _accepted_record(result):
+    finding_id = result["findings"][0]["finding_id"]
+    return {
+        "version": "audit_verification_record.v1",
+        "authority": "diagnostic_signal",
+        "risk_class": "diagnostic",
+        "finding_id": finding_id,
+        "reviewed_revision": REVISION,
+        "decision": "accepted",
+        "verifier_id": "reviewer-v1",
+        "note": "Evidence was independently checked.",
+        "does_not_prove": [
+            "repository truth",
+            "review completeness",
+            "freshness beyond the recorded revision",
+            "permission to create issues, patches, commits, pushes, or merges",
+        ],
+    }
+
+
+def test_contract_rejects_record_marked_not_supplied():
+    schema = _schema()
+    result = _result()
+    finding = result["findings"][0]
+    finding["verification_record"] = _accepted_record(result)
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema).validate(result)
+
+
+@pytest.mark.parametrize(
+    ("disposition", "state", "reason"),
+    [
+        ("blocked_revision", "candidate", "verification_missing"),
+        ("blocked_citation", "candidate", "verification_missing"),
+    ],
+)
+def test_contract_binds_blocked_disposition_to_state_and_reason(disposition, state, reason):
+    schema = _schema()
+    result = _result()
+    finding = result["findings"][0]
+    finding["verification_record"] = _accepted_record(result)
+    finding["verification_disposition"] = disposition
+    finding["verification_applied"] = False
+    finding["state"] = state
+    finding["state_reason"] = reason
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema).validate(result)
+
+
+@pytest.mark.parametrize(
+    ("decision", "wrong_state"),
+    [("accepted", "wrong"), ("rejected", "verified"), ("unresolved", "verified")],
+)
+def test_contract_binds_applied_decision_to_output_state(decision, wrong_state):
+    schema = _schema()
+    result = _result()
+    finding = result["findings"][0]
+    record = _accepted_record(result)
+    record["decision"] = decision
+    finding["verification_record"] = record
+    finding["verification_disposition"] = "applied"
+    finding["verification_applied"] = True
+    finding["state_reason"] = "verification_decision"
+    finding["state"] = wrong_state
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema).validate(result)

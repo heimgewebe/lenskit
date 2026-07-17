@@ -50,5 +50,5 @@ pytest -q \
   merger/lenskit/tests/test_audit_finding_contract.py
 ```
 
-Local isolated result before publication: `71 passed`; Ruff and syntax checks passed.
+Local isolated result after self-review hardening: `78 passed`; Ruff and syntax checks passed.
 Repository-wide GitHub CI remains authoritative.

@@ -256,3 +256,15 @@ def test_output_and_verification_record_validate_against_contracts():
     Draft7Validator.check_schema(record_schema)
     Draft7Validator(record_schema).validate(record)
     Draft7Validator(output_schema).validate(result)
+
+
+def test_rejects_unhashable_verification_negative_semantics_as_contract_error():
+    record = _record()
+    record["does_not_prove"] = [
+        "repository truth",
+        "review completeness",
+        ["not", "hashable"],
+        "permission to create issues, patches, commits, pushes, or merges",
+    ]
+    with pytest.raises(AuditFindingError, match="does_not_prove"):
+        _adapt(verification_records=[record])

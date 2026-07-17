@@ -170,7 +170,7 @@ def _normalize_candidate(candidate: Any, lane_ids: frozenset[str]) -> dict[str, 
         raise AuditFindingError("candidate fields must be exactly lane_id, claim, citation_ids")
     lane_id = _require_identifier(candidate.get("lane_id"), "lane_id", _LANE_RE)
     if lane_id not in lane_ids:
-        raise AuditFindingError(f"candidate references unselected lane: {lane_id}")
+        raise AuditFindingError(&"candidate references unselected lane: {lane_id}")
     claim = _require_text(candidate.get("claim"), "claim", _MAX_CLAIM_CHARS)
     citation_ids = _normalize_citations(candidate.get("citation_ids"))
     return {
@@ -215,6 +215,7 @@ def _normalize_verification_records(
             not isinstance(does_not_prove, Sequence)
             or isinstance(does_not_prove, (str, bytes))
             or len(does_not_prove) != len(_VERIFICATION_DOES_NOT_PROVE)
+            or any(not isinstance(item, str) for item in does_not_prove)
             or len(set(does_not_prove)) != len(does_not_prove)
             or set(does_not_prove) != set(_VERIFICATION_DOES_NOT_PROVE)
         ):
