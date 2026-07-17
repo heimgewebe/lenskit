@@ -23,7 +23,7 @@ A later signal may not silently override a stronger safety boundary:
 4. only a fresh, citation-resolved candidate may receive a verifier state;
 5. without a verifier state it remains `candidate`.
 
-A preserved verifier verdict is marked `verifier_verdict_applied=false` when revision or
+A preserved verification record is marked `verification_applied=false` when revision or
 citation freshness blocks it. This prevents evidence loss while avoiding a false verified
 state.
 
