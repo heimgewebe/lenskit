@@ -300,6 +300,8 @@ def test_compile_context_plan_bounds_invalid_relation_row_details(tmp_path):
     assert relation_gap["row_errors_truncated"] is True
     assert len(relation_gap["row_errors"]) == 10
     assert {item["error_type"] for item in relation_gap["row_errors"]} == {"json_decode"}
+    assert all(item["message"] for item in relation_gap["row_errors"])
+    assert all("error" not in item for item in relation_gap["row_errors"])
 
 
 def test_compile_context_plan_does_not_match_missing_values_as_none(tmp_path):
@@ -323,6 +325,57 @@ def test_compile_context_plan_does_not_match_missing_values_as_none(tmp_path):
     assert signal["status"] == "available"
     assert signal["hit_count"] == 0
     assert not any(item["source"] == "relation_cards_jsonl" for item in plan["selected_context"])
+
+
+def test_compile_context_plan_compact_fallback_is_case_insensitive(tmp_path):
+    manifest = _write_complete_bundle(tmp_path)
+
+    plan = compile_context_plan(
+        manifest,
+        task="Explain the context compiler",
+        task_profile="basic_repo_question",
+        query="CONTEXT-COMPILER",
+        context_budget_tokens=120,
+        bytes_per_token=4.0,
+    )
+
+    signal = plan["signals"]["relation_cards_jsonl"]
+    assert signal["status"] == "available"
+    assert signal["hit_count"] == 1
+    assert any(item["source"] == "relation_cards_jsonl" for item in plan["selected_context"])
+
+
+def test_compile_context_plan_bounds_invalid_rows_before_hit_limit(tmp_path):
+    manifest = _write_complete_bundle(tmp_path)
+    relation_cards = tmp_path / "demo.relation_cards.jsonl"
+    valid_row = relation_cards.read_text(encoding="utf-8")
+    relation_cards.write_text(
+        "not-json\n" * 12 + valid_row + "unparsed-invalid-tail\n",
+        encoding="utf-8",
+    )
+    _refresh_artifact_metadata(manifest, role="relation_cards_jsonl", artifact_path=relation_cards)
+
+    plan = compile_context_plan(
+        manifest,
+        task="Explain the context compiler",
+        task_profile="basic_repo_question",
+        query="context compiler",
+        context_budget_tokens=120,
+        signal_k=1,
+        bytes_per_token=4.0,
+    )
+
+    signal = plan["signals"]["relation_cards_jsonl"]
+    relation_gap = next(gap for gap in plan["gaps"] if gap["source"] == "relation_cards_jsonl")
+    assert signal["status"] == "warn"
+    assert signal["candidate_limit_reached"] is True
+    assert signal["json_row_validation_complete"] is False
+    assert signal["invalid_row_count"] == 12
+    assert signal["invalid_row_count_scope"] == "parsed_prefix"
+    assert signal["row_error_sample_count"] == 10
+    assert signal["row_errors_truncated"] is True
+    assert relation_gap["row_errors_truncated"] is True
+    assert len(relation_gap["row_errors"]) == 10
 
 
 def test_compile_context_plan_prioritizes_relation_match_order_not_source_row(tmp_path):
@@ -458,6 +511,7 @@ def test_compile_context_plan_rejects_invalid_utf8_after_relation_hit(tmp_path, 
     assert relation_gap["error_code"] == "relation_cards_jsonl_unreadable"
     assert not any(item["source"] == "relation_cards_jsonl" for item in plan["selected_context"])
 
+
 def test_compile_context_plan_falls_back_to_required_reading_when_signals_missing(tmp_path):
     manifest = _write_fallback_bundle(tmp_path)
 
@@ -507,6 +561,20 @@ def test_compile_context_plan_rejects_invalid_budget(tmp_path):
 
     assert plan["status"] == "invalid"
     assert plan["error_code"] == "context_budget_out_of_bounds"
+    assert plan["mutation_boundary"]["writes"] == []
+
+
+def test_compile_context_plan_rejects_zero_signal_k(tmp_path):
+    manifest = _write_fallback_bundle(tmp_path)
+
+    plan = compile_context_plan(
+        manifest,
+        task="invalid",
+        signal_k=0,
+    )
+
+    assert plan["status"] == "invalid"
+    assert plan["error_code"] == "signal_k_out_of_bounds"
     assert plan["mutation_boundary"]["writes"] == []
 
 

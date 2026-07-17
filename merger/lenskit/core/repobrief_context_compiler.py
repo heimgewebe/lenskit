@@ -26,7 +26,7 @@ MAX_CONTEXT_BUDGET_TOKENS = 1_000_000
 MAX_SIGNAL_HITS = 50
 RELATION_ERROR_SAMPLE_LIMIT = 10
 # Preserve strict whole-artifact UTF-8 validation without retaining the unread tail.
-RELATION_STREAM_VALIDATION_CHUNK_CHARS = 64 * 1024
+RELATION_TAIL_VALIDATION_CHUNK_SIZE = 64 * 1024
 DEFAULT_BYTES_PER_TOKEN = 4.0
 
 DOES_NOT_ESTABLISH = (
@@ -300,6 +300,17 @@ def _relation_search_text(
     return " ".join(str(value) for value in values if value not in (None, "")).casefold()
 
 
+def _relation_query_matches(
+    haystack: str,
+    *,
+    query: str,
+    compact_query: str,
+) -> bool:
+    if not query or query in haystack:
+        return True
+    return bool(compact_query) and compact_query in _compact_match_text(haystack)
+
+
 def _relation_candidate_from_line(
     line: str,
     *,
@@ -325,9 +336,12 @@ def _relation_candidate_from_line(
         target_path=target_path,
         evidence=evidence,
     )
-    if query and query not in haystack:
-        if not compact_query or compact_query not in _compact_match_text(haystack):
-            return None, None
+    if not _relation_query_matches(
+        haystack,
+        query=query,
+        compact_query=compact_query,
+    ):
+        return None, None
 
     label = f"{source_path or '?'} -> {target_path or '?'} {card.get('relation') or ''}"
     return _candidate(
@@ -356,11 +370,12 @@ def _relation_candidate_from_line(
 
 
 def _consume_text_stream(handle: TextIO) -> bool:
-    """Strictly decode the tail in bounded chunks and report whether any tail existed."""
-    tail_present = False
-    while handle.read(RELATION_STREAM_VALIDATION_CHUNK_CHARS):
-        tail_present = True
-    return tail_present
+    """Strictly decode the tail; decode errors intentionally propagate to the caller."""
+    if not handle.read(RELATION_TAIL_VALIDATION_CHUNK_SIZE):
+        return False
+    while handle.read(RELATION_TAIL_VALIDATION_CHUNK_SIZE):
+        pass
+    return True
 
 
 def _relation_candidates(
@@ -390,7 +405,7 @@ def _relation_candidates(
 
     stripped_query = query.strip()
     q = stripped_query.casefold()
-    compact_query = _compact_match_text(stripped_query) if stripped_query else ""
+    compact_query = _compact_match_text(q) if q else ""
     candidates: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     invalid_row_count = 0
@@ -414,8 +429,8 @@ def _relation_candidates(
                     if len(errors) < RELATION_ERROR_SAMPLE_LIMIT:
                         errors.append({
                             "row": row_number,
-                            "error": error["message"],
                             "error_type": error["error_type"],
+                            "message": error["message"],
                         })
                     continue
                 if candidate is None:
