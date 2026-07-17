@@ -153,8 +153,85 @@ def _normalize_paths(changed_paths: Iterable[str]) -> list[str]:
     return normalized
 
 
+def _validate_inputs(
+    changed_paths: Iterable[str], review_query: str, max_lanes: int
+) -> list[str]:
+    if isinstance(changed_paths, (str, bytes)):
+        raise ValueError("changed_paths must be an iterable of repository paths")
+    try:
+        iter(changed_paths)
+    except TypeError as exc:
+        raise ValueError("changed_paths must be an iterable of repository paths") from exc
+    if not isinstance(review_query, str):
+        raise ValueError("review_query must be a string")
+    if isinstance(max_lanes, bool) or not isinstance(max_lanes, int):
+        raise ValueError("max_lanes must be an integer")
+    if not 1 <= max_lanes <= _MAX_LANES:
+        raise ValueError(f"max_lanes must be between 1 and {_MAX_LANES}")
+    return _normalize_paths(changed_paths)
+
+
 def _matching_signals(tokens: set[str], signals: Sequence[str]) -> list[str]:
     return [signal for signal in signals if signal in tokens]
+
+
+def _rank_lanes(
+    paths: Sequence[str], review_query: str
+) -> list[tuple[int, int, AuditLaneDefinition, list[str], list[str]]]:
+    query_tokens = _tokens(review_query)
+    path_tokens: set[str] = set()
+    for path in paths:
+        path_tokens.update(_tokens(path))
+
+    ranked: list[tuple[int, int, AuditLaneDefinition, list[str], list[str]]] = []
+    for order, lane in enumerate(_LANES):
+        path_matches = _matching_signals(path_tokens, lane.path_signals)
+        query_matches = _matching_signals(query_tokens, lane.query_signals)
+        score = (2 * len(path_matches)) + len(query_matches)
+        if score:
+            ranked.append((score, order, lane, path_matches, query_matches))
+    return sorted(ranked, key=lambda item: (-item[0], item[1]))
+
+
+def _render_lane(
+    score: int,
+    lane: AuditLaneDefinition,
+    path_matches: Sequence[str],
+    query_matches: Sequence[str],
+) -> dict[str, Any]:
+    return {
+        "id": lane.lane_id,
+        "title": lane.title,
+        "score": score,
+        "reasons": {
+            "path_signals": list(path_matches),
+            "query_signals": list(query_matches),
+        },
+        "required_evidence": list(lane.required_evidence),
+        "suggested_checks": list(lane.suggested_checks),
+    }
+
+
+def _render_lanes(
+    ranked: Sequence[tuple[int, int, AuditLaneDefinition, list[str], list[str]]],
+    max_lanes: int,
+) -> list[dict[str, Any]]:
+    selected = [
+        _render_lane(score, lane, path_matches, query_matches)
+        for score, _order, lane, path_matches, query_matches in ranked[:max_lanes]
+    ]
+    if selected:
+        return selected
+    return [
+        {
+            "id": "general_change_integrity",
+            "title": "General change integrity",
+            "score": 0,
+            "reasons": {"path_signals": [], "query_signals": []},
+            "required_evidence": ["implementation", "tests", "error_paths"],
+            "suggested_checks": ["contract_review", "regression_review", "failure_path_review"],
+        }
+    ]
 
 
 def plan_audit_lanes(
@@ -171,64 +248,8 @@ def plan_audit_lanes(
     order. If nothing matches, a single general integrity lane is emitted.
     """
 
-    if isinstance(changed_paths, (str, bytes)):
-        raise ValueError("changed_paths must be an iterable of repository paths")
-    try:
-        iter(changed_paths)
-    except TypeError as exc:
-        raise ValueError("changed_paths must be an iterable of repository paths") from exc
-    if not isinstance(review_query, str):
-        raise ValueError("review_query must be a string")
-    if isinstance(max_lanes, bool) or not isinstance(max_lanes, int):
-        raise ValueError("max_lanes must be an integer")
-    if not 1 <= max_lanes <= _MAX_LANES:
-        raise ValueError(f"max_lanes must be between 1 and {_MAX_LANES}")
-
-    paths = _normalize_paths(changed_paths)
-    query_tokens = _tokens(review_query)
-    path_tokens: set[str] = set()
-    for path in paths:
-        path_tokens.update(_tokens(path))
-
-    ranked: list[tuple[int, int, AuditLaneDefinition, list[str], list[str]]] = []
-    for order, lane in enumerate(_LANES):
-        path_matches = _matching_signals(path_tokens, lane.path_signals)
-        query_matches = _matching_signals(query_tokens, lane.query_signals)
-        score = (2 * len(path_matches)) + len(query_matches)
-        if score:
-            ranked.append((score, order, lane, path_matches, query_matches))
-
-    ranked.sort(key=lambda item: (-item[0], item[1]))
-    selected = ranked[:max_lanes]
-
-    lane_plans: list[dict[str, Any]] = []
-    for score, _order, lane, path_matches, query_matches in selected:
-        lane_plans.append(
-            {
-                "id": lane.lane_id,
-                "title": lane.title,
-                "score": score,
-                "reasons": {
-                    "path_signals": path_matches,
-                    "query_signals": query_matches,
-                },
-                "required_evidence": list(lane.required_evidence),
-                "suggested_checks": list(lane.suggested_checks),
-            }
-        )
-
-    if not lane_plans:
-        lane_plans.append(
-            {
-                "id": "general_change_integrity",
-                "title": "General change integrity",
-                "score": 0,
-                "reasons": {"path_signals": [], "query_signals": []},
-                "required_evidence": ["implementation", "tests", "error_paths"],
-                "suggested_checks": ["contract_review", "regression_review", "failure_path_review"],
-            }
-        )
-
+    paths = _validate_inputs(changed_paths, review_query, max_lanes)
+    lane_plans = _render_lanes(_rank_lanes(paths, review_query), max_lanes)
     return {
         "version": "audit_lane_plan.v1",
         "authority": "navigation_index",
