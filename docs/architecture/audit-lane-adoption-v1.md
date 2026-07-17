@@ -66,7 +66,7 @@ Acceptance gate: malformed, stale or citation-less findings fail closed.
 
 ### Phase 3 — isolated pilot runner — registered follow-up
 
-Run only 5–10 selected lanes in an ephemeral container with read-only source, no user
+Run only 5–8 selected lanes in an ephemeral container with read-only source, no user
 credentials, local output only, fixed call/time budgets and no automatic issue creation.
 
 Acceptance gate: sandbox evidence, bounded cost and deterministic run manifest.
@@ -104,7 +104,7 @@ confirmed defects without unacceptable noise.
 | --- | --- |
 | Prompt injection | No execution in Lenskit; later runner must be isolated and credential-free |
 | False positives | Separate evidence adapter and independent verification |
-| Cost explosion | Maximum eight planned lanes; pilot executes only 5–10 selected lanes with budgets |
+| Cost explosion | Maximum eight planned lanes; pilot executes only 5–8 selected lanes with budgets |
 | Authority drift | `navigation_index`, `diagnostic`, explicit `does_not_establish` |
 | Correlated model errors | Goldset comparison and method diversity, not repeated `DONE` claims |
 | Stale findings | Revision binding and freshness validation in Phase 2 |
