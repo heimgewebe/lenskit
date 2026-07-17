@@ -59,6 +59,9 @@ def test_emits_general_lane_when_no_signal_matches():
         ["src\\windows.py"],
         [""],
         [123],
+        "src/file.py",
+        None,
+        123,
     ],
 )
 def test_rejects_non_repository_paths(paths):
@@ -84,6 +87,19 @@ def test_output_validates_against_contract():
 
     Draft7Validator.check_schema(schema)
     Draft7Validator(schema).validate(plan)
+
+
+def test_normalizes_bounded_plural_and_phrase_aliases():
+    plan = plan_audit_lanes(
+        ["src/domain/widget.py"],
+        review_query="races, migrations, N+1 queries and false positives",
+    )
+
+    ids = [lane["id"] for lane in plan["lanes"]]
+    assert "concurrency_toctou" in ids
+    assert "storage_integrity" in ids
+    assert "performance_scale" in ids
+    assert "test_failure_semantics" in ids
 
 
 def test_plan_has_explicit_negative_semantics():
