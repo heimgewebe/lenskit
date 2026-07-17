@@ -14,6 +14,26 @@ from typing import Any, Iterable, Sequence
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _MAX_LANES = 8
+_PHRASE_ALIASES = {
+    "false positives": "falsepositive",
+    "false positive": "falsepositive",
+    "n+1": "nplusone",
+}
+_TOKEN_ALIASES = {
+    "caches": "cache",
+    "deployments": "deploy",
+    "errors": "error",
+    "failures": "failure",
+    "indices": "index",
+    "migrations": "migration",
+    "permissions": "permission",
+    "queries": "query",
+    "races": "race",
+    "releases": "release",
+    "secrets": "secret",
+    "tests": "test",
+    "tokens": "token",
+}
 
 
 @dataclass(frozen=True)
@@ -79,7 +99,7 @@ _LANES: tuple[AuditLaneDefinition, ...] = (
         lane_id="performance_scale",
         title="Performance and scale",
         path_signals=("index", "stream", "scan", "query", "graph", "cache", "batch"),
-        query_signals=("performance", "scale", "memory", "latency", "stream", "n+1"),
+        query_signals=("performance", "scale", "memory", "latency", "stream", "nplusone"),
         required_evidence=("hot_path", "boundedness", "measurement_or_regression_test"),
         suggested_checks=("full_scan_review", "allocation_review", "complexity_review"),
     ),
@@ -87,9 +107,13 @@ _LANES: tuple[AuditLaneDefinition, ...] = (
         lane_id="test_failure_semantics",
         title="Tests and failure semantics",
         path_signals=("test", "validator", "error", "exception", "result", "status"),
-        query_signals=("test", "failure", "error", "exception", "fallback", "false positive"),
+        query_signals=("test", "failure", "error", "exception", "fallback", "falsepositive"),
         required_evidence=("implementation", "negative_tests", "error_contract"),
-        suggested_checks=("fail_open_review", "error_propagation_review", "assertion_quality_review"),
+        suggested_checks=(
+            "fail_open_review",
+            "error_propagation_review",
+            "assertion_quality_review",
+        ),
     ),
 )
 
@@ -103,7 +127,12 @@ _DOES_NOT_ESTABLISH = (
 
 
 def _tokens(value: str) -> set[str]:
-    return set(_TOKEN_RE.findall(value.lower()))
+    normalized = value.lower()
+    for phrase, replacement in _PHRASE_ALIASES.items():
+        normalized = normalized.replace(phrase, replacement)
+    tokens = set(_TOKEN_RE.findall(normalized))
+    tokens.update(_TOKEN_ALIASES[token] for token in tuple(tokens) if token in _TOKEN_ALIASES)
+    return tokens
 
 
 def _normalize_paths(changed_paths: Iterable[str]) -> list[str]:
@@ -142,6 +171,12 @@ def plan_audit_lanes(
     order. If nothing matches, a single general integrity lane is emitted.
     """
 
+    if isinstance(changed_paths, (str, bytes)):
+        raise ValueError("changed_paths must be an iterable of repository paths")
+    try:
+        iter(changed_paths)
+    except TypeError as exc:
+        raise ValueError("changed_paths must be an iterable of repository paths") from exc
     if not isinstance(review_query, str):
         raise ValueError("review_query must be a string")
     if isinstance(max_lanes, bool) or not isinstance(max_lanes, int):
