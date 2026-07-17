@@ -15,7 +15,7 @@ Die folgenden Planungsartefakte sind aktiv und in Task-Control registriert:
 - `docs/blueprints/lenskit-anti-hallucination-output-architecture.md`
 - `docs/blueprints/repoground-artifact-output-control-plane.md`
 - `docs/blueprints/lenskit-authority-risk-matrix.md`
-- `docs/blueprints/lenskit-cli-operational-blueprint.md`
+- `docs/blueprints/repoground-cli-operational-blueprint.md`
 - `docs/blueprints/lenskit-evidence-address-architecture.md`
 - `docs/blueprints/range-ref-v2-semantic-boundary-split-preimage.md`
 - `docs/blueprints/agent-query-session-v1-v2-consolidation-decision.md`

@@ -1,3 +1,8 @@
+---
+status: superseded
+superseded_by: docs/blueprints/repoground-artifact-output-control-plane.md
+---
+
 # Moved: RepoGround Artifact Output Control Plane
 
 The current blueprint lives at

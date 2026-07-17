@@ -11,6 +11,11 @@ LEGACY_REPOBRIEF_DOC = REPO_ROOT / "docs/architecture/repobrief.md"
 NAMING_DOC = REPO_ROOT / "docs/architecture/naming.md"
 BUILD_SPEC = REPO_ROOT / "merger/repoground/repoground-build-spec.md"
 LEGACY_BUILD_SPEC = REPO_ROOT / "merger/repoground/repoLens-spec.md"
+CLI_BLUEPRINT = REPO_ROOT / "docs/blueprints/repoground-cli-operational-blueprint.md"
+LEGACY_ARTIFACT_BLUEPRINT = (
+    REPO_ROOT / "docs/blueprints/lenskit-artifact-output-control-plane.md"
+)
+ROADMAP_INDEX = REPO_ROOT / "docs/roadmap.md"
 
 
 def _read(path: Path) -> str:
@@ -152,3 +157,37 @@ def test_current_repoground_surfaces_do_not_reintroduce_retired_product_names() 
             if retired.search(line):
                 findings.append(f"{relative}:{number}:{line.strip()}")
     assert findings == []
+
+
+def test_cli_operational_blueprint_uses_real_repoground_commands() -> None:
+    text = _read(CLI_BLUEPRINT)
+
+    for expected in (
+        "python -m merger.repoground service-client --help",
+        "python -m merger.repoground rlens-client --help",
+        "merger.repoground.cli.serve",
+        "repoground service-client health",
+    ):
+        assert expected in text
+    for forbidden in ("repoground-client", "cli.repoground"):
+        assert forbidden not in text
+    assert "command -v repoground" in text
+    assert "kein dauerhafter Repository-Contract" in text
+
+
+def test_moved_artifact_blueprint_is_terminal_and_points_to_canonical_path() -> None:
+    text = _read(LEGACY_ARTIFACT_BLUEPRINT)
+
+    assert text.startswith("---\nstatus: superseded\n")
+    assert (
+        "superseded_by: docs/blueprints/repoground-artifact-output-control-plane.md"
+        in text
+    )
+    assert "not a second blueprint" in text
+
+
+def test_roadmap_registers_current_cli_blueprint() -> None:
+    text = _read(ROADMAP_INDEX)
+
+    assert "docs/blueprints/repoground-cli-operational-blueprint.md" in text
+    assert "docs/blueprints/lenskit-cli-operational-blueprint.md" not in text

@@ -113,7 +113,7 @@ python3 -m merger.repoground.cli.main agent-pack produce <bundle.manifest.json> 
 ```
 
 Weitere Subkommandos: `eval`, `architecture`, `atlas`, `federation`,
-`context-quality`, `governance`, `parity`, `artifact`, `repoground-client`, `verify`,
+`context-quality`, `governance`, `parity`, `artifact`, `service-client`, `verify`,
 `pr-explain`. Jeweils `--help` für Details.
 
 Federierte Query ohne persistierten Index:

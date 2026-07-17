@@ -432,7 +432,14 @@ def test_workflow_negative_control_checks_relation_callsite_message():
         for step in steps
         if step.get("name") == "Negative control (a tampered manifest must fail closed)"
     )
+    compact_run = " ".join(run.split())
     assert "relation_call_line" in run
+    assert 'endswith("/core/relation_card_validate.py")' in compact_run
+    assert '== "validate_relation_card"' in compact_run
+    assert '== "_schema_check"' in compact_run
+    assert 'endswith( "/contracts/relation-card.v1.schema.json" )' in compact_run
+    assert "len(matches) != 1" in run
+    assert "validate_relation_card|226|_schema_check|159" not in run
     assert "code=$?" in run
     assert "relation callsite mismatch" in run
 
@@ -496,6 +503,29 @@ def _tamper(tmp_path, mutate) -> Path:
     return path
 
 
+def _relation_card_flow_index(data: dict) -> int:
+    fields = data["fields"]
+    source_index = fields.index("source_path")
+    relation_owner_index = fields.index("relation_owner_symbol")
+    engine_owner_index = fields.index("engine_owner_symbol")
+    schema_index = fields.index("schema_path")
+    matches: list[int] = []
+    for index, row in enumerate(data["flows"]):
+        values = row.split("|")
+        assert len(values) == len(fields), f"invalid flow width at index {index}"
+        if (
+            values[source_index].endswith("/core/relation_card_validate.py")
+            and values[relation_owner_index] == "validate_relation_card"
+            and values[engine_owner_index] == "_schema_check"
+            and values[schema_index].endswith(
+                "/contracts/relation-card.v1.schema.json"
+            )
+        ):
+            matches.append(index)
+    assert len(matches) == 1, f"expected one relation-card flow, found {matches}"
+    return matches[0]
+
+
 @real_repo
 def test_missing_expected_parse_failures_rejected(tmp_path):
     base = json.loads(COMMITTED.read_text(encoding="utf-8"))["base"]
@@ -536,14 +566,7 @@ def test_wrong_relation_line_rejected_by_relation_gate(tmp_path):
 
     def change_relation_line(data):
         line_index = data["fields"].index("relation_call_line")
-        row_index = next(
-            index
-            for index, row in enumerate(data["flows"])
-            if row.startswith(
-                "merger/lenskit/core/relation_card_validate.py|"
-                "validate_relation_card|226|_schema_check|159"
-            )
-        )
+        row_index = _relation_card_flow_index(data)
         values = data["flows"][row_index].split("|")
         values[line_index] = str(int(values[line_index]) + 10_000)
         data["flows"][row_index] = "|".join(values)
@@ -560,14 +583,7 @@ def test_wrong_relation_owner_rejected_by_relation_gate(tmp_path):
 
     def change_relation_owner(data):
         owner_index = data["fields"].index("relation_owner_symbol")
-        row_index = next(
-            index
-            for index, row in enumerate(data["flows"])
-            if row.startswith(
-                "merger/lenskit/core/relation_card_validate.py|"
-                "validate_relation_card|226|_schema_check|159"
-            )
-        )
+        row_index = _relation_card_flow_index(data)
         values = data["flows"][row_index].split("|")
         values[owner_index] = "validate_relation_card_wrong_owner"
         data["flows"][row_index] = "|".join(values)
@@ -584,14 +600,7 @@ def test_wrong_delegated_helper_rejected_by_relation_gate(tmp_path):
 
     def change_helper(data):
         helper_index = data["fields"].index("engine_owner_symbol")
-        row_index = next(
-            index
-            for index, row in enumerate(data["flows"])
-            if row.startswith(
-                "merger/lenskit/core/relation_card_validate.py|"
-                "validate_relation_card|226|_schema_check|159"
-            )
-        )
+        row_index = _relation_card_flow_index(data)
         values = data["flows"][row_index].split("|")
         values[helper_index] = "_wrong_schema_check"
         data["flows"][row_index] = "|".join(values)
