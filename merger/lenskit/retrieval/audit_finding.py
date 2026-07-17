@@ -17,6 +17,10 @@ _REVISION_RE = re.compile(r"^[a-f0-9]{40}$")
 _CITATION_RE = re.compile(r"^cit_[a-f0-9]{16}$")
 _VERIFIER_STATES = frozenset({"verified", "wrong", "unresolved"})
 _STATES = ("candidate", "verified", "stale", "wrong", "unresolved")
+_MAX_TEXT_CHARS = 8192
+_MAX_CITATIONS = 64
+_CANDIDATE_KEYS = frozenset({"lane_id", "claim", "citation_ids"})
+_VERDICT_KEYS = frozenset({"finding_id", "state", "verifier_id", "note"})
 
 
 class AuditFindingError(ValueError):
@@ -32,18 +36,34 @@ def _require_revision(value: str, field: str) -> str:
 def _require_string(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise AuditFindingError(f"{field} must be a non-empty string")
-    return " ".join(value.split())
+    normalized = " ".join(value.split())
+    if len(normalized) > _MAX_TEXT_CHARS:
+        raise AuditFindingError(f"{field} exceeds {_MAX_TEXT_CHARS} characters")
+    return normalized
+
+
+def _require_items(values: Any, field: str) -> list[Any]:
+    if isinstance(values, (str, bytes)):
+        raise AuditFindingError(f"{field} must be an iterable")
+    try:
+        return list(values)
+    except TypeError as exc:
+        raise AuditFindingError(f"{field} must be an iterable") from exc
 
 
 def _normalize_citations(values: Any) -> tuple[str, ...]:
-    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence) or not values:
+    if not isinstance(values, Sequence) or isinstance(values, (str, bytes)) or not values:
         raise AuditFindingError("citation_ids must be a non-empty array")
-    normalized = tuple(sorted(set(values)))
-    if len(normalized) != len(values):
+    if len(values) > _MAX_CITATIONS:
+        raise AuditFindingError(f"citation_ids must contain at most {_MAX_CITATIONS} entries")
+    checked: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or _CITATION_RE.fullmatch(value) is None:
+            raise AuditFindingError("citation_ids must use the cit_<16 lower-hex> form")
+        checked.append(value)
+    if len(checked) != len(set(checked)):
         raise AuditFindingError("citation_ids must not contain duplicates")
-    if any(not isinstance(value, str) or _CITATION_RE.fullmatch(value) is None for value in normalized):
-        raise AuditFindingError("citation_ids must use the cit_<16 lower-hex> form")
-    return normalized
+    return tuple(sorted(checked))
 
 
 def make_audit_finding_id(lane_id: str, claim: str, citation_ids: Sequence[str]) -> str:
@@ -61,6 +81,8 @@ def make_audit_finding_id(lane_id: str, claim: str, citation_ids: Sequence[str])
 def _plan_lane_ids(plan: Mapping[str, Any]) -> frozenset[str]:
     if not isinstance(plan, Mapping) or plan.get("version") != "audit_lane_plan.v1":
         raise AuditFindingError("plan must be an audit_lane_plan.v1 object")
+    if plan.get("authority") != "navigation_index" or plan.get("risk_class") != "diagnostic":
+        raise AuditFindingError("plan authority and risk class must match audit_lane_plan.v1")
     lanes = plan.get("lanes")
     if not isinstance(lanes, Sequence) or isinstance(lanes, (str, bytes)) or not lanes:
         raise AuditFindingError("plan lanes must be a non-empty array")
@@ -75,20 +97,18 @@ def _plan_lane_ids(plan: Mapping[str, Any]) -> frozenset[str]:
 
 
 def _citation_registry(values: Iterable[str]) -> frozenset[str]:
-    if isinstance(values, (str, bytes)):
-        raise AuditFindingError("resolvable_citation_ids must be an iterable of citation ids")
-    try:
-        normalized = frozenset(values)
-    except TypeError as exc:
-        raise AuditFindingError("resolvable_citation_ids must be iterable") from exc
-    if any(not isinstance(value, str) or _CITATION_RE.fullmatch(value) is None for value in normalized):
-        raise AuditFindingError("resolvable_citation_ids contains an invalid citation id")
-    return normalized
+    items = _require_items(values, "resolvable_citation_ids")
+    for value in items:
+        if not isinstance(value, str) or _CITATION_RE.fullmatch(value) is None:
+            raise AuditFindingError("resolvable_citation_ids contains an invalid citation id")
+    return frozenset(items)
 
 
 def _normalize_candidate(candidate: Any, lane_ids: frozenset[str]) -> dict[str, Any]:
     if not isinstance(candidate, Mapping):
         raise AuditFindingError("candidates must contain objects")
+    if set(candidate) != _CANDIDATE_KEYS:
+        raise AuditFindingError("candidate fields must be exactly lane_id, claim, citation_ids")
     lane_id = _require_string(candidate.get("lane_id"), "lane_id")
     if lane_id not in lane_ids:
         raise AuditFindingError(f"candidate references unselected lane: {lane_id}")
@@ -103,12 +123,14 @@ def _normalize_candidate(candidate: Any, lane_ids: frozenset[str]) -> dict[str, 
 
 
 def _normalize_verdicts(values: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, str]]:
-    if isinstance(values, (str, bytes)):
-        raise AuditFindingError("verifier_verdicts must be an iterable of objects")
     verdicts: dict[str, dict[str, str]] = {}
-    for value in values:
+    for value in _require_items(values, "verifier_verdicts"):
         if not isinstance(value, Mapping):
             raise AuditFindingError("verifier_verdicts must contain objects")
+        if set(value) != _VERDICT_KEYS:
+            raise AuditFindingError(
+                "verdict fields must be exactly finding_id, state, verifier_id, note"
+            )
         finding_id = _require_string(value.get("finding_id"), "verdict finding_id")
         state = _require_string(value.get("state"), "verdict state")
         if state not in _VERIFIER_STATES:
@@ -173,9 +195,10 @@ def adapt_audit_findings(
     current = _require_revision(current_revision, "current_revision")
     lane_ids = _plan_lane_ids(plan)
     citation_registry = _citation_registry(resolvable_citation_ids)
-    if isinstance(candidates, (str, bytes)):
-        raise AuditFindingError("candidates must be an iterable of objects")
-    normalized = [_normalize_candidate(value, lane_ids) for value in candidates]
+    normalized = [
+        _normalize_candidate(value, lane_ids)
+        for value in _require_items(candidates, "candidates")
+    ]
     by_id = {value["finding_id"]: value for value in normalized}
     if len(by_id) != len(normalized):
         raise AuditFindingError("duplicate semantic candidate finding")
@@ -204,12 +227,15 @@ def adapt_audit_findings(
         "current_revision": current,
         "revision_fresh": not stale,
         "findings": findings,
-        "summary": {state: counts[state] for state in _STATES},
+        "state_counts": [
+            {"state": state, "count": counts[state]}
+            for state in _STATES
+        ],
         "allowed_inferences": [
             "which candidate claims were bound to selected lanes and known citations",
             "whether verifier verdicts were applied under the recorded revision",
         ],
-        "forbidden_inferences": [
+        "does_not_prove": [
             "repository truth",
             "review completeness",
             "runtime correctness",
