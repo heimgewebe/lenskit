@@ -87,20 +87,20 @@ def test_fresh_resolved_verdict_can_be_applied():
     result = _adapt(verifier_verdicts=[_verdict()])
     finding = result["findings"][0]
     assert finding["state"] == "verified"
-    assert finding["verifier_verdict_applied"] is True
+    assert finding["verification_applied"] is True
     assert _count(result, "verified") == 1
 
 
-def test_stale_revision_overrides_but_preserves_verifier_verdict():
+def test_stale_revision_overrides_but_preserves_verifier_decision():
     result = _adapt(current_revision=REV_B, verifier_verdicts=[_verdict()])
     finding = result["findings"][0]
     assert finding["state"] == "stale"
-    assert finding["verifier_verdict"]["state"] == "verified"
-    assert finding["verifier_verdict_applied"] is False
+    assert finding["verification_record"]["state"] == "verified"
+    assert finding["verification_applied"] is False
     assert result["revision_fresh"] is False
 
 
-def test_unresolved_citation_overrides_verifier_verdict():
+def test_unresolved_citation_overrides_verifier_decision():
     result = _adapt(
         resolvable_citation_ids=[CIT_A],
         verifier_verdicts=[_verdict()],
@@ -108,14 +108,14 @@ def test_unresolved_citation_overrides_verifier_verdict():
     finding = result["findings"][0]
     assert finding["state"] == "unresolved"
     assert finding["unresolved_citation_ids"] == [CIT_B]
-    assert finding["verifier_verdict_applied"] is False
+    assert finding["verification_applied"] is False
 
 
 @pytest.mark.parametrize("state", ["wrong", "unresolved"])
 def test_supported_negative_verdicts_are_preserved(state):
     result = _adapt(verifier_verdicts=[_verdict(state)])
     assert result["findings"][0]["state"] == state
-    assert result["findings"][0]["verifier_verdict_applied"] is True
+    assert result["findings"][0]["verification_applied"] is True
 
 
 def test_output_order_is_stable_by_finding_id():
@@ -145,6 +145,7 @@ def test_output_order_is_stable_by_finding_id():
     "candidate",
     [
         {"lane_id": "unknown", "claim": "x", "citation_ids": [CIT_A]},
+        {"lane_id": "Bad-Lane", "claim": "x", "citation_ids": [CIT_A]},
         {"lane_id": "cache_publication", "claim": "", "citation_ids": [CIT_A]},
         {"lane_id": "cache_publication", "claim": "x", "citation_ids": []},
         {"lane_id": "cache_publication", "claim": "x", "citation_ids": ["bad"]},
@@ -188,10 +189,24 @@ def test_rejects_plan_with_wrong_authority():
         _adapt(plan=plan)
 
 
+def test_rejects_plan_with_invalid_lane_identifier():
+    plan = _plan()
+    plan["lanes"][0]["id"] = "Bad-Lane"
+    with pytest.raises(AuditFindingError, match="identifier"):
+        _adapt(plan=plan)
+
+
 def test_rejects_verdict_for_unknown_finding():
     verdict = _verdict()
     verdict["finding_id"] = "af_0000000000000000"
     with pytest.raises(AuditFindingError, match="unknown finding"):
+        _adapt(verifier_verdicts=[verdict])
+
+
+def test_rejects_invalid_verdict_finding_identifier():
+    verdict = _verdict()
+    verdict["finding_id"] = "finding-1"
+    with pytest.raises(AuditFindingError, match="identifier"):
         _adapt(verifier_verdicts=[verdict])
 
 
