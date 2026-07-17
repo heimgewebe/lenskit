@@ -41,6 +41,25 @@ def _adapt(**overrides):
     return adapt_audit_findings(**kwargs)
 
 
+def _finding_id():
+    return make_audit_finding_id(
+        "cache_publication", _candidate()["claim"], [CIT_A, CIT_B]
+    )
+
+
+def _verdict(state="verified"):
+    return {
+        "finding_id": _finding_id(),
+        "state": state,
+        "verifier_id": "independent-reviewer-v1",
+        "note": "Citation ranges reproduce the recorded review decision.",
+    }
+
+
+def _count(result, state):
+    return next(row["count"] for row in result["state_counts"] if row["state"] == state)
+
+
 def test_finding_id_is_stable_across_whitespace_and_citation_order():
     first = make_audit_finding_id(
         "cache_publication",
@@ -61,44 +80,19 @@ def test_fresh_unverified_candidate_remains_candidate():
     finding = result["findings"][0]
     assert finding["state"] == "candidate"
     assert finding["state_reason"] == "verification_missing"
-    assert result["summary"]["candidate"] == 1
+    assert _count(result, "candidate") == 1
 
 
 def test_fresh_resolved_verdict_can_be_applied():
-    finding_id = make_audit_finding_id(
-        "cache_publication", _candidate()["claim"], [CIT_A, CIT_B]
-    )
-    result = _adapt(
-        verifier_verdicts=[
-            {
-                "finding_id": finding_id,
-                "state": "verified",
-                "verifier_id": "independent-reviewer-v1",
-                "note": "Citation ranges reproduce the claimed publication window.",
-            }
-        ]
-    )
+    result = _adapt(verifier_verdicts=[_verdict()])
     finding = result["findings"][0]
     assert finding["state"] == "verified"
     assert finding["verifier_verdict_applied"] is True
-    assert result["summary"]["verified"] == 1
+    assert _count(result, "verified") == 1
 
 
 def test_stale_revision_overrides_but_preserves_verifier_verdict():
-    finding_id = make_audit_finding_id(
-        "cache_publication", _candidate()["claim"], [CIT_A, CIT_B]
-    )
-    result = _adapt(
-        current_revision=REV_B,
-        verifier_verdicts=[
-            {
-                "finding_id": finding_id,
-                "state": "verified",
-                "verifier_id": "reviewer",
-                "note": "Verdict belongs to the older revision.",
-            }
-        ],
-    )
+    result = _adapt(current_revision=REV_B, verifier_verdicts=[_verdict()])
     finding = result["findings"][0]
     assert finding["state"] == "stale"
     assert finding["verifier_verdict"]["state"] == "verified"
@@ -107,19 +101,9 @@ def test_stale_revision_overrides_but_preserves_verifier_verdict():
 
 
 def test_unresolved_citation_overrides_verifier_verdict():
-    finding_id = make_audit_finding_id(
-        "cache_publication", _candidate()["claim"], [CIT_A, CIT_B]
-    )
     result = _adapt(
         resolvable_citation_ids=[CIT_A],
-        verifier_verdicts=[
-            {
-                "finding_id": finding_id,
-                "state": "verified",
-                "verifier_id": "reviewer",
-                "note": "One address is no longer resolvable.",
-            }
-        ],
+        verifier_verdicts=[_verdict()],
     )
     finding = result["findings"][0]
     assert finding["state"] == "unresolved"
@@ -129,19 +113,7 @@ def test_unresolved_citation_overrides_verifier_verdict():
 
 @pytest.mark.parametrize("state", ["wrong", "unresolved"])
 def test_supported_negative_verdicts_are_preserved(state):
-    finding_id = make_audit_finding_id(
-        "cache_publication", _candidate()["claim"], [CIT_A, CIT_B]
-    )
-    result = _adapt(
-        verifier_verdicts=[
-            {
-                "finding_id": finding_id,
-                "state": state,
-                "verifier_id": "reviewer",
-                "note": "Independent result.",
-            }
-        ]
-    )
+    result = _adapt(verifier_verdicts=[_verdict(state)])
     assert result["findings"][0]["state"] == state
     assert result["findings"][0]["verifier_verdict_applied"] is True
 
@@ -177,12 +149,25 @@ def test_output_order_is_stable_by_finding_id():
         {"lane_id": "cache_publication", "claim": "x", "citation_ids": []},
         {"lane_id": "cache_publication", "claim": "x", "citation_ids": ["bad"]},
         {"lane_id": "cache_publication", "claim": "x", "citation_ids": [CIT_A, CIT_A]},
+        {"lane_id": "cache_publication", "claim": "x", "citation_ids": [1]},
+        {
+            "lane_id": "cache_publication",
+            "claim": "x",
+            "citation_ids": [CIT_A],
+            "hidden": "not admitted",
+        },
         "not-an-object",
     ],
 )
 def test_rejects_malformed_or_unselected_candidates(candidate):
     with pytest.raises(AuditFindingError):
         _adapt(candidates=[candidate])
+
+
+@pytest.mark.parametrize("candidates", [None, "candidate", 123])
+def test_rejects_malformed_candidate_collections(candidates):
+    with pytest.raises(AuditFindingError):
+        _adapt(candidates=candidates)
 
 
 def test_rejects_duplicate_semantic_candidates():
@@ -196,32 +181,54 @@ def test_rejects_invalid_revisions(revision):
         _adapt(reviewed_revision=revision)
 
 
+def test_rejects_plan_with_wrong_authority():
+    plan = _plan()
+    plan["authority"] = "diagnostic_signal"
+    with pytest.raises(AuditFindingError, match="authority"):
+        _adapt(plan=plan)
+
+
 def test_rejects_verdict_for_unknown_finding():
+    verdict = _verdict()
+    verdict["finding_id"] = "af_0000000000000000"
     with pytest.raises(AuditFindingError, match="unknown finding"):
-        _adapt(
-            verifier_verdicts=[
-                {
-                    "finding_id": "af_0000000000000000",
-                    "state": "verified",
-                    "verifier_id": "reviewer",
-                    "note": "No matching candidate.",
-                }
-            ]
-        )
+        _adapt(verifier_verdicts=[verdict])
 
 
 def test_rejects_duplicate_verdicts():
-    finding_id = make_audit_finding_id(
-        "cache_publication", _candidate()["claim"], [CIT_A, CIT_B]
-    )
-    verdict = {
-        "finding_id": finding_id,
-        "state": "verified",
-        "verifier_id": "reviewer",
-        "note": "Repeated verdict.",
-    }
+    verdict = _verdict()
     with pytest.raises(AuditFindingError, match="duplicate verifier verdict"):
         _adapt(verifier_verdicts=[verdict, verdict])
+
+
+@pytest.mark.parametrize("verdicts", [None, "verdict", 123])
+def test_rejects_malformed_verdict_collections(verdicts):
+    with pytest.raises(AuditFindingError):
+        _adapt(verifier_verdicts=verdicts)
+
+
+def test_rejects_extra_verdict_fields():
+    verdict = _verdict()
+    verdict["hidden"] = "not admitted"
+    with pytest.raises(AuditFindingError, match="verdict fields"):
+        _adapt(verifier_verdicts=[verdict])
+
+
+def test_rejects_invalid_citation_registry():
+    with pytest.raises(AuditFindingError):
+        _adapt(resolvable_citation_ids=[CIT_A, 1])
+
+
+def test_rejects_oversized_claim_and_citation_set():
+    candidate = _candidate()
+    candidate["claim"] = "x" * 8193
+    with pytest.raises(AuditFindingError, match="exceeds"):
+        _adapt(candidates=[candidate])
+
+    candidate = _candidate()
+    candidate["citation_ids"] = [f"cit_{index:016x}" for index in range(65)]
+    with pytest.raises(AuditFindingError, match="at most"):
+        _adapt(candidates=[candidate])
 
 
 def test_output_validates_against_contract():
@@ -234,9 +241,9 @@ def test_output_validates_against_contract():
     Draft7Validator(schema).validate(result)
 
 
-def test_forbidden_inferences_block_authority_upgrade():
+def test_does_not_prove_blocks_authority_upgrade():
     result = _adapt()
-    forbidden = " ".join(result["forbidden_inferences"])
-    assert "repository truth" in forbidden
-    assert "review completeness" in forbidden
-    assert "merges" in forbidden
+    boundary = " ".join(result["does_not_prove"])
+    assert "repository truth" in boundary
+    assert "review completeness" in boundary
+    assert "merges" in boundary
