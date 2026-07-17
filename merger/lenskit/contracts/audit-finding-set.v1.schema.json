@@ -39,8 +39,8 @@
           "state",
           "state_reason",
           "unresolved_citation_ids",
-          "verifier_verdict",
-          "verifier_verdict_applied"
+          "verification_record",
+          "verification_applied"
         ],
         "properties": {
           "finding_id": {"type": "string", "pattern": "^af_[a-f0-9]{16}$"},
@@ -71,7 +71,7 @@
             "uniqueItems": true,
             "items": {"type": "string", "pattern": "^cit_[a-f0-9]{16}$"}
           },
-          "verifier_verdict": {
+          "verification_record": {
             "oneOf": [
               {"type": "null"},
               {
@@ -87,7 +87,7 @@
               }
             ]
           },
-          "verifier_verdict_applied": {"type": "boolean"}
+          "verification_applied": {"type": "boolean"}
         }
       }
     },
