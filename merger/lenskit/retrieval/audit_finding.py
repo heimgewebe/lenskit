@@ -170,7 +170,7 @@ def _normalize_candidate(candidate: Any, lane_ids: frozenset[str]) -> dict[str, 
         raise AuditFindingError("candidate fields must be exactly lane_id, claim, citation_ids")
     lane_id = _require_identifier(candidate.get("lane_id"), "lane_id", _LANE_RE)
     if lane_id not in lane_ids:
-        raise AuditFindingError(&"candidate references unselected lane: {lane_id}")
+        raise AuditFindingError(f"candidate references unselected lane: {lane_id}")
     claim = _require_text(candidate.get("claim"), "claim", _MAX_CLAIM_CHARS)
     citation_ids = _normalize_citations(candidate.get("citation_ids"))
     return {
@@ -291,7 +291,8 @@ def adapt_audit_findings(
 
     reviewed = _require_revision(reviewed_revision, "reviewed_revision")
     current = _require_revision(current_revision, "current_revision")
-    lane_ids = _plan_lane_ids(plan)J    citation_registry = _citation_registry(resolvable_citation_ids)
+    lane_ids = _plan_lane_ids(plan)
+    citation_registry = _citation_registry(resolvable_citation_ids)
     normalized = [
         _normalize_candidate(value, lane_ids)
         for value in _require_items(candidates, "candidates", _MAX_CANDIDATES)
