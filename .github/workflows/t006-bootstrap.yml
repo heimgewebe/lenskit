@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/repoground-runtime-contracts-t006
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -16,6 +19,7 @@ jobs:
       - name: Checkout exact branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
+          ref: fix/repoground-runtime-contracts-t006
           fetch-depth: 2
 
       - name: Verify bootstrap base
