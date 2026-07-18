@@ -107,7 +107,7 @@ class FakeEventSource {
     close() {}
 }
 
-const localStorageMock = makeStorage({ rlens_state_version: 'test' });
+const localStorageMock = makeStorage({ repoground_state_version: 'test' });
 
 const context = {
     window: {

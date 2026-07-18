@@ -634,7 +634,7 @@ def test_query_tab_submits_payload(page_with_static: Page):
     import os
     if os.environ.get("DEBUG_PLAYWRIGHT_REQUESTS") == "1":
         page_with_static.on("request", lambda r: print(f"REQ: {r.method} {r.url}"))
-    page_with_static.add_init_script("window.__REPOGROUND_TEST__ = true; localStorage.setItem('rlens_state_version', 'test-v1');")
+    page_with_static.add_init_script("window.__REPOGROUND_TEST__ = true; localStorage.setItem('repoground_state_version', 'test-v1');")
 
     def handle_query(route: Route):
         if route.request.method == "POST":
