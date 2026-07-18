@@ -8,7 +8,7 @@
   "repository_visibility": "public",
   "distribution_status": "permitted_under_project_license",
   "distribution_scope": [
-    "tracked repository source",
+    "tracked repository source for which the project has authority to grant Apache-2.0 rights",
     "documentation and configuration under the repository license",
     "deterministic source-candidate archives produced from an exact Git commit"
   ],
@@ -16,7 +16,8 @@
     "The owner explicitly requested that RepoGround remain open source and free to use.",
     "Apache-2.0 permits use, modification, and redistribution and provides an explicit patent grant.",
     "The source-candidate boundary references dependencies but does not embed installed third-party packages.",
-    "Project-name stewardship is separated from software copyright permissions through TRADEMARK_POLICY.md."
+    "Project-name stewardship is separated from software copyright permissions through TRADEMARK_POLICY.md.",
+    "The repository-level decision can grant only rights held by or validly licensed to the relevant copyright holder."
   ],
   "references": [
     {
@@ -34,6 +35,7 @@
     "TRADEMARK_POLICY.md",
     "FUNDING.md",
     "docs/decisions/repoground-3-naming-and-migration.v1.json",
+    "docs/release/licensing.md",
     "docs/release/third-party-license-review.v1.json",
     "docs/release/third-party-source-distribution-review.v1.json",
     "docs/release/release-policy.md"
@@ -46,10 +48,11 @@
   "does_not_establish": [
     "legal advice",
     "trademark registration or global name clearance",
+    "authority to relicense independently copyrighted historical contributions without any consent legally required",
     "permission to misrepresent modified builds as official RepoGround releases",
     "clearance for bundled third-party binaries, containers, model weights, or datasets",
     "product, security, or deployment readiness"
   ],
   "status": "decision_complete_public_source_distribution_enabled",
-  "current_license_notice": "Licensed under the Apache License, Version 2.0."
+  "current_license_notice": "Licensed under the Apache License, Version 2.0, subject to the rights-authority boundary documented in docs/release/licensing.md."
 }
