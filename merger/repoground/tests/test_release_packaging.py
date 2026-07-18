@@ -47,6 +47,11 @@ def _repo(tmp_path: Path) -> Path:
     (repo / "LICENSE").write_text(
         "Apache License\nVersion 2.0, January 2004\n", encoding="utf-8"
     )
+    (repo / "NOTICE").write_text("RepoGround\n", encoding="utf-8")
+    (repo / "TRADEMARK_POLICY.md").write_text(
+        "This policy does not restrict any right granted by Apache-2.0.\n",
+        encoding="utf-8",
+    )
     (repo / "regular.txt").write_text("regular\n", encoding="utf-8")
     executable = repo / "run.sh"
     executable.write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
