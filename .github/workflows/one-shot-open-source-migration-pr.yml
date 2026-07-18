@@ -51,42 +51,52 @@ jobs:
                   'apache_license = response.read().decode("utf-8")',
                   'apache_license = response.read().decode("utf-8").lstrip("\\ufeff\\r\\n ")',
                   'canonical license normalization target',
+                  1,
               ),
               (
                   '"It does not upload or publish the source archive."',
                   '"""It does\\nnot upload or publish the source archive."""',
                   'wrapped release-policy target',
+                  1,
               ),
               (
                   'import json\nimport re\nimport urllib.request',
                   'import json\nimport re\nimport textwrap\nimport urllib.request',
                   'textwrap import target',
+                  1,
               ),
               (
                   "identity_checker = '''#!/usr/bin/env python3",
                   "identity_checker = '''\\n          #!/usr/bin/env python3",
                   'identity checker opening target',
+                  1,
               ),
               (
                   're.sub(r"^          ", "", identity_checker, flags=re.MULTILINE),',
                   'textwrap.dedent(identity_checker).lstrip(),',
                   'identity checker dedent target',
+                  1,
               ),
               (
                   '"does not restrict any right granted" not in trademark_text',
                   '"does not restrict any right granted" not in trademark_text.casefold()',
                   'trademark software-freedom comparison',
+                  2,
               ),
               (
                   '"good-faith community use" not in trademark_text',
                   '"good-faith community use" not in trademark_text.casefold()',
                   'trademark community-use comparison',
+                  1,
               ),
           )
-          for old, new, label in replacements:
-              if script.count(old) != 1:
-                  raise SystemExit(f'{label} missing or ambiguous')
-              script = script.replace(old, new, 1)
+          for old, new, label, expected in replacements:
+              observed = script.count(old)
+              if observed != expected:
+                  raise SystemExit(
+                      f'{label} cardinality mismatch: expected={expected} observed={observed}'
+                  )
+              script = script.replace(old, new, expected)
 
           if "git push origin" not in script or "check_identity_distribution_decisions.py" not in script:
               raise SystemExit('migration script boundary incomplete')
