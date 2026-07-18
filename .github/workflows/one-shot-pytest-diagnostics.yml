@@ -37,22 +37,16 @@ jobs:
 
           path = Path("merger/repoground/tests/test_release_packaging.py")
           text = path.read_text(encoding="utf-8")
-          old = '''    (repo / "LICENSE").write_text(
-              "Apache License\\nVersion 2.0, January 2004\\n", encoding="utf-8"
+          anchor = '    (repo / "regular.txt").write_text("regular\\n", encoding="utf-8")'
+          inserted = '''    (repo / "NOTICE").write_text("RepoGround\\n", encoding="utf-8")
+          (repo / "TRADEMARK_POLICY.md").write_text(
+              "This policy does not restrict any right granted by Apache-2.0.\\n",
+              encoding="utf-8",
           )
-              (repo / "regular.txt").write_text("regular\\n", encoding="utf-8")'''
-          new = '''    (repo / "LICENSE").write_text(
-              "Apache License\\nVersion 2.0, January 2004\\n", encoding="utf-8"
-          )
-              (repo / "NOTICE").write_text("RepoGround\\n", encoding="utf-8")
-              (repo / "TRADEMARK_POLICY.md").write_text(
-                  "This policy does not restrict any right granted by Apache-2.0.\\n",
-                  encoding="utf-8",
-              )
-              (repo / "regular.txt").write_text("regular\\n", encoding="utf-8")'''
-          if text.count(old) != 1:
-              raise SystemExit("minimal release fixture target missing or ambiguous")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          ''' + anchor
+          if text.count(anchor) != 1:
+              raise SystemExit("minimal release fixture anchor missing or ambiguous")
+          path.write_text(text.replace(anchor, inserted, 1), encoding="utf-8")
           Path(".github/workflows/one-shot-pytest-diagnostics.yml").unlink()
           PY
 
