@@ -59,8 +59,22 @@ file, and records full build, incremental change and no-op. The report binds the
 source commit, complete input-tree SHA-256, before/after input fingerprints and
 configuration fingerprint. It records wall time, CPU time, freshness latency,
 written/read process IO from `/proc/self/io` when available, and output-tree byte
-delta as an explicit portable approximation. Results are local observations, not
-a performance guarantee.
+delta as an explicit portable approximation. Absolute source paths are not
+persisted.
+
+| Run | Wall time | Written bytes | Output-tree delta |
+|---|---:|---:|---:|
+| Full build | 0.431 s | 29,839,360 | 29,617,771 |
+| One-file change | 0.353 s | 29,835,264 | 29,613,662 |
+| No-op | 0.036 s | 0 | 0 |
+
+The one-file change reuses the stored chunk rows for every unchanged file and
+reduces wall time by about 18 percent in this local run. It does **not** yet make
+artifact publication incrementally sparse: the immutable new generation still
+writes a complete SQLite index and chunk artifact, so its write volume is almost
+identical to the full build. The strong result is the no-op path, which writes
+nothing. These are local observations, not a performance guarantee or evidence
+that every repository benefits.
 
 ## Verification
 
