@@ -1,0 +1,436 @@
+name: T006 bootstrap patch
+
+on:
+  push:
+    branches:
+      - fix/repoground-runtime-contracts-t006
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 2
+
+      - name: Verify bootstrap base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "a33400f7090c368838bcdf02bcf2087c719fae84"
+          test "$(git branch --show-current)" = "fix/repoground-runtime-contracts-t006"
+
+
+      - name: Patch retrieval content contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          merge_path = Path("merger/repoground/core/merge.py")
+          merge_text = merge_path.read_text(encoding="utf-8")
+
+          old = (
+              '            source_git_blob_sha1 = (\n'
+              '                _compute_git_blob_sha1(fi.abs_path)\n'
+              '                if not was_redacted and not truncated\n'
+              '                else None\n'
+              '            )\n'
+          )
+          new = (
+              '            content_bytes = content.encode("utf-8")\n'
+              '            source_git_blob_sha1 = (\n'
+              '                _compute_git_blob_sha1(fi.abs_path)\n'
+              '                if not was_redacted and not truncated\n'
+              '                else None\n'
+              '            )\n'
+          )
+          if merge_text.count(old) != 1:
+              raise SystemExit("unexpected source-content anchor count")
+          merge_text = merge_text.replace(old, new, 1)
+
+          old = (
+              '                    if canonical_md_bytes is not None:\n'
+              '                        d["canonical_range"] = {\n'
+              '                            "artifact_role": ArtifactRole.CANONICAL_MD.value,\n'
+              '                            "repo_id": fi.root_label,\n'
+              '                            "file_path": md_file_name,\n'
+              '                            "start_byte": abs_start,\n'
+              '                            "end_byte": abs_end,\n'
+              '                            "start_line": can_start_line,\n'
+              '                            "end_line": can_end_line,\n'
+              '                            "content_sha256": can_sha256,\n'
+              '                        }\n'
+              '\n'
+              '            # source_range: always present, coordinates in source content space.\n'
+          )
+          new = (
+              '                    if canonical_md_bytes is not None:\n'
+              '                        d["canonical_range"] = {\n'
+              '                            "artifact_role": ArtifactRole.CANONICAL_MD.value,\n'
+              '                            "repo_id": fi.root_label,\n'
+              '                            "file_path": md_file_name,\n'
+              '                            "start_byte": abs_start,\n'
+              '                            "end_byte": abs_end,\n'
+              '                            "start_line": can_start_line,\n'
+              '                            "end_line": can_end_line,\n'
+              '                            "content_sha256": can_sha256,\n'
+              '                        }\n'
+              '\n'
+              '            # Retrieval-only and noncanonical split chunks have no canonical\n'
+              '            # artifact from which SQLite can hydrate text. Store only those\n'
+              '            # exact, already-redacted bytes inline; canonical range-backed\n'
+              '            # chunks stay compact and preserve the existing authority model.\n'
+              '            if "canonical_range" not in d:\n'
+              '                inline_bytes = content_bytes[d["start_byte"]:d["end_byte"]]\n'
+              '                inline_sha256 = hashlib.sha256(inline_bytes).hexdigest()\n'
+              '                if inline_sha256 != d["sha256"]:\n'
+              '                    raise RuntimeError(\n'
+              '                        f"Inline chunk hash mismatch for {d[\'chunk_id\']}: "\n'
+              '                        f"expected {d[\'sha256\']}, got {inline_sha256}"\n'
+              '                    )\n'
+              '                try:\n'
+              '                    d["content"] = inline_bytes.decode("utf-8")\n'
+              '                except UnicodeDecodeError as exc:\n'
+              '                    raise RuntimeError(\n'
+              '                        f"Inline chunk is not valid UTF-8 for {d[\'chunk_id\']}"\n'
+              '                    ) from exc\n'
+              '\n'
+              '            # source_range: always present, coordinates in source content space.\n'
+          )
+          if merge_text.count(old) != 1:
+              raise SystemExit("unexpected canonical-range anchor count")
+          merge_text = merge_text.replace(old, new, 1)
+          merge_path.write_text(merge_text, encoding="utf-8")
+          PY
+
+      - name: Replace launcher with version-bound health probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > scripts/repoground-launcher.sh <<'LAUNCHER'
+          #!/bin/bash
+          set -euo pipefail
+
+          # Canonical RepoGround Launcher (systemd wrapper).
+          # It validates both the API contract and the exact running version.
+          HOST=${REPOGROUND_HOST:-${RLENS_HOST:-127.0.0.1}}
+          PORT=${REPOGROUND_PORT:-${RLENS_PORT:-8787}}
+          URL="http://${HOST}:${PORT}"
+          HEALTH_URL="${URL}/api/health"
+          UNIT=${REPOGROUND_SERVICE_UNIT:-repoground}
+          MAX_RETRIES=${REPOGROUND_HEALTH_RETRIES:-30}
+          RETRY_INTERVAL=${REPOGROUND_HEALTH_INTERVAL:-0.5}
+          HEALTH_FILE=$(mktemp)
+          trap 'rm -f "$HEALTH_FILE"' EXIT
+
+          echo "[repoground] Starting service via systemd..."
+          systemctl --user start "$UNIT"
+
+          if ! systemctl --user is-active --quiet "$UNIT"; then
+              echo "[repoground] Warning: Service unit is not active immediately after start." >&2
+          fi
+
+          expected_server_version() {
+              if [[ -n "${REPOGROUND_EXPECTED_VERSION:-}" ]]; then
+                  printf '%s\n' "$REPOGROUND_EXPECTED_VERSION"
+                  return 0
+              fi
+
+              local pid
+              pid=$(systemctl --user show "$UNIT" --property=MainPID --value 2>/dev/null || true)
+              if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && [[ -r "/proc/${pid}/environ" ]]; then
+                  local process_version
+                  process_version=$(
+                      tr '\0' '\n' <"/proc/${pid}/environ" |
+                          sed -n -e 's/^REPOGROUND_VERSION=//p' -e 's/^RLENS_VERSION=//p' |
+                          head -n 1
+                  )
+                  if [[ -n "$process_version" ]]; then
+                      printf '%s\n' "$process_version"
+                      return 0
+                  fi
+              fi
+
+              local workdir
+              workdir=$(systemctl --user show "$UNIT" --property=WorkingDirectory --value 2>/dev/null || true)
+              if [[ -n "$workdir" ]] && git -C "$workdir" rev-parse HEAD >/dev/null 2>&1; then
+                  git -C "$workdir" rev-parse HEAD
+                  return 0
+              fi
+              return 1
+          }
+
+          validate_health_payload() {
+              local expected_version=$1
+              python3 - "$HEALTH_FILE" "$expected_version" <<'PY_VALIDATE'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload_path = Path(sys.argv[1])
+          expected = sys.argv[2].strip()
+          try:
+              payload = json.loads(payload_path.read_text(encoding="utf-8"))
+          except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+              raise SystemExit(1)
+
+          if not isinstance(payload, dict) or payload.get("status") != "ok":
+              raise SystemExit(1)
+          if not isinstance(payload.get("version"), str) or not payload["version"]:
+              raise SystemExit(1)
+          actual = payload.get("server_version")
+          if not isinstance(actual, str) or not actual or not expected:
+              raise SystemExit(1)
+          if actual != expected and not expected.startswith(actual):
+              raise SystemExit(1)
+          if not isinstance(payload.get("hub"), str) or not payload["hub"]:
+              raise SystemExit(1)
+          if not isinstance(payload.get("auth_enabled"), bool):
+              raise SystemExit(1)
+          PY_VALIDATE
+          }
+
+          echo "[repoground] Waiting for verified health at ${HEALTH_URL} ..."
+          for ((i=1; i<=MAX_RETRIES; i++)); do
+              expected_version=$(expected_server_version || true)
+              if [[ -n "$expected_version" ]] &&
+                  curl -fsS "$HEALTH_URL" -o "$HEALTH_FILE" &&
+                  validate_health_payload "$expected_version"; then
+                  echo "[repoground] Service is HEALTHY and version-bound."
+                  echo "[repoground] URL: ${URL}"
+                  if command -v xdg-open >/dev/null; then
+                      echo "[repoground] Opening browser..."
+                      xdg-open "${URL}" || true
+                  fi
+                  exit 0
+              fi
+              sleep "$RETRY_INTERVAL"
+          done
+
+          echo "[repoground] ERROR: Verified health check failed after ${MAX_RETRIES} attempts." >&2
+          echo "--- Unit Status ---" >&2
+          systemctl --user status "$UNIT" --no-pager >&2 || true
+          echo "--- Unit Definition ---" >&2
+          systemctl --user cat "$UNIT" >&2 || true
+          echo "--- Recent Logs ---" >&2
+          journalctl --user -u "$UNIT" -n 50 --no-pager >&2 || true
+          exit 1
+          LAUNCHER
+          chmod 0755 scripts/repoground-launcher.sh
+
+      - name: Add focused regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > merger/repoground/tests/test_runtime_contract_regressions.py <<'PYTEST'
+          import json
+          import os
+          import sqlite3
+          import subprocess
+          from pathlib import Path
+
+          from merger.repoground.core.merge import ExtrasConfig, scan_repo, write_reports_v2
+          from merger.repoground.tests._test_constants import make_generator_info
+
+
+          REPO_ROOT = Path(__file__).resolve().parents[3]
+          LAUNCHER = REPO_ROOT / "scripts" / "repoground-launcher.sh"
+
+
+          def _build_fixture(tmp_path: Path, *, output_mode: str):
+              hub = tmp_path / "hub"
+              repo_root = hub / "fixture"
+              repo_root.mkdir(parents=True)
+              source = repo_root / "src" / "pathonlymarker.py"
+              source.parent.mkdir()
+              source.write_text(
+                  "def searchable_symbol():\n"
+                  "    return 'contentonlytokenq7x9'\n",
+                  encoding="utf-8",
+              )
+              merges_dir = tmp_path / "merges"
+              merges_dir.mkdir()
+              summary = scan_repo(repo_root, calculate_md5=True)
+              return write_reports_v2(
+                  merges_dir=merges_dir,
+                  hub=hub,
+                  repo_summaries=[summary],
+                  detail="max",
+                  mode="gesamt",
+                  max_bytes=0,
+                  plan_only=False,
+                  output_mode=output_mode,
+                  extras=ExtrasConfig(json_sidecar=False),
+                  redact_secrets=False,
+                  generator_info=make_generator_info(),
+                  publish_generation=False,
+              )
+
+
+          def test_retrieval_only_build_populates_searchable_content(tmp_path):
+              artifacts = _build_fixture(tmp_path, output_mode="retrieval")
+              assert artifacts.chunk_index is not None
+              chunks = [
+                  json.loads(line)
+                  for line in artifacts.chunk_index.read_text(encoding="utf-8").splitlines()
+                  if line.strip()
+              ]
+              assert chunks
+              assert all("canonical_range" not in chunk for chunk in chunks)
+              assert all(chunk.get("content") for chunk in chunks)
+
+              db_path = artifacts.chunk_index.with_suffix(".index.sqlite")
+              assert db_path.exists()
+              with sqlite3.connect(db_path) as conn:
+                  rows, nonempty = conn.execute(
+                      "SELECT count(*), count(*) FILTER (WHERE length(content) > 0) "
+                      "FROM chunks_fts"
+                  ).fetchone()
+                  assert rows == nonempty == len(chunks)
+                  assert conn.execute(
+                      "SELECT count(*) FROM chunks_fts "
+                      "WHERE chunks_fts MATCH 'contentonlytokenq7x9'"
+                  ).fetchone()[0] >= 1
+                  assert conn.execute(
+                      "SELECT count(*) FROM chunks_fts "
+                      "WHERE chunks_fts MATCH 'pathonlymarker'"
+                  ).fetchone()[0] >= 1
+                  assert conn.execute(
+                      "SELECT count(*) FROM chunks_fts "
+                      "WHERE chunks_fts MATCH 'definitelymissingt006token'"
+                  ).fetchone()[0] == 0
+
+
+          def test_dual_build_keeps_canonical_chunks_range_backed(tmp_path):
+              artifacts = _build_fixture(tmp_path, output_mode="dual")
+              assert artifacts.chunk_index is not None
+              chunks = [
+                  json.loads(line)
+                  for line in artifacts.chunk_index.read_text(encoding="utf-8").splitlines()
+                  if line.strip()
+              ]
+              ranged = [chunk for chunk in chunks if "canonical_range" in chunk]
+              assert ranged
+              assert all("content" not in chunk for chunk in ranged)
+
+
+          def _write_executable(path: Path, body: str) -> None:
+              path.write_text(body, encoding="utf-8")
+              path.chmod(0o755)
+
+
+          def _launcher_env(tmp_path: Path, *, payload: dict) -> dict[str, str]:
+              bin_dir = tmp_path / "bin"
+              bin_dir.mkdir()
+              _write_executable(
+                  bin_dir / "systemctl",
+                  "#!/bin/sh\n"
+                  "case \"$*\" in\n"
+                  "  *'--property=MainPID --value'*) echo 0 ;;\n"
+                  "  *'--property=WorkingDirectory --value'*) echo '' ;;\n"
+                  "  *) exit 0 ;;\n"
+                  "esac\n",
+              )
+              encoded = json.dumps(payload)
+              _write_executable(
+                  bin_dir / "curl",
+                  "#!/bin/sh\n"
+                  "out=''\n"
+                  "while [ \"$#\" -gt 0 ]; do\n"
+                  "  if [ \"$1\" = '-o' ]; then shift; out=$1; fi\n"
+                  "  shift\n"
+                  "done\n"
+                  f"printf '%s' {json.dumps(encoded)} >\"$out\"\n",
+              )
+              _write_executable(bin_dir / "journalctl", "#!/bin/sh\nexit 0\n")
+              _write_executable(bin_dir / "xdg-open", "#!/bin/sh\nexit 0\n")
+              env = os.environ.copy()
+              env.update(
+                  {
+                      "PATH": f"{bin_dir}:{env['PATH']}",
+                      "REPOGROUND_EXPECTED_VERSION": "expected-version",
+                      "REPOGROUND_HEALTH_RETRIES": "1",
+                      "REPOGROUND_HEALTH_INTERVAL": "0",
+                  }
+              )
+              return env
+
+
+          def test_launcher_uses_canonical_health_endpoint_and_accepts_bound_version(tmp_path):
+              text = LAUNCHER.read_text(encoding="utf-8")
+              assert 'HEALTH_URL="${URL}/api/health"' in text
+              assert '"${URL}/health"' not in text
+
+              result = subprocess.run(
+                  ["bash", str(LAUNCHER)],
+                  env=_launcher_env(
+                      tmp_path,
+                      payload={
+                          "status": "ok",
+                          "version": "2.4",
+                          "server_version": "expected-version",
+                          "hub": "/srv/repoground",
+                          "auth_enabled": True,
+                      },
+                  ),
+                  capture_output=True,
+                  text=True,
+                  timeout=10,
+              )
+              assert result.returncode == 0, result.stderr
+
+
+          def test_launcher_rejects_wrong_version(tmp_path):
+              result = subprocess.run(
+                  ["bash", str(LAUNCHER)],
+                  env=_launcher_env(
+                      tmp_path,
+                      payload={
+                          "status": "ok",
+                          "version": "2.4",
+                          "server_version": "wrong-version",
+                          "hub": "/srv/repoground",
+                          "auth_enabled": True,
+                      },
+                  ),
+                  capture_output=True,
+                  text=True,
+                  timeout=10,
+              )
+              assert result.returncode == 1
+          PYTEST
+
+      - name: Remove one-shot workflow before commit
+        run: rm .github/workflows/t006-bootstrap.yml
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Install locked test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes -r requirements/repoground-dev.lock.txt
+
+      - name: Run focused regression suite
+        run: |
+          python -m pytest -q merger/repoground/tests/test_runtime_contract_regressions.py merger/repoground/tests/test_retrieval_index.py merger/repoground/tests/test_chunk_index_dual_ranges.py
+          python -m ruff check merger/repoground/core/merge.py merger/repoground/tests/test_runtime_contract_regressions.py
+          git diff --check
+
+      - name: Commit tested patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(runtime): bind health and retrieval content contracts"
+          git push origin HEAD:fix/repoground-runtime-contracts-t006
