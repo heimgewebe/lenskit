@@ -22,8 +22,10 @@ At least once per calendar quarter, search and record:
    official RepoGround project.
 
 Automated alerts may supplement this process, but they are discovery signals,
-not verified findings. A relevant alert must still be checked against the
-primary source and recorded below before it is treated as project evidence.
+not verified findings. The current free watch runs monthly and remains silent
+when it finds no plausibly relevant new use. A relevant alert must still be
+checked against the primary source and recorded below before it is treated as
+project evidence.
 
 ## Record format
 
