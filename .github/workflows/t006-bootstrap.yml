@@ -390,10 +390,34 @@ jobs:
           python -m pip install --disable-pip-version-check --require-hashes -r requirements/repoground-dev.lock.txt
 
       - name: Run focused regression suite
+        id: focused
+        shell: bash
         run: |
-          python -m pytest -q merger/repoground/tests/test_runtime_contract_regressions.py merger/repoground/tests/test_retrieval_index.py merger/repoground/tests/test_chunk_index_dual_ranges.py
-          python -m ruff check merger/repoground/core/merge.py merger/repoground/tests/test_runtime_contract_regressions.py
-          git diff --check
+          set +e
+          set -o pipefail
+          python -m pytest -q merger/repoground/tests/test_runtime_contract_regressions.py merger/repoground/tests/test_retrieval_index.py merger/repoground/tests/test_chunk_index_dual_ranges.py 2>&1 | tee t006-pytest.log
+          pytest_status=${PIPESTATUS[0]}
+          python -m ruff check merger/repoground/core/merge.py merger/repoground/tests/test_runtime_contract_regressions.py 2>&1 | tee t006-ruff.log
+          ruff_status=${PIPESTATUS[0]}
+          git diff --check 2>&1 | tee t006-diff-check.log
+          diff_status=${PIPESTATUS[0]}
+          printf 'pytest=%s\nruff=%s\ndiff=%s\n' "$pytest_status" "$ruff_status" "$diff_status" | tee t006-status.txt
+          if ((pytest_status != 0 || ruff_status != 0 || diff_status != 0)); then
+            exit 1
+          fi
+
+      - name: Upload focused diagnostics after failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0
+        with:
+          name: t006-bootstrap-diagnostics-${{ github.run_id }}
+          path: |
+            t006-pytest.log
+            t006-ruff.log
+            t006-diff-check.log
+            t006-status.txt
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Commit tested patch
         shell: bash
