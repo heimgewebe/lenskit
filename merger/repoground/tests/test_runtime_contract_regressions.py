@@ -161,7 +161,9 @@ def _run_launcher(
     )
 
 
-def _healthy_payload(*, server_version: str, auth_enabled: bool = True):
+def _healthy_payload(
+    *, server_version: str, auth_enabled: bool = True
+) -> dict[str, object]:
     return {
         "status": "ok",
         "version": "2.4",
