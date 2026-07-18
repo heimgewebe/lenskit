@@ -188,7 +188,13 @@ def _run_measurement(args: argparse.Namespace, configured: IncrementalRetrievalS
         noop, no_op = _timed(snapshot.build, storage)
         report = {
             "schema": "repoground.incremental-retrieval-measurement.v1",
-            "repository": {"source": str(source), "commit": _git_commit(source), "input_tree_sha256": _hash_tree(source, exclude=report_path), "excluded_output": str(report_relative) if report_relative else None},
+            "repository": {
+                "source": ".",
+                "absolute_source_path_persisted": False,
+                "commit": _git_commit(source),
+                "input_tree_sha256": _hash_tree(source, exclude=report_path),
+                "excluded_output": str(report_relative) if report_relative else None,
+            },
             "configuration": {"sha256": configured.config.fingerprint(), "value": dict(configured.config.__dict__)},
             "input": {"measurement_copy_sha256_before_change": first.receipt["content_fingerprint"], "changed_path": change.as_posix(), "measurement_copy_sha256_after_change": incremental.receipt["content_fingerprint"]},
             "runs": {"full_build": full, "incremental_change": changed, "no_op": no_op},

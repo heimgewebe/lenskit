@@ -209,6 +209,9 @@ def test_cli_build_full_verify_and_measurement_report(tmp_path: Path, capsys) ->
     assert main(["retrieval-snapshot", "measure", *common, "--report", str(report)]) == 0
     data = json.loads(report.read_text(encoding="utf-8"))
     assert data["results"]["no_op"] is True
+    assert data["repository"]["source"] == "."
+    assert data["repository"]["absolute_source_path_persisted"] is False
+    assert str(source) not in report.read_text(encoding="utf-8")
     assert set(data["runs"]) == {"full_build", "incremental_change", "no_op"}
 
 
@@ -217,6 +220,9 @@ def test_committed_measurement_binds_inputs_configuration_and_all_runs() -> None
     report = json.loads((root / "docs/proofs/repoground-incremental-retrieval-snapshot-v1.measurement.json").read_text(encoding="utf-8"))
     assert report["schema"] == "repoground.incremental-retrieval-measurement.v1"
     assert report["repository"]["commit"]
+    assert report["repository"]["source"] == "."
+    assert report["repository"]["absolute_source_path_persisted"] is False
+    assert "/home/" not in json.dumps(report["repository"])
     assert len(report["repository"]["input_tree_sha256"]) == 64
     assert len(report["configuration"]["sha256"]) == 64
     assert report["results"]["freshness_latency_seconds"] >= 0
