@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import sqlite3
@@ -53,6 +54,11 @@ def test_retrieval_only_build_populates_searchable_content(tmp_path):
     assert chunks
     assert all("canonical_range" not in chunk for chunk in chunks)
     assert all(chunk.get("content") for chunk in chunks)
+    assert all(
+        hashlib.sha256(chunk["content"].encode("utf-8")).hexdigest()
+        == chunk["sha256"]
+        for chunk in chunks
+    )
 
     db_path = artifacts.chunk_index.with_suffix(".index.sqlite")
     assert db_path.exists()
@@ -94,7 +100,12 @@ def _write_executable(path: Path, body: str) -> None:
     path.chmod(0o755)
 
 
-def _launcher_env(tmp_path: Path, *, payload: dict) -> dict[str, str]:
+def _launcher_env(
+    tmp_path: Path,
+    *,
+    payload: dict[str, object],
+    expected_version: str = "expected-version",
+) -> dict[str, str]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _write_executable(
@@ -123,7 +134,7 @@ def _launcher_env(tmp_path: Path, *, payload: dict) -> dict[str, str]:
     env.update(
         {
             "PATH": f"{bin_dir}:{env['PATH']}",
-            "REPOGROUND_EXPECTED_VERSION": "expected-version",
+            "REPOGROUND_EXPECTED_VERSION": expected_version,
             "REPOGROUND_HEALTH_RETRIES": "1",
             "REPOGROUND_HEALTH_INTERVAL": "0",
         }
@@ -131,45 +142,81 @@ def _launcher_env(tmp_path: Path, *, payload: dict) -> dict[str, str]:
     return env
 
 
-def test_launcher_uses_canonical_health_endpoint_and_accepts_bound_version(tmp_path):
-    text = LAUNCHER.read_text(encoding="utf-8")
-    assert 'HEALTH_URL="${URL}/api/health"' in text
-    assert '"${URL}/health"' not in text
-
-    result = subprocess.run(
+def _run_launcher(
+    tmp_path: Path,
+    *,
+    payload: dict[str, object],
+    expected_version: str = "expected-version",
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         ["bash", str(LAUNCHER)],
         env=_launcher_env(
             tmp_path,
-            payload={
-                "status": "ok",
-                "version": "2.4",
-                "server_version": "expected-version",
-                "hub": "/srv/repoground",
-                "auth_enabled": True,
-            },
+            payload=payload,
+            expected_version=expected_version,
         ),
         capture_output=True,
         text=True,
         timeout=10,
     )
+
+
+def _healthy_payload(*, server_version: str, auth_enabled: bool = True):
+    return {
+        "status": "ok",
+        "version": "2.4",
+        "server_version": server_version,
+        "hub": "/srv/repoground",
+        "auth_enabled": auth_enabled,
+    }
+
+
+def test_launcher_uses_canonical_health_endpoint_and_accepts_exact_version(tmp_path):
+    text = LAUNCHER.read_text(encoding="utf-8")
+    assert 'HEALTH_URL="${URL}/api/health"' in text
+    assert '"${URL}/health"' not in text
+
+    result = _run_launcher(
+        tmp_path,
+        payload=_healthy_payload(server_version="expected-version"),
+    )
     assert result.returncode == 0, result.stderr
 
 
+def test_launcher_accepts_safe_git_sha_prefix(tmp_path):
+    expected = "0123456789abcdef0123456789abcdef01234567"
+    result = _run_launcher(
+        tmp_path,
+        payload=_healthy_payload(server_version=expected[:12]),
+        expected_version=expected,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_launcher_rejects_unsafe_short_git_sha_prefix(tmp_path):
+    expected = "0123456789abcdef0123456789abcdef01234567"
+    result = _run_launcher(
+        tmp_path,
+        payload=_healthy_payload(server_version=expected[:6]),
+        expected_version=expected,
+    )
+    assert result.returncode == 1
+
+
 def test_launcher_rejects_wrong_version(tmp_path):
-    result = subprocess.run(
-        ["bash", str(LAUNCHER)],
-        env=_launcher_env(
-            tmp_path,
-            payload={
-                "status": "ok",
-                "version": "2.4",
-                "server_version": "wrong-version",
-                "hub": "/srv/repoground",
-                "auth_enabled": True,
-            },
+    result = _run_launcher(
+        tmp_path,
+        payload=_healthy_payload(server_version="wrong-version"),
+    )
+    assert result.returncode == 1
+
+
+def test_launcher_rejects_disabled_authentication(tmp_path):
+    result = _run_launcher(
+        tmp_path,
+        payload=_healthy_payload(
+            server_version="expected-version",
+            auth_enabled=False,
         ),
-        capture_output=True,
-        text=True,
-        timeout=10,
     )
     assert result.returncode == 1
