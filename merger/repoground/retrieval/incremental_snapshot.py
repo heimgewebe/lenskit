@@ -422,6 +422,22 @@ def source_poll_marker(source_root: Path, config: SnapshotConfig) -> str:
     return _sha256(_canonical_json(entries))
 
 
+def _install_stop_handlers(callback: Any) -> dict[int, Any]:
+    """Install bounded watcher stop handlers when called from the main thread."""
+    previous: dict[int, Any] = {}
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        try:
+            previous[signum] = signal.signal(signum, callback)
+        except ValueError:  # called from a non-main test thread
+            continue
+    return previous
+
+
+def _restore_signal_handlers(previous: Mapping[int, Any]) -> None:
+    for signum, handler in previous.items():
+        signal.signal(signum, handler)
+
+
 def run_polling_watcher(
     snapshot: IncrementalRetrievalSnapshot,
     *,
@@ -465,12 +481,7 @@ def run_polling_watcher(
         nonlocal stopped
         stopped = True
 
-    previous_handlers = {}
-    for signum in (signal.SIGINT, signal.SIGTERM):
-        try:
-            previous_handlers[signum] = signal.signal(signum, stop)
-        except ValueError:  # called from a non-main test thread
-            pass
+    previous_handlers = _install_stop_handlers(stop)
     # A newly started watcher requests one explicit initial build; it never makes
     # a read-side operation build implicitly.
     watcher.notify_change()
@@ -499,5 +510,4 @@ def run_polling_watcher(
         publish("crashed", last_error=f"{type(exc).__name__}: {exc}")
         raise
     finally:
-        for signum, handler in previous_handlers.items():
-            signal.signal(signum, handler)
+        _restore_signal_handlers(previous_handlers)
