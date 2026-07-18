@@ -2152,6 +2152,26 @@ def _compute_file_sha256(path: Path) -> str:
         return "ERROR"
 
 
+def _attach_inline_chunk_content(chunk, content_bytes: bytes) -> None:
+    """Attach exact redacted bytes when no canonical artifact can hydrate them."""
+    if "canonical_range" in chunk:
+        return
+
+    inline_bytes = content_bytes[chunk["start_byte"]:chunk["end_byte"]]
+    inline_sha256 = hashlib.sha256(inline_bytes).hexdigest()
+    if inline_sha256 != chunk["sha256"]:
+        raise RuntimeError(
+            f"Inline chunk hash mismatch for {chunk['chunk_id']}: "
+            f"expected {chunk['sha256']}, got {inline_sha256}"
+        )
+    try:
+        chunk["content"] = inline_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(
+            f"Inline chunk is not valid UTF-8 for {chunk['chunk_id']}"
+        ) from exc
+
+
 def _compute_git_blob_sha1(path: Path) -> str | None:
     """Return the Git SHA-1 blob id for the current file bytes, if readable."""
     try:
@@ -5769,24 +5789,9 @@ def write_reports_v2(
                                 "content_sha256": can_sha256,
                             }
 
-                # Retrieval-only and noncanonical split chunks have no canonical
-                # artifact from which SQLite can hydrate text. Store only those
-                # exact, already-redacted bytes inline; canonical range-backed
-                # chunks stay compact and preserve the existing authority model.
-                if "canonical_range" not in d:
-                    inline_bytes = content_bytes[d["start_byte"]:d["end_byte"]]
-                    inline_sha256 = hashlib.sha256(inline_bytes).hexdigest()
-                    if inline_sha256 != d["sha256"]:
-                        raise RuntimeError(
-                            f"Inline chunk hash mismatch for {d['chunk_id']}: "
-                            f"expected {d['sha256']}, got {inline_sha256}"
-                        )
-                    try:
-                        d["content"] = inline_bytes.decode("utf-8")
-                    except UnicodeDecodeError as exc:
-                        raise RuntimeError(
-                            f"Inline chunk is not valid UTF-8 for {d['chunk_id']}"
-                        ) from exc
+                # Retrieval-only and noncanonical split chunks must carry
+                # their exact redacted text because no canonical artifact exists.
+                _attach_inline_chunk_content(d, content_bytes)
 
                 # source_range: always present, coordinates in source content space.
                 # Status taxonomy: "declared" (source coords claimed, not externally verified) | "unavailable" (redacted or truncated).
