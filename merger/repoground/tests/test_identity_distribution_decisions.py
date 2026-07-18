@@ -8,9 +8,11 @@ FIXTURE_PATHS = (
     "docs/decisions/repoground-3-naming-and-migration.v1.json",
     "docs/decisions/repoground-public-license-decision.v1.json",
     "docs/release/third-party-license-review.v1.json",
+    "docs/release/third-party-source-distribution-review.v1.json",
     "docs/architecture/naming.md",
     "docs/release/release-policy.md",
     "LICENSE",
+    "TRADEMARK_POLICY.md",
 )
 
 
@@ -25,14 +27,14 @@ def _copy_fixture(tmp_path: Path) -> None:
         target.write_bytes((ROOT / relative).read_bytes())
 
 
-def test_checker_rejects_distribution_enablement(tmp_path: Path) -> None:
+def test_checker_rejects_open_source_policy_drift(tmp_path: Path) -> None:
     _copy_fixture(tmp_path)
     policy = tmp_path / "docs/release/release-policy.md"
     policy.write_text(
-        "Public release is allowed and artifacts are published.\n",
+        "Source candidates are private and may not be distributed.\n",
         encoding="utf-8",
     )
-    assert "release policy distribution must remain blocked" in check(tmp_path)
+    assert "release policy open-source boundary drift" in check(tmp_path)
 
 
 def test_checker_rejects_license_drift(tmp_path: Path) -> None:

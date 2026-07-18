@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 IDENTITY = Path("docs/decisions/repoground-3-naming-and-migration.v1.json")
 LICENSE_DECISION = Path("docs/decisions/repoground-public-license-decision.v1.json")
 THIRD_PARTY = Path("docs/release/third-party-license-review.v1.json")
+SOURCE_DISTRIBUTION = Path(
+    "docs/release/third-party-source-distribution-review.v1.json"
+)
 ALLOWED_METADATA_STATUSES = {
     "identified",
     "metadata_ambiguous",
@@ -27,8 +30,14 @@ def check(root: Path) -> list[str]:
         (root / LICENSE_DECISION).read_text(encoding="utf-8")
     )
     third_party = json.loads((root / THIRD_PARTY).read_text(encoding="utf-8"))
+    source_distribution = json.loads(
+        (root / SOURCE_DISTRIBUTION).read_text(encoding="utf-8")
+    )
     license_text = (root / "LICENSE").read_text(encoding="utf-8")
-    naming_text = (root / "docs/architecture/naming.md").read_text(encoding="utf-8")
+    trademark_text = (root / "TRADEMARK_POLICY.md").read_text(encoding="utf-8")
+    naming_text = (root / "docs/architecture/naming.md").read_text(
+        encoding="utf-8"
+    )
     release_policy = (root / "docs/release/release-policy.md").read_text(
         encoding="utf-8"
     )
@@ -52,22 +61,32 @@ def check(root: Path) -> list[str]:
         findings.append("naming document drift")
 
     expression = license_decision.get("current_license_expression")
-    if expression != "LicenseRef-RepoGround-All-Rights-Reserved":
+    if expression != "Apache-2.0":
         findings.append("license expression changed")
-    if expression not in license_text:
+    if (
+        "Apache License" not in license_text
+        or "Version 2.0" not in license_text
+    ):
         findings.append("LICENSE does not match decision")
+    if license_decision.get("decision") != "grant_public_open_source_distribution":
+        findings.append("open-source owner decision changed")
     if (
         license_decision.get("distribution_status")
-        != "blocked_without_separate_written_permission"
+        != "permitted_under_project_license"
     ):
-        findings.append("public distribution unexpectedly enabled")
+        findings.append("public source distribution unexpectedly blocked")
 
     normalized_policy = release_policy.casefold()
     if (
-        "does not grant distribution permission" not in normalized_policy
-        or "not upload or publish" not in normalized_policy
+        "distributable under apache-2.0" not in normalized_policy
+        or "does not upload or publish" not in normalized_policy
     ):
-        findings.append("release policy distribution must remain blocked")
+        findings.append("release policy open-source boundary drift")
+    if (
+        "does not restrict any right granted" not in trademark_text.casefold()
+        or "good-faith community use" not in trademark_text.casefold()
+    ):
+        findings.append("trademark policy software-freedom boundary drift")
 
     summary = third_party.get("summary") or {}
     packages = third_party.get("packages") or []
@@ -78,13 +97,19 @@ def check(root: Path) -> list[str]:
             findings.append("third-party package identity incomplete")
         if item.get("metadata_status") not in ALLOWED_METADATA_STATUSES:
             findings.append(f"invalid metadata status: {item.get('name')}")
-    if (
-        third_party.get("distribution_boundary", {}).get(
-            "public_distribution_allowed"
-        )
-        is not False
-    ):
-        findings.append("third-party review must not authorize publication")
+
+    source_decision = source_distribution.get("decision") or {}
+    evidence = source_distribution.get("evidence") or {}
+    if source_decision.get("source_distribution_allowed") is not True:
+        findings.append("source distribution review does not permit source")
+    if source_decision.get("project_license_expression") != "Apache-2.0":
+        findings.append("source distribution license mismatch")
+    if source_decision.get("bundled_dependency_distribution_allowed") is not False:
+        findings.append("bundled dependency boundary unexpectedly enabled")
+    if evidence.get("source_candidate_embeds_third_party_packages") is not False:
+        findings.append("source candidate embedding boundary drift")
+    if evidence.get("inventory_package_count") != summary.get("package_count"):
+        findings.append("source review inventory count mismatch")
     return findings
 
 
@@ -96,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     findings = check(args.root.resolve())
     report = {
         "kind": "repoground.identity_distribution_decision_check",
-        "version": "1.0",
+        "version": "1.1",
         "status": "pass" if not findings else "fail",
         "findings": findings,
     }
