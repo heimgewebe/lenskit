@@ -685,7 +685,12 @@ def test_query_tab_submits_payload(page_with_static: Page):
     page_with_static.locator("#queryK").fill("5", force=True)
     page_with_static.locator("#queryContextMode").select_option("window", force=True)
     page_with_static.locator("#queryWindowLines").fill("3", force=True)
-    page_with_static.locator("#queryTrace").check(force=True)
+    page_with_static.locator("#queryTrace").evaluate(
+        """element => {
+            element.checked = true;
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+        }"""
+    )
 
     with page_with_static.expect_request("**/api/query*", timeout=5000) as req_info:
         page_with_static.locator("#queryForm button[type='submit']").click(force=True)

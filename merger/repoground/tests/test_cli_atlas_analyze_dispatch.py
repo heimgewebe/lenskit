@@ -21,7 +21,7 @@ def test_repoground_main_parses_atlas_analyze_duplicates(monkeypatch):
     assert exit_code == 0
     assert called
 
-def test_repoground_main_parses_atlas_analyze_duplicates(monkeypatch):
+def test_service_launcher_parses_atlas_analyze_duplicates(monkeypatch):
     """Verifies that `repoground atlas analyze duplicates <id>` routes correctly."""
     called = False
 
@@ -65,7 +65,7 @@ def test_repoground_main_parses_atlas_analyze_orphans(monkeypatch):
     assert exit_code == 0
     assert called
 
-def test_repoground_main_parses_atlas_analyze_orphans(monkeypatch):
+def test_service_launcher_parses_atlas_analyze_orphans(monkeypatch):
     called = False
     def mock_run_analyze(args):
         nonlocal called
@@ -104,7 +104,7 @@ def test_repoground_main_parses_atlas_analyze_disk(monkeypatch):
     assert exit_code == 0
     assert called
 
-def test_repoground_main_parses_atlas_analyze_disk(monkeypatch):
+def test_service_launcher_parses_atlas_analyze_disk(monkeypatch):
     called = False
     def mock_run_analyze(args):
         nonlocal called
@@ -144,7 +144,7 @@ def test_repoground_main_parses_atlas_analyze_growth(monkeypatch):
     assert exit_code == 0
     assert called
 
-def test_repoground_main_parses_atlas_analyze_growth(monkeypatch):
+def test_service_launcher_parses_atlas_analyze_growth(monkeypatch):
     called = False
     def mock_run_analyze(args):
         nonlocal called
