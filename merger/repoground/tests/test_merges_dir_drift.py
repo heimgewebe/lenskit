@@ -194,10 +194,16 @@ def test_artifact_relative_path_allows_nested_relative_paths(tmp_path):
     )
 
 
-def test_artifact_relative_path_allows_current_symlink_inside_generations(tmp_path):
+@pytest.mark.parametrize(
+    "generation_root_name",
+    [".repoground-generations", ".repobrief-generations"],
+)
+def test_artifact_relative_path_allows_current_symlink_inside_generations(
+    tmp_path, generation_root_name
+):
     merges_dir = tmp_path / "merges"
     generation_id = "a" * 64
-    generation = merges_dir / ".repobrief-generations" / "demo" / generation_id
+    generation = merges_dir / generation_root_name / "demo" / generation_id
     target = generation / "nested" / "bundle.json"
     target.parent.mkdir(parents=True)
     target.write_text("{}", encoding="utf-8")
@@ -209,7 +215,7 @@ def test_artifact_relative_path_allows_current_symlink_inside_generations(tmp_pa
         merges_dir=merges_dir,
     )
 
-    assert relative == ".repobrief-generations/demo/current/nested/bundle.json"
+    assert relative == f"{generation_root_name}/demo/current/nested/bundle.json"
 
 
 def test_artifact_relative_path_rejects_outside_root(tmp_path):
