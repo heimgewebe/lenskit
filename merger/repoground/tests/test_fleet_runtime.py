@@ -1089,7 +1089,24 @@ def test_historical_current_symlink_rejects_unsafe_targets_and_locations(
         misplaced_target.name, target_is_directory=True
     )
 
-    for candidate in (absolute, escaping, chained, misplaced):
+    dangling, _ = write_version(group, "20260714T100005Z", b"dangling", 5)
+    dangling_generation = dangling / ".repobrief-generations" / "legacy-scope"
+    dangling_generation.mkdir(parents=True)
+    (dangling_generation / "current").symlink_to(
+        "e" * 64, target_is_directory=True
+    )
+
+    wrong_name, _ = write_version(group, "20260714T100006Z", b"wrong-name", 6)
+    wrong_name_generation = (
+        wrong_name / ".repobrief-generations" / "legacy-scope"
+    )
+    wrong_name_target = wrong_name_generation / ("f" * 64)
+    wrong_name_target.mkdir(parents=True)
+    (wrong_name_generation / "latest").symlink_to(
+        wrong_name_target.name, target_is_directory=True
+    )
+
+    for candidate in (absolute, escaping, chained, misplaced, dangling, wrong_name):
         with pytest.raises(RuntimeError, match="contains .*symlink"):
             module.tree_bytes(candidate)
         with pytest.raises(RuntimeError, match="contains .*symlink"):
