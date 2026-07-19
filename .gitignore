@@ -56,3 +56,4 @@ atlas_scan_*.md
 /core
 /core.*
 *.core
+.mcp.json
