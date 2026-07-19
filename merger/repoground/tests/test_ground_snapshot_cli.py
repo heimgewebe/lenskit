@@ -344,7 +344,7 @@ def test_external_manifest_refresh_returns_exit_2_for_bundle_generation_resolver
     publication_root = tmp_path / "publication"
     repo.mkdir()
     publication_root.mkdir()
-    current_json = out / ".repobrief-generations" / "repo_merge" / "current.json"
+    current_json = out / ".repoground-generations" / "repo_merge" / "current.json"
 
     def fake_snapshot_create(_args):
         current_json.parent.mkdir(parents=True)
@@ -468,7 +468,8 @@ def test_snapshot_create_json_pointer_outputs_resolved_immutable_manifest(
     assert not bundle_manifest.endswith("/current.json")
     assert bundle_manifest == generation["current_manifest_path"]
     assert bundle_manifest == generation["resolved_manifest_path"]
-    assert ".repobrief-generations" in bundle_manifest
+    assert ".repoground-generations" in bundle_manifest
+    assert ".repobrief-generations" not in bundle_manifest
 
 
 def test_snapshot_create_emits_snapshot_plan_report(tmp_path, capsys):

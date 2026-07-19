@@ -212,6 +212,11 @@ def test_two_generations_switch_current_and_keep_old_generation_immutable(tmp_pa
     assert (second.generation_dir / "demo.md").read_bytes() == b"second\n"
     assert (second.generation_dir / "demo.agent_export_gate.json").is_file()
     assert second.current_manifest_path.parent.name == "current"
+    assert second.generation_dir.is_relative_to(
+        tmp_path / generation_mod.GENERATION_ROOT_NAME / "demo"
+    )
+    assert generation_mod.GENERATION_ROOT_NAME == ".repoground-generations"
+    assert not (tmp_path / ".repobrief-generations").exists()
     assert second.current_manifest_path.resolve() == second.resolved_manifest_path
     assert resolve_bundle_manifest_path(second.current_manifest_path) == second.resolved_manifest_path
 
@@ -403,6 +408,34 @@ def test_symlink_failure_on_existing_current_keeps_old_pointer(
 
     assert first.current_manifest_path.resolve() == first.resolved_manifest_path
     assert (first.current_manifest_path.parent / "demo.md").read_bytes() == b"first\n"
+
+
+def test_historical_generation_root_remains_readable(tmp_path: Path) -> None:
+    lane_root = tmp_path / ".repobrief-generations" / "demo"
+    generation_id = "a" * 64
+    generation = lane_root / generation_id
+    generation.mkdir(parents=True)
+    manifest = generation / "demo.bundle.manifest.json"
+    manifest.write_text("{}", encoding="utf-8")
+    manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+    current = lane_root / generation_mod.CURRENT_LINK_NAME
+    current.symlink_to(generation_id, target_is_directory=True)
+    assert resolve_bundle_manifest_path(current / manifest.name) == manifest
+
+    current.unlink()
+    pointer = lane_root / generation_mod.CURRENT_POINTER_JSON_NAME
+    pointer.write_text(
+        json.dumps(
+            _pointer_payload(
+                generation_id=generation_id,
+                sha256=manifest_sha256,
+                manifest_path=f"{generation_id}/{manifest.name}",
+            )
+        ),
+        encoding="utf-8",
+    )
+    assert resolve_bundle_manifest_path(pointer) == manifest
 
 
 def test_current_json_resolver_rejects_traversal_and_symlink_pointer(tmp_path: Path) -> None:

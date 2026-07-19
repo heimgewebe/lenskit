@@ -41,7 +41,7 @@ class BundleGenerationError(RuntimeError):
     """Raised when a bundle generation cannot be published coherently."""
 
 
-GENERATION_ROOT_NAME = ".repobrief-generations"
+GENERATION_ROOT_NAME = ".repoground-generations"
 CURRENT_LINK_NAME = "current"
 CURRENT_POINTER_JSON_NAME = "current.json"
 PUBLISH_LOCK_NAME = ".publish.lock"

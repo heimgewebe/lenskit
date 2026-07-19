@@ -44,7 +44,7 @@ from merger.repoground.core.bundle_generation import (
 )
 
 root = Path(sys.argv[1])
-current_root = root / ".repobrief-generations"
+current_root = root / ".repoground-generations"
 current = []
 pointer_seen = False
 if current_root.is_dir():

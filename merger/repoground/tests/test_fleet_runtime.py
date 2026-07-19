@@ -98,9 +98,10 @@ def write_historical_generation_symlink(
     *,
     bundled: bool = False,
     target_hash: str = "a" * 64,
+    generation_root_name: str = ".repobrief-generations",
 ) -> tuple[Path, Path]:
     bundle_root = candidate / "bundle" if bundled else candidate
-    generation = bundle_root / ".repobrief-generations" / "legacy-scope"
+    generation = bundle_root / generation_root_name / "legacy-scope"
     target = generation / target_hash
     target.mkdir(parents=True)
     (target / "payload.txt").write_text("historical payload", encoding="utf-8")
@@ -1022,14 +1023,25 @@ def test_reconciliation_records_completed_delete_after_crash(
 
 
 @pytest.mark.parametrize("bundled", [False, True])
-def test_transactional_prune_accepts_only_bounded_historical_current_symlink(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bundled: bool
+@pytest.mark.parametrize(
+    "generation_root_name",
+    [".repoground-generations", ".repobrief-generations"],
+)
+def test_transactional_prune_accepts_only_bounded_generation_current_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bundled: bool,
+    generation_root_name: str,
 ) -> None:
     module = load_publisher()
     roots = isolate_retention_roots(module, tmp_path, monkeypatch)
     group = roots["publication"] / "bundles" / "demo" / "main"
     candidate, _ = write_version(group, "20260714T100000Z", b"payload", 1)
-    current, _ = write_historical_generation_symlink(candidate, bundled=bundled)
+    current, _ = write_historical_generation_symlink(
+        candidate,
+        bundled=bundled,
+        generation_root_name=generation_root_name,
+    )
 
     snapshot = module.tree_snapshot(candidate)
     removed_bytes = module.tree_bytes(candidate)
