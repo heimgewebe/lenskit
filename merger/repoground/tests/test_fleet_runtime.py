@@ -5,6 +5,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -1125,6 +1126,63 @@ def test_transaction_rejects_historical_current_target_swap(
 
     assert candidate.is_dir()
     assert current.readlink() == Path("b" * 64)
+    assert not module.prune_transaction_root().exists()
+
+
+def test_transaction_rejects_substituted_historical_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    roots = isolate_retention_roots(module, tmp_path, monkeypatch)
+    group = roots["publication"] / "bundles" / "demo" / "main"
+    candidate, _ = write_version(group, "20260714T100000Z", b"payload", 1)
+    current, _ = write_historical_generation_symlink(candidate)
+    generation = current.parent
+    snapshot = module.tree_snapshot(candidate)
+    removed_bytes = module.tree_bytes(candidate)
+    substitute = tmp_path / "substitute-generation"
+    substitute.mkdir()
+    substitute_target = substitute / ("a" * 64)
+    substitute_target.mkdir()
+    (substitute / "current").symlink_to(
+        substitute_target.name, target_is_directory=True
+    )
+
+    shutil.rmtree(generation)
+    generation.symlink_to(substitute, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="contains a symlink"):
+        module.transactional_prune(
+            candidate,
+            root=group,
+            expected_snapshot=snapshot,
+            removed_bytes=removed_bytes,
+            protected=set(),
+        )
+
+    assert candidate.is_dir()
+    assert generation.is_symlink()
+    assert substitute.is_dir()
+    assert not module.prune_transaction_root().exists()
+
+
+def test_retention_rejects_special_file_and_leaves_candidate_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    roots = isolate_retention_roots(module, tmp_path, monkeypatch)
+    group = roots["publication"] / "bundles" / "demo" / "main"
+    candidate, _ = write_version(group, "20260714T100000Z", b"payload", 1)
+    fifo = candidate / "special.fifo"
+    os.mkfifo(fifo)
+
+    with pytest.raises(RuntimeError, match="non-regular file"):
+        module.tree_bytes(candidate)
+    with pytest.raises(RuntimeError, match="non-regular file"):
+        module.tree_snapshot(candidate)
+
+    assert candidate.is_dir()
+    assert fifo.exists()
     assert not module.prune_transaction_root().exists()
 
 
