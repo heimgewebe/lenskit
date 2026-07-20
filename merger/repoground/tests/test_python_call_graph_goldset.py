@@ -52,7 +52,7 @@ def test_quality_benchmark_meets_gate_without_promoting_default():
     assert report["coverage"] == {
         "case_count": 13,
         "category_count": 13,
-        "call_record_count": 15,
+        "call_record_count": 16,
         "skipped_files_count": 0,
         "skipped_errors": [],
     }
