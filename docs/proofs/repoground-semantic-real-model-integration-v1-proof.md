@@ -27,7 +27,7 @@ The optional semantic dependency installation proof deliberately downloaded no m
 - a fixed unprivileged numeric identity, UID/GID `65532:65532`, instead of the host user;
 - a temporary runtime copy produced only from regular files in `git archive HEAD`, normalized to file mode `0444` and directory mode `0555` before its read-only mount;
 - a read-only dependency mount whose complete host path is rejected when any component is a symlink;
-- Python isolated with `-P -S`, `PYTHONSAFEPATH=1`, and explicit `PYTHONPATH=/semantic-target:/work` rather than runtime `sys.path` mutation;
+- host orchestration isolated with Python 3.10 `-I -S`, while the pinned CPython 3.12 container uses `-P -S`, `PYTHONSAFEPATH=1`, and explicit `PYTHONPATH=/semantic-target:/work` rather than runtime `sys.path` mutation;
 - all Linux capabilities dropped;
 - `no-new-privileges`;
 - Hugging Face and Transformers offline flags;
@@ -44,19 +44,20 @@ The container image is not independently hard-coded in the integration wrapper. 
 Hash-locked dependency installation:
 
 ```text
-task_id: 212c3188527b4def80bfd05e
-terminalization_sha256: c71679798a88d4d36ea464c1aea7994d6215b2aa43f2e16b8f1af084eeea82a9
-lifecycle_receipt_sha256: 5015eea9a0d43d2efb0a66d67715bf3ae6af7d4039cd5903e935fba29982f3d6
+task_id: fba537b7c3af4cc4a49686a8
+terminalization_sha256: 1a1de2c245afd7f37e85a88f0e3f98008291d6e7a9b7e129bd15f9ca05930a8e
+lifecycle_receipt_sha256: 38099cef463b746f2c82ff3efea4d5200aba892c04299fad71b08fbb69c18041
 result: success
 ```
 
-Hardened network-disabled integration wrapper after maintainability refactoring:
+Hardened fixed-identity, network-disabled integration wrapper with commit-staged runtime and cleanup verification:
 
 ```text
-task_id: 62f0abd4435e4f1b83c793bc
-terminalization_sha256: 381a5d4848fbd78382873e7ae52dd667ebfa1a809f2ef4990d279542e0648a72
-lifecycle_receipt_sha256: c47f129337d85ac04daec3d7fc7868cbd72047f3e409d90fe4d52ea230e70a71
+task_id: 7f0912b4312449798fa2a90f
+terminalization_sha256: f8b554c0d1cab933171eaa4f55ff2b605aa751767dcfeb907212a0a33acb6e4d
+lifecycle_receipt_sha256: e80a5d7c257f60f605f80c2dc8f5d340cf7698d9979296c09e5f6ceee1b07647
 result: success
+runtime_copy_cleanup: pass, no repoground-semantic-runtime.* path remained
 ```
 
 Observed runtime and outputs:
