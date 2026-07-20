@@ -34,6 +34,20 @@ Python lists and tuples may contain ordinary component scalars or vector rows su
 
 RepoGround does not infer model identity from vector size. Different models can emit vectors with the same dimension, and runtime fingerprinting would require a separately versioned provenance contract covering model artifacts, revisions, tokenizer state, provider configuration, and reproducible loading. Phase F1 therefore proves shape compatibility only; model identity and semantic quality require independent evidence.
 
+### Network-disabled real-library integration
+
+The `semantic-lock` CI lane also exercises the exact locked `sentence-transformers` and CPU-only Torch versions with a real locally generated `SentenceTransformer` pipeline. The fixture uses the library's `BoW` and `Normalize` modules, is saved twice under one canonical tree hash, reloaded with `local_files_only=True`, and passed through RepoGround's dimension validation and cosine scoring. The model phase runs as fixed UID/GID `65532:65532` in a read-only container with `--network none`, requires the in-container interface inventory to contain only `lo`, and also applies `-P -S`, `PYTHONSAFEPATH`, offline environment flags plus a Python socket guard. The container receives a read-only, symlink-free runtime copy made from regular files in `git archive HEAD`, not the host worktree itself.
+
+This lane intentionally generates a small deterministic model instead of downloading a pre-trained model. It proves real-library output and integration shapes without introducing external model weights, licensing assumptions or network availability into CI. The image is read from the digest-pinned semantic platform contract; image or root-package updates require a contract change, lock regeneration and renewed model evidence. The pinned versions are compatibility inputs for reproducibility, not dynamic latest-version selection. The lane does not prove compatibility with every pre-trained model or any semantic-quality improvement. Run it after creating the exact locked dependency target:
+
+```bash
+target=.semantic-real-model-target
+mkdir -- "$target"
+scripts/release/compile_semantic_lock.sh --verify-install "$target"
+scripts/ci/run_semantic_real_model_integration.sh "$target"
+rm -rf -- "$target"
+```
+
 ## Evaluation Strategy
 
 We employ a strict **improvement delta vs non-semantic** strategy.
