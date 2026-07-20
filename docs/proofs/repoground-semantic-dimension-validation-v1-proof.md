@@ -20,8 +20,12 @@ Status: implemented and locally verified on branch `feat/semantic-dimension-vali
 - marks general semantic encoding fallbacks explicitly in query traces;
 - separates semantic conversion, validation, scoring and failure handling from `execute_query` so the repository maintainability ratchet remains satisfied;
 - normalizes a one-dimensional document vector for exactly one candidate into a one-row batch before scoring;
-- normalizes `(1, dimensions)` query lists and tuples without requiring NumPy;
+- normalizes `(1, dimensions)` query lists, tuples and array-like rows without requiring NumPy;
+- preserves lists of array- or tensor-like document rows as real batches instead of collapsing them to one document;
+- distinguishes zero-dimensional array scalars from one-dimensional vector rows;
+- centralizes positive runtime-dimension validation at both the public query boundary and the private embedding boundary;
 - uses `numpy.asarray` only inside the NumPy scoring path, avoiding unconditional array creation and redundant copies;
+- uses the measured faster `map(operator.mul, ...)` form in the optional pure-Python cosine hot path;
 - validates rectangular Python batches without allocating a second dimensions list and set;
 - centralizes semantic validation states, trace states and fallback markers as module constants.
 
@@ -32,6 +36,8 @@ The implementation does not change lexical retrieval, graph scoring, model selec
 1. `test_eval_semantic_delta` declared 384 dimensions while its deterministic mock model emitted two-dimensional vectors. The fixture was corrected to declare 2; the production check was not weakened.
 2. A model returning a one-dimensional document vector for one candidate passed dimension validation but failed both the pure-Python and NumPy-style scoring assumptions. The vector is now normalized to a one-row batch before validation and scoring.
 3. A `(1, dimensions)` tuple query was dimension-counted correctly but remained nested. Query normalization now returns the actual single vector.
+4. A list of array- or tensor-like document rows was mistaken for one flat vector because the old discriminator recognized only nested lists and tuples. Row-shape detection now preserves the batch count and validates every row dimension.
+5. Array scalar objects can expose `shape=()`. They are now treated as ordinary vector components rather than batch rows, avoiding a regression while broadening array-like support.
 
 ## Verification
 
@@ -39,15 +45,15 @@ Review-specific semantic cases:
 
 ```text
 python3 -m pytest merger/repoground/tests/test_retrieval_query.py \
-  -k "semantic or cosine_scores_accepts or query_only_normalizes" -q
+  -k "semantic or cosine_scores" -q
 
-17 passed, 33 deselected in 0.30s
+22 passed, 33 deselected in 0.28s
 ```
 
 Complete retrieval-query module:
 
 ```text
-50 passed in 0.62s
+55 passed in 0.61s
 ```
 
 Policy, schema, evaluation, API, context and review consumers:
@@ -81,6 +87,25 @@ lifecycle_receipt_sha256: 428699fdc383adea252beb3b81fa85545b2c6fc8f2aa6a68b050c2
 persisted_output_sha256: 4451f9c0d7549e18ea51ca8d8e8a75aaa0fe72164c8175c8699c27ec6edbf039
 ```
 
+Second review follow-up on the same current-main base:
+
+```text
+python3 -m pytest merger/repoground/tests -q
+
+4366 passed, 2 skipped in 120.27s
+```
+
+Durable second-review test task:
+
+```text
+task_id: 224e5839872a44a2853037d1
+terminalization_sha256: c8598ec055b8be1477c4cf00dc80c9154add4642b93e768ae65cf53c364243c9
+lifecycle_receipt_sha256: 423e90b92ebd197353b5b1a26a885f557fb9f72c76e1e4012f72f36ec592e077
+persisted_output_sha256: 1cf9109d28ac9efb26c3a49d3156a99278f2adb98289b7098024fc62c9ef4d76
+```
+
+A local 384-component microbenchmark compared 20,000 dot products over five repeats. The best observed times were 0.294337 seconds for the generator expression and 0.114604 seconds for `sum(map(operator.mul, ...))`. This establishes a local hot-path improvement, not a universal production latency claim.
+
 Static, maintainability and diff checks:
 
 ```text
@@ -112,7 +137,12 @@ Targeted cases cover:
 - document embedding count mismatch with bounded fallback and trace marker;
 - a single candidate whose model returns a one-dimensional document vector;
 - pure-Python cosine scoring for a one-dimensional single-document input;
-- query-only validation with a `(1, dimensions)` tuple and no document encoding.
+- query-only validation with a `(1, dimensions)` tuple and no document encoding;
+- query-only dimension mismatch without document encoding;
+- a query returned as a one-row list containing an array-like vector;
+- a document batch returned as a list of array-like vectors;
+- a one-dimensional array-like single-document vector in the pure-Python scorer;
+- zero-dimensional array scalar components inside an ordinary vector.
 
 ## Review decisions
 
@@ -125,14 +155,23 @@ Accepted because they had direct correctness or measurable allocation value:
 - explicit diagnostic constants;
 - a separate result-scoring helper;
 - a clearer document-count-mismatch test name and comment;
-- explicit documentation that missing runtime `dimensions` is rejected.
+- explicit documentation that missing runtime `dimensions` is rejected;
+- array-like row detection for query and document batches;
+- zero-dimensional scalar discrimination;
+- centralized positive-dimension validation;
+- the locally measured faster `operator.mul` pure-Python hot path.
 
 Not adopted in this pull request:
 
 - a new public exception hierarchy, because the exceptions remain private implementation details and existing bounded runtime errors are contract-compatible;
 - immutable retrieval result objects, because mutation is an established internal query-core pattern and changing it would expand the pull request beyond semantic validation;
 - requiring or warning for NumPy above an arbitrary candidate threshold, because semantic dependencies remain optional and no benchmark establishes 500 as a defensible boundary;
-- an enum for diagnostics, because internal string constants remove duplication without changing serialized contracts or adding conversion overhead.
+- an enum for diagnostics, because internal string constants remove duplication without changing serialized contracts or adding conversion overhead;
+- removal of defensive normalization in the scoring helpers, because those private helpers are directly tested and intentionally remain safe when called independently of `_validated_semantic_embeddings`;
+- removal of the NumPy shape guards as "dead code", for the same standalone-helper reason;
+- a real `sentence-transformers` model test in the default suite, because the dependency is optional, absent in the verification environment, and model acquisition would make the test network- and artifact-dependent;
+- arbitrary 1536/3072/4096-dimension tests, because vector-size bookkeeping is dimension-agnostic and such cases do not exercise a distinct branch;
+- a nested diagnostics-schema migration or new logging contract, because both would change serialized observability surfaces beyond this correctness slice.
 
 ## Boundaries
 

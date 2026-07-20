@@ -101,11 +101,48 @@ class _SemanticDimensionMismatch(RuntimeError):
         )
 
 
+def _require_positive_embedding_dimensions(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("embedding_policy dimensions must be a positive integer")
+    return value
+
+
+def _embedding_shape(value: Any) -> Optional[tuple[int, ...]]:
+    shape = getattr(value, "shape", None)
+    if shape is None:
+        return None
+    return tuple(int(part) for part in shape)
+
+
+def _is_embedding_row(value: Any) -> bool:
+    if isinstance(value, (list, tuple)):
+        return True
+    dimensions = _embedding_shape(value)
+    return dimensions is not None and len(dimensions) > 0
+
+
+def _embedding_row_dimension(value: Any, *, label: str) -> int:
+    """Return one row dimension for list-, tuple-, or array-like vectors."""
+    dimensions = _embedding_shape(value)
+    if dimensions is not None:
+        if len(dimensions) == 1 and dimensions[0] > 0:
+            return dimensions[0]
+        raise RuntimeError(
+            f"Semantic {label} embedding row has invalid shape {dimensions!r}."
+        )
+
+    if isinstance(value, (list, tuple)) and value:
+        return len(value)
+
+    raise RuntimeError(
+        f"Semantic {label} embedding row does not expose a supported vector shape."
+    )
+
+
 def _embedding_vector_dimension(value: Any, *, label: str) -> int:
     """Return one vector's dimension without requiring NumPy at runtime."""
-    shape = getattr(value, "shape", None)
-    if shape is not None:
-        dimensions = tuple(int(part) for part in shape)
+    dimensions = _embedding_shape(value)
+    if dimensions is not None:
         if len(dimensions) == 1 and dimensions[0] > 0:
             return dimensions[0]
         if len(dimensions) == 2 and dimensions[0] == 1 and dimensions[1] > 0:
@@ -118,12 +155,12 @@ def _embedding_vector_dimension(value: Any, *, label: str) -> int:
         if not value:
             raise RuntimeError(f"Semantic {label} embedding is empty.")
         first = value[0]
-        if isinstance(first, (list, tuple)):
-            if len(value) != 1 or not first:
+        if _is_embedding_row(first):
+            if len(value) != 1:
                 raise RuntimeError(
                     f"Semantic {label} embedding must contain exactly one non-empty vector."
                 )
-            return len(first)
+            return _embedding_row_dimension(first, label=label)
         return len(value)
 
     raise RuntimeError(
@@ -133,9 +170,8 @@ def _embedding_vector_dimension(value: Any, *, label: str) -> int:
 
 def _embedding_batch_dimensions(value: Any) -> tuple[int, int]:
     """Return (vector_count, vector_dimension) for document embeddings."""
-    shape = getattr(value, "shape", None)
-    if shape is not None:
-        dimensions = tuple(int(part) for part in shape)
+    dimensions = _embedding_shape(value)
+    if dimensions is not None:
         if len(dimensions) == 2 and dimensions[0] > 0 and dimensions[1] > 0:
             return dimensions[0], dimensions[1]
         if len(dimensions) == 1 and dimensions[0] > 0:
@@ -148,15 +184,13 @@ def _embedding_batch_dimensions(value: Any) -> tuple[int, int]:
         if not value:
             raise RuntimeError("Semantic document embeddings are empty.")
         first = value[0]
-        if not isinstance(first, (list, tuple)):
+        if not _is_embedding_row(first):
             return 1, len(value)
-        first_dimension = len(first)
+
+        first_dimension = _embedding_row_dimension(first, label="document")
         for row in value:
-            if not isinstance(row, (list, tuple)) or not row:
-                raise RuntimeError(
-                    "Semantic document embeddings must be a non-empty rectangular batch."
-                )
-            if len(row) != first_dimension:
+            row_dimension = _embedding_row_dimension(row, label="document")
+            if row_dimension != first_dimension:
                 raise RuntimeError(
                     "Semantic document embeddings must be a rectangular batch."
                 )
@@ -169,56 +203,48 @@ def _embedding_batch_dimensions(value: Any) -> tuple[int, int]:
 
 def _normalize_query_embedding(value: Any) -> Any:
     """Normalize one query embedding without importing optional dependencies."""
-    shape = getattr(value, "shape", None)
-    if shape is not None:
-        dimensions = tuple(int(part) for part in shape)
+    dimensions = _embedding_shape(value)
+    if dimensions is not None:
         if len(dimensions) == 2 and dimensions[0] == 1:
             return value.reshape(-1)
         return value
 
-    if (
-        isinstance(value, (list, tuple))
-        and len(value) == 1
-        and isinstance(value[0], (list, tuple))
-    ):
-        return value[0]
+    if isinstance(value, (list, tuple)) and len(value) == 1:
+        first = value[0]
+        if _is_embedding_row(first):
+            return _normalize_query_embedding(first)
     return value
 
 
 def _normalize_document_embedding_batch(value: Any) -> Any:
     """Normalize a single document vector to a one-row embedding batch."""
-    shape = getattr(value, "shape", None)
-    if shape is not None:
-        dimensions = tuple(int(part) for part in shape)
+    dimensions = _embedding_shape(value)
+    if dimensions is not None:
         if len(dimensions) == 1:
             return value.reshape(1, -1)
         return value
 
-    if (
-        isinstance(value, (list, tuple))
-        and value
-        and not isinstance(value[0], (list, tuple))
-    ):
-        return (value,)
+    if isinstance(value, (list, tuple)) and value:
+        first = value[0]
+        if not _is_embedding_row(first):
+            return (value,)
     return value
 
 
 def _python_cosine_scores(query_emb: Any, doc_embs: Any) -> List[float]:
     import math
+    import operator
 
     document_batch = _normalize_document_embedding_batch(doc_embs)
     query_norm = float(
-        math.sqrt(sum(component * component for component in query_emb))
+        math.sqrt(sum(map(operator.mul, query_emb, query_emb)))
     ) or 1.0
     scores = []
     for document_emb in document_batch:
         document_norm = float(
-            math.sqrt(sum(component * component for component in document_emb))
+            math.sqrt(sum(map(operator.mul, document_emb, document_emb)))
         ) or 1.0
-        dot_product = sum(
-            query_component * document_component
-            for query_component, document_component in zip(query_emb, document_emb)
-        )
+        dot_product = sum(map(operator.mul, query_emb, document_emb))
         scores.append(float(dot_product / (query_norm * document_norm)))
     return scores
 
@@ -256,6 +282,7 @@ def _validated_semantic_embeddings(
     expected_dimensions: int,
     semantic_diagnostics: Dict[str, Any],
 ) -> tuple[Any, Optional[Any]]:
+    expected_dimensions = _require_positive_embedding_dimensions(expected_dimensions)
     query_emb = _normalize_query_embedding(semantic_model.encode(query_text))
     actual_query_dimensions = _embedding_vector_dimension(
         query_emb,
@@ -638,15 +665,9 @@ def execute_query(
         if semantic_enabled:
             # F1b implements only provider=local and similarity_metric=cosine.
             # The embedding-policy dimension is a runtime invariant, not metadata.
-            expected_dimensions = embedding_policy.get("dimensions")
-            if (
-                isinstance(expected_dimensions, bool)
-                or not isinstance(expected_dimensions, int)
-                or expected_dimensions < 1
-            ):
-                raise ValueError(
-                    "embedding_policy dimensions must be a positive integer"
-                )
+            expected_dimensions = _require_positive_embedding_dimensions(
+                embedding_policy.get("dimensions")
+            )
             engine_type += "+semantic_requested"
             provider = embedding_policy.get("provider", "local")
             metric = embedding_policy.get("similarity_metric", "cosine")

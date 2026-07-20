@@ -30,6 +30,10 @@ For the local provider, RepoGround validates the actual query-vector and documen
 
 A direct runtime caller must provide a positive integer `dimensions` value. Omitting it, passing a boolean, or passing a non-positive or non-integer value is rejected instead of preserving the historical silent-ignore behavior. A one-dimensional document vector returned for exactly one candidate is normalized to a one-row batch before validation and scoring; this does not relax the declared dimension or candidate-count checks.
 
+Python lists and tuples may contain ordinary component scalars or vector rows supplied as array-like objects with a one-dimensional `.shape`, such as NumPy arrays or tensors. RepoGround distinguishes zero-dimensional array scalars from vector rows, validates every row dimension, and preserves the original batch count. This keeps the optional pure-Python path consistent with array-backed providers without importing NumPy merely for shape validation.
+
+RepoGround does not infer model identity from vector size. Different models can emit vectors with the same dimension, and runtime fingerprinting would require a separately versioned provenance contract covering model artifacts, revisions, tokenizer state, provider configuration, and reproducible loading. Phase F1 therefore proves shape compatibility only; model identity and semantic quality require independent evidence.
+
 ## Evaluation Strategy
 
 We employ a strict **improvement delta vs non-semantic** strategy.
