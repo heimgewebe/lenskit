@@ -154,6 +154,9 @@ def test_real_model_runner_is_network_disabled_and_workflow_wired() -> None:
     assert "runtime archive contains non-regular entry" in wrapper
     assert 'destination.chmod(0o444)' in wrapper
     assert 'directory.chmod(0o555)' in wrapper
+    assert 'status=$?' in wrapper
+    assert 'chmod -R u+rwX -- "$runtime_root"' in wrapper
+    assert 'exit "$status"' in wrapper
     assert '--volume "$runtime_work:/work:ro"' in wrapper
     assert '--volume "$repo_root:/work:ro"' not in wrapper
 

@@ -11,7 +11,11 @@ runtime_root="$(
   mktemp -d "${TMPDIR:-/tmp}/repoground-semantic-runtime.XXXXXX"
 )"
 cleanup() {
-  rm -rf -- "$runtime_root"
+  status=$?
+  trap - EXIT
+  chmod -R u+rwX -- "$runtime_root" 2>/dev/null || true
+  rm -rf -- "$runtime_root" || true
+  exit "$status"
 }
 trap cleanup EXIT
 runtime_work="$runtime_root/work"
