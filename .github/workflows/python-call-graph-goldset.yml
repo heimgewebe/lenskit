@@ -1,0 +1,99 @@
+---
+name: Python Call Graph Goldset
+
+"on":
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "docs/retrieval/python_call_graph_goldset.v1.json"
+      - "docs/proofs/python-call-graph-goldset-v1-proof.md"
+      - "merger/repoground/architecture/call_graph.py"
+      - "merger/repoground/architecture/call_graph_quality_eval.py"
+      - "merger/repoground/core/agent_impact_eval.py"
+      - "merger/repoground/tests/fixtures/python_call_graph_goldset/**"
+      - "merger/repoground/tests/test_python_call_graph.py"
+      - "merger/repoground/tests/test_python_call_graph_goldset.py"
+      - ".github/workflows/python-call-graph-goldset.yml"
+      - "requirements/repoground-dev.lock.txt"
+  pull_request:
+    branches: ["main", "master"]
+    paths:
+      - "docs/retrieval/python_call_graph_goldset.v1.json"
+      - "docs/proofs/python-call-graph-goldset-v1-proof.md"
+      - "merger/repoground/architecture/call_graph.py"
+      - "merger/repoground/architecture/call_graph_quality_eval.py"
+      - "merger/repoground/core/agent_impact_eval.py"
+      - "merger/repoground/tests/fixtures/python_call_graph_goldset/**"
+      - "merger/repoground/tests/test_python_call_graph.py"
+      - "merger/repoground/tests/test_python_call_graph_goldset.py"
+      - ".github/workflows/python-call-graph-goldset.yml"
+      - "requirements/repoground-dev.lock.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  python-call-graph-goldset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes -r requirements/repoground-dev.lock.txt
+
+      - name: Validate goldset JSON
+        run: python -m json.tool docs/retrieval/python_call_graph_goldset.v1.json >/dev/null
+
+      - name: Generate reviewable benchmark report
+        run: |
+          python -m merger.repoground.architecture.call_graph_quality_eval \
+            --goldset docs/retrieval/python_call_graph_goldset.v1.json \
+            --out python-call-graph-quality-report.json
+          python -m json.tool python-call-graph-quality-report.json >/dev/null
+
+      - name: Run focused tests
+        run: |
+          set -o pipefail
+          python -m pytest -q \
+            merger/repoground/tests/test_python_call_graph_goldset.py \
+            merger/repoground/tests/test_python_call_graph.py \
+            merger/repoground/tests/test_agent_impact_refinement.py \
+            2>&1 | tee python-call-graph-goldset-tests.log
+
+      - name: Ruff
+        run: |
+          ruff check \
+            merger/repoground/architecture/call_graph_quality_eval.py \
+            merger/repoground/tests/test_python_call_graph_goldset.py
+
+      - name: Structural checks
+        run: git diff --check
+
+      - name: Generate exact pull-request diff
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git fetch --no-tags --depth=1 origin "$HEAD_SHA"
+          git diff --binary --full-index "$BASE_SHA" "$HEAD_SHA" > repoground-pr.diff
+          test -s repoground-pr.diff
+
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: python-call-graph-goldset-evidence
+          path: |
+            python-call-graph-quality-report.json
+            python-call-graph-goldset-tests.log
+            repoground-pr.diff
+          if-no-files-found: warn
+          retention-days: 7
