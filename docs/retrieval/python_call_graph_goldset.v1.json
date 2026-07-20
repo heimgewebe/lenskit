@@ -1,0 +1,250 @@
+{
+  "agent_tasks": [
+    {
+      "baseline_paths": [
+        "callkit/__init__.py",
+        "callkit/ambiguous.py",
+        "callkit/consumer.py",
+        "callkit/targets.py"
+      ],
+      "baseline_tool_calls": 3,
+      "case_ids": [
+        "imported-normalize-alias",
+        "module-normalize-alias"
+      ],
+      "id": "cross-module-normalization"
+    },
+    {
+      "baseline_paths": [
+        "callkit/ambiguous.py",
+        "callkit/consumer.py",
+        "callkit/targets.py"
+      ],
+      "baseline_tool_calls": 3,
+      "case_ids": [
+        "direct-local-helper",
+        "direct-recursion-loop",
+        "same-class-method",
+        "local-constructor"
+      ],
+      "id": "local-caller-callee-edit"
+    },
+    {
+      "baseline_paths": [
+        "callkit/__init__.py",
+        "callkit/ambiguous.py",
+        "callkit/consumer.py",
+        "callkit/targets.py"
+      ],
+      "baseline_tool_calls": 3,
+      "case_ids": [
+        "decorator-header-call",
+        "default-header-call",
+        "unicode-imported-identifier"
+      ],
+      "id": "definition-header-and-unicode"
+    }
+  ],
+  "cases": [
+    {
+      "callee_expression": "helper",
+      "caller_qualified_name": "direct",
+      "category": "direct_call",
+      "expected_evidence_level": "S1",
+      "expected_reason": "local_module_function",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:consumer.py:function:helper",
+      "id": "direct-local-helper",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "norm",
+      "caller_qualified_name": "imported_alias",
+      "category": "import_alias",
+      "expected_evidence_level": "S1",
+      "expected_reason": "imported_internal_name",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:targets.py:function:normalize",
+      "id": "imported-normalize-alias",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "target_mod.normalize",
+      "caller_qualified_name": "module_alias",
+      "category": "module_alias",
+      "expected_evidence_level": "S1",
+      "expected_reason": "module_alias_call",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:targets.py:function:normalize",
+      "id": "module-normalize-alias",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "loop",
+      "caller_qualified_name": "loop",
+      "category": "recursion",
+      "expected_evidence_level": "S1",
+      "expected_reason": "direct_recursion",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:consumer.py:function:loop",
+      "id": "direct-recursion-loop",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "self.indent",
+      "caller_qualified_name": "Formatter.format",
+      "category": "method",
+      "expected_evidence_level": "S1",
+      "expected_reason": "self_method_same_class",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:consumer.py:function:Formatter.indent",
+      "id": "same-class-method",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "normalize",
+      "caller_qualified_name": "shadowed",
+      "category": "shadowing",
+      "expected_evidence_level": "S0",
+      "expected_reason": "lexically_shadowed_name",
+      "expected_relation_type": "calls",
+      "expected_status": "unresolved",
+      "expected_target_id": null,
+      "id": "shadowed-parameter",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "callback",
+      "caller_qualified_name": "invoke",
+      "category": "callback",
+      "expected_evidence_level": "S0",
+      "expected_reason": "lexically_shadowed_name",
+      "expected_relation_type": "calls",
+      "expected_status": "unresolved",
+      "expected_target_id": null,
+      "id": "callback-parameter",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "decorate",
+      "caller_qualified_name": null,
+      "category": "decorator",
+      "expected_evidence_level": "S1",
+      "expected_reason": "imported_internal_name",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:targets.py:function:decorate",
+      "id": "decorator-header-call",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "default_factory",
+      "caller_qualified_name": null,
+      "category": "default_argument",
+      "expected_evidence_level": "S1",
+      "expected_reason": "imported_internal_name",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:targets.py:function:default_factory",
+      "id": "default-header-call",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "registry.handle",
+      "caller_qualified_name": "dynamic",
+      "category": "dynamic_dispatch",
+      "expected_evidence_level": "S0",
+      "expected_reason": "dynamic_attribute_call",
+      "expected_relation_type": "calls",
+      "expected_status": "unresolved",
+      "expected_target_id": null,
+      "id": "dynamic-registry-call",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "choose",
+      "caller_qualified_name": "use",
+      "category": "negative_control",
+      "expected_evidence_level": "S0",
+      "expected_reason": "local_module_function_multiple_definitions",
+      "expected_relation_type": "calls",
+      "expected_status": "ambiguous",
+      "expected_target_id": null,
+      "id": "ambiguous-conditional-definition",
+      "path": "callkit/ambiguous.py"
+    },
+    {
+      "callee_expression": "grüßen",
+      "caller_qualified_name": "unicode_case",
+      "category": "unicode_identifier",
+      "expected_evidence_level": "S1",
+      "expected_reason": "imported_internal_name",
+      "expected_relation_type": "calls",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:targets.py:function:grüßen",
+      "id": "unicode-imported-identifier",
+      "path": "callkit/consumer.py"
+    },
+    {
+      "callee_expression": "Formatter",
+      "caller_qualified_name": "build_formatter",
+      "category": "constructor",
+      "expected_evidence_level": "S1",
+      "expected_reason": "local_class_constructor",
+      "expected_relation_type": "constructs",
+      "expected_status": "resolved",
+      "expected_target_id": "py:callkit:consumer.py:class:Formatter",
+      "id": "local-constructor",
+      "path": "callkit/consumer.py"
+    }
+  ],
+  "does_not_establish": [
+    "complete_call_graph",
+    "runtime_reachability",
+    "dynamic_dispatch_resolution",
+    "multilanguage_call_graph_quality",
+    "general_agent_quality_improvement",
+    "answer_correctness",
+    "test_sufficiency",
+    "review_completeness",
+    "merge_readiness",
+    "default_promotion"
+  ],
+  "fixture_root": "merger/repoground/tests/fixtures/python_call_graph_goldset",
+  "kind": "lenskit.python_call_graph_quality_goldset",
+  "language_scope": [
+    "python"
+  ],
+  "measurement_scope": "fixed_python_fixture_and_deterministic_navigation_tasks",
+  "required_categories": [
+    "direct_call",
+    "import_alias",
+    "module_alias",
+    "recursion",
+    "method",
+    "shadowing",
+    "callback",
+    "decorator",
+    "default_argument",
+    "dynamic_dispatch",
+    "negative_control",
+    "unicode_identifier",
+    "constructor"
+  ],
+  "task_id": "RPU-V1-T024",
+  "thresholds": {
+    "minimum_context_path_reduction": 0.4,
+    "minimum_s1_precision": 0.97,
+    "minimum_target_recall": 1.0,
+    "no_case_regression": true
+  },
+  "unicode_scope": [
+    "German identifier and UTF-8 literal"
+  ],
+  "version": "1.0"
+}
