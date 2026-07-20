@@ -1,6 +1,6 @@
 # RepoGround Semantic Dimension Validation v1 — Proof
 
-Status: implemented and locally verified on branch `feat/semantic-dimension-validation-v1` from base commit `572e9d5dd818e57b5e4b8d3a43660eca525be3a6`.
+Status: implemented and locally verified on branch `feat/semantic-dimension-validation-v1` from original base commit `572e9d5dd818e57b5e4b8d3a43660eca525be3a6`.
 
 ## Problem
 
@@ -56,12 +56,29 @@ Policy, schema, evaluation, API, context and review consumers:
 102 passed in 2.61s
 ```
 
-Full RepoGround Python suite:
+Full RepoGround Python suite before the main-branch reconciliation:
 
 ```text
 python3 -m pytest merger/repoground/tests -q
 
 4358 passed, 2 skipped in 123.37s
+```
+
+The branch was then merged without conflict with current main commit `9b4b643c448e018049d03ab1ec945af99018e2b1`. That main change touched only fleet-publisher symlink I/O and its tests. The complete suite was repeated with output persisted to a file rather than inferred from transient journal output:
+
+```text
+python3 -m pytest merger/repoground/tests -q
+
+4361 passed, 2 skipped in 119.52s
+```
+
+Durable post-main test task:
+
+```text
+task_id: d2057f00694e49f59f677061
+terminalization_sha256: 2b80d603448e404d599edb5ba51804b9fef892da423080465d9815637232a32d
+lifecycle_receipt_sha256: 428699fdc383adea252beb3b81fa85545b2c6fc8f2aa6a68b050c22e318c6764
+persisted_output_sha256: 4451f9c0d7549e18ea51ca8d8e8a75aaa0fe72164c8175c8699c27ec6edbf039
 ```
 
 Static, maintainability and diff checks:
