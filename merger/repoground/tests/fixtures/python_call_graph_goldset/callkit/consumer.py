@@ -45,8 +45,8 @@ def shadowed(normalize, value):
     return normalize(value)
 
 
-def dynamic(value):
-    return registry.handle(value)
+def dynamic(factory, value):
+    return factory()(value)
 
 
 def unicode_case(name):
