@@ -140,7 +140,9 @@ def test_real_model_runner_is_network_disabled_and_workflow_wired() -> None:
     assert '$(id -u):$(id -g)' not in wrapper
     assert "PYTHONPATH=/semantic-target:/work" in wrapper
     assert "PYTHONSAFEPATH=1" in wrapper
-    assert "python -P -S" in wrapper
+    assert wrapper.count("python3 -I -S") == 3
+    assert "python3 -P" not in wrapper
+    assert "python -P -S scripts/ci/run_semantic_real_model_integration.py" in wrapper
     assert "HF_HUB_OFFLINE=1" in wrapper
     assert "TRANSFORMERS_OFFLINE=1" in wrapper
     assert ":/work:ro" in wrapper

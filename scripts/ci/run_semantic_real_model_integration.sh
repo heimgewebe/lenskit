@@ -17,7 +17,7 @@ trap cleanup EXIT
 runtime_work="$runtime_root/work"
 mkdir -- "$runtime_work"
 
-python3 -P -S - "$repo_root" "$runtime_work" <<'PY'
+python3 -I -S - "$repo_root" "$runtime_work" <<'PY'
 from __future__ import annotations
 
 import io
@@ -71,11 +71,11 @@ PY
 runner="$runtime_work/scripts/ci/run_semantic_real_model_integration.py"
 platform_contract="$runtime_work/docs/release/repoground-semantic-platforms.v1.json"
 dependency_target="$(
-  python3 -P -S "$runner" \
+  python3 -I -S "$runner" \
     --validate-dependency-target "$1"
 )"
 image="$(
-  python3 -P -S -c '
+  python3 -I -S -c '
 import json
 import sys
 from pathlib import Path
