@@ -95,16 +95,16 @@ Complete RepoGround Python suite:
 ```text
 python3 -m pytest merger/repoground/tests -q
 
-4371 passed, 2 skipped in 116.02s
+4371 passed, 2 skipped in 120.65s
 ```
 
-Durable complete-suite task on the final code, workflow and wrapper:
+Durable complete-suite task on the hardened final code, workflow and wrapper:
 
 ```text
-task_id: c501896e76264c08bcd45e78
-terminalization_sha256: 8443f69c79127407469e175bc08d5be101caa4e8d93acd36f5aac94cfb756327
-lifecycle_receipt_sha256: 9a891f1b7097811189816bc51165b393728c753666c943cfde1fed7ffedf64dc
-persisted_output_sha256: 260720c8fbc7811eb3114e2a2345c02b4cb35a2d648f6a096eb1047200b896c5
+task_id: 6c1ba8d1eedc4d17b50bf0a3
+terminalization_sha256: 407d63374c6534cee565756f9d9bdd4e343843c764c4cdea97c6a00f1fb497c2
+lifecycle_receipt_sha256: f0f69c8f449cca0b26f0dfca17349ea88d31aa788dfb1306aa65edcdc553e435
+persisted_output_sha256: 9d6fef780e912ca623256bc0077cf33976904b5567d1422a7db5c4cf6171c636
 ```
 
 Static and contract checks:
