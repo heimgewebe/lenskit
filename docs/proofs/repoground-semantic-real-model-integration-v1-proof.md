@@ -1,6 +1,6 @@
 # RepoGround Semantic Real-Model Integration v1 — Proof
 
-Status: implemented and locally verified from RepoGround main commit `701c28983e873892155d4b5148274392aea7a951` on branch `test/semantic-real-model-integration-v1`.
+Status: implemented and locally verified after rebasing onto RepoGround main commit `f7f9ef29a45e0f3b43e303e8e4bf5bc888dfb1d3`. Executable evidence was produced from branch head `85b230455cf7c490fd60691d9946445f2aec42a4` before the final evidence-only proof update.
 
 ## Problem
 
@@ -44,18 +44,19 @@ The container image is not independently hard-coded in the integration wrapper. 
 Hash-locked dependency installation:
 
 ```text
-task_id: fba537b7c3af4cc4a49686a8
-terminalization_sha256: 1a1de2c245afd7f37e85a88f0e3f98008291d6e7a9b7e129bd15f9ca05930a8e
-lifecycle_receipt_sha256: 38099cef463b746f2c82ff3efea4d5200aba892c04299fad71b08fbb69c18041
+task_id: bf3e5668ed5b4bf9aab72b05
+terminalization_sha256: dc972c5d40f3a9967260f777e37736475ed6b2e563ab859d0618929a76add175
+lifecycle_receipt_sha256: 9fa4def82ad77baa48d5de8390c46749c92bc80bfdbc41cc214edc33675369ce
 result: success
 ```
 
 Hardened fixed-identity, network-disabled integration wrapper with commit-staged runtime and cleanup verification:
 
 ```text
-task_id: 7f0912b4312449798fa2a90f
-terminalization_sha256: f8b554c0d1cab933171eaa4f55ff2b605aa751767dcfeb907212a0a33acb6e4d
-lifecycle_receipt_sha256: e80a5d7c257f60f605f80c2dc8f5d340cf7698d9979296c09e5f6ceee1b07647
+task_id: 4397c82fb28a4ca79b3c40b7
+terminalization_sha256: 3e8ca6b0b0d7dc7e2c767a7327b4959dc3176560c2e34c26cdbf20c629d2556a
+lifecycle_receipt_sha256: 34faf9759b65c53a3c29f54f33b3eb59a67d2c9f749febf4a929e9f745f9ab94
+persisted_output_sha256: bc7b1aa47e8500634b32df8729a2cbcb16c681e7af84f583fef310fd6755f475
 result: success
 runtime_copy_cleanup: pass, no repoground-semantic-runtime.* path remained
 ```
@@ -95,16 +96,16 @@ Complete RepoGround Python suite:
 ```text
 python3 -m pytest merger/repoground/tests -q
 
-4371 passed, 2 skipped in 120.65s
+4396 passed, 2 skipped in 115.60s
 ```
 
 Durable complete-suite task on the hardened final code, workflow and wrapper:
 
 ```text
-task_id: 6c1ba8d1eedc4d17b50bf0a3
-terminalization_sha256: 407d63374c6534cee565756f9d9bdd4e343843c764c4cdea97c6a00f1fb497c2
-lifecycle_receipt_sha256: f0f69c8f449cca0b26f0dfca17349ea88d31aa788dfb1306aa65edcdc553e435
-persisted_output_sha256: 9d6fef780e912ca623256bc0077cf33976904b5567d1422a7db5c4cf6171c636
+task_id: ec821b25a8634ff6974354fa
+terminalization_sha256: e4c6cb852ac334d47043cab30e0cdbe290b9ed143dc72f8d8b3f540507a675b8
+lifecycle_receipt_sha256: 24de94e796ee8fdcbc5502d77ecdb4519d2e6e8899e218abd6ef353ef4b880af
+journal_tail_sha256: 1c36f5f0bdc8da5c9338ee10fbb88a2a4791629433386ae0129cbcae59efe8fb
 ```
 
 Static and contract checks:
@@ -115,7 +116,7 @@ Python syntax compilation: pass
 workflow YAML parse: pass
 wrapper bash syntax: pass
 release contract: pass, findings=[]
-maintainability ratchet: pass, new_count=0, resolved_count=2, findings=[]
+maintainability ratchet: pass, new_count=0, resolved_count=3, findings=[]
 git diff --check: pass
 ```
 
