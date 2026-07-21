@@ -366,6 +366,35 @@ def test_agent_impact_adapter_skips_large_call_graph_without_target_symbols(
     )
 
 
+def test_agent_impact_adapter_projects_coherent_call_graph_relations_in_impact_mode(
+    tmp_path: Path,
+) -> None:
+    adapter, _bundle, _config = _impact_adapter(tmp_path)
+
+    result = adapter.agent_impact_context(
+        "demo",
+        target_symbol="hello_adapter",
+        mode="impact",
+        include_query_context=False,
+    )
+
+    call_relations = [
+        item
+        for item in result["relations"]
+        if isinstance(item.get("freshness"), dict)
+        and item["freshness"].get("source") == "python_call_graph_json"
+    ]
+    assert result["status"] == "available"
+    assert "edit_context" not in result
+    assert call_relations
+    assert {item["relation_kind"] for item in call_relations} == {
+        "direct_caller",
+        "direct_callee",
+    }
+    assert all(item["freshness"]["status"] == "coherent" for item in call_relations)
+
+
+
 def test_agent_impact_adapter_dispatches_and_validates_arguments(
     tmp_path: Path,
 ) -> None:
