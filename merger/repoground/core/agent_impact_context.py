@@ -659,6 +659,96 @@ def _call_risk_relevance(
     return None
 
 
+
+def _call_graph_record_context(
+    call: Mapping[str, Any],
+    *,
+    target_ids: set[str],
+    target_qualified_names: set[str],
+    target_simple_names: set[str],
+    symbols_by_id: Mapping[str, Mapping[str, Any]],
+    relation_freshness: Mapping[str, Any],
+    symbol_freshness: Mapping[str, Any],
+) -> tuple[
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+]:
+    resolved_ids = {
+        str(value)
+        for value in _items(call.get("resolved_target_ids"))
+        if isinstance(value, str) and value
+    }
+    candidate_ids = {
+        str(value)
+        for value in _items(call.get("candidate_target_ids"))
+        if isinstance(value, str) and value
+    }
+    caller_id = call.get("caller_symbol_id")
+    relation_type_supported = call.get("relation_type") in _CALL_GRAPH_RELATION_TYPES
+    s1_resolved = (
+        relation_type_supported
+        and call.get("evidence_level") == "S1"
+        and call.get("resolution_status") == "resolved"
+        and len(resolved_ids) == 1
+    )
+    caller_relation: dict[str, Any] | None = None
+    callee_relation: dict[str, Any] | None = None
+    risk: dict[str, Any] | None = None
+    if s1_resolved:
+        matched_target_ids = target_ids.intersection(resolved_ids)
+        if matched_target_ids:
+            caller_relation = _call_relation_record(
+                call,
+                relation_kind="direct_caller",
+                peer_symbol=None,
+                target_symbol_ids=matched_target_ids,
+                relation_freshness=relation_freshness,
+                symbol_freshness=symbol_freshness,
+            )
+        if isinstance(caller_id, str) and caller_id in target_ids:
+            resolved_id = next(iter(resolved_ids))
+            peer_symbol = symbols_by_id.get(resolved_id)
+            if peer_symbol is not None:
+                callee_relation = _call_relation_record(
+                    call,
+                    relation_kind="direct_callee",
+                    peer_symbol=peer_symbol,
+                    target_symbol_ids={caller_id},
+                    relation_freshness=relation_freshness,
+                    symbol_freshness=symbol_freshness,
+                )
+            else:
+                risk = _call_risk_record(
+                    call,
+                    freshness=relation_freshness,
+                    uncertainty_reason="resolved_target_missing_from_symbol_index",
+                    relevance_basis="target_caller_symbol_id",
+                )
+        return caller_relation, callee_relation, risk
+
+    relevance_basis = _call_risk_relevance(
+        call,
+        target_ids=target_ids,
+        target_qualified_names=target_qualified_names,
+        target_simple_names=target_simple_names,
+        candidate_ids=candidate_ids,
+    )
+    if relevance_basis is None:
+        return None, None, None
+    uncertainty_reason = (
+        "unsupported_relation_type"
+        if not relation_type_supported
+        else "not_s1_resolved_unique_relation"
+    )
+    risk = _call_risk_record(
+        call,
+        freshness=relation_freshness,
+        uncertainty_reason=uncertainty_reason,
+        relevance_basis=relevance_basis,
+    )
+    return None, None, risk
+
 def _call_graph_context(
     call_graph: Mapping[str, Any],
     *,
@@ -697,7 +787,7 @@ def _call_graph_context(
             [],
             [],
             [
-            {
+                {
                     "kind": (
                         "call_graph_source_unavailable"
                         if status == "missing"
@@ -709,7 +799,7 @@ def _call_graph_context(
                         if status == "missing"
                         else "python_call_graph_json_not_coherent_with_core_sources"
                     ),
-            }
+                }
             ],
         )
 
@@ -732,7 +822,7 @@ def _call_graph_context(
         name.rsplit(".", 1)[-1] for name in target_qualified_names
     )
 
-    symbols_by_id: dict[str, dict[str, Any]] | None = None
+    symbols_by_id = _symbols_by_id(symbol_index)
     callers: list[dict[str, Any]] = []
     callees: list[dict[str, Any]] = []
     risks: list[dict[str, Any]] = []
@@ -740,85 +830,21 @@ def _call_graph_context(
     for raw in _items(call_graph.get("calls")):
         if not isinstance(raw, Mapping):
             continue
-        resolved_ids = {
-            str(value)
-            for value in _items(raw.get("resolved_target_ids"))
-            if isinstance(value, str) and value
-        }
-        candidate_ids = {
-            str(value)
-            for value in _items(raw.get("candidate_target_ids"))
-            if isinstance(value, str) and value
-        }
-        caller_id = raw.get("caller_symbol_id")
-        relation_type_supported = raw.get("relation_type") in _CALL_GRAPH_RELATION_TYPES
-        s1_resolved = (
-            relation_type_supported
-            and raw.get("evidence_level") == "S1"
-            and raw.get("resolution_status") == "resolved"
-            and len(resolved_ids) == 1
-        )
-        matched_target_ids = target_ids.intersection(resolved_ids)
-        if s1_resolved and matched_target_ids:
-            callers.append(
-                _call_relation_record(
-                    raw,
-                    relation_kind="direct_caller",
-                    peer_symbol=None,
-                    target_symbol_ids=matched_target_ids,
-                    relation_freshness=relation_freshness,
-                    symbol_freshness=symbol_freshness,
-                )
-            )
-        if s1_resolved and isinstance(caller_id, str) and caller_id in target_ids:
-            resolved_id = next(iter(resolved_ids))
-            if symbols_by_id is None:
-                symbols_by_id = _symbols_by_id(symbol_index)
-            peer_symbol = symbols_by_id.get(resolved_id)
-            if peer_symbol is not None:
-                callees.append(
-                    _call_relation_record(
-                        raw,
-                        relation_kind="direct_callee",
-                        peer_symbol=peer_symbol,
-                        target_symbol_ids={caller_id},
-                        relation_freshness=relation_freshness,
-                        symbol_freshness=symbol_freshness,
-                    )
-                )
-            else:
-                risks.append(
-                    _call_risk_record(
-                        raw,
-                        freshness=relation_freshness,
-                        uncertainty_reason="resolved_target_missing_from_symbol_index",
-                        relevance_basis="target_caller_symbol_id",
-                    )
-                )
-        if s1_resolved:
-            continue
-        relevance_basis = _call_risk_relevance(
+        caller_relation, callee_relation, risk = _call_graph_record_context(
             raw,
             target_ids=target_ids,
             target_qualified_names=target_qualified_names,
             target_simple_names=target_simple_names,
-            candidate_ids=candidate_ids,
+            symbols_by_id=symbols_by_id,
+            relation_freshness=relation_freshness,
+            symbol_freshness=symbol_freshness,
         )
-        if relevance_basis is None:
-            continue
-        uncertainty_reason = (
-            "unsupported_relation_type"
-            if not relation_type_supported
-            else "not_s1_resolved_unique_relation"
-        )
-        risks.append(
-            _call_risk_record(
-                raw,
-                freshness=relation_freshness,
-                uncertainty_reason=uncertainty_reason,
-                relevance_basis=relevance_basis,
-            )
-        )
+        if caller_relation is not None:
+            callers.append(caller_relation)
+        if callee_relation is not None:
+            callees.append(callee_relation)
+        if risk is not None:
+            risks.append(risk)
 
     skipped_files = call_graph.get("skipped_files_count")
     skipped_errors = call_graph.get("skipped_errors_total_count")
