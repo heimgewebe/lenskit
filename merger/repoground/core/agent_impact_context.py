@@ -395,6 +395,8 @@ def _select_symbols(
             represented_paths.add(path)
 
     folded = target_symbol.casefold() if target_symbol else None
+    exact_by_path: dict[str, dict[str, Any]] = {}
+    first_exact: dict[str, Any] | None = None
     if folded:
         for symbol in ordered:
             exact, _path_match = _symbol_matches(
@@ -402,9 +404,15 @@ def _select_symbols(
                 folded_symbol=folded,
                 target_paths=target_paths,
             )
-            if exact:
-                add(symbol)
-                break
+            if not exact:
+                continue
+            if first_exact is None:
+                first_exact = symbol
+            path = symbol.get("path")
+            if isinstance(path, str) and path in target_paths:
+                exact_by_path.setdefault(path, symbol)
+        if first_exact is not None:
+            add(first_exact)
 
     for symbol in ordered:
         path = symbol.get("path")
@@ -413,7 +421,7 @@ def _select_symbols(
             and path in target_paths
             and path not in represented_paths
         ):
-            add(symbol)
+            add(exact_by_path.get(path, symbol))
 
     for symbol in ordered:
         add(symbol)
