@@ -6,8 +6,9 @@ availability internals, and fixed forbidden-operation / non-claim catalogs.
 None of that varies with the query, so repeating it in full on every hit
 overfetches. This module keeps the compaction in one place: the fail-closed
 evidence a caller actually needs by default -- freshness status, commit
-identity, and any role/graph gap that is not simply "fine" -- stays visible,
-while the full inventory stays reachable (not deleted) behind ``verbose``.
+identity, actionable role/graph gaps, explicit non-claims, and the essential
+read-only mutation boundary -- stays visible, while the full diagnostic
+inventory remains available behind ``verbose``.
 """
 from __future__ import annotations
 
@@ -26,19 +27,44 @@ _RECOMMENDED = "recommended"
 _GOOD_GRAPH_STATUS = {"available", "not_generated", "profile_excluded"}
 
 
-def _read_manifest(manifest_path: Path) -> dict[str, Any] | None:
+def _coerce_manifest_path(manifest_path: str | Path) -> Path:
+    return Path(manifest_path).expanduser().resolve()
+
+
+def _read_manifest(manifest_path: str | Path) -> dict[str, Any] | None:
+    path = _coerce_manifest_path(manifest_path)
     try:
-        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None
 
 
-def commit_identity(manifest_path: Path) -> dict[str, Any] | None:
-    """The bundle's source commit, if the manifest records one present repo.
+def _normalize_commit_identity(value: Any) -> dict[str, Any] | None:
+    """Normalize legacy/synthetic commit values to one stable object shape."""
+    if isinstance(value, str) and value:
+        return {"repositories": [{"git_commit": value}]}
+    if not isinstance(value, dict):
+        return None
+    repositories = value.get("repositories")
+    if isinstance(repositories, list):
+        normalized = [repo for repo in repositories if isinstance(repo, dict)]
+        return {"repositories": normalized} if normalized else None
+    git_commit = value.get("git_commit")
+    if isinstance(git_commit, str) and git_commit:
+        identity: dict[str, Any] = {"git_commit": git_commit}
+        repo = value.get("repo")
+        if isinstance(repo, str) and repo:
+            identity["repo"] = repo
+        return {"repositories": [identity]}
+    return None
 
-    Returns ``None`` rather than a fabricated identity when provenance is
-    absent or no repository is recorded as present.
+
+def commit_identity(manifest_path: str | Path) -> dict[str, Any] | None:
+    """Return all present repository commit identities recorded by the bundle.
+
+    The shape is stable for single- and multi-repository snapshots. ``None`` is
+    returned rather than fabricating an identity when provenance is absent.
     """
     manifest = _read_manifest(manifest_path)
     if manifest is None:
@@ -47,31 +73,37 @@ def commit_identity(manifest_path: Path) -> dict[str, Any] | None:
     repos = provenance.get("repositories") if isinstance(provenance, dict) else None
     if not isinstance(repos, list):
         return None
+    identities: list[dict[str, Any]] = []
     for repo in repos:
-        if (
+        if not (
             isinstance(repo, dict)
             and repo.get("provenance_status") == "present"
             and isinstance(repo.get("git_commit"), str)
             and repo.get("git_commit")
         ):
-            identity: dict[str, Any] = {"git_commit": repo["git_commit"]}
-            name = repo.get("repo") or repo.get("name") or repo.get("path")
-            if isinstance(name, str) and name:
-                identity["repo"] = name
-            return identity
-    return None
+            continue
+        identity: dict[str, Any] = {"git_commit": repo["git_commit"]}
+        name = repo.get("repo") or repo.get("name") or repo.get("path")
+        if isinstance(name, str) and name:
+            identity["repo"] = name
+        identities.append(identity)
+    return {"repositories": identities} if identities else None
 
 
-def compact_freshness(freshness: Any, manifest_path: Path) -> dict[str, Any]:
-    """Freshness status + commit identity. Never silences a non-fresh status."""
+def compact_freshness(freshness: Any, manifest_path: str | Path) -> dict[str, Any]:
+    """Freshness status + stable commit identity; never silence non-fresh detail."""
     status = freshness.get("status") if isinstance(freshness, dict) else None
     status = status if isinstance(status, str) else "unknown"
-    commit = None
+    identity = None
     if isinstance(freshness, dict):
-        commit = freshness.get("commit") or freshness.get("git_commit")
-    if commit is None:
-        commit = commit_identity(manifest_path)
-    compact: dict[str, Any] = {"status": status, "commit": commit}
+        identity = _normalize_commit_identity(
+            freshness.get("commit_identity")
+            or freshness.get("commit")
+            or freshness.get("git_commit")
+        )
+    if identity is None:
+        identity = commit_identity(manifest_path)
+    compact: dict[str, Any] = {"status": status, "commit_identity": identity}
     if status != "fresh" and isinstance(freshness, dict):
         if freshness.get("reason") is not None:
             compact["reason"] = freshness["reason"]
@@ -92,10 +124,8 @@ def compact_graph_availability(graph_model: Any) -> dict[str, Any]:
 def compact_role_gaps(artifacts: Any) -> list[dict[str, Any]]:
     """Only the roles whose availability is not simply fine.
 
-    Drops the always-repeated full per-role inventory (every role, every
-    call) while keeping any explicit gap -- a missing required artifact, an
-    invalid path, a missing recommended artifact, or a degraded/blocked
-    validation -- visible by default.
+    Drops the always-repeated full per-role inventory while keeping any explicit
+    actionable gap visible by default.
     """
     if not isinstance(artifacts, list):
         return []
@@ -107,19 +137,19 @@ def compact_role_gaps(artifacts: Any) -> list[dict[str, Any]]:
         requirement = artifact.get("requirement")
         if availability in _GOOD_ROLE_AVAILABILITY:
             continue
-        # Missing required and recommended artifacts are both actionable gaps.
-        # Missing optional artifacts are intentionally omitted from the compact view.
         if availability == "missing" and requirement not in {"required", _RECOMMENDED}:
             continue
-        gaps.append({
+        gap: dict[str, Any] = {
             "role": artifact.get("role"),
             "availability": availability,
-            "reason": artifact.get("reason"),
-        })
+        }
+        if artifact.get("reason") is not None:
+            gap["reason"] = artifact["reason"]
+        gaps.append(gap)
     return gaps
 
 
-def compact_availability(availability_model: Any, manifest_path: Path) -> dict[str, Any]:
+def compact_availability(availability_model: Any, manifest_path: str | Path) -> dict[str, Any]:
     if not isinstance(availability_model, dict):
         return {
             "status": "unknown",
@@ -143,46 +173,66 @@ def compact_availability(availability_model: Any, manifest_path: Path) -> dict[s
 
 
 def compact_mutation_boundary(boundary: Any) -> dict[str, Any]:
-    """Keep the fail-closed fact (what this call writes) visible; drop the catalog."""
-    writes = boundary.get("writes") if isinstance(boundary, dict) else []
-    ref = boundary.get("ref") if isinstance(boundary, dict) and boundary.get("ref") else MUTATION_BOUNDARY_REF
-    return {"ref": ref, "writes": list(writes) if isinstance(writes, list) else []}
+    """Keep the essential read-only safety facts visible in compact mode."""
+    source = boundary if isinstance(boundary, dict) else {}
+    writes = source.get("writes")
+    normalized_writes = list(writes) if isinstance(writes, list) else []
+    ref = source.get("ref") or MUTATION_BOUNDARY_REF
+    compact: dict[str, Any] = {
+        "ref": ref,
+        "writes": normalized_writes,
+        "read_only": not normalized_writes,
+    }
+    if isinstance(source.get("read_paths_do_not_refresh"), bool):
+        compact["read_paths_do_not_refresh"] = source["read_paths_do_not_refresh"]
+    if isinstance(source.get("not_reachable_from_snapshot_create"), bool):
+        compact["not_reachable_from_snapshot_create"] = source[
+            "not_reachable_from_snapshot_create"
+        ]
+    return compact
 
 
 def compact_does_not_establish(items: Any) -> dict[str, Any]:
-    if isinstance(items, dict) and "ref" in items and "count" in items:
-        return items
-    count = len(items) if isinstance(items, (list, tuple)) else 0
-    return {"ref": DOES_NOT_ESTABLISH_REF, "count": count}
+    """Keep explicit non-claims visible; a bare opaque reference is insufficient."""
+    if isinstance(items, dict) and isinstance(items.get("items"), list):
+        return {
+            "ref": items.get("ref") or DOES_NOT_ESTABLISH_REF,
+            "items": list(items["items"]),
+        }
+    values = list(items) if isinstance(items, (list, tuple)) else []
+    return {"ref": DOES_NOT_ESTABLISH_REF, "items": values}
 
 
 def project_read_result(
     result: dict[str, Any],
-    manifest_path: Path,
+    manifest_path: str | Path,
     *,
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Project a read-only frontdoor result to its compact default shape.
 
-    ``verbose=True`` returns ``result`` unchanged -- the full diagnostic
-    inventory, reproducible on demand rather than deleted. ``verbose=False``
-    (the default) leaves hits, status, error detail, and truncation
-    untouched, and collapses the availability/mutation/non-claim inventories
-    -- which repeat unchanged across calls -- to their compact form.
+    ``verbose=True`` returns ``result`` unchanged. ``verbose=False`` leaves
+    hits, status, error detail, truncation and explicit non-claim semantics
+    untouched while collapsing repeated availability and mutation inventories.
     """
     if verbose or not isinstance(result, dict):
         return result
+    path = _coerce_manifest_path(manifest_path)
     projected = dict(result)
     if "availability" in projected:
-        projected["availability"] = compact_availability(projected.get("availability"), manifest_path)
+        projected["availability"] = compact_availability(projected.get("availability"), path)
     if "freshness" in projected:
         availability = projected.get("availability")
         if isinstance(availability, dict) and "freshness" in availability:
             projected["freshness"] = availability["freshness"]
         else:
-            projected["freshness"] = compact_freshness(projected.get("freshness"), manifest_path)
+            projected["freshness"] = compact_freshness(projected.get("freshness"), path)
     if "mutation_boundary" in projected:
-        projected["mutation_boundary"] = compact_mutation_boundary(projected.get("mutation_boundary"))
+        projected["mutation_boundary"] = compact_mutation_boundary(
+            projected.get("mutation_boundary")
+        )
     if "does_not_establish" in projected:
-        projected["does_not_establish"] = compact_does_not_establish(projected.get("does_not_establish"))
+        projected["does_not_establish"] = compact_does_not_establish(
+            projected.get("does_not_establish")
+        )
     return projected
