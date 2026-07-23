@@ -1,0 +1,18 @@
+{
+  "kind": "repoground.module_reachability_policy",
+  "version": "1.0",
+  "package_roots": [
+    "merger"
+  ],
+  "require_non_documentation_evidence": true,
+  "allowed_unproven": [],
+  "allowed_documentation_only": [],
+  "removal_policy": "An unproven module is not a dead module. Removing production code requires positive evidence of non-use (retired consumer, replaced surface, measured zero use), never the absence of a static reference.",
+  "allowlist_policy": "Entries record modules whose reachability could not be measured and that were reviewed by hand. A stale entry fails the check so the allowlist cannot silently outlive its reason.",
+  "does_not_establish": [
+    "that an unproven module is dead",
+    "that a reachable module is executed at runtime",
+    "completeness of dynamic loader discovery",
+    "that evidence surfaces are themselves used"
+  ]
+}
