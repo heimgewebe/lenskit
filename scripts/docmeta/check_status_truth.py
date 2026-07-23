@@ -206,6 +206,41 @@ def _release_identity_facts(root: Path) -> tuple[dict[str, Any] | None, list[Fin
     return facts, []
 
 
+def _validate_release_truth(
+    root: Path, truth: dict[str, Any], status_path: Path
+) -> list[Finding]:
+    findings: list[Finding] = []
+    release_facts, release_identity_findings = _release_identity_facts(root)
+    findings.extend(release_identity_findings)
+    if release_facts is None:
+        return findings
+
+    declared = truth.get("release_identity")
+    declared_identity = declared if isinstance(declared, dict) else None
+    if declared_identity != release_facts:
+        findings.append(
+            Finding(
+                "STATUS_TRUTH_RELEASE_IDENTITY_MISMATCH",
+                status_path.as_posix(),
+                f"expected {release_facts!r}, found {declared_identity!r}",
+            )
+        )
+
+    # Historical/versioned evidence may legitimately name a superseded LicenseRef.
+    # Reject only prose that presents the old restrictive license as the current
+    # public-distribution state.
+    serialized_truth = json.dumps(truth, sort_keys=True)
+    if STALE_CURRENT_DISTRIBUTION_RE.findall(serialized_truth):
+        findings.append(
+            Finding(
+                "STATUS_TRUTH_STALE_LICENSE_REFERENCE",
+                status_path.as_posix(),
+                "current public-distribution prose still claims a superseded restrictive LicenseRef",
+            )
+        )
+    return findings
+
+
 def scan(root: Path, status_path: Path = DEFAULT_STATUS_PATH) -> dict[str, Any]:
     root = root.resolve()
     findings: list[Finding] = []
@@ -245,32 +280,7 @@ def scan(root: Path, status_path: Path = DEFAULT_STATUS_PATH) -> dict[str, Any]:
     if truth.get("authority") != "governance_projection":
         findings.append(Finding("STATUS_TRUTH_AUTHORITY", status_path.as_posix(), "must remain a projection"))
 
-    release_facts, release_identity_findings = _release_identity_facts(root)
-    findings.extend(release_identity_findings)
-    if release_facts is not None:
-        declared_identity = truth.get("release_identity") if isinstance(truth.get("release_identity"), dict) else None
-        if declared_identity != release_facts:
-            findings.append(
-                Finding(
-                    "STATUS_TRUTH_RELEASE_IDENTITY_MISMATCH",
-                    status_path.as_posix(),
-                    f"expected {release_facts!r}, found {declared_identity!r}",
-                )
-            )
-        # Historical/versioned evidence may legitimately name a superseded LicenseRef.
-        # Reject only prose that presents the old restrictive license as the *current*
-        # public-distribution state. The structured release_identity comparison above
-        # remains the authoritative machine-readable current-state check.
-        serialized_truth = json.dumps(truth, sort_keys=True)
-        stale_current_claims = STALE_CURRENT_DISTRIBUTION_RE.findall(serialized_truth)
-        if stale_current_claims:
-            findings.append(
-                Finding(
-                    "STATUS_TRUTH_STALE_LICENSE_REFERENCE",
-                    status_path.as_posix(),
-                    "current public-distribution prose still claims a superseded restrictive LicenseRef",
-                )
-            )
+    findings.extend(_validate_release_truth(root, truth, status_path))
 
     counts = Counter(
         item.get("status") for item in tasks if isinstance(item, dict)
