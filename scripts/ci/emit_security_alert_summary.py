@@ -60,7 +60,7 @@ def _load_api_evidence(api_response_path: Path | None) -> dict[str, Any] | None:
         return {
             "status_code": 200,
             "open_alert_count": len(payload),
-            "paginated": False,
+            "paginated": None,
             "page_count": 1,
         }
 
@@ -100,9 +100,10 @@ def main() -> int:
         type=Path,
         default=None,
         help=(
-            "Optional JSON file with a captured "
-            "'GET /repos/{owner}/{repo}/code-scanning/alerts' response, as "
-            '{"status_code": <int>, "open_alert_count": <int|null>}. '
+            "Optional JSON file with captured code-scanning alert evidence. "
+            "A raw GitHub API array is treated as one non-exhaustive page; zero items "
+            "therefore cannot prove clean. To prove exhaustive zero, pass a structured "
+            "object with status_code=200, open_alert_count=0, and paginated=true. "
             "Never fetched by this script; the caller owns any token."
         ),
     )

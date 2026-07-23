@@ -21,8 +21,8 @@ from collections.abc import Mapping
 from typing import Any
 
 _STATES = ("clean", "alerts_present", "unavailable", "unauthorized", "unknown")
-_DEFINITIVE_STATES = ("clean", "alerts_present")
-_UNAUTHORIZED_STATUS_CODES = (401, 403)
+_DEFINITIVE_STATES = frozenset({"clean", "alerts_present"})
+_UNAUTHORIZED_STATUS_CODES = frozenset({401, 403})
 _OK_STATUS_CODE = 200
 
 _REQUIRED_PERMISSIONS = {
@@ -39,6 +39,9 @@ _REQUIRED_PERMISSIONS = {
     ),
 }
 
+_SARIF_ALLOWED_FIELDS = frozenset({"available", "alert_count", "repository", "commit_sha", "stale"})
+_API_ALLOWED_FIELDS = frozenset({"status_code", "open_alert_count", "repository", "commit_sha", "paginated", "page_count", "stale"})
+
 _DOES_NOT_PROVE = (
     "the absence of code-scanning coverage gaps outside analyzed languages or paths",
     "severity, exploitability, or business impact of any reported alert",
@@ -53,7 +56,7 @@ class SecurityAlertSummaryError(ValueError):
 
 
 def _require_evidence_mapping(
-    value: Any, *, name: str, allowed_fields: set[str]
+    value: Any, *, name: str, allowed_fields: set[str] | frozenset[str]
 ) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise SecurityAlertSummaryError(f"{name} must be an object")
@@ -62,8 +65,6 @@ def _require_evidence_mapping(
         raise SecurityAlertSummaryError(
             f"{name} has unsupported fields: {sorted(extra)}"
         )
-    if value.get("stale") is True:
-        raise SecurityAlertSummaryError(f"{name} is marked stale")
     return value
 
 
@@ -102,12 +103,15 @@ def _parse_sarif_evidence(value: Any) -> dict[str, Any] | None:
     evidence = _require_evidence_mapping(
         value,
         name="sarif_evidence",
-        allowed_fields={"available", "alert_count", "repository", "commit_sha", "stale"},
+        allowed_fields=_SARIF_ALLOWED_FIELDS,
     )
     available = evidence.get("available")
     if not isinstance(available, bool):
         raise SecurityAlertSummaryError("sarif_evidence.available must be a boolean")
     repo, sha = _evidence_identity(evidence, name="sarif_evidence")
+    stale = _optional_bool(evidence.get("stale"), field="stale", name="sarif_evidence")
+    if stale is True:
+        raise SecurityAlertSummaryError("sarif_evidence is marked stale (evidence may be from previous commit)")
     count = evidence.get("alert_count")
     if available:
         count = _non_negative_int(
@@ -122,7 +126,7 @@ def _parse_sarif_evidence(value: Any) -> dict[str, Any] | None:
         "alert_count": count,
         "repository": repo,
         "commit_sha": sha,
-        "stale": evidence.get("stale"),
+        "stale": stale,
     }
 
 
@@ -140,13 +144,13 @@ def _parse_api_evidence(value: Any) -> dict[str, Any] | None:
     evidence = _require_evidence_mapping(
         value,
         name="api_evidence",
-        allowed_fields={
-            "status_code", "open_alert_count", "repository", "commit_sha",
-            "paginated", "page_count", "stale",
-        },
+        allowed_fields=_API_ALLOWED_FIELDS,
     )
     status = _valid_http_status(evidence.get("status_code"))
     repo, sha = _evidence_identity(evidence, name="api_evidence")
+    stale = _optional_bool(evidence.get("stale"), field="stale", name="api_evidence")
+    if stale is True:
+        raise SecurityAlertSummaryError("api_evidence is marked stale (evidence may be from previous commit)")
     paginated = _optional_bool(
         evidence.get("paginated"), field="paginated", name="api_evidence"
     )
@@ -171,7 +175,7 @@ def _parse_api_evidence(value: Any) -> dict[str, Any] | None:
         "commit_sha": sha,
         "paginated": paginated,
         "page_count": page_count,
-        "stale": evidence.get("stale"),
+        "stale": stale,
     }
 
 
@@ -276,7 +280,13 @@ def _effective_binding(
     api: dict[str, Any] | None,
     field: str,
 ) -> str | None:
-    return requested or (sarif.get(field) if sarif else None) or (api.get(field) if api else None)
+    if requested is not None:
+        return requested
+    if sarif is not None and sarif.get(field) is not None:
+        return sarif.get(field)
+    if api is not None and api.get(field) is not None:
+        return api.get(field)
+    return None
 
 
 def _resolve_verdict(
@@ -294,7 +304,8 @@ def _resolve_verdict(
             if disagreement
             else sarif_verdict
         )
-        return state, reason, count, "sarif+api" if api_verdict is not None else "sarif"
+        source = "sarif+api" if disagreement or (api_verdict is not None and api_verdict[0] in _DEFINITIVE_STATES) else "sarif"
+        return state, reason, count, source
     if api_verdict is not None:
         state, reason, count = api_verdict
         return state, reason, count, "sarif+api" if sarif_verdict is not None else "api"

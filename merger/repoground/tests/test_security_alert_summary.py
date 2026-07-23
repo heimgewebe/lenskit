@@ -112,7 +112,7 @@ def test_sarif_clean_dominates_a_concurrent_api_404():
     )
     assert summary["state"] == "clean"
     assert summary["state_reason"] == "sarif_result_count"
-    assert summary["evidence_source"] == "sarif+api"
+    assert summary["evidence_source"] == "sarif"
 
 
 def test_sarif_unavailable_falls_back_to_api_403_unauthorized():
@@ -278,3 +278,21 @@ def test_paginated_api_evidence_is_supported_and_validated():
             api_evidence={"status_code": 200, "open_alert_count": 0, "page_count": -1}
         )
 
+
+
+def test_sarif_unavailable_api_clean_with_pagination_is_clean():
+    summary = _validate(classify_security_alert_state(
+        sarif_evidence={"available": False, "alert_count": None},
+        api_evidence={"status_code": 200, "open_alert_count": 0, "paginated": True, "page_count": 1},
+    ))
+    assert summary["state"] == "clean"
+    assert summary["state_reason"] == "api_result_count"
+    assert summary["evidence_source"] == "sarif+api"
+
+
+@pytest.mark.parametrize("source", ["sarif", "api"])
+@pytest.mark.parametrize("stale", ["yes", 1, "false", 0])
+def test_non_boolean_stale_is_rejected(source, stale):
+    evidence = ({"available": True, "alert_count": 0, "stale": stale} if source == "sarif" else {"status_code": 200, "open_alert_count": 0, "paginated": True, "stale": stale})
+    with pytest.raises(SecurityAlertSummaryError, match="stale must be a boolean"):
+        classify_security_alert_state(**{f"{source}_evidence": evidence})
