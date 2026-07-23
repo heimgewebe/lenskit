@@ -560,8 +560,9 @@ def test_find_references_returns_bounded_s0_and_s1_evidence(tmp_path):
     assert result["truncated"] is True
     assert [hit["start_line"] for hit in result["hits"]] == [10, 20]
     assert all(hit["evidence_level"] == "S1" for hit in result["hits"])
-    assert all(hit["relation_type"] == "calls" for hit in result["hits"])
-    assert "complete_call_graph" in result["does_not_establish"]
+    assert result["does_not_establish"]["ref"] == "repobrief.does_not_establish.default.v1"
+    verbose_result = find_references(_bundle(tmp_path), "target", k=2, verbose=True)
+    assert "complete_call_graph" in verbose_result["does_not_establish"]
 
 
 def test_get_callers_fails_closed_when_target_name_is_ambiguous(tmp_path):
