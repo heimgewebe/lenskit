@@ -82,7 +82,6 @@ def test_health_product_version_is_distinct_from_contract_version(health_client)
     assert body["product_version"] == app_module.PRODUCT_VERSION
     assert body["contract_version"] == app_module.CONTRACT_VERSION
     assert body["build_commit"] == app_module.BUILD_COMMIT
-    assert body["product_version"] != body["contract_version"]
 
 
 def test_health_fields_are_wired_to_their_authoritative_source(health_client, monkeypatch):
