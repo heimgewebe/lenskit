@@ -69,7 +69,7 @@
         "PR #978 merged as 50de5cd4c95f473fff5d6420d0e8c99ba92771bf after diff-bound self-review; all PR and main checks, including release-candidate, passed.",
         "Ruleset 18784275 requires release-candidate for future main merges.",
         "Public distribution is permitted under the current Apache-2.0 project license per docs/decisions/repoground-public-license-decision.v1.json; the public-license decision and reviewed source-only distribution boundary are complete; bundled third-party binaries, containers, model weights and datasets remain outside that clearance.",
-        "The optional semantic/Torch dependency closure remains excluded pending TASK-LENSKIT-SEMANTIC-LOCK-001.",
+        "The optional semantic/Torch dependency closure is hash-locked for the reviewed CPython 3.12/Linux x86-64 CPU-only scope, remains optional/default-off, and stays outside the default candidate contract.",
         "Done does not establish product readiness, public release readiness, runtime correctness, test completeness or absence of vulnerabilities."
       ],
       "promotion": "allowed",
@@ -232,7 +232,7 @@
       "The final control plane and browser gate are runtime-verified for their bounded scopes.",
       "Canonical review retrieval remains measured below its acceptance thresholds and default promotion is blocked.",
       "The internal deterministic release-candidate path is main-verified; public distribution is permitted under the current Apache-2.0 project license, while the broader owner-level public-license programme closure remains tracked separately.",
-      "The optional semantic/Torch dependency closure is not hash-locked and remains outside the candidate contract.",
+      "The optional semantic/Torch dependency closure is hash-locked for the reviewed CPython 3.12/Linux x86-64 CPU-only scope and remains outside the default candidate contract.",
       "The reached upstream reusable-workflow graph is recursively commit-pinned, hash-verified, main-verified and runtime-verified for the bounded no-command caller path.",
       "Graph maintainability ratchets are merged and main-verified for their bounded static-analysis scope.",
       "The package/namespace decision, no-mirror adapter and bounded Workbench navigation utility are main-evidenced; none establishes public distribution or general answer quality."
