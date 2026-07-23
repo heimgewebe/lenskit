@@ -18,7 +18,19 @@
   },
   "complexity": {
     "baseline_path": "config/repoground-c901-baseline.v1.json",
-    "policy": "existing identities may disappear; new identities and higher complexity are blocked"
+    "policy": "existing identities may disappear; new identities and higher complexity are blocked",
+    "budget": {
+      "policy": "the aggregate budget must fall over time and may never be raised above the historical reference; raising any ceiling is a visible policy change and is rejected while it exceeds the reference",
+      "historical_reference": {
+        "task": "REPOGROUND-LEGACY-RECONCILIATION-V1-T004",
+        "observed_on": "2026-07-17",
+        "finding_count": 213,
+        "max_complexity": 170
+      },
+      "finding_count_max": 198,
+      "max_complexity_max": 148,
+      "excess_total_max": 2533
+    }
   },
   "does_not_establish": [
     "semantic correctness of inferred layers",

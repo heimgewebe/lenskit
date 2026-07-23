@@ -216,6 +216,80 @@ def _complexity_regressions(
     return findings
 
 
+_BUDGET_DIMENSIONS = (
+    # (budget key, historical reference key, human label)
+    ("finding_count_max", "finding_count", "finding_count"),
+    ("max_complexity_max", "max_complexity", "max_complexity"),
+    ("excess_total_max", None, "excess_total"),
+)
+
+
+def measure_complexity_budget(current: list[ComplexityFinding]) -> dict[str, int]:
+    """Aggregate the three budgeted complexity dimensions of a scan."""
+
+    return {
+        "finding_count": len(current),
+        "max_complexity": max((item.complexity for item in current), default=0),
+        # Excess is the complexity mass above the configured threshold. It falls
+        # when a function is split even if the split creates further findings.
+        "excess_total": sum(max(item.complexity - item.limit, 0) for item in current),
+    }
+
+
+def evaluate_complexity_budget(
+    current: list[ComplexityFinding],
+    budget: Any,
+) -> list[dict[str, Any]]:
+    """Reject scans above the recorded budget, and budgets above the reference.
+
+    Fail-closed: a missing or malformed budget is itself a finding, so removing
+    the budget cannot silently disable the ratchet.
+    """
+
+    if not isinstance(budget, dict):
+        return [{"code": "complexity_budget_missing"}]
+
+    reference = budget.get("historical_reference")
+    if not isinstance(reference, dict):
+        return [{"code": "complexity_budget_reference_missing"}]
+
+    findings: list[dict[str, Any]] = []
+    observed = measure_complexity_budget(current)
+    for budget_key, reference_key, label in _BUDGET_DIMENSIONS:
+        ceiling = budget.get(budget_key)
+        if not isinstance(ceiling, int) or isinstance(ceiling, bool):
+            findings.append(
+                {"code": "complexity_budget_invalid", "dimension": budget_key}
+            )
+            continue
+        if observed[label] > ceiling:
+            findings.append(
+                {
+                    "code": "complexity_budget_exceeded",
+                    "dimension": label,
+                    "observed": observed[label],
+                    "budget": ceiling,
+                }
+            )
+        if reference_key is None:
+            continue
+        historical = reference.get(reference_key)
+        if not isinstance(historical, int) or isinstance(historical, bool):
+            findings.append(
+                {"code": "complexity_budget_reference_invalid", "dimension": label}
+            )
+        elif ceiling > historical:
+            findings.append(
+                {
+                    "code": "complexity_budget_raised_above_reference",
+                    "dimension": label,
+                    "budget": ceiling,
+                    "historical_reference": historical,
+                }
+            )
+    return findings
+
+
 def compare_complexity_baseline(
     current: list[ComplexityFinding],
     baseline: dict[str, Any],
@@ -237,7 +311,10 @@ def check(repo_root: Path, policy_path: Path) -> dict[str, Any]:
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     current_complexity = collect_complexity_findings(repo_root)
     complexity_findings = compare_complexity_baseline(current_complexity, baseline)
-    findings = graph_findings + complexity_findings
+    budget_findings = evaluate_complexity_budget(
+        current_complexity, policy["complexity"].get("budget")
+    )
+    findings = graph_findings + complexity_findings + budget_findings
     baseline_identities = {
         f"{row['path']}::{row['qualified_name']}" for row in baseline["findings"]
     }
@@ -256,6 +333,8 @@ def check(repo_root: Path, policy_path: Path) -> dict[str, Any]:
                 (item.complexity for item in current_complexity),
                 default=0,
             ),
+            "budget": policy["complexity"].get("budget"),
+            "observed_budget_dimensions": measure_complexity_budget(current_complexity),
         },
         "findings": findings,
         "does_not_establish": [
