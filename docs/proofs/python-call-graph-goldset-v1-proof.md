@@ -66,6 +66,18 @@ Bureau. The report also preserves the nonclaims for completeness, runtime
 reachability, dynamic dispatch, test sufficiency, review completeness and merge
 readiness.
 
+## Fail-closed promotion inputs
+
+The promotion decision is computed only from measured inputs. The gate lists
+any absent, non-numeric or empty required input under
+`decision.insufficient_evidence` and, when that list is non-empty, forces
+`thresholds_met=false` and `eligible_for_review=false` instead of inheriting a
+vacuous `all([])` pass. Missing scored cases, missing agent-task outcomes, a
+missing navigation signal, or any missing quality metric therefore block
+promotion rather than self-attesting one. This hardening changes no measured
+value: the goldset, fixture and call-record digests above are unchanged and the
+happy-path decision simply reports `insufficient_evidence: []`.
+
 ## Commit-bound CI evidence
 
 The canonical pull-request run is bound to:

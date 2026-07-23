@@ -5,6 +5,7 @@ import pytest
 
 from merger.repoground.architecture.call_graph_quality_eval import (
     PythonCallGraphGoldsetError,
+    decide_promotion,
     evaluate_python_call_graph_fixture,
     evaluate_python_call_graph_goldset,
     load_python_call_graph_goldset,
@@ -152,3 +153,71 @@ def test_cli_writes_reviewable_report(tmp_path):
     assert report["kind"] == "lenskit.python_call_graph_quality_benchmark"
     assert report["decision"]["thresholds_met"] is True
     assert report["decision"]["default_promoted"] is False
+    assert report["decision"]["insufficient_evidence"] == []
+
+
+def _measured_inputs() -> tuple[dict, dict, list, list]:
+    report = evaluate_python_call_graph_goldset(GOLDSET_PATH)
+    return (
+        report["metrics"],
+        report["thresholds"],
+        report["cases"],
+        report["agent_task_outcomes"],
+    )
+
+
+def test_promotion_fails_closed_when_a_required_metric_is_missing():
+    metrics, thresholds, cases, outcomes = _measured_inputs()
+    del metrics["s1_precision"]
+
+    decision = decide_promotion(metrics, thresholds, cases, outcomes)
+
+    assert decision["thresholds_met"] is False
+    assert decision["eligible_for_review"] is False
+    assert decision["default_promoted"] is False
+    assert "s1_precision" in decision["insufficient_evidence"]
+    assert all(value is False for value in decision["threshold_checks"].values())
+
+
+def test_promotion_fails_closed_when_a_required_metric_is_non_numeric():
+    metrics, thresholds, cases, outcomes = _measured_inputs()
+    metrics["s1_precision"] = None
+
+    decision = decide_promotion(metrics, thresholds, cases, outcomes)
+
+    assert decision["thresholds_met"] is False
+    assert "s1_precision" in decision["insufficient_evidence"]
+
+
+def test_promotion_fails_closed_without_scored_cases_or_agent_outcomes():
+    metrics, thresholds, _cases, _outcomes = _measured_inputs()
+
+    decision = decide_promotion(metrics, thresholds, [], [])
+
+    assert decision["thresholds_met"] is False
+    assert decision["threshold_checks"]["no_case_regression"] is False
+    assert "scored_cases" in decision["insufficient_evidence"]
+    assert "agent_task_outcomes" in decision["insufficient_evidence"]
+
+
+def test_promotion_fails_closed_when_navigation_signal_is_absent():
+    metrics, thresholds, cases, outcomes = _measured_inputs()
+    metrics["navigation_utility"] = {}
+
+    decision = decide_promotion(metrics, thresholds, cases, outcomes)
+
+    assert decision["thresholds_met"] is False
+    assert (
+        "navigation_utility.context_path_reduction_ratio"
+        in decision["insufficient_evidence"]
+    )
+    assert decision["threshold_checks"]["no_case_regression"] is False
+
+
+def test_empty_case_set_does_not_self_attest_a_pass():
+    metrics, thresholds, _cases, _outcomes = _measured_inputs()
+
+    checks = decide_promotion(metrics, thresholds, [], [])["threshold_checks"]
+
+    # ``all([])`` is True; the gate must not inherit that for missing evidence.
+    assert checks["no_case_regression"] is False
