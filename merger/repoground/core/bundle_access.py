@@ -259,7 +259,7 @@ def _invalid_read_result(
     error: str,
     error_code: str,
     extra: dict[str, Any] | None = None,
-    verbose: bool = False,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     result = {
         "kind": kind,
@@ -293,7 +293,7 @@ def range_get(
     bundle_manifest: str | Path,
     range_ref: dict[str, Any],
     *,
-    verbose: bool = False,
+    verbose: bool = True,
     compact: bool | None = None,
 ) -> dict[str, Any]:
     if compact is not None:
@@ -1067,7 +1067,7 @@ def query_existing_index(
     project_sources: bool = False,
     prepared_fts_query: str | None = None,
     *,
-    verbose: bool = False,
+    verbose: bool = True,
     compact: bool | None = None,
 ) -> dict[str, Any]:
     if compact is not None:
@@ -1322,11 +1322,12 @@ def search_symbol_index(
     k: int = 25,
     kind: str | None = None,
     path: str | None = None,
-    verbose: bool = False,
+    verbose: bool = True,
     compact: bool | None = None,
 ) -> dict[str, Any]:
-    """Symbol lookup. Returns compact projection by default; pass
-    ``verbose=True`` (or ``compact=False``) for the full diagnostic metadata.
+    """Symbol lookup with the historical full contract by default.
+
+    Pass ``compact=True`` (or ``verbose=False``) for the bounded agent projection.
     """
     if compact is not None:
         verbose = not compact
@@ -2785,13 +2786,13 @@ def find_references(
     path: str | None = None,
     k: int = 25,
     *,
-    verbose: bool = False,
+    verbose: bool = True,
     compact: bool | None = None,
 ) -> dict[str, Any]:
     """Search call-site text while keeping S0 and S1 evidence explicit.
 
-    Returns compact projection by default; pass ``verbose=True`` (or
-    ``compact=False``) for the full diagnostic metadata.
+    Returns the historical full contract by default. Pass ``compact=True`` (or
+    ``verbose=False``) for the bounded agent projection.
     """
     if compact is not None:
         verbose = not compact
@@ -2867,13 +2868,13 @@ def get_callers(
     path: str | None = None,
     k: int = 25,
     *,
-    verbose: bool = False,
+    verbose: bool = True,
     compact: bool | None = None,
 ) -> dict[str, Any]:
     """Return only S1 callers of one uniquely selected target symbol.
 
-    Returns compact projection by default; pass ``verbose=True`` (or
-    ``compact=False``) for the full diagnostic metadata.
+    Returns the historical full contract by default. Pass ``compact=True`` (or
+    ``verbose=False``) for the bounded agent projection.
     """
     if compact is not None:
         verbose = not compact
@@ -3018,13 +3019,13 @@ def get_callees(
     path: str | None = None,
     k: int = 25,
     *,
-    verbose: bool = False,
+    verbose: bool = True,
     compact: bool | None = None,
 ) -> dict[str, Any]:
     """Return S1 callees and separate unresolved sites for one caller symbol.
 
-    Returns compact projection by default; pass ``verbose=True`` (or
-    ``compact=False``) for the full diagnostic metadata.
+    Returns the historical full contract by default. Pass ``compact=True`` (or
+    ``verbose=False``) for the bounded agent projection.
     """
     if compact is not None:
         verbose = not compact

@@ -17,7 +17,7 @@ def test_compact_vs_full_json_size(tmp_path: Path):
     manifest = _bundle(tmp_path)
 
     # 1. search_symbol_index
-    compact_sym = bundle_access.search_symbol_index(manifest, "target")
+    compact_sym = bundle_access.search_symbol_index(manifest, "target", compact=True)
     full_sym = bundle_access.search_symbol_index(manifest, "target", verbose=True)
 
     compact_sym_bytes = len(json.dumps(compact_sym))
@@ -30,7 +30,7 @@ def test_compact_vs_full_json_size(tmp_path: Path):
     assert compact_sym_bytes < full_sym_bytes
 
     # 2. find_references
-    compact_refs = bundle_access.find_references(manifest, "target")
+    compact_refs = bundle_access.find_references(manifest, "target", compact=True)
     full_refs = bundle_access.find_references(manifest, "target", verbose=True)
 
     assert compact_refs["mutation_boundary"]["ref"] == "repobrief.mutation_boundary.read_only_frontdoor.v1"
