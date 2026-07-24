@@ -137,3 +137,25 @@ def test_git_mutation_rejection_remains_infrastructure_error(tmp_path: Path) -> 
     assert artifact["commands_run"][0]["status"] == "error"
     assert artifact["status"] == "error"
     assert source_value.returncode == 1
+
+
+def test_read_only_git_query_failure_remains_command_failure(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    patch = _patch(repo, tmp_path)
+    _, artifact = _evaluate(
+        tmp_path,
+        _request(
+            repo,
+            patch,
+            [
+                {
+                    "argv": ["git", "config", "--get", "sidecar.missing"],
+                    "cwd": ".",
+                    "timeout_seconds": 10,
+                }
+            ],
+        ),
+    )
+
+    assert artifact["commands_run"][0]["status"] == "failed"
+    assert artifact["status"] == "failed"
