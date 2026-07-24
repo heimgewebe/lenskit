@@ -1,76 +1,131 @@
 {
+  "benchmark_script_sha256": "89f221b81659f81427dab62539e8487579e82aa1c399641bfb7b00e77b8ded72",
   "binding": {
-    "benchmark_script_sha256": "89f221b81659f81427dab62539e8487579e82aa1c399641bfb7b00e77b8ded72",
-    "commit": "a87fcfbb579aad23016273ee59438025b536cd97",
+    "commit": "24eee84dd845fcf5f3a4a82c9e42e64428e76d6d",
+    "source": "git_archive",
+    "tree": "b3dca00e531b57f0b04841d69e64ce919957e9e1",
     "worktree_dirty": false
   },
   "cases": {
     "atlas_scan": {
-      "skipped": "not requested (optional subsystem)"
+      "rounds": 2,
+      "skipped": [
+        "not requested (optional subsystem)"
+      ]
     },
     "bundle_write_archive": {
-      "peak_traced_bytes": 1989351,
-      "peak_traced_measured_separately": true,
-      "samples": 3,
-      "wall_seconds_max": 0.181095,
-      "wall_seconds_median": 0.129407,
-      "wall_seconds_min": 0.128612
+      "peak_traced_bytes": 1988519,
+      "peak_traced_bytes_samples": [
+        1988221,
+        1988817
+      ],
+      "rounds": 2,
+      "samples_per_round": [
+        5,
+        5
+      ],
+      "wall_seconds_median": 0.125451,
+      "wall_seconds_medians": [
+        0.122188,
+        0.128715
+      ]
     },
     "bundle_write_dual": {
-      "peak_traced_bytes": 2627336,
-      "peak_traced_measured_separately": true,
-      "samples": 3,
-      "wall_seconds_max": 0.334421,
-      "wall_seconds_median": 0.308988,
-      "wall_seconds_min": 0.306028
+      "peak_traced_bytes": 2716501,
+      "peak_traced_bytes_samples": [
+        2716394,
+        2716608
+      ],
+      "rounds": 2,
+      "samples_per_round": [
+        5,
+        5
+      ],
+      "wall_seconds_median": 0.302921,
+      "wall_seconds_medians": [
+        0.297549,
+        0.308293
+      ]
     },
     "retrieval_index_build": {
-      "peak_traced_bytes": 399044,
-      "peak_traced_measured_separately": true,
-      "samples": 3,
-      "wall_seconds_max": 0.018895,
-      "wall_seconds_median": 0.018473,
-      "wall_seconds_min": 0.01806
+      "peak_traced_bytes": 399111,
+      "peak_traced_bytes_samples": [
+        399111,
+        399111
+      ],
+      "rounds": 2,
+      "samples_per_round": [
+        5,
+        5
+      ],
+      "wall_seconds_median": 0.01852,
+      "wall_seconds_medians": [
+        0.018299,
+        0.01874
+      ]
     },
     "retrieval_query": {
       "peak_traced_bytes": 57264,
-      "peak_traced_measured_separately": true,
-      "samples": 3,
-      "wall_seconds_max": 0.000739,
-      "wall_seconds_median": 0.000687,
-      "wall_seconds_min": 0.000652
+      "peak_traced_bytes_samples": [
+        57264,
+        57264
+      ],
+      "rounds": 2,
+      "samples_per_round": [
+        5,
+        5
+      ],
+      "wall_seconds_median": 0.000642,
+      "wall_seconds_medians": [
+        0.000644,
+        0.000639
+      ]
     },
     "service_app_import": {
-      "isolation": "subprocess",
-      "peak_traced_bytes": 24278691,
-      "peak_traced_measured_separately": false,
-      "samples": 3,
-      "wall_seconds_max": 1.193173,
-      "wall_seconds_median": 1.12232,
-      "wall_seconds_min": 1.099311
+      "peak_traced_bytes": 24276842,
+      "peak_traced_bytes_samples": [
+        24276237,
+        24277447
+      ],
+      "rounds": 2,
+      "samples_per_round": [
+        5,
+        5
+      ],
+      "wall_seconds_median": 1.108538,
+      "wall_seconds_medians": [
+        1.102663,
+        1.114414
+      ]
     }
   },
   "configuration": {
-    "fixture_functions_per_file": 12,
-    "fixture_markdown_files": 20,
-    "fixture_python_files": 60,
-    "reported_statistic": "wall_seconds_min is the comparison figure",
-    "samples": 3,
-    "timing_gate": "none"
+    "execution_order": [
+      "before",
+      "after",
+      "after",
+      "before"
+    ],
+    "primary_memory_metric": "median of per-round peak_traced_bytes",
+    "primary_timing_metric": "median of per-round wall_seconds_median",
+    "rounds": 2,
+    "samples_per_round": 5,
+    "timing_gate": {
+      "median_regression_pct_max": 5.0,
+      "peak_memory_regression_pct_max": 5.0
+    },
+    "warmups_per_revision": 1
   },
-  "does_not_establish": [
-    "cross-host comparability of absolute timings",
-    "absence of regressions on unmeasured paths",
-    "production workload representativeness",
-    "memory use outside the Python allocator"
-  ],
   "environment": {
-    "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
-    "processor": "x86_64",
-    "python": "3.10.12"
+    "host": "heim-pc",
+    "python_executable": "/usr/bin/python3",
+    "validated_benchmark_environment": [
+      "3.10.12",
+      "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+      "x86_64"
+    ]
   },
-  "failures": [],
-  "kind": "repoground.core_path_benchmark",
-  "status": "pass",
+  "kind": "repoground.core_path_benchmark.aggregate",
+  "side": "before",
   "version": "1.0"
 }

@@ -1,91 +1,102 @@
 # REPOGROUND-LEGACY-RECONCILIATION-V1-T009 proof
 
-## Scope
+## Scope and decision
 
-This proof binds the bounded T009 slice: decompose `iter_report_blocks` along
-stable report sections while preserving canonical bytes, generator order,
-lazy content reads, redaction, anchors, and size-bound behaviour.
+T009 decomposes `iter_report_blocks` and hardens the resulting renderer contract.
+The umbrella task T004 remains open. The final implementation measured here is
+bound to commit `44013f1fdc75a584a618076bc03d50650a24c7dc` and tree `e08503047d30eb2397e09d70cbafb850f3a5f9e5` on
+base `24eee84dd845fcf5f3a4a82c9e42e64428e76d6d` / tree `b3dca00e531b57f0b04841d69e64ce919957e9e1`.
 
-It does **not** close umbrella task T004 and does not claim that every remaining
-function in `merge.py` is small.
+The review was not treated as an all-or-nothing architecture mandate. Functional
+correctness, reproducible evidence and bounded performance were required for this
+slice. A larger `_ReportRenderState` split and `slots=True` were not added because
+they would expand scope without a demonstrated T009 benefit.
 
-## Revision binding
+## Corrected defects
 
-- canonical task activation: Bureau PR #976, merge
-  `9c59f667607d1b96b50dcf598896e04ff1d3c5b5`
-- RepoGround base: `a87fcfbb579aad23016273ee59438025b536cd97`
-- implementation head before this proof commit:
-  `a1f57ff14e56289b47c8751f9fa185463d8e6dfd`
-- implementation tree: `452a56409a680b70f665e7a488bdb7d1022ea630`
+- `tags=None` is safe in WGX, fleet and priority tag checks.
+- An empty manifest now emits exactly one opening and one closing zone marker.
+- The caller-provided file list is copied before sorting; its order remains
+  unchanged. `FileInfo.anchor`, `anchor_alias` and `roles` are still intentionally
+  enriched during preparation and are not claimed immutable.
+- Redaction preserves Python assignment syntax. The canonical regression requires
+  `API_KEY = "[REDACTED]"`, rejects the broken form and parses the source with
+  `ast.parse`.
+- Plan-only reports distinguish selected files from emitted content and report
+  zero emitted files / zero content coverage.
 
 ## Structural result
 
-- `iter_report_blocks`: 1,042 lines before; 50 lines after
-- its C901 complexity was 148 before and is below the configured C901 threshold
-  after the split (it no longer appears in the C901 finding set)
-- aggregate C901 findings: 198 -> 197
-- aggregate excess mass: 2,533 -> 2395
-- global maximum: 148 -> 138; the remaining maximum belongs
-  to a different legacy function
-- new C901 findings: 0
+The ratcheted C901 budget and observed clean-archive measurement are identical:
 
-The renderer is divided into preparation, header/meta, plan, optional analysis,
-structure, index, manifest, and streamed content responsibilities. A private
-`_ReportRenderState` carries explicit inputs between those sections.
-
-## Byte and streaming parity
-
-Three deterministic golden scenarios were captured before the refactor with a
-frozen UTC clock:
-
-| Scenario | Blocks | Joined SHA-256 |
-| --- | ---: | --- |
-| full extras | 15 | `dbaa56af7075785ef27bd603893ca563a915eb65f1ae8de54ef994d16dc8b68a` |
-| plan filtered | 2 | `38b98b0fa33960f5dcbfd85d08cd2e595465c13fdf9a8a887bf034c2e6bd066f` |
-| machine lean + redaction | 9 | `9ed1251c56eaf55f8490a1b1d0055d52c7a06e298c956a2955689f3b7b29f8a3` |
-
-The tests compare both the complete UTF-8 payload and every individual yielded
-block by byte length and SHA-256. They also prove that the first header and plan
-blocks are yielded before any file content is read, and that the fixture secret
-is absent from the redacted report.
-
-## Performance
-
-The canonical fixed-fixture benchmark was measured before on clean base and
-after on the clean implementation branch. The dirty-worktree measurement was
-explicitly rejected because runtime provenance captured the large uncommitted
-diff and inflated archive memory.
-
-| Case | Median time change | Peak traced memory change |
+| Dimension | Before ceiling | Final ceiling and observation |
 | --- | ---: | ---: |
-| archive | -0.41% | -0.25% |
-| dual | -1.06% | +2.79% |
+| Findings | 198 | 197 |
+| Excess mass | 2,533 | 2,395 |
+| Maximum | 148 | 138 |
 
-A renderer-only block profile additionally observed 89 identical block shapes
-and a peak reduction from roughly 220 KiB to 204 KiB. The full archive and dual
-changes are therefore non-material for this slice.
+Roles are computed once during preparation. Category indexing is one-pass and
+manifest rows use a pre-grouped root index rather than repeatedly filtering the
+full list. Explicit extras use `is not None` semantics. No new C901 finding was
+introduced.
 
-## Validation receipts
+## Byte, streaming and edge-case evidence
 
-- focused report and merge regression suite: 111 passed; lifecycle receipt
-  `b88bb7d4de7a01efe083122b18fcac96c32f7b7337909ce717286a5aa7fd5f2d`
-- first complete repository suite: 4,753 passed, 2 skipped; lifecycle receipt
-  `d3c865086625a5ea14db39a74afac96a50ef0a1c5c0c115b15bb2f6e57c56293`
-- clean post-commit performance run: lifecycle receipt
-  `ff912d74d3385dd9795e738b04b3cb2bbe13c16c4ba27ba33a7a69d9f2d7c206`
-- repeated alternating benchmark: lifecycle receipt
-  `d5112e800f3716fdd89e7bde2586490bd4c58092978f616105f0350972588d86`
-- Ruff: pass
-- parity guard: pass
-- graph maintainability gate: pass
-- `git diff --check`: pass
+The CI test suite now contains a checked-in 18-scenario differential contract.
+It compares block count, block order, exact block bytes, individual SHA-256
+values and joined SHA-256. Intentional corrected differences are declared for:
 
-A final complete repository suite is run after this proof is committed and is
-bound in the pull-request delivery evidence.
+1. balanced empty-manifest zones,
+2. zero emitted-content coverage in plan-only mode,
+3. syntactically valid redacted assignments.
+
+Full report goldens are stored as real UTF-8 `.txt` files rather than one-line
+JSON strings. PyYAML 6.0.3 is exactly pinned and asserted because YAML bytes are
+part of the golden contract. Laziness is proven through `START_OF_CONTENT`; the
+first real file block triggers exactly the first expected content read.
+
+## Performance decision
+
+The comparison uses identical benchmark-script bytes, the same host and Python,
+two alternating before/after rounds, five samples per round, one fixed warm-up
+per revision and median as the primary timing statistic. All measured cases are
+included. The predeclared maximum regression is 5 percent for median time and
+traced peak allocation.
+
+| Case | Median time change | Peak traced memory change | Result |
+| --- | ---: | ---: | --- |
+| bundle archive | +1.788% | -0.147% | pass |
+| bundle dual | +0.539% | -0.355% | pass |
+| retrieval index build | -1.366% | 0.000% | pass |
+| retrieval query | -2.960% | 0.000% | pass |
+| service app import | -0.330% | +0.279% | pass |
+| optional atlas | identical skip contract | identical | skip |
+
+A regex-based replacement for `splitlines()` initially caused a measured 7.028
+percent archive regression and was therefore removed. T009 deliberately retains
+the canonical `splitlines()` implementation instead of shipping an optimization
+that failed its own gate.
+
+## Revision-bound receipts
+
+- targeted renderer and benchmark-contract tests: 42 passed, 0 skipped; receipt
+  `0a35715ec6838ceae2f9e0d43e69bad0380fa8e1876a937e5998b276fa0bd86b`
+- changed-file Ruff: pass; receipt
+  `cdb8ff7eaa4fd33e15ab5ad61955917f590de5912c8e660eaac60a11cebe56c5`
+- complexity clean-archive measurement: pass; receipt
+  `a5c5b75fbf75d5357f7e5bbc48a886be0a014fc7726d1b5c26e364ddb2d75cd0`
+- alternating performance comparison: pass; receipt
+  `00dfcdfbcf1ee0313ff684f6588ce30fa4a9453723940239f3e14da7b8bbbb14`
+
+The repository evidence intentionally stops before claiming final delivery. The
+complete repository suite and all GitHub required checks must run on the later
+final evidence head. Their exact head/tree and lifecycle receipts belong in the
+canonical final delivery and Bureau closeout evidence.
 
 ## Does not establish
 
-- completion of umbrella task T004
-- correctness of unrelated legacy functions below the C901 threshold
-- absence of all future performance regressions
-- permission to change foreign worktrees, branches, leases, or processes
+- completion of umbrella task T004,
+- correctness of every legacy path in `merge.py`,
+- performance freedom outside the measured paths,
+- semantics of untested dynamic imports or plugin paths,
+- deployment of the later merge commit.
