@@ -37,6 +37,9 @@ Costs and limits:
   and `io` controllers;
 - filesystem quota is implemented by a per-unit bounded tmpfs rather than a
   project quota;
+- process stdout/stderr is deliberately discarded to prevent unbounded or
+  secret-bearing content from entering the host journal; diagnostics must come
+  from the bounded Sidecar logs, artifact, unit result, and runner receipt;
 - the adapter is Linux-specific.
 
 ### Rootless container — deferred
@@ -60,17 +63,21 @@ that must not share the host kernel.
    and patch into an owner-only staging directory.
 3. The source repository and snapshots are read-only to the transient service.
 4. One empty, current-user-owned, mode-`0700` directory is the only persistent
-   writable host root and contains artifact, bounded logs, and receipt.
+   writable content root and contains artifact, bounded logs, and receipt.
 5. Sidecar workspace and scratch live in a size-bounded tmpfs.
 6. The complete service process tree runs in one cgroup with aggregate memory,
    swap, CPU-rate, task-count, per-device IO-rate, and wall-clock limits.
 7. Existing Sidecar per-command RLIMITs remain defense in depth.
-8. The successful terminal unit remains loaded long enough to read systemd
-   properties and `memory.max`, `memory.swap.max`, `pids.max`, `cpu.max`, and
-   `io.max` from its actual cgroup.
-9. The runner verifies request, patch, producer, output-root identity, accounting,
-   Sidecar artifact, and policy readback before atomically publishing a receipt.
-10. Cleanup requires the exact unit name, Invocation ID, staging device/inode,
+8. `StandardOutput=null` and `StandardError=null` prevent service content from
+   becoming an unbounded second log channel in the host journal.
+9. The terminal unit remains loaded long enough to read systemd properties and
+   `memory.max`, `memory.swap.max`, `pids.max`, `cpu.max`, and `io.max` from its
+   actual cgroup.
+10. The runner verifies request, patch, producer, output-root identity,
+    accounting, Sidecar artifact, and policy readback before atomically
+    publishing a receipt. An ambiguous directory-`fsync` after successful link
+    publication is accepted only after complete JSON readback equality.
+11. Cleanup requires the exact unit name, Invocation ID, staging device/inode,
     and output-root identity. Foreign resources are never adopted.
 
 ## Resource interpretation
