@@ -266,7 +266,7 @@ def test_cleanup_refuses_mismatched_workspace_identity(tmp_path: Path) -> None:
     state = sidecar.EvaluationState()
     state.workspace_identity = (0, 0)
     sidecar._cleanup_workspace(setup, state)
-    assert workspaace.is_dir()
+    assert workspace.is_dir()
     assert state.workspace_cleaned is False
     assert state.infrastructure_error is True
 
@@ -276,8 +276,8 @@ def test_artifact_publication_readback_accepts_already_linked_payload(
 ) -> None:
     repo = _repo(tmp_path)
     patch = _patch(repo, tmp_path)
-    original = sidecarn._atomic_write_json
- 
+    original = sidecar._atomic_write_json
+
     def ambiguous_write(path: Path, value: dict[str, object]) -> None:
         original(path, value)
         raise OSError("forced directory fsync ambiguity")
