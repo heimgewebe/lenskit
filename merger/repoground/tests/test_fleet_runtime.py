@@ -6,8 +6,10 @@ import importlib.util
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -42,6 +44,25 @@ def load_publisher() -> ModuleType:
     return module
 
 
+def allow_no_active_managed_build_leases(
+    module: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def evidence(worktree: Path, build: Path) -> dict[str, object]:
+        return {
+            "authority": "test-exact-path-lease-evidence",
+            "database": "test",
+            "checked_at_unix": 1,
+            "resource_keys": [
+                f"path:{worktree.resolve()}",
+                f"path:{build.resolve(strict=False)}",
+            ],
+            "active_leases": [],
+            "does_not_establish": ["non-exact resource keys"],
+        }
+
+    monkeypatch.setattr(module, "managed_build_lease_evidence", evidence)
+
+
 def git(repo: Path, *args: str) -> str:
     completed = subprocess.run(
         ["git", "-C", str(repo), *args],
@@ -73,7 +94,7 @@ def initialize_repository(tmp_path: Path, name: str = "repo") -> tuple[Path, str
     git(repo, "config", "user.name", "RepoBrief Test")
     git(repo, "config", "user.email", "repobrief-test@example.invalid")
     (repo / ".gitignore").write_text(
-        "ignored.txt\n__pycache__/\n.pytest_cache/\n*.pyc\n*.pyo\n*.egg-info/\nbuild/\n",
+        "ignored.txt\n__pycache__/\n.pytest_cache/\n.ruff_cache/\n*.pyc\n*.pyo\n*.egg-info/\nbuild/\n",
         encoding="utf-8",
     )
     (repo / "tracked.txt").write_text("clean\n", encoding="utf-8")
@@ -506,6 +527,9 @@ def test_managed_worktree_cleanup_removes_only_bounded_disposable_artifacts(
     pytest_cache = worktree / ".pytest_cache"
     pytest_cache.mkdir()
     (pytest_cache / "README.md").write_text("pytest cache\n", encoding="utf-8")
+    ruff_cache = worktree / ".ruff_cache"
+    ruff_cache.mkdir()
+    (ruff_cache / "CACHEDIR.TAG").write_text("ruff cache\n", encoding="utf-8")
     egg_info = worktree / "src" / "demo.egg-info"
     egg_info.mkdir(parents=True)
     (egg_info / "PKG-INFO").write_text("Metadata-Version: 2.4\n", encoding="utf-8")
@@ -517,14 +541,16 @@ def test_managed_worktree_cleanup_removes_only_bounded_disposable_artifacts(
     removed = module.cleanup_managed_disposable_artifacts(worktree, repo)
 
     assert removed == [
-        ".pytest_cache",
         "build",
+        ".pytest_cache",
+        ".ruff_cache",
         "loose.pyc",
         "pkg/__pycache__",
         "src/demo.egg-info",
     ]
     assert not pycache.exists()
     assert not pytest_cache.exists()
+    assert not ruff_cache.exists()
     assert not egg_info.exists()
     assert not loose.exists()
     assert not build.exists()
@@ -532,7 +558,7 @@ def test_managed_worktree_cleanup_removes_only_bounded_disposable_artifacts(
 
 
 def test_managed_worktree_cleanup_rejects_unrelated_and_nonempty_build(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = load_publisher()
     repo, sha = initialize_repository(tmp_path)
@@ -550,9 +576,520 @@ def test_managed_worktree_cleanup_rejects_unrelated_and_nonempty_build(
     build.mkdir()
     payload = build / "artifact.bin"
     payload.write_bytes(b"preserve")
-    with pytest.raises(RuntimeError, match="build residue is not empty"):
+    ruff_cache = worktree / ".ruff_cache"
+    ruff_cache.mkdir()
+    (ruff_cache / "CACHEDIR.TAG").write_text("preserve", encoding="utf-8")
+    monkeypatch.setattr(module, "STATE_ROOT", tmp_path / "state")
+    with pytest.raises(RuntimeError, match="managed build residue blocked") as excinfo:
+        module.cleanup_managed_disposable_artifacts(worktree, repo)
+    blocker = json.loads(str(excinfo.value).split(": ", 1)[1])
+    assert blocker["classification"] == "unknown"
+    assert blocker["automatic_mutation_authorized"] is False
+    assert payload.read_bytes() == b"preserve"
+    assert (ruff_cache / "CACHEDIR.TAG").read_text(encoding="utf-8") == "preserve"
+
+
+def test_managed_build_residue_with_exact_stale_provenance_is_quarantined(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", state_root)
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build = worktree / "build"
+    build.mkdir()
+    payload = build / "artifact.bin"
+    payload.write_bytes(b"publisher-owned")
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+
+    removed = module.cleanup_managed_disposable_artifacts(worktree, repo)
+
+    assert len(removed) == 1
+    assert removed[0].startswith("build->quarantine:")
+    quarantine = Path(removed[0].split(":", 1)[1])
+    assert not build.exists()
+    assert (quarantine / "artifact.bin").read_bytes() == b"publisher-owned"
+    assert not module.managed_build_residue_record_path(worktree).exists()
+    receipts = list((state_root / "managed-build-quarantines").glob("*.json"))
+    assert len(receipts) == 1
+    receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
+    assert receipt["automatic_deletion_authorized"] is False
+    assert receipt["classification"] == "managed-stale"
+    module.assert_managed_worktree_clean(worktree, repo)
+
+
+def test_managed_build_residue_fresh_or_changed_stays_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 3600)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build = worktree / "build"
+    build.mkdir()
+    payload = build / "artifact.bin"
+    payload.write_bytes(b"first")
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+
+    with pytest.raises(RuntimeError, match="publisher-owned but not stale"):
+        module.cleanup_managed_disposable_artifacts(worktree, repo)
+    assert payload.read_bytes() == b"first"
+
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+    payload.write_bytes(b"changed")
+    with pytest.raises(RuntimeError, match="changed after publisher observation"):
+        module.cleanup_managed_disposable_artifacts(worktree, repo)
+    assert payload.read_bytes() == b"changed"
+
+
+@pytest.mark.parametrize("lease_target", ["worktree", "build"])
+def test_exact_active_managed_build_lease_blocks_quarantine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lease_target: str
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", state_root)
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    build = worktree / "build"
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build.mkdir()
+    payload = build / "artifact.bin"
+    payload.write_bytes(b"leased")
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+
+    database = tmp_path / "resources.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE leases(
+                resource_key TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL,
+                purpose TEXT NOT NULL,
+                acquired_at_unix INTEGER NOT NULL,
+                updated_at_unix INTEGER NOT NULL,
+                expires_at_unix INTEGER NOT NULL,
+                metadata_sha256 TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                reclaimed_from_owner TEXT
+            );
+            """
+        )
+        connection.execute(
+            "INSERT INTO metadata(key, value) VALUES('schema_version', '2')"
+        )
+        target = worktree if lease_target == "worktree" else build
+        now = int(time.time())
+        connection.execute(
+            "INSERT INTO leases VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                f"path:{target.resolve()}",
+                "operator:foreign-active-work",
+                "test active lease",
+                now,
+                now,
+                now + 3600,
+                "0" * 64,
+                "{}",
+                None,
+            ),
+        )
+    monkeypatch.setattr(module, "GRABOWSKI_RESOURCE_DB", database)
+
+    with pytest.raises(RuntimeError, match="managed build residue blocked") as excinfo:
+        module.cleanup_managed_disposable_artifacts(worktree, repo)
+
+    blocker = module.parse_managed_build_blocker(excinfo.value)
+    assert blocker is not None
+    assert blocker["classification"] == "active-legitimate"
+    assert blocker["reason"] == "exact active Grabowski path lease"
+    leases = blocker["lease_evidence"]["active_leases"]
+    assert leases == [
+        {
+            "resource_key": f"path:{target.resolve()}",
+            "owner_id": "operator:foreign-active-work",
+            "expires_at_unix": now + 3600,
+            "updated_at_unix": now,
+        }
+    ]
+    assert payload.read_bytes() == b"leased"
+    assert not (source_root / module.MANAGED_BUILD_QUARANTINE_DIR_NAME).exists()
+
+
+def test_managed_build_quarantine_rolls_back_when_receipt_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build = worktree / "build"
+    build.mkdir()
+    payload = build / "artifact.bin"
+    payload.write_bytes(b"rollback")
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+
+    real_atomic_write = module.atomic_write_json
+
+    def fail_receipt(path: Path, value: dict[str, object]) -> None:
+        if path.parent.name == "managed-build-quarantines":
+            raise OSError("simulated receipt failure")
+        real_atomic_write(path, value)
+
+    monkeypatch.setattr(module, "atomic_write_json", fail_receipt)
+    with pytest.raises(OSError, match="simulated receipt failure"):
+        module.cleanup_managed_disposable_artifacts(worktree, repo)
+    assert payload.read_bytes() == b"rollback"
+    restored = json.loads(
+        module.managed_build_residue_record_path(worktree).read_text(encoding="utf-8")
+    )
+    assert restored["status"] == "observed"
+
+
+def test_interrupted_managed_build_quarantine_is_reconciled_next_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", state_root)
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build = worktree / "build"
+    build.mkdir()
+    (build / "artifact.bin").write_bytes(b"interrupted")
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+    classification = module.classify_managed_build_residue(build, worktree, repo)
+    transaction_id = "a" * 32
+    quarantine_root = module.managed_build_residue_quarantine_root(worktree)
+    transaction_root = quarantine_root / transaction_id
+    transaction_root.mkdir(mode=0o700)
+    worktree_quarantine = transaction_root / worktree.name
+    worktree_quarantine.mkdir(mode=0o700)
+    quarantine = worktree_quarantine / "build"
+    record_path = classification["record_path"]
+    planned = dict(classification["record"])
+    planned.update(
+        {
+            "status": "quarantine-planned",
+            "transaction_id": transaction_id,
+            "quarantine": str(quarantine),
+            "quarantine_planned_at_unix": 1,
+            "lease_evidence": classification["lease_evidence"],
+        }
+    )
+    module.atomic_write_json(record_path, planned)
+    planned_receipt = module.managed_build_quarantine_receipt(
+        transaction_id=transaction_id,
+        status="planned",
+        build=build,
+        quarantine=quarantine,
+        record_path=record_path,
+        snapshot=classification["snapshot"],
+        classification="managed-stale",
+        lease_evidence=classification["lease_evidence"],
+    )
+    receipt_path = module.managed_build_quarantine_receipt_path(transaction_id)
+    module.atomic_write_json(receipt_path, planned_receipt)
+    os.replace(build, quarantine)
+
+    removed = module.cleanup_managed_disposable_artifacts(worktree, repo)
+
+    assert removed == [f"build->quarantine:{quarantine}"]
+    assert not build.exists()
+    assert (quarantine / "artifact.bin").read_bytes() == b"interrupted"
+    assert not record_path.exists()
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["status"] == "quarantined"
+    assert receipt["reconciled_after_interruption"] is True
+
+
+def test_planned_quarantine_without_move_resumes_safely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", state_root)
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build = worktree / "build"
+    build.mkdir()
+    (build / "artifact.bin").write_bytes(b"not-moved")
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+    classification = module.classify_managed_build_residue(build, worktree, repo)
+    transaction_id = "b" * 32
+    quarantine_root = module.managed_build_residue_quarantine_root(worktree)
+    transaction_root = quarantine_root / transaction_id
+    transaction_root.mkdir(mode=0o700)
+    worktree_quarantine = transaction_root / worktree.name
+    worktree_quarantine.mkdir(mode=0o700)
+    quarantine = worktree_quarantine / "build"
+    record_path = classification["record_path"]
+    planned = dict(classification["record"])
+    planned.update(
+        {
+            "status": "quarantine-planned",
+            "transaction_id": transaction_id,
+            "quarantine": str(quarantine),
+            "quarantine_planned_at_unix": 1,
+            "lease_evidence": classification["lease_evidence"],
+        }
+    )
+    module.atomic_write_json(record_path, planned)
+
+    removed = module.cleanup_managed_disposable_artifacts(worktree, repo)
+
+    assert len(removed) == 1
+    assert removed[0].startswith("build->quarantine:")
+    assert not build.exists()
+    first_receipt = json.loads(
+        module.managed_build_quarantine_receipt_path(transaction_id).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert first_receipt["status"] == "not-moved"
+    completed = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in (state_root / "managed-build-quarantines").glob("*.json")
+    ]
+    assert sorted(receipt["status"] for receipt in completed) == [
+        "not-moved",
+        "quarantined",
+    ]
+
+
+def test_managed_build_provenance_record_symlink_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", tmp_path / "state")
+    build = worktree / "build"
+    build.mkdir()
+    (build / "artifact.bin").write_bytes(b"preserve")
+    record = module.managed_build_residue_record_path(worktree)
+    record.parent.mkdir(parents=True)
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}", encoding="utf-8")
+    record.symlink_to(outside)
+
+    with pytest.raises(RuntimeError, match="managed build residue blocked"):
+        module.cleanup_managed_disposable_artifacts(worktree, repo)
+    assert (build / "artifact.bin").read_bytes() == b"preserve"
+
+
+def test_managed_build_quarantine_root_symlink_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build = worktree / "build"
+    build.mkdir()
+    payload = build / "artifact.bin"
+    payload.write_bytes(b"preserve")
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+    outside = tmp_path / "outside-quarantine"
+    outside.mkdir()
+    (source_root / module.MANAGED_BUILD_QUARANTINE_DIR_NAME).symlink_to(
+        outside, target_is_directory=True
+    )
+
+    with pytest.raises(RuntimeError, match="quarantine root is not"):
         module.cleanup_managed_disposable_artifacts(worktree, repo)
     assert payload.read_bytes() == b"preserve"
+    assert list(outside.iterdir()) == []
+
+
+def test_managed_build_residue_armed_record_is_not_remediated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    build = worktree / "build"
+    build.mkdir()
+    payload = build / "artifact.bin"
+    payload.write_bytes(b"unfinished-generator")
+
+    with pytest.raises(RuntimeError, match="managed build residue blocked") as excinfo:
+        module.cleanup_managed_disposable_artifacts(worktree, repo)
+    blocker = json.loads(str(excinfo.value).split(": ", 1)[1])
+    assert blocker["classification"] == "unknown"
+    assert "does not match worktree identity" in blocker["reason"]
+    assert payload.read_bytes() == b"unfinished-generator"
+
+
+def test_managed_build_tree_symlink_is_quarantined_without_following_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    worktree = source_root / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    monkeypatch.setattr(module, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(module, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(module, "MANAGED_BUILD_RESIDUE_STALE_SECONDS", 0)
+    allow_no_active_managed_build_leases(module, monkeypatch)
+
+    armed = module.arm_managed_build_residue_provenance(worktree, repo)
+    assert armed is not None
+    outside = tmp_path / "outside.txt"
+    outside.write_text("preserve", encoding="utf-8")
+    build = worktree / "build"
+    build.mkdir()
+    (build / "outside-link").symlink_to(outside)
+    module.finalize_managed_build_residue_provenance(armed, worktree, repo)
+
+    removed = module.cleanup_managed_disposable_artifacts(worktree, repo)
+
+    quarantine = Path(removed[0].split(":", 1)[1])
+    link = quarantine / "outside-link"
+    assert link.is_symlink()
+    assert link.readlink() == outside
+    assert outside.read_text(encoding="utf-8") == "preserve"
+
+
+def test_managed_worktree_idle_detects_open_file_descriptor(
+    tmp_path: Path
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    worktree = tmp_path / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    pycache = worktree / "pkg" / "__pycache__"
+    pycache.mkdir(parents=True)
+    payload = pycache / "module.pyc"
+    payload.write_bytes(b"cache")
+    environment = dict(os.environ)
+    environment["REPOGROUND_TEST_OPEN_PATH"] = str(payload)
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import os,time; handle=open(os.environ['REPOGROUND_TEST_OPEN_PATH'],'rb'); time.sleep(30)",
+        ],
+        cwd=tmp_path,
+        env=environment,
+    )
+    try:
+        import time
+
+        for _ in range(100):
+            references = module.active_process_cwds(worktree)
+            if any(pid == process.pid and "fd=" in evidence for pid, evidence in references):
+                break
+            time.sleep(0.01)
+        with pytest.raises(RuntimeError, match="active use"):
+            module.cleanup_managed_disposable_artifacts(worktree, repo)
+        assert payload.read_bytes() == b"cache"
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def test_managed_worktree_idle_detects_source_path_in_argv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    repo, sha = initialize_repository(tmp_path, "repo")
+    worktree = tmp_path / "managed"
+    git(repo, "worktree", "add", "--detach", str(worktree), sha)
+    pycache = worktree / "pkg" / "__pycache__"
+    pycache.mkdir(parents=True)
+    (pycache / "module.pyc").write_bytes(b"cache")
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)", str(worktree)],
+        cwd=tmp_path,
+    )
+    try:
+        for _ in range(100):
+            if any(pid == process.pid for pid, _ in module.active_process_cwds(worktree)):
+                break
+            import time
+            time.sleep(0.01)
+        with pytest.raises(RuntimeError, match="active use"):
+            module.cleanup_managed_disposable_artifacts(worktree, repo)
+        assert pycache.is_dir()
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
 
 
 def test_managed_worktree_cleanup_rejects_symlink_inside_disposable_tree(
@@ -1824,6 +2361,63 @@ def test_regression_canonical_unit_names_and_installer_cutover_order() -> None:
         "systemctl --user enable --now repoground-publish-fleet-watch.timer"
     )
     assert install_position < reload_position < enable_position
+
+
+def test_managed_build_blocker_is_structured_in_fleet_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_publisher()
+    roots = isolate_retention_roots(module, tmp_path, monkeypatch)
+    monkeypatch.setattr(module, "LOCK_PATH", tmp_path / "fleet.lock")
+    monkeypatch.setattr(module, "FLEET_LOG", roots["log"] / "fleet.log")
+    entry = module.RepoEntry(
+        key="heimgewebe/demo",
+        owner="heimgewebe",
+        repo="demo",
+        path=tmp_path / "demo",
+        remote="git@github.com:heimgewebe/demo.git",
+    )
+    monkeypatch.setattr(module, "discover", lambda: [entry])
+    monkeypatch.setattr(
+        module,
+        "prioritize_fleet_publication",
+        lambda entries: (entries, {"policy": "test"}),
+    )
+    monkeypatch.setattr(
+        module,
+        "reconcile_prune_transactions",
+        lambda *, protected, apply: {"status": "ok"},
+    )
+    monkeypatch.setattr(module, "ensure_tool_worktree", lambda: ("b" * 40, "c" * 64))
+    monkeypatch.setattr(
+        module, "remote_head", lambda path: ("origin/main", "main", "a" * 40)
+    )
+    monkeypatch.setattr(
+        module,
+        "publication_config",
+        lambda entry: module.PublicationConfig(profile="full-max"),
+    )
+
+    def block(entry: object, ref_segment: str) -> list[str]:
+        raise module.managed_build_blocker(
+            tmp_path / "sources" / "demo" / "build",
+            classification="unknown",
+            reason="no exact publisher provenance",
+        )
+
+    monkeypatch.setattr(module, "preflight_existing_source_worktree", block)
+
+    assert module.main(["--repo", "heimgewebe/demo"]) == 1
+    receipt = json.loads((roots["log"] / "fleet-last.json").read_text(encoding="utf-8"))
+    detail = receipt["details"][0]
+    assert detail["status"] == "failed"
+    assert detail["managed_build_residue"] == {
+        "schema": module.MANAGED_BUILD_RESIDUE_SCHEMA,
+        "classification": "unknown",
+        "path": str(tmp_path / "sources" / "demo" / "build"),
+        "reason": "no exact publisher provenance",
+        "automatic_mutation_authorized": False,
+    }
 
 
 def test_missing_generator_inputs_fail_before_publication_and_write_receipt(
