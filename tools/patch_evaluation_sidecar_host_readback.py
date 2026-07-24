@@ -7,7 +7,6 @@ that changes what the later host-side provenance readback executes or reads.
 from __future__ import annotations
 
 import hashlib
-import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
