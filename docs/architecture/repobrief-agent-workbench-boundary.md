@@ -283,5 +283,27 @@ The decision is not “tooling or no tooling.” The decision is “deterministi
 
 - RBAW-V1-T002: defined by [Patch Evaluation Artifact v1](../contracts/patch-evaluation-v1.md).
 - RBAW-V1-T003: implemented by the read-only Patch Evaluation consumer described in [Patch Evaluation Artifact v1](../contracts/patch-evaluation-v1.md).
-- RBAW-V1-T004: prototype an external Patch Evaluation Sidecar harness later, after provenance/freshness and agent-evidence hygiene remain stable.
+- RBAW-V1-T004: prototype an external Patch Evaluation Sidecar harness after provenance/freshness and agent-evidence hygiene stabilized.
 - RBAW-V1-T005: triaged by [RepoGround Agent Optimization Triage v1](repobrief-agent-optimization-triage.md).
+
+## RBAW-V1-T004 prototype realization
+
+The first Patch Evaluation Sidecar prototype lives at
+`tools/patch_evaluation_sidecar.py`, outside `merger/repoground/core`. This
+placement is architectural: RepoBrief remains the read-only consumer, while the
+prototype alone owns disposable worktree creation, patch application, and
+argv-only command execution.
+
+The prototype has deliberately narrow authority. It accepts local repositories,
+local patch files, exact commits, relative command working directories, bounded
+command counts, and explicit timeouts. It does not expose hidden RepoGround MCP
+side effects, inherit arbitrary environment variables, authorize a merge,
+create a pull request, or claim that a passing command set proves the patch
+correct. Filesystem isolation, credential isolation, and network isolation are
+not implemented in this prototype and are therefore reported as `unknown`; only
+trusted configured commands may be run. `PATH` is inherited for tool discovery,
+while Git global/system configuration and hooks are suppressed for the
+Sidecar-owned Git operations. The source drift fingerprint covers checkout and staged-index content, not
+unrelated refs or repository configuration. Stronger sandbox and
+credential policies remain separate deployment work rather than implied
+guarantees.

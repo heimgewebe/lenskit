@@ -93,5 +93,35 @@ when it cannot be read.
 
 ## Deferred
 
-- The external Patch Evaluation Sidecar itself (RBAW-V1-T004).
 - Linking consumed artifacts into bundle-manifest surfaces / MCP resources.
+
+## External prototype harness (RBAW-V1-T004)
+
+`tools/patch_evaluation_sidecar.py` is a deliberately external prototype producer.
+It is not imported by RepoBrief core or exposed through RepoGround MCP. The CLI
+accepts a strict JSON request, resolves an exact local base commit, creates a
+disposable detached Git worktree, applies one declared diff, runs only explicit
+argv arrays with `shell=False`, and emits this contract atomically outside the
+source repository.
+
+The prototype fails closed on unsupported request fields, unprovable worktree
+isolation, path traversal, patch-apply failure, source-checkout drift, or
+unproven cleanup. Command environment variables are allowlisted except for `PATH`, which is
+inherited so declared argv entries can resolve the installed toolchain. The
+prototype does not provide a filesystem or network sandbox, so `network` and
+`secrets_policy` remain `unknown`; configured commands must be trusted. The `global_timeout_seconds` field is a budget that starts immediately before
+the declared command loop; validation, Git setup, cleanup, and source
+fingerprinting are outside it. Logs are bounded and marked when truncated. A
+`passed` artifact means only that the declared commands returned success in that
+isolated workspace. It is not correctness, test sufficiency,
+security evidence, merge readiness, or merge authorization.
+
+
+Request validation and read-only provenance preflight occur before artifact
+production is guaranteed. An invalid request, unresolved base commit, unreadable
+source checkout, output collision, or unwritable destination therefore fails
+without an artifact and without running a declared command. Once mutable
+evaluation begins, operational failures produce a `status: error` artifact when
+the destination remains writable. The source drift fingerprint covers checked
+out HEAD, worktree and staged-index changes, and untracked contents; other refs
+and Git config are outside that fingerprint.
