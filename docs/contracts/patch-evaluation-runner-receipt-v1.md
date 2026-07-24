@@ -10,7 +10,7 @@
 A runner receipt records how one external Patch Evaluation Sidecar process tree
 was bounded and how its transient systemd unit terminated. It binds:
 
-- the original request, the immutable rewritten execution request, and the patch snapshot;
+- the original request, immutable rewritten execution request, and patch snapshot;
 - the transient unit name, Invocation ID, and cgroup path;
 - exact requested aggregate resource limits and a SHA-256 readback of the effective systemd policy;
 - terminal systemd result and accounting values;
@@ -35,7 +35,13 @@ Memory, swap, task count, CPU quota, per-device IO bandwidth, and runtime apply
 to the complete process tree. Sidecar workspace and scratch are mounted on a
 bounded per-unit tmpfs. Existing Sidecar command-level RLIMITs remain defense in
 depth. The persistent output root must be empty, current-user-owned, mode `0700`,
-and shared by the Sidecar artifact and runner receipt.
+and shared by the Sidecar artifact, bounded command logs, and runner receipt.
+
+`StandardOutput=null` and `StandardError=null` are mandatory and read back from
+the retained unit. This prevents arbitrary command output from becoming a
+second, unbounded host-journal channel. Diagnostic content remains in the
+Sidecar's bounded logs and artifact; systemd result and accounting remain in the
+runner receipt.
 
 The runner reads the effective systemd properties back from the retained
 terminal unit and verifies the corresponding cgroup-v2 kernel files:
@@ -46,6 +52,11 @@ canonical combined readback is bound by `policy_readback_sha256`.
 The producer digest is captured before launch and read back after completion.
 The rewritten request and patch snapshots are likewise rehashed and their
 read-only modes checked before the receipt may be published.
+
+Receipt publication is atomic and refuses overwrite. If directory `fsync`
+returns an ambiguous error after the no-overwrite hard link succeeded, the
+publication is accepted only when the entire JSON value reads back equal to the
+intended receipt.
 
 The maximum CPU-time and block-IO byte fields are derived hard ceilings:
 
