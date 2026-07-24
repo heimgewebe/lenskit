@@ -11,6 +11,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent
 _LEGACY_PATH = _ROOT / "patch_evaluation_sidecar_legacy.py"
 _HARDENING_PATH = _ROOT / "patch_evaluation_sidecar_hardening.py"
+_HOST_READBACK_PATH = _ROOT / "patch_evaluation_sidecar_host_readback.py"
 
 
 def _load(name: str, path: Path) -> types.ModuleType:
@@ -25,7 +26,11 @@ def _load(name: str, path: Path) -> types.ModuleType:
 
 _legacy = _load("patch_evaluation_sidecar_legacy", _LEGACY_PATH)
 _hardening = _load("patch_evaluation_sidecar_hardening", _HARDENING_PATH)
+_host_readback = _load("patch_evaluation_sidecar_host_readback", _HOST_READBACK_PATH)
 _hardening.apply_hardening(_legacy, wrapper_path=__file__)
+_host_readback.apply_host_readback_hardening(
+    _legacy, _hardening, wrapper_path=__file__
+)
 
 
 class _SidecarProxy(types.ModuleType):
@@ -33,7 +38,11 @@ class _SidecarProxy(types.ModuleType):
         return getattr(_legacy, name)
 
     def __setattr__(self, name: str, value) -> None:
-        if name.startswith("__") or name in {"_legacy", "_hardening"}:
+        if name.startswith("__") or name in {
+            "_legacy",
+            "_hardening",
+            "_host_readback",
+        }:
             super().__setattr__(name, value)
             return
         setattr(_legacy, name, value)
