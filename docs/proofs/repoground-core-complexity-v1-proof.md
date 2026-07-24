@@ -29,18 +29,20 @@ individually, without conflict, onto current RepoGround base
 The port was revalidated on the current tree rather than relying on the old
 proof summary:
 
-- focused maintainability, reachability and sidecar-integrity suite: 42 passed;
-- full repository pytest task `d6f4c47f862941d8b976df9b`: terminal success,
-  exit status 0, lifecycle receipt
-  `7aaab1cc89ebade1bf74d9ed91a26ff43dc56e24f841f245cea77329aa99fbe6`;
+- focused maintainability, reachability and sidecar-integrity suite: 44 passed;
+- full repository pytest task `5cb9d09f4af6413fbcd21be6`: terminal success,
+  4,748 passed and 2 skipped, exit status 0, lifecycle receipt
+  `48d67e772ccab492509282ec99f77eb145cd2ffdf06967cfc5e6eb09ccda1cf9`;
 - graph-maintainability gate: pass at 198 C901 findings, maximum 148 and
   excess mass 2533;
 - module-reachability gate: pass, 199 production modules measured, no
   unproven or documentation-only module and no findings;
 - review hardening: plain strings no longer count as dynamic imports,
   non-equality `__name__` comparisons no longer count as entry points,
-  script-style sibling imports require a direct-execution main guard, and
-  symbol/call-graph sidecars reject every non-canonical SHA-256 digest.
+  script-style sibling imports require a direct-execution main guard,
+  symbol/call-graph sidecars reject every non-canonical SHA-256 digest, and
+  sidecar paths require the canonical `.bundle.manifest.json` base suffix so a
+  malformed base cannot be overwritten by a secondary artifact.
 
 The historical before/after performance measurements below remain bound to
 their recorded commits. Conflict-free replay and current tests do not turn them
