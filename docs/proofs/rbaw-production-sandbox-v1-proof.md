@@ -13,38 +13,53 @@ The runner:
 
 - requires Linux, cgroup v2, a working systemd user manager, and the `cpu`,
   `memory`, `pids`, and `io` controllers;
-- validates bounded numeric limits and requires one empty, current-user-owned mode-`0700` persistent output root;
-- separately hashes the original request, snapshots the rewritten execution request and patch with read-only modes, and verifies both snapshots after execution;
+- validates bounded numeric limits and requires one empty, current-user-owned
+  mode-`0700` persistent output root;
+- separately hashes the original request, snapshots the rewritten execution
+  request and patch with read-only modes, and verifies both snapshots after
+  execution;
 - resolves every block-backed source/output device before mutation;
 - launches one UUID-named transient user service with aggregate memory, swap,
   task, CPU, runtime, and IO-rate limits;
 - gives the unit a bounded tmpfs for all Sidecar workspace and scratch data;
-- exposes the source and snapshots read-only and only the dedicated output root writable;
+- exposes the source and snapshots read-only and only the dedicated output root
+  writable;
 - preserves the existing Bubblewrap network-deny and per-command RLIMIT layers;
-- retains successful terminal units long enough to read Invocation ID, cgroup path, result, exit information, accounting, effective systemd properties, and the actual `memory.max`, `memory.swap.max`, `pids.max`, `cpu.max`, and `io.max` kernel files;
+- retains terminal units long enough to read Invocation ID, cgroup path, result,
+  exit information, accounting, effective systemd properties, and the actual
+  `memory.max`, `memory.swap.max`, `pids.max`, `cpu.max`, and `io.max` kernel
+  files;
 - distinguishes a valid Sidecar `failed` artifact from systemd resource failure;
 - treats OOM, timeout, signal, resource, missing artifact, malformed artifact,
   or unproven cleanup as runner `error`;
-- binds the pre-launch runner/Sidecar producer digest, verifies it after execution, and atomically publishes a strict receipt that hashes the Sidecar artifact and combined systemd/kernel policy readback;
-- cleans only the exact unit Invocation ID and staging device/inode identity, and refuses receipt publication if the output-root identity changed.
+- binds the pre-launch runner/Sidecar producer digest, verifies it after
+  execution, and atomically publishes a strict receipt that hashes the Sidecar
+  artifact and combined systemd/kernel policy readback;
+- cleans only the exact unit Invocation ID and staging device/inode identity,
+  and refuses receipt publication if the output-root identity changed.
 
 ## Regression coverage
 
-`tests/test_patch_evaluation_systemd_runner.py` covers:
+The 16 tests in `tests/test_patch_evaluation_systemd_runner.py` and
+`tests/test_patch_evaluation_systemd_runner_cleanup.py` cover:
 
-- aggregate CPU and multi-device IO ceiling derivation plus kernel cgroup enforcement readback;
-- strict limit validation;
-- bounded immutable request/patch snapshots and producer drift detection;
-- exact systemd property generation and effective-policy readback;
-- namespace policy and exclusive persistent-output-root enforcement;
-- preservation of Sidecar command failure semantics;
-- OOM and cleanup-proof error precedence;
-- foreign staging identity refusal;
+- aggregate CPU and multi-device IO ceiling derivation;
+- strict numeric limit validation;
+- bounded immutable request/patch snapshots and read-only modes;
+- request rewrite and original/effective digest binding;
+- exclusive persistent-output-root enforcement;
+- exact systemd property and namespace-policy generation;
+- actual kernel cgroup readback for memory, swap, tasks, CPU, and multi-device
+  IO;
+- canonical combined systemd/kernel policy hashing;
 - atomic receipt no-overwrite behavior;
-- block-device fail-closed behavior;
-- request rewrite and patch digest binding;
-- source-boundary path rejection;
-- cgroup-v2 absence.
+- producer digest binding across wrapper, support module, and Sidecar;
+- block-device resolution fail-closed behavior;
+- receipt example/schema conformance;
+- cleanup refusal after Invocation-ID drift;
+- cleanup-readback failure classification;
+- explicit `LoadState=not-found` as the only unit-absence proof;
+- successful cleanup only after bound stop and absence readback.
 
 ## Deliberate non-claim
 
