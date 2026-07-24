@@ -3155,8 +3155,8 @@ def read_smart_content(fi: FileInfo, max_bytes: int, encoding="utf-8") -> Tuple[
         return f"_Error reading file: {e}_", False, ""
 
 def is_priority_file(fi: FileInfo) -> bool:
-    if "ai-context" in fi.tags: return True
-    if "runbook" in fi.tags: return True
+    if "ai-context" in (fi.tags or []): return True
+    if "runbook" in (fi.tags or []): return True
     if fi.rel_path.name.lower() == "readme.md": return True
     return False
 
@@ -3266,7 +3266,9 @@ def check_fleet_consistency(files: List[FileInfo]) -> List[str]:
 
     # Check for missing .wgx/profile.yml in repos
     for root in roots:
-        has_profile = any(f.root_label == root and "wgx-profile" in f.tags for f in files)
+        has_profile = any(
+            f.root_label == root and "wgx-profile" in (f.tags or []) for f in files
+        )
         if not has_profile:
              if root in REPO_ORDER:
                  warnings.append(f"- {root}: missing .wgx/profile.yml")
@@ -3607,6 +3609,7 @@ class _ReportRenderState:
     nav: NavStyle
     now: datetime.datetime
     processed_files: List[Tuple[FileInfo, str]]
+    processed_by_root: Dict[str, List[Tuple[FileInfo, str]]]
     roots: Set[str]
     total_size: int
     text_files: List[FileInfo]
@@ -3624,7 +3627,7 @@ class _ReportRenderState:
     organism_wgx_profiles: List[FileInfo]
     files_by_root: Dict[str, List[FileInfo]]
     repo_stats: Dict[str, Dict[str, Any]]
-    health_collector: Any
+    health_collector: Optional[HealthCollector]
 
 
 
@@ -3711,7 +3714,12 @@ def _append_scope_filters(header: List[str], state: _ReportRenderState) -> str:
     else:
         header.append("- **Extension Filter:** `none (all text types)`")
     if state.text_files:
-        header.append(f"- **Coverage:** {state.included_count}/{len(state.text_files)} Dateien mit vollem Inhalt")
+        emitted_count = 0 if state.plan_only else state.included_count
+        header.append(f"- **Selected Text Files:** {len(state.text_files)}")
+        header.append(f"- **Included Content:** {emitted_count} files")
+        header.append(
+            f"- **Coverage:** {emitted_count}/{len(state.text_files)} Dateien mit vollem Inhalt"
+        )
     header.append("")
     return scope_desc
 
@@ -3776,12 +3784,10 @@ def _report_health_meta(health_collector: Any) -> Dict[str, Any]:
 def _base_report_meta(
     state: _ReportRenderState, render_mode: str, scope_desc: str
 ) -> Dict[str, Any]:
-    for file_info in state.files:
-        if file_info.roles is None:
-            file_info.roles = compute_file_roles(file_info)
     has_roles = any(file_info.roles for file_info in state.files)
     text_files_count = len(state.text_files)
     content_present = not state.plan_only
+    emitted_count = state.included_count if content_present else 0
     manifest_present = not state.plan_only
     structure_present = not state.plan_only and state.level != "machine-lean"
     if state.debug:
@@ -3819,10 +3825,18 @@ def _base_report_meta(
             "content_present": content_present,
             "manifest_present": manifest_present,
             "structure_present": structure_present,
-            "coverage": {
-                "included_files": state.included_count,
+            "selection": {
+                "selected_files": len(state.files),
                 "text_files": text_files_count,
-                "coverage_pct": _coverage_percentage(state.included_count, text_files_count),
+            },
+            "content": {
+                "present": content_present,
+                "emitted_files": emitted_count,
+            },
+            "coverage": {
+                "included_files": emitted_count,
+                "text_files": text_files_count,
+                "coverage_pct": _coverage_percentage(emitted_count, text_files_count),
             },
         }
     }
@@ -4157,11 +4171,11 @@ def _render_report_structure(state: _ReportRenderState) -> Optional[str]:
 
 def _index_files_by_category(files: List[FileInfo]) -> Dict[str, List[FileInfo]]:
     categories = ("source", "doc", "config", "contract", "test")
-    return {
-        category: [file_info for file_info in files if file_info.category == category]
-        for category in categories
-        if any(file_info.category == category for file_info in files)
-    }
+    grouped: Dict[str, List[FileInfo]] = {category: [] for category in categories}
+    for file_info in files:
+        if file_info.category in grouped:
+            grouped[file_info.category].append(file_info)
+    return {category: grouped[category] for category in categories if grouped[category]}
 
 
 def _append_index_file_section(
@@ -4175,7 +4189,11 @@ def _append_index_file_section(
 def _append_full_report_index(lines: List[str], state: _ReportRenderState) -> None:
     category_files = _index_files_by_category(state.files)
     ci_files = [file_info for file_info in state.files if "ci" in (file_info.tags or [])]
-    wgx_files = [file_info for file_info in state.files if "wgx-profile" in file_info.tags]
+    wgx_files = [
+        file_info
+        for file_info in state.files
+        if "wgx-profile" in (file_info.tags or [])
+    ]
     lines.extend(
         f"- [{category.capitalize()}](#cat-{_slug_token(category)})"
         for category in category_files
@@ -4244,8 +4262,7 @@ def _append_manifest_root(lines: List[str], state: _ReportRenderState, root: str
     ])
     lines.extend(
         _manifest_row(file_info, status)
-        for file_info, status in state.processed_files
-        if file_info.root_label == root
+        for file_info, status in state.processed_by_root.get(root, [])
     )
     lines.append("")
 
@@ -4268,6 +4285,7 @@ def _render_manifest_block(state: _ReportRenderState) -> str:
         ])
     if not roots:
         lines.extend(["_Keine Dateien im Manifest._", ""])
+        lines.append('<!-- zone:end type="manifest" id="manifest" -->')
         return "\n".join(lines) + "\n"
     for root in roots:
         _append_manifest_root(lines, state, root)
@@ -4327,6 +4345,21 @@ def _show_file_meta(status: str, meta_density: str) -> bool:
     return meta_density == "full" or status != "full"
 
 
+_REPORT_LINE_BREAK_RE = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
+
+
+def _count_report_lines(content: str) -> int:
+    """Count lines with str.splitlines() semantics without allocating line strings."""
+    if not content:
+        return 0
+    count = 0
+    last_end = 0
+    for match in _REPORT_LINE_BREAK_RE.finditer(content):
+        count += 1
+        last_end = match.end()
+    return count if last_end == len(content) else count + 1
+
+
 def _append_content_file_meta(
     block: List[str], file_info: FileInfo, status: str, content: str
 ) -> None:
@@ -4335,7 +4368,7 @@ def _append_content_file_meta(
         "file_meta:",
         f"  repo: {file_info.root_label}",
         f"  path: {file_info.rel_path}",
-        f"  lines: {len(content.splitlines())}",
+        f"  lines: {_count_report_lines(content)}",
         f"  included: {status}",
     ])
     if getattr(file_info, "inclusion_reason", "normal") != "normal":
@@ -4415,7 +4448,7 @@ def _normalize_report_files(
     selected = (
         [file_info for file_info in files if path_filter in file_info.rel_path.as_posix()]
         if path_filter
-        else files
+        else list(files)
     )
     selected.sort(
         key=lambda file_info: (
@@ -4543,6 +4576,15 @@ def _group_report_files(files: List[FileInfo]) -> Dict[str, List[FileInfo]]:
     return grouped
 
 
+def _group_processed_report_files(
+    processed_files: List[Tuple[FileInfo, str]],
+) -> Dict[str, List[Tuple[FileInfo, str]]]:
+    grouped: Dict[str, List[Tuple[FileInfo, str]]] = {}
+    for file_info, status in processed_files:
+        grouped.setdefault(file_info.root_label, []).append((file_info, status))
+    return grouped
+
+
 def _included_report_files_by_root(
     processed_files: List[Tuple[FileInfo, str]],
 ) -> Dict[str, int]:
@@ -4566,7 +4608,7 @@ def _report_health_collector(
     extras: ExtrasConfig,
     sources: List[Path],
     files_by_root: Dict[str, List[FileInfo]],
-) -> Any:
+) -> Optional[HealthCollector]:
     if not extras.health:
         return None
     derived_hub = sources[0].parent if sources else None
@@ -4593,7 +4635,7 @@ def _prepare_report_state(
     meta_none: bool,
     redact_secrets: bool,
 ) -> _ReportRenderState:
-    effective_extras = extras or ExtrasConfig.none()
+    effective_extras = extras if extras is not None else ExtrasConfig.none()
     if debug:
         print("[repoground] merge.py loaded from:", __file__, file=sys.stderr)
     selected_files = _normalize_report_files(files, path_filter, code_only)
@@ -4604,6 +4646,7 @@ def _prepare_report_state(
     included_count = sum(
         1 for _file_info, status in processed_files if status in ("full", "truncated")
     )
+    processed_by_root = _group_processed_report_files(processed_files)
     included_by_root = _included_report_files_by_root(processed_files)
     files_by_root = _group_report_files(selected_files)
     (
@@ -4637,6 +4680,7 @@ def _prepare_report_state(
         nav=NavStyle(emit_search_markers=False),
         now=clock.now_utc(),
         processed_files=processed_files,
+        processed_by_root=processed_by_root,
         roots={file_info.root_label for file_info in selected_files},
         total_size=sum(file_info.size for file_info in selected_files),
         text_files=text_files,
