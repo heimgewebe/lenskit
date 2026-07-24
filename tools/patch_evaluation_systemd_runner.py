@@ -38,12 +38,12 @@ _sha = _support._sha
 _owned = _support._owned
 _json = _support._json
 _prepare = _support._prepare
-_argv = _support._argv
+_base_argv = _support._argv
 _run = _support._run
-_show = _support._show
+_base_show = _support._show
 _wait = _support._wait
 _num = _support._num
-_policy = _support._policy
+_base_policy = _support._policy
 
 
 @dataclass
@@ -59,8 +59,16 @@ class ExecutionState:
     launched: bool = False
 
 
+def _published_matches(path: Path, value: Mapping[str, Any]) -> bool:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) == value
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+
+
 def _atomic(path: Path, value: Mapping[str, Any]) -> None:
     temporary: Path | None = None
+    linked = False
     try:
         with tempfile.NamedTemporaryFile(
             "w",
@@ -76,12 +84,16 @@ def _atomic(path: Path, value: Mapping[str, Any]) -> None:
             os.fsync(handle.fileno())
             temporary = Path(handle.name)
         os.link(temporary, path)
+        linked = True
         temporary.unlink()
         descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
             os.fsync(descriptor)
         finally:
             os.close(descriptor)
+    except OSError:
+        if not linked or not _published_matches(path, value):
+            raise
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
@@ -100,6 +112,58 @@ def _producer(sidecar: Path) -> str:
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return "sha256:" + digest.hexdigest()
+
+
+def _argv(run: Run, limits: Limits, sidecar: Path) -> list[str]:
+    argv = _base_argv(run, limits, sidecar)
+    boundary = argv.index("--")
+    return [
+        *argv[:boundary],
+        "--property=StandardOutput=null",
+        "--property=StandardError=null",
+        *argv[boundary:],
+    ]
+
+
+def _parse_properties(payload: bytes) -> dict[str, str]:
+    return dict(
+        line.split("=", 1)
+        for line in payload.decode(errors="replace").splitlines()
+        if "=" in line
+    )
+
+
+def _show(systemctl: Path, unit: str) -> dict[str, str]:
+    value = _base_show(systemctl, unit)
+    result = _run(
+        (
+            str(systemctl),
+            "--user",
+            "show",
+            unit,
+            "--property",
+            "StandardOutput",
+            "--property",
+            "StandardError",
+        ),
+        20,
+    )
+    if result.returncode:
+        detail = result.stderr.decode(errors="replace").strip()
+        raise RunnerError(detail or "unit output-policy readback failed")
+    value.update(_parse_properties(result.stdout))
+    return value
+
+
+def _policy(
+    unit: Mapping[str, str],
+    run: Run,
+    limits: Limits,
+) -> tuple[str, dict[str, Any]]:
+    for name in ("StandardOutput", "StandardError"):
+        if unit.get(name) != "null":
+            raise RunnerError(f"systemd policy mismatch for {name}")
+    return _base_policy(unit, run, limits)
 
 
 def _unit_absent(systemctl: Path, unit: str, timeout: float = 3) -> bool:
@@ -260,7 +324,8 @@ def _evaluate_unit(
         detail = launch.stderr.decode(errors="replace").strip()
         raise RunnerError(detail or "unit launch failed")
     state.launched = True
-    state.unit = _wait(systemctl, run.unit, limits.runtime)
+    _wait(systemctl, run.unit, limits.runtime)
+    state.unit = _show(systemctl, run.unit)
     _verify_terminal_result(state.unit)
     state.policy_hash, state.policy_readback = _policy(state.unit, run, limits)
     _verify_material(run, sidecar, producer)
