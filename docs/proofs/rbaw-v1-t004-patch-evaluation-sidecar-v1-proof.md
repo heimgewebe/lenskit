@@ -37,10 +37,16 @@ python -m pytest -q tests/test_patch_evaluation_sidecar.py merger/repoground/tes
 # 30 passed in 2.19s
 
 python -m pytest -q
-# 4679 passed, 2 skipped in 116.93s
+# 4679 passed, 2 skipped in 118.64s
 
 python -m ruff check tools/patch_evaluation_sidecar.py tests/test_patch_evaluation_sidecar.py
 # All checks passed!
+
+python -m ruff format --check tools/patch_evaluation_sidecar.py tests/test_patch_evaluation_sidecar.py
+# 2 files already formatted
+
+python scripts/ci/check_graph_maintainability.py --root . --format json
+# status pass; new_count 0; resolved_count 3
 
 python -m py_compile tools/patch_evaluation_sidecar.py tests/test_patch_evaluation_sidecar.py
 # exit 0
@@ -52,7 +58,7 @@ git diff --check
 The durable full-suite receipt is bound to argv SHA-256
 `c3f2578d3a465d10ae97391fe2a54f1c10832286381277ce1355ccfb0bbac529`
 and receipt SHA-256
-`7301747b260194f73ed0bfb6e8565f0e1ab2192d6d333dab68ded8727d8da5b6`.
+`d497d295bceec49f5008b546630333da7b62f1410bdef263cfe33c71640cb57c`.
 
 ## Does not establish
 
@@ -60,8 +66,8 @@ This proof and a passing prototype run do not establish correctness, test
 sufficiency, security correctness, runtime behavior outside evaluated commands,
 merge authorization, merge readiness, regression absence, repository
 understanding, or truth of producer claims. Filesystem, credential, network, and
-container sandboxing are not implemented by this prototype; configured commands must be
-trusted.
+container sandboxing are not implemented by this prototype; configured
+commands must be trusted.
 
 Invalid requests and read-only provenance-preflight failures can terminate
 without an artifact; they do not create a worktree or run declared commands.
