@@ -1,0 +1,45 @@
+name: PR 1097 diff export
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.head_ref == 'ops/pr-1097-diff-export-20260724'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Export exact PR diff
+        env:
+          EXPECTED_BASE: a87fcfbb579aad23016273ee59438025b536cd97
+          EXPECTED_HEAD: dc5842cb1595481dc9e25ee8dfbb618506009b05
+        run: |
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/fix/rbaw-v1-t004-integrity-hardening-v2:refs/remotes/origin/pr-1097-head
+          test "$(git rev-parse refs/remotes/origin/main)" = "$EXPECTED_BASE"
+          test "$(git rev-parse refs/remotes/origin/pr-1097-head)" = "$EXPECTED_HEAD"
+          git diff --binary --full-index "$EXPECTED_BASE...$EXPECTED_HEAD" \
+            > repoground-pr-1097-final-review.txt
+          test -s repoground-pr-1097-final-review.txt
+          sha256sum repoground-pr-1097-final-review.txt \
+            > repoground-pr-1097-final-review.sha256
+
+      - name: Upload exact review diff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: repoground-pr-1097-final-review
+          path: |
+            repoground-pr-1097-final-review.txt
+            repoground-pr-1097-final-review.sha256
+          retention-days: 7
+          if-no-files-found: error
