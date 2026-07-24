@@ -120,8 +120,8 @@ def _block_manifest(blocks: list[str]) -> dict[str, object]:
 def test_report_renderer_matches_byte_and_block_goldens(name: str) -> None:
     blocks = _render(name)
 
-    assert "".join(blocks) == (GOLDEN_ROOT / f"{name}.md").read_text(
-        encoding="utf-8"
+    assert "".join(blocks) == json.loads(
+        (GOLDEN_ROOT / f"{name}.text.json").read_text(encoding="utf-8")
     )
     assert _block_manifest(blocks) == json.loads(
         (GOLDEN_ROOT / f"{name}.blocks.json").read_text(encoding="utf-8")
