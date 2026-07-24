@@ -16,6 +16,33 @@ T004** — see "Open T004 acceptance gaps".
   - `docs/proofs/repoground-core-complexity-v1.after.measurement.json` (commit `b3fbeb92`, clean worktree)
   - `docs/proofs/repoground-core-complexity-v1.reachability.measurement.json`
 
+## Current-main port verification
+
+The five-commit slice was originally prepared on branch
+`refactor/legacy-reconciliation-t004-core-complexity-v1` at
+`f8dbf49f4ccbea3cce2886888f06ace96aa8dcd5`. That historical checkout was
+read only and was not taken over, reset or modified. Its commits were replayed
+individually, without conflict, onto current RepoGround base
+`dc67fdcf668942fdf4b5baef4989ce6e1e952c21` in the isolated branch
+`refactor/legacy-reconciliation-t004-core-complexity-v2`.
+
+The port was revalidated on the current tree rather than relying on the old
+proof summary:
+
+- focused maintainability and reachability suite: 28 passed;
+- full repository pytest task `27464ea3412e4afdbc4a2294`: terminal success,
+  exit status 0, lifecycle receipt
+  `83c3452307f3b7f06efd634cf0192ef77f4988932d4db7d849d668bebeb537cf`;
+- graph-maintainability gate: pass at 198 C901 findings, maximum 148 and
+  excess mass 2533;
+- module-reachability gate: pass, 199 production modules measured, no
+  unproven or documentation-only module and no findings.
+
+The historical before/after performance measurements below remain bound to
+their recorded commits. Conflict-free replay and current tests do not turn them
+into measurements of the later base. The reviewed pull-request head and its
+complete diff SHA-256 are recorded separately at delivery time.
+
 ## Task re-audit
 
 The task was registered on 2026-07-17 against a much older tree. Three of its
