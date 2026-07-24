@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -43,6 +44,19 @@ _show = _support._show
 _wait = _support._wait
 _num = _support._num
 _policy = _support._policy
+
+
+@dataclass
+class ExecutionState:
+    unit: dict[str, str] = field(default_factory=dict)
+    artifact: Mapping[str, Any] | None = None
+    artifact_sha: str | None = None
+    policy_hash: str | None = None
+    policy_readback: dict[str, Any] | None = None
+    cleanup: bool = False
+    error: str | None = None
+    launcher: int | None = None
+    launched: bool = False
 
 
 def _atomic(path: Path, value: Mapping[str, Any]) -> None:
@@ -91,17 +105,21 @@ def _producer(sidecar: Path) -> str:
 def _unit_absent(systemctl: Path, unit: str, timeout: float = 3) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        probe = _run(
-            (
-                str(systemctl),
-                "--user",
-                "show",
-                unit,
-                "--property",
-                "LoadState",
-            ),
-            20,
-        )
+        try:
+            probe = _run(
+                (
+                    str(systemctl),
+                    "--user",
+                    "show",
+                    unit,
+                    "--property",
+                    "LoadState",
+                ),
+                20,
+            )
+        except (OSError, subprocess.SubprocessError, RunnerError):
+            time.sleep(0.05)
+            continue
         if b"LoadState=not-found" in probe.stdout:
             return True
         time.sleep(0.05)
@@ -118,16 +136,16 @@ def _cleanup_transient(
         return False, "unit InvocationID is unavailable; cleanup refused"
     try:
         before = _show(systemctl, run.unit)
+        if before.get("InvocationID") != invocation:
+            return False, "unit InvocationID changed; cleanup refused"
+        stopped = _run((str(systemctl), "--user", "stop", run.unit), 20)
+        if _unit_absent(systemctl, run.unit):
+            return True, None
+        reset = _run((str(systemctl), "--user", "reset-failed", run.unit), 20)
+        if _unit_absent(systemctl, run.unit):
+            return True, None
     except (OSError, subprocess.SubprocessError, RunnerError) as exc:
         return False, f"unit cleanup readback failed: {exc}"
-    if before.get("InvocationID") != invocation:
-        return False, "unit InvocationID changed; cleanup refused"
-    stopped = _run((str(systemctl), "--user", "stop", run.unit), 20)
-    if _unit_absent(systemctl, run.unit):
-        return True, None
-    reset = _run((str(systemctl), "--user", "reset-failed", run.unit), 20)
-    if _unit_absent(systemctl, run.unit):
-        return True, None
     details = " | ".join(
         item
         for item in (
@@ -146,7 +164,7 @@ def _recover_unit(systemctl: Path, run: Run) -> dict[str, str]:
         return {}
 
 
-def execute(args: argparse.Namespace) -> dict[str, Any]:
+def _preflight(args: argparse.Namespace) -> tuple[Limits, Path, Path, str, Run]:
     if platform.system() != "Linux":
         raise RunnerError("Linux is required")
     controllers = Path("/sys/fs/cgroup/cgroup.controllers")
@@ -171,97 +189,131 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         raise RunnerError("Sidecar is unavailable")
     producer = _producer(sidecar)
     run = _prepare(Path(args.request), Path(args.output), Path(args.receipt))
+    return limits, systemctl, sidecar, producer, run
 
-    unit: dict[str, str] = {}
-    artifact: Mapping[str, Any] | None = None
-    artifact_sha: str | None = None
-    policy_hash: str | None = None
-    policy_readback: dict[str, Any] | None = None
-    cleanup = False
-    error: str | None = None
-    launcher: int | None = None
-    launched = False
 
-    try:
-        probe = _run(
-            (
-                str(systemctl),
-                "--user",
-                "show",
-                run.unit,
-                "--property",
-                "LoadState",
-            ),
-            20,
-        )
-        if b"LoadState=not-found" not in probe.stdout:
-            raise RunnerError("transient unit absence could not be proven")
-        launch = _run(_argv(run, limits, sidecar), 30)
-        launcher = launch.returncode
-        if launcher:
-            detail = launch.stderr.decode(errors="replace").strip()
-            raise RunnerError(detail or "unit launch failed")
-        launched = True
-        unit = _wait(systemctl, run.unit, limits.runtime)
-        result = unit.get("Result")
-        if result in _RESOURCE_RESULTS:
-            raise RunnerError(f"systemd classified unit as {result}")
-        if result not in {"success", "exit-code"}:
-            raise RunnerError(f"unsupported terminal systemd result: {result}")
-        policy_hash, policy_readback = _policy(unit, run, limits)
-        if _sha(run.source_request) != run.source_request_sha256:
-            raise RunnerError("source request changed during evaluation")
-        if (
-            _sha(run.request) != run.effective_request_sha256
-            or _sha(run.patch) != run.patch_sha256
-            or stat.S_IMODE(run.request.stat().st_mode) != 0o400
-            or stat.S_IMODE(run.patch.stat().st_mode) != 0o400
-        ):
-            raise RunnerError("immutable input snapshot changed")
-        if _producer(sidecar) != producer:
-            raise RunnerError("producer source changed")
-        if not _owned(run.output.parent, run.output_identity):
-            raise RunnerError("persistent output root identity changed")
-        artifact = _json(run.output, 16 * 1024**2)
-        artifact_sha = _sha(run.output)
-        if (
-            artifact.get("kind") != "repobrief.patch_evaluation"
-            or artifact.get("version") != "v1"
-        ):
-            raise RunnerError("Sidecar artifact kind or version is invalid")
-        if artifact.get("status") not in _ARTIFACT_STATUSES:
-            raise RunnerError("Sidecar artifact status is invalid")
-    except (OSError, ValueError, subprocess.SubprocessError, RunnerError) as exc:
-        error = str(exc)
-    finally:
-        if launched and not unit:
-            unit = _recover_unit(systemctl, run)
-        if launched:
-            cleanup, cleanup_error = _cleanup_transient(systemctl, run, unit)
-            if cleanup_error:
-                error = error or cleanup_error
-        if _owned(run.staging, run.staging_identity):
-            try:
-                shutil.rmtree(run.staging)
-            except OSError as exc:
-                error = error or f"staging cleanup failed: {exc}"
-        if run.staging.exists():
-            error = error or "staging cleanup could not be proven"
-        if launched and not cleanup:
-            error = error or "transient unit cleanup could not be proven"
+def _prove_unit_absent(systemctl: Path, unit: str) -> None:
+    probe = _run(
+        (
+            str(systemctl),
+            "--user",
+            "show",
+            unit,
+            "--property",
+            "LoadState",
+        ),
+        20,
+    )
+    if b"LoadState=not-found" not in probe.stdout:
+        raise RunnerError("transient unit absence could not be proven")
 
-    artifact_status = artifact.get("status") if artifact else None
-    status = "error"
+
+def _verify_terminal_result(unit: Mapping[str, str]) -> None:
+    result = unit.get("Result")
+    if result in _RESOURCE_RESULTS:
+        raise RunnerError(f"systemd classified unit as {result}")
+    if result not in {"success", "exit-code"}:
+        raise RunnerError(f"unsupported terminal systemd result: {result}")
+
+
+def _verify_material(run: Run, sidecar: Path, producer: str) -> None:
+    if _sha(run.source_request) != run.source_request_sha256:
+        raise RunnerError("source request changed during evaluation")
+    snapshots_changed = (
+        _sha(run.request) != run.effective_request_sha256
+        or _sha(run.patch) != run.patch_sha256
+        or stat.S_IMODE(run.request.stat().st_mode) != 0o400
+        or stat.S_IMODE(run.patch.stat().st_mode) != 0o400
+    )
+    if snapshots_changed:
+        raise RunnerError("immutable input snapshot changed")
+    if _producer(sidecar) != producer:
+        raise RunnerError("producer source changed")
+    if not _owned(run.output.parent, run.output_identity):
+        raise RunnerError("persistent output root identity changed")
+
+
+def _read_artifact(run: Run) -> tuple[Mapping[str, Any], str]:
+    artifact = _json(run.output, 16 * 1024**2)
     if (
-        error is None
-        and cleanup
-        and policy_hash is not None
-        and artifact_status in _ARTIFACT_STATUSES
-        and unit.get("Result") in {"success", "exit-code"}
+        artifact.get("kind") != "repobrief.patch_evaluation"
+        or artifact.get("version") != "v1"
     ):
-        status = str(artifact_status)
+        raise RunnerError("Sidecar artifact kind or version is invalid")
+    if artifact.get("status") not in _ARTIFACT_STATUSES:
+        raise RunnerError("Sidecar artifact status is invalid")
+    return artifact, _sha(run.output)
+
+
+def _evaluate_unit(
+    state: ExecutionState,
+    systemctl: Path,
+    run: Run,
+    limits: Limits,
+    sidecar: Path,
+    producer: str,
+) -> None:
+    _prove_unit_absent(systemctl, run.unit)
+    launch = _run(_argv(run, limits, sidecar), 30)
+    state.launcher = launch.returncode
+    if state.launcher:
+        detail = launch.stderr.decode(errors="replace").strip()
+        raise RunnerError(detail or "unit launch failed")
+    state.launched = True
+    state.unit = _wait(systemctl, run.unit, limits.runtime)
+    _verify_terminal_result(state.unit)
+    state.policy_hash, state.policy_readback = _policy(state.unit, run, limits)
+    _verify_material(run, sidecar, producer)
+    state.artifact, state.artifact_sha = _read_artifact(run)
+
+
+def _finalize(
+    state: ExecutionState,
+    systemctl: Path,
+    run: Run,
+) -> None:
+    if state.launched and not state.unit:
+        state.unit = _recover_unit(systemctl, run)
+    if state.launched:
+        state.cleanup, cleanup_error = _cleanup_transient(
+            systemctl,
+            run,
+            state.unit,
+        )
+        if cleanup_error:
+            state.error = state.error or cleanup_error
+    if _owned(run.staging, run.staging_identity):
+        try:
+            shutil.rmtree(run.staging)
+        except OSError as exc:
+            state.error = state.error or f"staging cleanup failed: {exc}"
+    if run.staging.exists():
+        state.error = state.error or "staging cleanup could not be proven"
+    if state.launched and not state.cleanup:
+        state.error = state.error or "transient unit cleanup could not be proven"
+
+
+def _status(state: ExecutionState) -> str:
+    artifact_status = state.artifact.get("status") if state.artifact else None
+    complete = (
+        state.error is None
+        and state.cleanup
+        and state.policy_hash is not None
+        and artifact_status in _ARTIFACT_STATUSES
+        and state.unit.get("Result") in {"success", "exit-code"}
+    )
+    return str(artifact_status) if complete else "error"
+
+
+def _receipt(
+    state: ExecutionState,
+    run: Run,
+    limits: Limits,
+    producer: str,
+) -> dict[str, Any]:
+    artifact_status = state.artifact.get("status") if state.artifact else None
     devices = len(run.devices)
-    value = {
+    return {
         "kind": KIND,
         "version": VERSION,
         "authority": AUTHORITY,
@@ -281,16 +333,16 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         "runner": {
             "mode": "systemd-user-transient-service",
             "unit": run.unit,
-            "invocation_id": unit.get("InvocationID"),
-            "control_group": unit.get("ControlGroup"),
-            "systemd_result": unit.get("Result"),
-            "exec_main_code": unit.get("ExecMainCode"),
-            "exec_main_status": _num(unit.get("ExecMainStatus")),
-            "launcher_returncode": launcher,
-            "cleanup_proven": cleanup,
-            "policy_verified": policy_hash is not None,
-            "policy_readback_sha256": policy_hash,
-            "policy_readback": policy_readback,
+            "invocation_id": state.unit.get("InvocationID"),
+            "control_group": state.unit.get("ControlGroup"),
+            "systemd_result": state.unit.get("Result"),
+            "exec_main_code": state.unit.get("ExecMainCode"),
+            "exec_main_status": _num(state.unit.get("ExecMainStatus")),
+            "launcher_returncode": state.launcher,
+            "cleanup_proven": state.cleanup,
+            "policy_verified": state.policy_hash is not None,
+            "policy_readback_sha256": state.policy_hash,
+            "policy_readback": state.policy_readback,
         },
         "policy": {
             "workspace_max_bytes": limits.workspace,
@@ -311,20 +363,20 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             "io_devices": [str(item) for item in run.devices],
         },
         "accounting": {
-            "cpu_usage_nsec": _num(unit.get("CPUUsageNSec")),
-            "memory_peak_bytes": _num(unit.get("MemoryPeak")),
-            "memory_current_bytes": _num(unit.get("MemoryCurrent")),
-            "tasks_current": _num(unit.get("TasksCurrent")),
-            "io_read_bytes": _num(unit.get("IOReadBytes")),
-            "io_write_bytes": _num(unit.get("IOWriteBytes")),
+            "cpu_usage_nsec": _num(state.unit.get("CPUUsageNSec")),
+            "memory_peak_bytes": _num(state.unit.get("MemoryPeak")),
+            "memory_current_bytes": _num(state.unit.get("MemoryCurrent")),
+            "tasks_current": _num(state.unit.get("TasksCurrent")),
+            "io_read_bytes": _num(state.unit.get("IOReadBytes")),
+            "io_write_bytes": _num(state.unit.get("IOWriteBytes")),
         },
         "artifact": {
             "path": str(run.output),
-            "sha256": artifact_sha,
+            "sha256": state.artifact_sha,
             "status": artifact_status,
         },
-        "status": status,
-        "error": error,
+        "status": _status(state),
+        "error": state.error,
         "does_not_establish": [
             "correctness",
             "test_sufficiency",
@@ -334,6 +386,18 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             "microvm_equivalence",
         ],
     }
+
+
+def execute(args: argparse.Namespace) -> dict[str, Any]:
+    limits, systemctl, sidecar, producer, run = _preflight(args)
+    state = ExecutionState()
+    try:
+        _evaluate_unit(state, systemctl, run, limits, sidecar, producer)
+    except (OSError, ValueError, subprocess.SubprocessError, RunnerError) as exc:
+        state.error = str(exc)
+    finally:
+        _finalize(state, systemctl, run)
+    value = _receipt(state, run, limits, producer)
     if not _owned(run.output.parent, run.output_identity):
         raise RunnerError("persistent output root identity changed; receipt refused")
     _atomic(run.receipt, value)
