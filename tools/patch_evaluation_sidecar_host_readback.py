@@ -93,6 +93,16 @@ def _git_subcommand(argv: Sequence[str]) -> str | None:
     return None
 
 
+def _log_reports_read_only_filesystem(log_path: Path | None) -> bool:
+    if log_path is None:
+        return False
+    try:
+        content = log_path.read_bytes().lower()
+    except OSError:
+        return False
+    return b"read-only file system" in content
+
+
 def apply_host_readback_hardening(
     legacy: Any, hardening: Any, *, wrapper_path: str | Path
 ) -> None:
@@ -133,12 +143,14 @@ def apply_host_readback_hardening(
     def run_command(*args: Any, **kwargs: Any) -> dict[str, Any]:
         spec = args[0] if args else kwargs.get("spec")
         record = original_run_command(*args, **kwargs)
+        log_path = kwargs.get("log_path")
         if (
             spec is not None
             and record.get("status") == "failed"
             and _git_subcommand(spec.argv) in _GIT_MUTATING_SUBCOMMANDS
+            and _log_reports_read_only_filesystem(log_path)
         ):
-            # The read-only Git metadata mount intentionally rejects the mutation.
+            # The read-only Git metadata mount intentionally rejected the mutation.
             # Preserve this as a policy/infrastructure error rather than blaming
             # the evaluated patch as an ordinary test failure.
             record["status"] = "error"
