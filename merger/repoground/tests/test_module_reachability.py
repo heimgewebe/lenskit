@@ -139,6 +139,88 @@ def test_dynamic_and_runtime_references_count_as_evidence(tmp_path: Path) -> Non
     ]
 
 
+def test_plain_product_string_does_not_count_as_dynamic_import(tmp_path: Path) -> None:
+    _project(tmp_path)
+    _write(tmp_path / "merger/repoground/orphan.py", "VALUE = 1\n")
+    _write(
+        tmp_path / "merger/repoground/narrator.py",
+        "MESSAGE = 'merger.repoground.orphan'\n",
+    )
+
+    assert _unproven(measure_module_reachability(tmp_path)) == [
+        "merger.repoground.narrator",
+        "merger.repoground.orphan",
+    ]
+
+
+def test_non_equal_main_comparison_does_not_count_as_entrypoint(tmp_path: Path) -> None:
+    _project(tmp_path)
+    _write(
+        tmp_path / "merger/repoground/not_runnable.py",
+        "if __name__ != '__main__':\n    VALUE = 1\n",
+    )
+
+    assert _unproven(measure_module_reachability(tmp_path)) == [
+        "merger.repoground.not_runnable"
+    ]
+
+
+def test_unbound_importlib_name_does_not_count_as_dynamic_import(
+    tmp_path: Path,
+) -> None:
+    _project(tmp_path)
+    _write(tmp_path / "merger/repoground/plugin.py", "VALUE = 1\n")
+    _write(
+        tmp_path / "merger/repoground/broken_loader.py",
+        "loaded = importlib.import_module('merger.repoground.plugin')\n",
+    )
+
+    assert "merger.repoground.plugin" in _unproven(
+        measure_module_reachability(tmp_path)
+    )
+
+
+def test_non_runnable_bare_import_does_not_claim_package_sibling(
+    tmp_path: Path,
+) -> None:
+    _project(tmp_path)
+    _write(tmp_path / "merger/repoground/core/__init__.py", "")
+    _write(tmp_path / "merger/repoground/core/utils.py", "VALUE = 1\n")
+    _write(
+        tmp_path / "merger/repoground/core/consumer.py",
+        "from utils import VALUE\n",
+    )
+
+    assert "merger.repoground.core.utils" in _unproven(
+        measure_module_reachability(tmp_path)
+    )
+
+
+def test_script_style_sibling_import_resolves_only_to_existing_module(
+    tmp_path: Path,
+) -> None:
+    _project(tmp_path)
+    _write(tmp_path / "merger/repoground/frontends/__init__.py", "")
+    _write(tmp_path / "merger/repoground/frontends/pythonista/__init__.py", "")
+    _write(
+        tmp_path / "merger/repoground/frontends/pythonista/build_utils.py",
+        "VALUE = 1\n",
+    )
+    _write(
+        tmp_path / "merger/repoground/frontends/pythonista/build.py",
+        "from build_utils import VALUE\n\nif __name__ == '__main__':\n    print(VALUE)\n",
+    )
+
+    by_module = {
+        record["module"]: record
+        for record in measure_module_reachability(tmp_path)["modules"]
+    }
+
+    assert by_module[
+        "merger.repoground.frontends.pythonista.build_utils"
+    ]["evidence"] == ["static_import_product"]
+
+
 def test_recorded_baselines_do_not_count_as_runtime_evidence(tmp_path: Path) -> None:
     """A path listed in a measurement artifact is not a consumer."""
 

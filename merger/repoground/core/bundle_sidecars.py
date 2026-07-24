@@ -16,7 +16,12 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .artifact_io import compute_file_sha256, write_json_lines, write_text_atomic
+from .artifact_io import (
+    compute_file_sha256,
+    is_sha256_digest,
+    write_json_lines,
+    write_text_atomic,
+)
 
 _MANIFEST_SUFFIX = ".bundle.manifest.json"
 
@@ -72,7 +77,7 @@ def write_python_symbol_index_json(
     if repo_root is None:
         return None
     canonical_sha = compute_file_sha256(final_dump_index)
-    if not canonical_sha:
+    if not is_sha256_digest(canonical_sha):
         return None
     from merger.repoground.architecture.symbol_index import (
         generate_symbol_index_document,
@@ -98,7 +103,7 @@ def write_python_call_graph_json(
     if repo_root is None:
         return None
     canonical_sha = compute_file_sha256(final_dump_index)
-    if not canonical_sha:
+    if not is_sha256_digest(canonical_sha):
         return None
     from merger.repoground.architecture.call_graph import generate_call_graph_document
 

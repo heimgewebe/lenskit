@@ -29,14 +29,18 @@ individually, without conflict, onto current RepoGround base
 The port was revalidated on the current tree rather than relying on the old
 proof summary:
 
-- focused maintainability and reachability suite: 28 passed;
-- full repository pytest task `27464ea3412e4afdbc4a2294`: terminal success,
+- focused maintainability, reachability and sidecar-integrity suite: 42 passed;
+- full repository pytest task `d6f4c47f862941d8b976df9b`: terminal success,
   exit status 0, lifecycle receipt
-  `83c3452307f3b7f06efd634cf0192ef77f4988932d4db7d849d668bebeb537cf`;
+  `7aaab1cc89ebade1bf74d9ed91a26ff43dc56e24f841f245cea77329aa99fbe6`;
 - graph-maintainability gate: pass at 198 C901 findings, maximum 148 and
   excess mass 2533;
 - module-reachability gate: pass, 199 production modules measured, no
-  unproven or documentation-only module and no findings.
+  unproven or documentation-only module and no findings;
+- review hardening: plain strings no longer count as dynamic imports,
+  non-equality `__name__` comparisons no longer count as entry points,
+  script-style sibling imports require a direct-execution main guard, and
+  symbol/call-graph sidecars reject every non-canonical SHA-256 digest.
 
 The historical before/after performance measurements below remain bound to
 their recorded commits. Conflict-free replay and current tests do not turn them
@@ -150,45 +154,55 @@ complexity out of one function, not code out of the module.
 every production module and classifies it as `reachable` or `unproven`. It never
 classifies a module as dead.
 
-199 production modules, 0 unproven, 0 documentation-only, 8 test-only. The
-`allowed_unproven` and `allowed_documentation_only` lists are empty; the eight
-test-only modules are declared individually. No code was removed by this change.
+199 production modules, 0 unproven, 0 documentation-only, 6 test-only. The
+`allowed_unproven` and `allowed_documentation_only` lists are empty; the six
+test-only modules are declared individually. Two Pythonista sibling modules that
+were previously misclassified (`build_helpers` and `build_utils`) are now
+resolved from their real script-style product imports. No code was removed by
+this change.
 
 Evidence is separated into three classes, and the classes are what the policy
 acts on:
 
 | Class | Kinds | Observed |
 | --- | --- | --- |
-| production | `static_import_product` (170), `runtime_surface_reference` (50), `static_import_script` (20), `module_main_block` (14), `dynamic_string_reference` (12), `package_of_referenced_module` (4), `package_data_reference` (1) | required |
-| test | `static_import_test` (164), `dynamic_string_reference_test` (45), `package_of_test_referenced_module` (0) | must be declared if it is all a module has |
+| production | `static_import_product` (172), `runtime_surface_reference` (50), `static_import_script` (20), `module_main_block` (14), `dynamic_string_reference` (0), `package_of_referenced_module` (4), `package_data_reference` (1) | required |
+| test | `static_import_test` (164), `dynamic_string_reference_test` (0), `package_of_test_referenced_module` (0) | must be declared if it is all a module has |
 | documentation | `documented_invocation` (83) | never sufficient |
 
-Four false-PASS risks are handled explicitly:
+Six false-PASS risks are handled explicitly:
 
 - **Documentation is not runtime.** `config/` and `docs/` are excluded from the
   runtime corpus. A module path listed in a C901 baseline or in a recorded
-  measurement is not a consumer, and counting `config/` would have made 193 of 199
-  modules look runtime-reachable instead of 50. Documentation-only evidence is a
-  separate, weaker class that must be declared in the policy; nothing currently
-  relies on it. This document is itself part of the documentation corpus and
-  therefore contributes `documented_invocation` evidence to every module it
-  names — which is exactly why that class can never carry a module on its own.
+  measurement is not a consumer. Documentation-only evidence is a separate,
+  weaker class that must be declared in the policy; nothing currently relies on
+  it. This document is itself part of the documentation corpus and therefore
+  contributes `documented_invocation` evidence to every module it names — which
+  is exactly why that class can never carry a module on its own.
 - **Tests are not production.** Test and fixture sources feed their own evidence
-  class. A production module that only its own tests import, or that only a test
-  names in a dynamic import string, is reported as `test_only` and must be
-  declared in the policy; an undeclared one fails the check, and a stale
-  declaration fails it too. Splitting this class moved 45 dynamic-string credits
-  and 8 modules out of the production class. `test_only` is not `dead`: the
-  policy states that deletion needs positive evidence of non-use.
-- **Substrings are not references.** Corpus matching is token-exact, so `merger`
-  is not credited for a mention of `merger.repoground.core`, and
-  `merger.repoground.lonely` is not credited for `merger.repoground.lonely_extra`
-  or for `merger/repoground/lonely.py.bak`. Dynamic string matching stops at a
-  dot, so `pkg.mod.attr` credits `pkg.mod` but `pkg.mod_extra` does not.
-- **Unreadable source is a failure, not an absence.** An unreadable or unparsable
-  *product or script* source is a finding, because it could hide a module or its
-  imports. Deliberately invalid test fixtures only under-claim evidence, which
-  stays on the strict side, and are recorded separately.
+  class. A production module that only its own tests import is reported as
+  `test_only` and must be declared in the policy; an undeclared one fails the
+  check, and a stale declaration fails it too. Six modules remain in that
+  class. `test_only` is not `dead`: deletion needs positive evidence of non-use.
+- **Strings are not loaders.** Plain strings and docstrings in product or test
+  code do not establish dynamic reachability. Only literal arguments passed to
+  a bound `importlib.import_module` or `__import__` call can emit dynamic-import
+  evidence. Strings that name existing packaged data files form a separate
+  `package_data_reference` class and can establish only their containing
+  package, not an arbitrary module.
+- **A comparison is not automatically an entry point.** Only the exact equality
+  guard `__name__ == "__main__"` (in either operand order) emits
+  `module_main_block`; inequalities and other comparisons do not.
+- **Script-style local imports are qualified only against real modules.** This
+  captures the Pythonista sibling imports without guessing from names. A
+  `from package import symbol` statement credits `package.symbol` only when
+  that exact production module exists, so functions and classes cannot
+  masquerade as submodules.
+- **Substrings are not references, and unreadable source is not absence.**
+  Corpus matching is token-exact, so longer names and backup paths do not credit
+  a module. An unreadable or unparsable product or script source is a finding;
+  deliberately invalid test fixtures are recorded separately and only
+  under-claim evidence.
 
 The policy itself is validated before it is used: a wrong `kind`/`version` or a
 missing, empty or non-string `package_roots` is a finding, so a malformed policy
@@ -278,6 +292,6 @@ Bureau follow-up tasks; they are deliberately not claimed here:
 3. `merge.py` itself did not shrink: the extracted report writers still call
    `merge` module functions, so moving them into their own module would create an
    import cycle. Breaking that cycle is a separate slice.
-4. The eight declared test-only modules are a recorded gap, not a resolved one.
+4. The six declared test-only modules are a recorded gap, not a resolved one.
    Each needs its own decision — production consumer, retirement with evidence of
    non-use, or an accepted test-support role.

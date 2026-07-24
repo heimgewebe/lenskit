@@ -60,6 +60,16 @@ def compute_file_sha256(path: Path) -> str:
         return "ERROR"
 
 
+def is_sha256_digest(value: object) -> bool:
+    """Return whether ``value`` is exactly one lowercase SHA-256 digest."""
+
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def append_unique_path(paths: List[Path], path: Optional[Path]) -> None:
     """Append ``path`` unless it is absent or already recorded."""
 

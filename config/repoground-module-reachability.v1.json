@@ -12,8 +12,6 @@
     "merger.repoground.core.answer_grounding_delta",
     "merger.repoground.core.history_lens",
     "merger.repoground.core.memory",
-    "merger.repoground.frontends.pythonista.build_helpers",
-    "merger.repoground.frontends.pythonista.build_utils",
     "merger.repoground.retrieval.audit_finding",
     "merger.repoground.retrieval.audit_lane",
     "merger.repoground.retrieval.eval_diagnostics_integration"

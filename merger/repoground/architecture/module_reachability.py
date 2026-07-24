@@ -125,31 +125,155 @@ def _resolve_relative(module_name: str, is_package: bool, node: ast.ImportFrom) 
     return ".".join(parts)
 
 
-def _imported_names(tree: ast.AST, module_name: str, is_package: bool) -> set[str]:
+def _package_name(module_name: str, is_package: bool) -> str:
+    if is_package:
+        return module_name
+    return module_name.rpartition(".")[0]
+
+
+def _resolve_local_absolute(
+    imported_name: str,
+    *,
+    module_name: str,
+    is_package: bool,
+    known_modules: set[str],
+) -> str:
+    """Resolve script-style sibling imports only when a real module exists.
+
+    Pythonista executes ``build.py`` with its own directory on ``sys.path``, so
+    imports such as ``from build_utils import ...`` reach the sibling package
+    module even though they are not written as relative imports. Guessing from
+    the name alone would over-claim reachability; the qualified candidate must
+    exist in the measured production-module inventory.
+    """
+
+    package = _package_name(module_name, is_package)
+    candidate = f"{package}.{imported_name}" if package else imported_name
+    if candidate in known_modules or any(
+        name.startswith(f"{candidate}.") for name in known_modules
+    ):
+        return candidate
+    return imported_name
+
+
+def _imported_names(
+    tree: ast.AST,
+    module_name: str,
+    is_package: bool,
+    known_modules: set[str],
+    *,
+    allow_local_siblings: bool,
+) -> set[str]:
     names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                names.add(alias.name)
+                resolved = alias.name
+                if alias.name not in known_modules and allow_local_siblings:
+                    resolved = _resolve_local_absolute(
+                        alias.name,
+                        module_name=module_name,
+                        is_package=is_package,
+                        known_modules=known_modules,
+                    )
+                names.add(resolved)
         elif isinstance(node, ast.ImportFrom):
             base = (
                 _resolve_relative(module_name, is_package, node)
                 if node.level
-                else (node.module or "")
+                else (
+                    _resolve_local_absolute(
+                        node.module or "",
+                        module_name=module_name,
+                        is_package=is_package,
+                        known_modules=known_modules,
+                    )
+                    if allow_local_siblings
+                    else (node.module or "")
+                )
             )
             if not base:
                 continue
             names.add(base)
-            # ``from pkg import module`` also binds ``pkg.module``.
-            names.update(f"{base}.{alias.name}" for alias in node.names)
+            # ``from pkg import module`` is evidence for ``pkg.module`` only
+            # when that exact production module exists. A function or class
+            # imported from a module must not masquerade as a submodule.
+            for alias in node.names:
+                candidate = f"{base}.{alias.name}"
+                if alias.name != "*" and candidate in known_modules:
+                    names.add(candidate)
     return names
 
 
-def _string_literals(tree: ast.AST) -> set[str]:
+def _resource_strings(tree: ast.AST) -> set[str]:
+    """Return literals that may name packaged data files, never modules."""
+
     return {
         node.value
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+
+
+def _dynamic_import_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
+    importlib_aliases: set[str] = set()
+    import_module_names = {"__import__"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            importlib_aliases.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "importlib"
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            import_module_names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "import_module"
+            )
+    return importlib_aliases, import_module_names
+
+
+def _literal_dynamic_import(
+    node: ast.AST,
+    *,
+    importlib_aliases: set[str],
+    import_module_names: set[str],
+) -> str | None:
+    if not isinstance(node, ast.Call) or not node.args:
+        return None
+    direct_call = isinstance(node.func, ast.Name) and node.func.id in import_module_names
+    module_call = (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "import_module"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id in importlib_aliases
+    )
+    first_argument = node.args[0]
+    if not (direct_call or module_call):
+        return None
+    if not isinstance(first_argument, ast.Constant) or not isinstance(
+        first_argument.value, str
+    ):
+        return None
+    return first_argument.value
+
+
+def _dynamic_module_strings(tree: ast.AST) -> set[str]:
+    """Return literal module names passed to actual dynamic import APIs."""
+
+    importlib_aliases, import_module_names = _dynamic_import_aliases(tree)
+    return {
+        value
+        for node in ast.walk(tree)
+        if (
+            value := _literal_dynamic_import(
+                node,
+                importlib_aliases=importlib_aliases,
+                import_module_names=import_module_names,
+            )
+        )
+        is not None
     }
 
 
@@ -166,7 +290,10 @@ def _has_main_block(tree: ast.AST) -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
             continue
-        operands = [node.test.left, *node.test.comparators]
+        comparison = node.test
+        if len(comparison.ops) != 1 or not isinstance(comparison.ops[0], ast.Eq):
+            continue
+        operands = [comparison.left, comparison.comparators[0]]
         has_name = any(
             isinstance(item, ast.Name) and item.id == "__name__" for item in operands
         )
@@ -223,6 +350,41 @@ class _Corpus:
         )
 
 
+def _collect_source_evidence(
+    parsed_sources: list[tuple[str, str, bool, ast.AST]],
+    known_modules: set[str],
+) -> tuple[dict[str, set[str]], dict[str, set[str]], dict[str, set[str]]]:
+    imports_by_projection: dict[str, set[str]] = {
+        "product": set(),
+        "test": set(),
+        "script": set(),
+        "fixture": set(),
+    }
+    dynamic_strings_by_projection: dict[str, set[str]] = {}
+    resource_strings_by_projection: dict[str, set[str]] = {}
+    for projection, module_name, is_package, tree in parsed_sources:
+        imports_by_projection.setdefault(projection, set()).update(
+            _imported_names(
+                tree,
+                module_name,
+                is_package,
+                known_modules,
+                allow_local_siblings=_has_main_block(tree),
+            )
+        )
+        dynamic_strings_by_projection.setdefault(projection, set()).update(
+            _dynamic_module_strings(tree)
+        )
+        resource_strings_by_projection.setdefault(projection, set()).update(
+            _resource_strings(tree)
+        )
+    return (
+        imports_by_projection,
+        dynamic_strings_by_projection,
+        resource_strings_by_projection,
+    )
+
+
 def measure_module_reachability(
     repo_root: Path,
     package_roots: Iterable[str] = ("merger",),
@@ -237,7 +399,9 @@ def measure_module_reachability(
         "script": set(),
         "fixture": set(),
     }
-    strings_by_projection: dict[str, set[str]] = {}
+    dynamic_strings_by_projection: dict[str, set[str]] = {}
+    resource_strings_by_projection: dict[str, set[str]] = {}
+    parsed_sources: list[tuple[str, str, bool, ast.AST]] = []
     data_files: list[str] = []
     runtime_corpus = _Corpus()
     documentation_corpus = _Corpus()
@@ -261,12 +425,7 @@ def measure_module_reachability(
                 continue
             module_name = _module_name(relative)
             is_package = path.name == "__init__.py"
-            imports_by_projection.setdefault(projection, set()).update(
-                _imported_names(tree, module_name, is_package)
-            )
-            strings_by_projection.setdefault(projection, set()).update(
-                _string_literals(tree)
-            )
+            parsed_sources.append((projection, module_name, is_package, tree))
             if projection == "product" and relative.startswith(
                 tuple(f"{root}/" for root in roots)
             ):
@@ -288,6 +447,12 @@ def measure_module_reachability(
             if text is not None:
                 documentation_corpus.add(text)
 
+    (
+        imports_by_projection,
+        dynamic_strings_by_projection,
+        resource_strings_by_projection,
+    ) = _collect_source_evidence(parsed_sources, set(modules))
+
     # Production evidence may only be drawn from production and script sources.
     # Test sources form their own, weaker class so that a module the tests alone
     # reach cannot present itself as part of a shipped path.
@@ -296,8 +461,13 @@ def measure_module_reachability(
 
     production_imports = _union(imports_by_projection, "product", "script")
     all_imports = _union(imports_by_projection, *imports_by_projection)
-    production_strings = _union(strings_by_projection, "product", "script")
-    test_strings = _union(strings_by_projection, "test", "fixture")
+    production_dynamic_strings = _union(
+        dynamic_strings_by_projection, "product", "script"
+    )
+    test_dynamic_strings = _union(dynamic_strings_by_projection, "test", "fixture")
+    production_resource_strings = _union(
+        resource_strings_by_projection, "product", "script"
+    )
 
     records = [
         _module_record(
@@ -306,8 +476,9 @@ def measure_module_reachability(
             imports_by_projection=imports_by_projection,
             production_imports=production_imports,
             all_imports=all_imports,
-            production_strings=production_strings,
-            test_strings=test_strings,
+            production_dynamic_strings=production_dynamic_strings,
+            test_dynamic_strings=test_dynamic_strings,
+            production_resource_strings=production_resource_strings,
             data_files=data_files,
             runtime_corpus=runtime_corpus,
             documentation_corpus=documentation_corpus,
@@ -429,8 +600,9 @@ def _module_record(
     imports_by_projection: dict[str, set[str]],
     production_imports: set[str],
     all_imports: set[str],
-    production_strings: set[str],
-    test_strings: set[str],
+    production_dynamic_strings: set[str],
+    test_dynamic_strings: set[str],
+    production_resource_strings: set[str],
     data_files: list[str],
     runtime_corpus: _Corpus,
     documentation_corpus: _Corpus,
@@ -446,7 +618,7 @@ def _module_record(
             relative_path,
             production_imports=production_imports,
             all_imports=all_imports,
-            production_strings=production_strings,
+            production_strings=production_resource_strings,
             data_files=data_files,
         )
         if package_evidence is not None:
@@ -455,9 +627,9 @@ def _module_record(
     if details["module_main_block"]:
         evidence.append("module_main_block")
 
-    if _names_module(module_name, relative_path, production_strings):
+    if _names_module(module_name, relative_path, production_dynamic_strings):
         evidence.append("dynamic_string_reference")
-    elif _names_module(module_name, relative_path, test_strings):
+    elif _names_module(module_name, relative_path, test_dynamic_strings):
         evidence.append("dynamic_string_reference_test")
 
     if runtime_corpus.contains(module_name, relative_path):
