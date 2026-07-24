@@ -4345,21 +4345,6 @@ def _show_file_meta(status: str, meta_density: str) -> bool:
     return meta_density == "full" or status != "full"
 
 
-_REPORT_LINE_BREAK_RE = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
-
-
-def _count_report_lines(content: str) -> int:
-    """Count lines with str.splitlines() semantics without allocating line strings."""
-    if not content:
-        return 0
-    count = 0
-    last_end = 0
-    for match in _REPORT_LINE_BREAK_RE.finditer(content):
-        count += 1
-        last_end = match.end()
-    return count if last_end == len(content) else count + 1
-
-
 def _append_content_file_meta(
     block: List[str], file_info: FileInfo, status: str, content: str
 ) -> None:
@@ -4368,7 +4353,7 @@ def _append_content_file_meta(
         "file_meta:",
         f"  repo: {file_info.root_label}",
         f"  path: {file_info.rel_path}",
-        f"  lines: {_count_report_lines(content)}",
+        f"  lines: {len(content.splitlines())}",
         f"  included: {status}",
     ])
     if getattr(file_info, "inclusion_reason", "normal") != "normal":

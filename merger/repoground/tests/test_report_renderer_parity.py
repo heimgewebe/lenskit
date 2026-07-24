@@ -278,23 +278,6 @@ def test_content_coverage_semantics_across_modes(
         assert merge_meta["coverage"]["coverage_pct"] == 0.0
 
 
-@pytest.mark.parametrize(
-    ("content", "expected"),
-    [
-        ("", 0),
-        ("one", 1),
-        ("one\n", 1),
-        ("one\n\n", 2),
-        ("one\r\ntwo", 2),
-        ("one\rtwo", 2),
-        ("one\u2028two", 2),
-    ],
-)
-def test_line_count_matches_splitlines_semantics(content: str, expected: int) -> None:
-    assert merge._count_report_lines(content) == expected
-    assert merge._count_report_lines(content) == len(content.splitlines())
-
-
 def test_long_backtick_fence_is_escaped(tmp_path: Path) -> None:
     path = tmp_path / "fence.py"
     path.write_text('VALUE = "``````"\n', encoding="utf-8")
