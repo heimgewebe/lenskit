@@ -1,0 +1,46 @@
+{
+  "bundle_write_archive": {
+    "after_clean": {
+      "peak_traced_bytes": 1984338,
+      "peak_traced_measured_separately": true,
+      "samples": 5,
+      "wall_seconds_max": 0.144987,
+      "wall_seconds_median": 0.128877,
+      "wall_seconds_min": 0.125119
+    },
+    "before": {
+      "peak_traced_bytes": 1989351,
+      "peak_traced_measured_separately": true,
+      "samples": 3,
+      "wall_seconds_max": 0.181095,
+      "wall_seconds_median": 0.129407,
+      "wall_seconds_min": 0.128612
+    },
+    "median_time_change_pct": -0.41,
+    "min_time_change_pct": -2.72,
+    "peak_change_bytes": -5013,
+    "peak_change_pct": -0.25
+  },
+  "bundle_write_dual": {
+    "after_clean": {
+      "peak_traced_bytes": 2700707,
+      "peak_traced_measured_separately": true,
+      "samples": 5,
+      "wall_seconds_max": 0.308749,
+      "wall_seconds_median": 0.305721,
+      "wall_seconds_min": 0.299781
+    },
+    "before": {
+      "peak_traced_bytes": 2627336,
+      "peak_traced_measured_separately": true,
+      "samples": 3,
+      "wall_seconds_max": 0.334421,
+      "wall_seconds_median": 0.308988,
+      "wall_seconds_min": 0.306028
+    },
+    "median_time_change_pct": -1.06,
+    "min_time_change_pct": -2.04,
+    "peak_change_bytes": 73371,
+    "peak_change_pct": 2.79
+  }
+}

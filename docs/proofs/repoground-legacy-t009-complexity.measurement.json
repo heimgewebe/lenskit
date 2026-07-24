@@ -1,0 +1,125 @@
+{
+  "complexity": {
+    "baseline_count": 198,
+    "budget": {
+      "excess_total_max": 2533,
+      "finding_count_max": 198,
+      "historical_reference": {
+        "finding_count": 213,
+        "max_complexity": 170,
+        "observed_on": "2026-07-17",
+        "task": "REPOGROUND-LEGACY-RECONCILIATION-V1-T004"
+      },
+      "max_complexity_max": 148,
+      "policy": "the aggregate budget must fall over time and may never be raised above a recorded reference scan; every budgeted dimension must be bounded by at least one reference, and raising a ceiling above one is rejected",
+      "slice_start_reference": {
+        "commit": "5188d2faf335aaaefe4d27122df71d770647cb5b",
+        "excess_total": 2654,
+        "finding_count": 200,
+        "max_complexity": 170,
+        "measured_with": "ruff check --config ruff-ci.toml --select C901 .",
+        "observed_on": "2026-07-23"
+      }
+    },
+    "current_count": 197,
+    "current_max": 138,
+    "new_count": 0,
+    "observed_budget_dimensions": {
+      "excess_total": 2395,
+      "finding_count": 197,
+      "max_complexity": 138
+    },
+    "resolved_count": 1
+  },
+  "does_not_establish": [
+    "absence of maintainability problems below C901 threshold",
+    "semantic correctness of graph classification",
+    "runtime reachability",
+    "architecture quality",
+    "test completeness"
+  ],
+  "findings": [],
+  "kind": "repoground.graph_maintainability_check",
+  "measurement": {
+    "does_not_establish": [
+      "runtime call reachability",
+      "semantic correctness of inferred layers",
+      "complete entrypoint discovery",
+      "absence of dynamic imports",
+      "overall maintainability"
+    ],
+    "entrypoints": {
+      "counts_by_projection": {
+        "fixture": 3,
+        "product": 15,
+        "script": 33,
+        "test": 20
+      },
+      "projection_sum": 71,
+      "skipped_files_count": 2,
+      "total": 71
+    },
+    "graph": {
+      "edge_count": 5642,
+      "edges_per_parsed_file": 9.264367816091953,
+      "external_node_count": 229,
+      "external_to_file_ratio": 0.3760262725779967,
+      "file_node_count": 609,
+      "file_unknown_layer_count": 0,
+      "file_unknown_layer_share": 0.0,
+      "files_parsed": 609,
+      "files_seen": 611,
+      "legacy_all_node_unknown_share": 0.40881913303437967,
+      "parse_success_rate": 0.9967266775777414,
+      "projections": {
+        "fixture": {
+          "file_count": 36,
+          "layers": {
+            "test": 36
+          },
+          "unknown_layer_count": 0,
+          "unknown_layer_share": 0.0
+        },
+        "product": {
+          "file_count": 202,
+          "layers": {
+            "adapter": 7,
+            "architecture": 13,
+            "atlas": 8,
+            "cli": 35,
+            "contract": 1,
+            "core": 95,
+            "frontend": 7,
+            "product": 5,
+            "retrieval": 19,
+            "service": 12
+          },
+          "unknown_layer_count": 0,
+          "unknown_layer_share": 0.0
+        },
+        "script": {
+          "file_count": 34,
+          "layers": {
+            "benchmark": 2,
+            "infra": 30,
+            "product": 2
+          },
+          "unknown_layer_count": 0,
+          "unknown_layer_share": 0.0
+        },
+        "test": {
+          "file_count": 337,
+          "layers": {
+            "test": 337
+          },
+          "unknown_layer_count": 0,
+          "unknown_layer_share": 0.0
+        }
+      }
+    },
+    "kind": "repoground.graph_maintainability_measurement",
+    "version": "1.0"
+  },
+  "status": "pass",
+  "version": "1.0"
+}

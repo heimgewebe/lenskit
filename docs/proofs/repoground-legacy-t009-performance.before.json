@@ -1,0 +1,76 @@
+{
+  "binding": {
+    "benchmark_script_sha256": "89f221b81659f81427dab62539e8487579e82aa1c399641bfb7b00e77b8ded72",
+    "commit": "a87fcfbb579aad23016273ee59438025b536cd97",
+    "worktree_dirty": false
+  },
+  "cases": {
+    "atlas_scan": {
+      "skipped": "not requested (optional subsystem)"
+    },
+    "bundle_write_archive": {
+      "peak_traced_bytes": 1989351,
+      "peak_traced_measured_separately": true,
+      "samples": 3,
+      "wall_seconds_max": 0.181095,
+      "wall_seconds_median": 0.129407,
+      "wall_seconds_min": 0.128612
+    },
+    "bundle_write_dual": {
+      "peak_traced_bytes": 2627336,
+      "peak_traced_measured_separately": true,
+      "samples": 3,
+      "wall_seconds_max": 0.334421,
+      "wall_seconds_median": 0.308988,
+      "wall_seconds_min": 0.306028
+    },
+    "retrieval_index_build": {
+      "peak_traced_bytes": 399044,
+      "peak_traced_measured_separately": true,
+      "samples": 3,
+      "wall_seconds_max": 0.018895,
+      "wall_seconds_median": 0.018473,
+      "wall_seconds_min": 0.01806
+    },
+    "retrieval_query": {
+      "peak_traced_bytes": 57264,
+      "peak_traced_measured_separately": true,
+      "samples": 3,
+      "wall_seconds_max": 0.000739,
+      "wall_seconds_median": 0.000687,
+      "wall_seconds_min": 0.000652
+    },
+    "service_app_import": {
+      "isolation": "subprocess",
+      "peak_traced_bytes": 24278691,
+      "peak_traced_measured_separately": false,
+      "samples": 3,
+      "wall_seconds_max": 1.193173,
+      "wall_seconds_median": 1.12232,
+      "wall_seconds_min": 1.099311
+    }
+  },
+  "configuration": {
+    "fixture_functions_per_file": 12,
+    "fixture_markdown_files": 20,
+    "fixture_python_files": 60,
+    "reported_statistic": "wall_seconds_min is the comparison figure",
+    "samples": 3,
+    "timing_gate": "none"
+  },
+  "does_not_establish": [
+    "cross-host comparability of absolute timings",
+    "absence of regressions on unmeasured paths",
+    "production workload representativeness",
+    "memory use outside the Python allocator"
+  ],
+  "environment": {
+    "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+    "processor": "x86_64",
+    "python": "3.10.12"
+  },
+  "failures": [],
+  "kind": "repoground.core_path_benchmark",
+  "status": "pass",
+  "version": "1.0"
+}
